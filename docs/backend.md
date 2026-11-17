@@ -180,6 +180,7 @@ stateDiagram-v2
 | `PUT /campaigns/{id}/checklist/{question_id}` | робоча група | Внести статус (`full` / `partial` / `none`), доказ, коментар |
 | `POST` / `DELETE /campaigns/{id}/checklist/{question_id}/confirm` | commissioner | Підтвердити (лише з доказом) або відкликати |
 | `POST /indicators` | інша система (`X-Integration-Key`) або admin | Факт за місяць «X з Y». Ключ з `INTEGRATION_KEYS` дозволяє лише своє джерело (`source`) |
+| `GET /indicators/units` | інша система (`X-Integration-Key`) або admin | Довідник підрозділів для адаптерів: `id`, `name`, `parent_id` |
 | `GET /units/{id}/indicators?months=3\|6\|12` | admin, commissioner, leader, auditor | Факти у форматі «X з Y» |
 | `GET /units/{id}/risk-signals?months=` | admin, commissioner, leader, auditor | Сирі кількості знайденого і їх зміна |
 
@@ -349,6 +350,34 @@ Word-файл повторює шаблон: гриф «Затверджую», 
 
 **Асистент** бачить лише агрегати й пояснення `rule`, нічого не змінює й не рахує, питання не логуються дослівно. Модель —
 локальна Ollama; адреси й моделі з РФ, РБ і китайських хмар відхиляються (`FORBIDDEN_MARKERS`).
+
+## Адаптери джерел фактів
+
+Пакет `backend/adapters/` працює на боці джерела (або поруч із ним) і ходить в API по HTTP, як справжня зовнішня система.
+Він читає записи у «рідному» форматі джерела, рахує за місяць на підрозділ лише частку «X з Y» і передає її в `POST /indicators`
+з ключем саме цього джерела. Записи (справи, декларації, звернення, їхні ID і дати) з адаптера не виходять.
+
+| Джерело (`source`) | Що це | Факт | Чисельник / знаменник |
+|---|---|---|---|
+| `artemida` | ARTEMIDA, рішення з попереднього хакатону щодо конфліктів інтересів. Читає експорт (`--file`) або мок | `coi_reviewed` | справи, закриті до строку / виявлені за місяць |
+| `nazk-declarations` | Реєстр декларацій (мок) | `declarations_on_time` | подано до строку / мали подати |
+| `kadry` | Кадрова система (мок) | `training_coverage`, `hiring_checks` | навчання до строку / мали пройти; призначення з перевіркою / усі |
+| `procurement` | Оцінка закупівель (мок) | `procurement_flags_reviewed` | розглянуто / позначено |
+| `reports` | Журнал повідомлень (мок) | `reports_handled` | розглянуто до строку / надійшло |
+
+- Записи, строк яких ще не минув і які ще не закрито, не рахуються: інакше свіжий місяць виглядав би гіршим, ніж є.
+- Кількість знайденого (`pending`, `late`) іде в `extra_counts`: вона видна в ризик-сигналах, але на бал не впливає.
+- Коди підрозділів джерела зіставляються з нашими через `adapters/units.json` (код → назва) і `GET /indicators/units`
+  (ключ інтеграції: лише `id`, `name`, `parent_id`).
+- Ключ: `--key`, `ADAPTER_KEY_<ДЖЕРЕЛО>` або пара з `INTEGRATION_KEYS`. Ключ одного джерела не пускає факти іншого (403).
+- **Припущення.** Формат експорту ARTEMIDA (`{"system": "ARTEMIDA", "cases": [{case_id, org_code, detected_on, deadline_on,
+  status, closed_on}]}`) і назви систем-моків запропонувала команда для демо. Справжні контракти погоджуються з власниками систем.
+
+```bash
+python -m adapters all --mock --months 12 --dry-run          # показати факти
+python -m adapters all --mock --months 12                    # передати (сервер має працювати)
+python -m adapters artemida --file export.json               # справжній експорт ARTEMIDA
+```
 
 ## Технічні рішення
 

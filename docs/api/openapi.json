@@ -4955,6 +4955,65 @@
         }
       }
     },
+    "/api/v1/indicators/units": {
+      "get": {
+        "tags": [
+          "indicators"
+        ],
+        "summary": "Integration Units",
+        "description": "Довідник підрозділів для адаптерів джерел: зіставити свої коди з unit_id. Лише id, назва, батько.",
+        "operationId": "integration_units_api_v1_indicators_units_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-integration-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Integration-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IntegrationUnitOut"
+                  },
+                  "title": "Response Integration Units Api V1 Indicators Units Get"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/units/{unit_id}/indicators": {
       "get": {
         "tags": [
