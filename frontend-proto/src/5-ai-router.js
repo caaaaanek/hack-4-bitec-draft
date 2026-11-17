@@ -20,6 +20,8 @@ function aiCtx() {
 function aiTemplate(q) {
   const s = q.toLowerCase(), m = cur(), recs = m.id === ALPHA ? buildRecs(m) : [];
   const comps = m.components.map(c => `${COMP[c.id].n} ${fb(c.cr.v)}`);
+  if (/чому така достовірн|прапор|достовірн/.test(s)) return { t: trustText(m), src: [`Достовірність ${TRUST[m.trust][0]}`, ...m.flags.map(f => `${f.id}: ${f.raised ? "так" : "ні"}`)], fixed: true };
+  if (/чому такий індекс/.test(s)) return { t: `${whyText(m, true)}\n\n${flagsText(m)}`, src: ["Методика v1.0", `Індекс ${f1(m.index)}`, `Достовірність ${TRUST[m.trust][0]}`, ...m.raised.map(f => f.id)], fixed: true };
   if (/звіт|чернетк|опис/.test(s)) {
     const sorted = [...m.components].sort((a, b) => b.cr.v - a.cr.v), low = [...allItems(m)].sort((a, b) => a.v - b.v).slice(0, 3);
     const t = `За результатами циклу ${CYCLE} ${m.name} перебуває на рівні зрілості ${m.level} «${LEVELS[m.level - 1]}»: індекс доброчесності ${f1(m.index)} з 100, ${m.delta >= 0 ? "на " + pts(m.delta) + " вище" : "на " + pts(m.delta) + " нижче"}, ніж у попередньому циклі.
@@ -42,7 +44,7 @@ function aiTemplate(q) {
   const item = allItems(m).find(x => s.includes(x.t.toLowerCase().slice(0, 18)));
   const comp = COMPS.find(c => s.includes(COMP[c].n.toLowerCase().slice(0, 6)));
   if (item) return { t: `«${item.t}»: ${fb(item.v)} зі 100 (${ST[status(item.v)][0].toLowerCase()}). Це ${item.src ? SRC[item.src][0].toLowerCase() : "факт"} з вагою ${item.w} % у компоненті «${COMP[item.c].n}».${item.kind === "pct" ? ` Дані: ${item.val[0]} з ${item.val[1]}.` : item.kind === "lvl" ? ` Рівень ${item.val} з 5 за анкетою чек-листа.` : ""}`, src: [item.id, `${fb(item.v)} зі 100`] };
-  if (comp) { const c = m.byId[comp]; return { t: `«${COMP[comp].n}»: зараховано ${fb(c.cr.v)} (рівень ${level(c.cr.v)}). Сприйняття ${fb(c.P)}, факти ${fb(c.F)}.${c.cr.lim ? " " + c.cr.reason : " Обмежувач не спрацював: сприйняття не перевищує факти більш ніж на 25 пунктів."}`, src: [`${COMP[comp].n} ${fb(c.cr.v)}`, "Методика v1.0"] }; }
+  if (comp) { const c = m.byId[comp]; return { t: `«${COMP[comp].n}»: зараховано ${fb(c.cr.v)} (рівень зрілості ${level(c.cr.v)}). Сприйняття ${fb(c.P)}, факти ${fb(c.F)}.${c.cr.lim ? " " + c.cr.reason : " Обмежувач не спрацював: сприйняття не перевищує факти більш ніж на 25 пунктів."}`, src: [`${COMP[comp].n} ${fb(c.cr.v)}`, "Методика v1.0"] }; }
   if (/індекс|загал|рівень|стан/.test(s)) return { t: whyText(m), src: ["Методика v1.0", ...comps] };
   return { t: "Можу пояснити індекс, будь-який компонент чи показник, методику й обмежувач, захист анонімності, підказати, з чого почати, або підготувати чернетку опису для звіту. Рішення щодо оцінок і заходів ухвалюють правила системи та посадові особи.", src: [] };
 }
@@ -89,7 +91,7 @@ async function aiAsk(q) {
   const history = S.chat.slice(-4).map(m => ({ role: m.r === "u" ? "user" : "assistant", content: m.t }));
   S.chat.push({ r: "u", t: q }); AI.busy = true; aiRender();
   const local = aiTemplate(q); let msg = null;
-  if (AI.live) {
+  if (AI.live && !local.fixed) {
     try {
       const r = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: q, context: aiCtx(), history }) });
       const j = await r.json();

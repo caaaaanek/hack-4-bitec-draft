@@ -5,32 +5,65 @@ const can = r => NAV.some(n => n[0] === r && n[3].includes(S.role));
 const backToInst = () => S.role === "observer" ? `<div class="c12 crumbs rise"><a href="#institutions">${IC.arrowL}Усі заклади</a><span class="lbl">/</span><b>${esc(cur().name)}</b></div>` : "";
 
 /* «Чому такий індекс» */
-function whyText(m) {
+function whyText(m, noTrust) {
   const t = m.delta > 0 ? `що на ${pts(m.delta)} вище, ніж у попередньому циклі` : m.delta < 0 ? `що на ${pts(m.delta)} нижче, ніж у попередньому циклі` : "що не змінилося порівняно з попереднім циклом";
   let s = `Заклад перебуває на рівні зрілості ${m.level} «${LEVELS[m.level - 1]}»: індекс доброчесності ${f1(m.index)} з 100, ${t}.`;
   if (m.limited) s += ` Для компонента «${COMP[m.limited.id].n}» сприйняття (${fb(m.limited.P)}) помітно вище за факти (${fb(m.limited.F)}), тому зараховано ${fb(m.limited.cr.v)}.`;
-  const tr = TRUST[m.trust]; s += ` Достовірність ${tr[0]}: ${tr[1].toLowerCase()}${m.trust === "C" ? ", тож спершу варто підтвердити факти документами" : ""}.`;
+  const tr = TRUST[m.trust]; if (!noTrust) s += ` Достовірність ${tr[0]}: ${tr[1].toLowerCase()}${m.trust === "C" ? ", тож спершу варто підтвердити факти документами" : ""}.`;
   return s;
 }
-function openWhy(focusFlags) {
-  const m = cur(), lim = m.limited, tr = TRUST[m.trust];
-  const scale = [1, 2, 3, 4, 5].map(l => { const lo = [0, ...BOUNDS][l - 1], hi = [...BOUNDS, 100][l - 1]; return `<div class="row"><span class="lvsq lv${l} ${l === m.level ? "on" : ""}">${l}</span><div class="grow">${LEVELS[l - 1]} <span class="lbl">${l === 1 ? `від 0 до ${fb(hi)}` : l === 5 ? `вище ${fb(lo)}` : `вище ${fb(lo)} до ${fb(hi)}`}</span></div>${l === m.level ? pill("Поточний", "p-good nodot") : ""}</div>`; }).join("");
+// Плашка «Достовірність»: скільки прапорців і які саме (для чату ШІ та запасної панелі)
+function flagsText(m) {
+  const maj = m.raised.filter(f => f.w === "major").length, min = m.raised.length - maj, tr = TRUST[m.trust];
+  let s = `Варто перевірити додатково. Достовірність ${tr[0]}: ${tr[1].toLowerCase()}. Спрацювало прапорців: ${m.raised.length}${m.raised.length ? ` (серйозних ${maj}, незначних ${min})` : ""}.`;
+  if (m.raised.length) s += "\n" + m.raised.map(f => `• ${f.t}${f.w === "major" ? " (серйозний)" : " (незначний)"}. ${f.ex}`).join("\n");
+  return s + "\nЦе напрям для додаткового аналізу, а не висновок про людей чи підрозділи.";
+}
+// Клік на картку індексу: висновок і прапорці показує асистент; якщо ШІ вимкнено або недоступний для ролі, ті самі тексти правил у панелі
+function openWhy() {
+  if (S.aiOn && AI_ROLES.includes(S.role)) return aiOpen("Чому такий індекс?");
+  const m = cur(), lim = m.limited;
   openDrawer("Чому такий індекс", `
     <div><div class="lbl" style="margin-bottom:4px">Короткий висновок</div><div style="line-height:1.55">${whyText(m)}</div></div>
     ${lim ? `<div class="note-box"><b>Показано з обмеженням</b><span class="lbl">${lim.cr.reason}</span>${capBars(lim)}</div>` : ""}
+    <div><div class="card-h" style="margin-bottom:6px"><h2>Варто перевірити додатково</h2><div class="sp"></div>${trustPill(m.trust)}</div>
+      <div class="lbl" style="margin-bottom:8px">Спрацювало прапорців: ${m.raised.length}</div>
+      ${m.raised.length ? `<div class="rows">${m.raised.map(f => `<div class="row" style="align-items:flex-start"><span class="flag-ic ${f.w}">${f.w === "major" ? IC.alert : IC.flag}</span><div class="grow"><div style="font-weight:600">${esc(f.t)} ${pill(f.w === "major" ? "Серйозний" : "Незначний", "p-mute nodot")}</div><div class="lbl">${f.ex}</div></div></div>`).join("")}</div>` : `<div>Жоден прапорець не спрацював.</div>`}
+      <div class="lbl" style="margin-top:10px">Напрям для додаткового аналізу. Це не висновок про людей чи підрозділи.</div></div>`);
+}
+// Картка «Достовірність»: яка літера, за яким правилом і результат кожної з чотирьох перевірок
+const CHECK_OK = { "tf-gap": "Сприйняття ніде не перевищує факти більш ніж на 25 пунктів.", "tf-same": "Підозріло однакових анкет не виявлено." };
+const CHECK_BAD = { "tf-jump": "Індекс різко змінився між циклами, і пояснення цьому немає.", "tf-experts": "Експертних анкет надійшло менше, ніж очікувалось." };
+const checkText = f => f.raised ? (CHECK_BAD[f.id] || f.ex) : (CHECK_OK[f.id] || f.ex);
+function trustText(m) {
+  const tr = TRUST[m.trust], n = m.raised.length;
+  let s = m.trust === "insufficient" ? `Достовірність не оцінюється: ${tr[2].toLowerCase()}` : `Достовірність ${tr[0]}: ${tr[1].toLowerCase()}. ${n ? `Спрацювало прапорців: ${n} з ${m.flags.length}.` : `Жоден із ${m.flags.length} прапорців не спрацював.`}`;
+  s += `\n\nЛітера ставиться за правилом: A без прапорців, B один-два незначних, C хоча б один серйозний або три і більше незначних.`;
+  s += `\n\nПеревірки цього циклу:\n` + m.flags.map(f => `${f.raised ? "⚠" : "✓"} ${FLAGS.find(x => x.id === f.id).t} (${f.w === "major" ? "серйозний" : "незначний"}): ${f.raised ? "спрацював" : "не спрацював"}. ${checkText(f)}`).join("\n");
+  return s + "\n\nПрапорець означає напрям для додаткової перевірки даних, а не висновок про людей чи підрозділи.";
+}
+function openTrust() {
+  if (S.aiOn && AI_ROLES.includes(S.role)) return aiOpen("Чому така достовірність?");
+  const m = cur();
+  openDrawer("Достовірність результату", `
+    <div class="card-h"><h2>${TRUST[m.trust][1]}</h2><div class="sp"></div>${trustPill(m.trust)}</div>
+    <div class="lbl">${TRUST_HINT}</div>
+    <div class="rows">${m.flags.map(f => `<div class="row" style="align-items:flex-start"><span class="flag-ic ${f.raised ? f.w : "ok"}">${f.raised ? (f.w === "major" ? IC.alert : IC.flag) : IC.ok}</span><div class="grow"><div style="font-weight:600">${esc(FLAGS.find(x => x.id === f.id).t)} ${pill(f.raised ? "Спрацював" : "Не спрацював", (f.raised ? "p-bad" : "p-good") + " nodot")}</div><div class="lbl">${checkText(f)} ${f.w === "major" ? "Серйозний прапорець." : "Незначний прапорець."}</div></div></div>`).join("")}</div>
+    <div class="lbl">Прапорець означає напрям для додаткової перевірки даних, а не висновок про людей чи підрозділи.</div>`);
+}
+// Іконка «i» на картці індексу: як рахується і шкала
+function openHow() {
+  const m = cur();
+  const scale = [1, 2, 3, 4, 5].map(l => { const lo = [0, ...BOUNDS][l - 1], hi = [...BOUNDS, 100][l - 1]; return `<div class="row" style="align-items:flex-start"><span class="lvsq lv${l} ${l === m.level ? "on" : ""}">${l}</span><div class="grow">${LEVELS[l - 1]} <span class="lbl">${l === 1 ? `від 0 до ${fb(hi)}` : l === 5 ? `вище ${fb(lo)}` : `вище ${fb(lo)} до ${fb(hi)}`}</span><div class="lbl" style="font-size:12.5px;margin-top:2px">${LDESC[l - 1]}</div></div>${l === m.level ? pill("Поточний", "p-good nodot") : ""}</div>`; }).join("");
+  openDrawer("Як рахується індекс", `
     <div><div class="lbl" style="margin-bottom:6px">Як це рахується</div><ol class="howto">
       <li>Індекс від 0 до 100 це середнє трьох компонентів: Культура, Система, Підзвітність.</li>
       <li>Кожен компонент складається зі сприйняття (анкети) і фактів (чек-лист та дані обліку).</li>
-      <li>Сприйняття не може бути вищим за факти більш ніж на ${CAP} пунктів: у такому разі зараховується менше значення.</li>
+      <li>Сприйняття не може бути вищим за факти більш ніж на ${CAP} пунктів. Якщо розрив більший, зараховується «факти + ${CAP}».</li>
       <li>Рівень зрілості від 1 до 5 визначають межі шкали нижче.</li>
-      <li>Достовірність показує, наскільки результату можна довіряти. Вона залежить від прапорців.</li></ol>
+      <li>Достовірність показує, наскільки результату можна довіряти. Вона залежить від прапорців: автоматичних перевірок даних.</li></ol>
       <a class="link" href="#explain" onclick="closeDrawer()">Відкрити розклад індексу ${IC.arrowR}</a></div>
-    <div><div class="lbl" style="margin-bottom:4px">Шкала рівнів зрілості</div><div class="rows">${scale}</div></div>
-    <div id="why-flags"><div class="card-h" style="margin-bottom:6px"><h2>Варто перевірити додатково</h2><div class="sp"></div>${trustPill(m.trust)}</div>
-      <div class="lbl" style="margin-bottom:8px">${TRUST_HINT}</div>
-      ${m.raised.length ? `<div class="rows">${m.raised.map(f => `<div class="row" style="align-items:flex-start"><span class="flag-ic ${f.w}">${f.w === "major" ? IC.alert : IC.flag}</span><div class="grow"><div style="font-weight:600">${esc(f.t)} ${pill(f.w === "major" ? "Серйозний" : "Незначний", "p-mute nodot")}</div><div class="lbl">${f.ex}</div></div></div>`).join("")}</div>` : `<div>Жоден прапорець не спрацював.</div>`}
-      <div class="lbl" style="margin-top:10px">Напрям для додаткового аналізу. Це не висновок про людей чи підрозділи.</div></div>
-  `, b => { if (focusFlags) setTimeout(() => b.querySelector("#why-flags").scrollIntoView({ behavior: "smooth", block: "start" }), 300); });
+    <div><div class="lbl" style="margin-bottom:4px">Шкала рівнів зрілості</div><div class="rows">${scale}</div></div>`);
 }
 function capBars(c) {
   const bar = (n, v, col) => `<div class="cap-row"><span class="lbl">${n}</span><div class="dist-bar"><i style="width:${v}%;background:${col}"></i></div><b class="tnum">${fb(v)}</b></div>`;
@@ -40,10 +73,10 @@ function capBars(c) {
 /* Огляд */
 V.overview = () => {
   const m = cur(), ms = measures(), od = ms.filter(x => overdueDays(x) > 0).length, prev = m.series[m.series.length - 2];
-  const tile = (ic, title, big, sub, act) => `<section class="card c3 rise kpi-tile" ${act ? `role="button" tabindex="0" onclick="${act}"` : ""}><div class="kt-h"><span class="kt-ic">${IC[ic]}</span><span class="lbl">${title}</span></div><div class="kt-b">${big}<div class="kt-s">${sub}</div></div></section>`;
+  const tile = (ic, title, big, sub, act, info) => `<section class="card c3 rise kpi-tile" ${act ? `role="button" tabindex="0" onclick="${act}"` : ""}><div class="kt-h"><span class="kt-ic">${IC[ic]}</span><span class="lbl">${title}</span>${info ? `<button type="button" class="kt-info" aria-label="Підказка: як рахується" data-tip="Як рахується і шкала рівнів" onclick="event.stopPropagation();${info}">${IC.info}</button>` : ""}</div><div class="kt-b">${big}<div class="kt-s">${sub}</div></div></section>`;
   return `${backToInst()}
-  ${tile("gauge", "Індекс доброчесності", `<span class="mid tnum">${numHTML(m.index)}</span>`, `Рівень ${m.level}: ${LSHORT[m.level - 1]}<br>${deltaHTML(m.delta)}`, "openWhy()")}
-  ${tile("shield", "Достовірність", `<span class="mid">${m.trust === "insufficient" ? "?" : m.trust}</span>`, `${TRUST[m.trust][1]}<br><span class="lbl">Прапорці: ${m.raised.length}</span>`, "openWhy(true)")}
+  ${tile("gauge", "Індекс доброчесності", `<span class="mid tnum">${numHTML(m.index)}</span>`, `<span data-tip="Рівень зрілості визначається за індексом<small>${LDESC[m.level - 1]}</small>">Рівень зрілості ${m.level} з 5: ${LSHORT[m.level - 1]}</span><br>${deltaHTML(m.delta)}`, "openWhy()", "openHow()")}
+  ${tile("shield", "Достовірність", `<span class="mid">${m.trust === "insufficient" ? "?" : m.trust}</span>`, `${TRUST[m.trust][1]}<br><span class="lbl">Прапорці: ${m.raised.length}</span>`, "openTrust()")}
   ${tile("eye", "Напрями, що потребують уваги", `<span class="mid tnum">${m.attention.filter(a => a.v < 65).length}</span>`, `<span class="lbl">З трьох компонентів індексу</span>`, "document.getElementById('attn').scrollIntoView({behavior:'smooth',block:'center'})")}
   ${S.role === "observer" ? tile("users", "Відповідей у циклі", `<span class="mid tnum">${m.responses}</span>`, `<span class="lbl">Мінімальна група k = ${S.k}</span>`) : tile("target", "Заходи в трекері", `<span class="mid tnum">${ms.length}</span>`, od ? `<span style="color:var(--red);font-weight:600">З них ${od} прострочено</span>` : `<span class="lbl">Прострочених немає</span>`, "location.hash='tracker'")}
   <section class="card c8 rise">
@@ -88,7 +121,8 @@ V.overview = () => {
     <div class="card-h"><h2>Радар компонентів</h2></div>
     <div class="chart" id="radar"></div>
     <div class="legend" style="justify-content:center"><span><i style="background:var(--teal)"></i>Цикл ${CYCLE}</span><span><i style="background:var(--faint)"></i>Цикл ${prev.cycle}</span></div>
-  </section>`;
+  </section>
+  ${readGuide("Як читати цей екран")}`;
 };
 V.overview.after = () => {
   const m = cur(), prev = m.series[m.series.length - 2];
@@ -120,7 +154,7 @@ V.explain = () => {
   </tbody></table></div>`;
   return `${backToInst()}
   <section class="c12 rise toolbar"><span class="lbl">Звідки взялося кожне число: індекс, компоненти, питання й показники.</span><div class="sp"></div>
-    <button class="btn btn-ghost" onclick="openWhy()">${IC.help}Як це рахується</button>
+    <button class="btn btn-ghost" onclick="openHow()">${IC.help}Як це рахується</button>
     <div class="seg" role="group" aria-label="Що показувати">${Object.entries(MODES).map(([k, n]) => `<button class="${mode === k ? "on" : ""}" aria-pressed="${mode === k}" onclick="S.mode='${k}';persist();render(true)">${n}</button>`).join("")}</div>
     <button class="btn btn-ghost" onclick="S.exTable=!S.exTable;render(true)">${S.exTable ? IC.tree + "Показати як дерево" : IC.table + "Показати як таблицю"}</button></section>
   <section class="card c12 rise">
@@ -292,13 +326,27 @@ V.sources = () => `
     <div style="margin-top:12px"><span class="lbl">Навіщо</span><div>${why}</div></div><div style="margin-top:8px"><span class="lbl">Метод</span><div>${how}</div></div></section>`).join("")}`;
 
 /* Заклади (спостерігач) */
+const readGuide = title => `
+  <section class="card c12 rise">
+    <div class="card-h"><h2>${title}</h2></div>
+    <div class="legend3">
+      <div><h3>Індекс доброчесності</h3><p class="lbl">Число від 0 до 100: середнє трьох компонентів (Культура, Система, Підзвітність). Кожен компонент поєднує анкети персоналу й факти з документів. Чим вище, тим краще працює система доброчесності закладу. Оцінюється система, а не окремі люди.</p></div>
+      <div><h3>Рівень зрілості</h3><p class="lbl" style="margin-bottom:8px">Рівень за Моделлю зрілості НАЗК, визначається за індексом.</p>
+        <div class="rows">${LSHORT.map((n, i) => `<div class="row" style="align-items:flex-start;gap:10px">${lvPill(i + 1)}<div class="grow lbl" style="font-size:12.5px"><span class="tnum">${i === 0 ? "0" : fb(BOUNDS[i - 1])}–${i === 4 ? "100" : fb(BOUNDS[i])}.</span> ${LDESC[i]}</div></div>`).join("")}</div></div>
+      <div><h3>Достовірність</h3><p class="lbl" style="margin-bottom:8px">Наскільки можна довіряти результату. Залежить від прапорців: автоматичних перевірок даних на розбіжності й підозрілі відповіді.</p>
+        <div class="rows">${["A", "B", "C", "insufficient"].map(g => `<div class="row" style="align-items:flex-start;gap:10px">${trustPill(g)}<div class="grow lbl" style="font-size:12.5px">${TRUST[g][2]}</div></div>`).join("")}</div></div>
+    </div>
+  </section>`;
+
 V.institutions = () => `
   <section class="c12 rise"><span class="lbl">Показано узагальнені дані. Заклади не порівнюються між собою й подані в алфавітному порядку за назвою.</span></section>
   ${INSTITUTIONS().map((m, i) => `<a class="card c6 rise inst" href="#overview" onclick="S.inst='${m.id}';persist()">
     <div class="comp-top"><span class="comp-ic" style="background:var(--lime-soft);color:var(--teal-deep)">${IC.building}</span><b>${esc(m.name)}</b></div>
-    <div style="display:flex;align-items:flex-end;gap:14px;margin-top:16px;flex-wrap:wrap"><div class="mid tnum">${numHTML(m.index)}<span class="of">індекс з 100</span></div><div style="display:flex;gap:6px;flex-wrap:wrap">${lvPill(m.level)}${trustPill(m.trust)}</div></div>
+    <div class="inst-b"><div><span class="lbl">Індекс доброчесності</span><div class="mid tnum">${numHTML(m.index)}<span class="of">з 100</span></div></div>
+      <dl class="inst-kv"><dt>Рівень зрілості</dt><dd>${lvPill(m.level)}</dd><dt>Достовірність</dt><dd>${trustPill(m.trust)}</dd></dl></div>
     <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:10px;flex-wrap:wrap">${deltaHTML(m.delta, "до попереднього циклу")}<span class="link">Відкрити огляд ${IC.arrowR}</span></div>
-  </a>`).join("")}`;
+  </a>`).join("")}
+  ${readGuide("Як читати картки")}`;
 
 /* Порівняння: сприйняття за групами проти фактів */
 V.compare = () => {

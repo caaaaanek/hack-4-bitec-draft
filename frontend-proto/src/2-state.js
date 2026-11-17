@@ -102,7 +102,7 @@ const ua = d => d.split("-").reverse().join(".");
 const numHTML = (v, d = 1) => { const s = d ? f1(v) : fb(v); const [a, b] = s.split(","); return `<span class="cu" data-v="${v}" data-d="${d}">${a}<span class="dec">${b ? "," + b : ""}</span></span>`; };
 const deltaHTML = (d, suf = "") => { const up = d > 0, dn = d < 0; return `<span class="delta ${up ? "up" : dn ? "down" : "flat"}"><i>${up ? IC.up : dn ? IC.down : IC.flat}</i><b>${up || dn ? pts(d) : "Без змін"}</b>${up ? " зросло" : dn ? " знизилось" : ""}${suf ? " " + suf : ""}</span>`; };
 const pill = (txt, cls) => `<span class="pill ${cls}">${txt}</span>`;
-const lvPill = l => `<span class="pill lv lv${l} nodot"><b>${l}</b>${LSHORT[l - 1]}</span>`;
+const lvPill = l => `<span class="pill lv lv${l} nodot" data-tip="Рівень зрілості ${l} з 5: ${LSHORT[l - 1]}<small>${LDESC[l - 1]}</small>"><b>${l}</b>${LSHORT[l - 1]}</span>`;
 const trustPill = g => `<span class="pill ${TRUST[g][3]} nodot" data-tip="${esc(TRUST[g][2])}">${g === "insufficient" ? "" : `<b>${g}</b>`}${TRUST[g][1]}</span>`;
 const srcDot = s => `<span class="src-dot ${SRC[s][2]}" style="--c:${SRC[s][1]}"></span>`;
 const allItems = m => [...m.pItems, ...m.fItems];
@@ -121,9 +121,15 @@ function countUp(root) {
 }
 function toast(m) { const t = $("#toast"); t.textContent = m; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 2400); }
 const tip = $("#tip");
-function showTip(x, y, html) { tip.innerHTML = html; tip.style.left = x + "px"; tip.style.top = y + "px"; tip.classList.add("on"); }
+function showTip(r, html) {
+  tip.innerHTML = html; tip.style.left = "0px"; tip.style.top = "0px";
+  const w = tip.offsetWidth, h = tip.offsetHeight, m = 8, gap = 10;
+  const x = Math.min(Math.max(r.left + r.width / 2 - w / 2, m), innerWidth - w - m);
+  const y = r.top - h - gap >= m ? r.top - h - gap : Math.min(r.bottom + gap, innerHeight - h - m);
+  tip.style.left = x + "px"; tip.style.top = y + "px"; tip.classList.add("on");
+}
 function hideTip() { tip.classList.remove("on"); }
-document.addEventListener("mouseover", e => { const el = e.target.closest("[data-tip]"); if (!el) return; const r = el.getBoundingClientRect(); showTip(r.left + r.width / 2, r.top, el.dataset.tip); });
+document.addEventListener("mouseover", e => { const el = e.target.closest("[data-tip]"); if (!el) return; const r = el.getBoundingClientRect(); showTip(r, el.dataset.tip); });
 document.addEventListener("mouseout", e => { if (e.target.closest("[data-tip]")) hideTip(); });
 
 /* ---------- Charts ---------- */
@@ -149,7 +155,7 @@ function curveChart(el, vals, labels) {
   svg.addEventListener("mousemove", e => {
     const r = svg.getBoundingClientRect(), i = Math.round(clamp((e.clientX - r.left - pad) / (w - 2 * pad) * (vals.length - 1), 0, vals.length - 1)), [px, py] = p[i];
     vl.setAttribute("x1", px); vl.setAttribute("x2", px); vl.setAttribute("opacity", 1); dt.setAttribute("cx", px); dt.setAttribute("cy", py); dt.setAttribute("opacity", 1);
-    showTip(r.left + px, r.top + py, `${f1(vals[i])}<small>Цикл ${labels[i]}</small>`);
+    showTip({ left: r.left + px, top: r.top + py - 6, width: 0, bottom: r.top + py + 6 }, `${f1(vals[i])}<small>Цикл ${labels[i]}</small>`);
   });
   svg.addEventListener("mouseleave", () => { vl.setAttribute("opacity", 0); dt.setAttribute("opacity", 0); hideTip(); });
 }

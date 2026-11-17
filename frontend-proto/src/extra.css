@@ -20,7 +20,8 @@
 .kpi-tile { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; transition: box-shadow .2s, border-color .2s; }
 .kpi-tile[role="button"] { cursor: pointer; }
 .kpi-tile[role="button"]:hover { box-shadow: var(--shadow); border-color: var(--teal-pale); }
-.kt-h { display: flex; align-items: center; gap: 8px; }
+.kt-h { display: flex; align-items: center; gap: 8px; min-height: 26px; }
+.kt-h .lbl { line-height: 1.2; }
 .kt-ic { width: 26px; height: 26px; border-radius: 8px; background: var(--lime-soft); color: var(--teal-deep); display: grid; place-items: center; }
 .kt-ic svg { width: 15px; height: 15px; }
 .kt-b { display: flex; align-items: center; gap: 14px; }
@@ -119,3 +120,21 @@ a.pill-btn { color: inherit; text-decoration: none; }
 .db .m.ex { background: #8b6fd6; }
 .ibar .n { display: flex; justify-content: center; }
 .ibar .n .src-dot { margin: 0; }
+
+.tip { transform: none; white-space: normal; max-width: min(320px, calc(100vw - 16px)); }
+
+.inst-b { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-top: 16px; flex-wrap: wrap; }
+.inst-kv { display: grid; grid-template-columns: auto auto; gap: 6px 10px; align-items: center; margin: 0; }
+.inst-kv dt { font-size: 12px; color: var(--muted); }
+.inst-kv dd { margin: 0; }
+.legend3 { display: grid; grid-template-columns: 1fr 1.3fr 1.2fr; gap: 28px; }
+.legend3 h3 { font-size: 14px; margin: 0 0 6px; }
+.legend3 p { margin: 0; line-height: 1.55; }
+.legend3 .row .pill { flex-shrink: 0; min-width: 118px; }
+@media (max-width: 900px) { .legend3 { grid-template-columns: 1fr; gap: 20px; } }
+.legend3 > div:nth-child(3) .row .pill { min-width: 152px; }
+
+.kt-info { margin-left: auto; width: 26px; height: 26px; border-radius: 50%; border: 1px solid var(--line); background: var(--panel); color: var(--muted); display: grid; place-items: center; cursor: pointer; padding: 0; transition: color .15s, border-color .15s; }
+.kt-info:hover, .kt-info:focus-visible { color: var(--teal-deep); border-color: var(--teal); }
+.kt-info svg { width: 15px; height: 15px; }
+.flag-ic.ok { background: var(--lime-soft); color: var(--teal-deep); }
