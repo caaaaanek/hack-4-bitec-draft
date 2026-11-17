@@ -1,11 +1,13 @@
 """Адаптери джерел фактів: агрегація записів, ключ на джерело, передача в POST /indicators."""
 
+import importlib.util
 import json
 from datetime import date
+from pathlib import Path
 
 import pytest
 
-from adapters.__main__ import months_back, run
+from adapters.__main__ import months_back
 from adapters.base import Pusher, load_unit_codes
 from adapters.sources import ORG_QUALITY, SOURCES
 from app.config import get_settings
@@ -83,14 +85,23 @@ def test_mocks_cover_all_facts_and_are_deterministic():
 
 def test_integration_units_need_key(client, source_keys):
     assert client.get(f"{API}/indicators/units").status_code == 401
-    r = client.get(f"{API}/indicators/units", headers={"X-Integration-Key": KEYS["kadry"]})
+    r = client.get(f"{API}/indicators/units", headers={"X-Integration-Key": KEYS["training"]})
     assert r.status_code == 200
     assert {u["name"] for u in r.json()} >= {ROOT, *ORG_QUALITY_UNITS}
     assert set(r.json()[0]) == {"id", "name", "parent_id"}
 
 
-def test_all_sources_push_with_own_keys(client, source_keys):
-    code = run(["all", "--mock", "--months", "3", "--as-of", AS_OF.isoformat(), "--url", ""], client=client)
+def load_mock_sources_script():
+    path = Path(__file__).resolve().parents[1] / "scripts" / "mock_sources.py"
+    spec = importlib.util.spec_from_file_location("mock_sources", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_mock_sources_script_pushes_all_sources_with_own_keys(client, source_keys):
+    script = load_mock_sources_script()
+    code = script.main(["--months", "3", "--as-of", AS_OF.isoformat(), "--url", ""], client=client)
     assert code == 0
     admin = auth(client, "admin")
     root = units(client, admin)[ROOT]
@@ -102,7 +113,7 @@ def test_all_sources_push_with_own_keys(client, source_keys):
 
 def test_key_of_other_source_is_refused(client, source_keys):
     pusher = Pusher(client, "", KEYS["artemida"], load_unit_codes())
-    source = SOURCES["kadry"]
+    source = SOURCES["atestat"]
     periods = months_back(AS_OF, 1)
     facts = source.facts(source.mock_records(list(ORG_QUALITY), periods, AS_OF), set(periods), AS_OF)
     sent, warnings = pusher.push(facts)

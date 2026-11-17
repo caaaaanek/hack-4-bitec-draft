@@ -7,7 +7,7 @@
     python -m adapters all --mock --months 3 --dry-run        # лише показати факти, нічого не передавати
     python -m adapters all --mock --save-dir exports/         # зберегти згенеровані «рідні» експорти
 
-Ключ кожного джерела: --key, ADAPTER_KEY_<ДЖЕРЕЛО> або пара з INTEGRATION_KEYS ("artemida=…;kadry=…").
+Ключ кожного джерела: --key, ADAPTER_KEY_<ДЖЕРЕЛО> або пара з INTEGRATION_KEYS ("artemida=…;atestat=…").
 """
 
 import argparse

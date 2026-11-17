@@ -1,4 +1,4 @@
-"""Джерела фактів: ARTEMIDA (конфлікти інтересів) і моки чотирьох інших систем.
+"""Джерела фактів: ARTEMIDA (конфлікти інтересів) і моки атестації, навчання, закупівель і повідомлень.
 
 Кожне джерело описує свій «рідний» формат записів, з якого адаптер рахує факт «X з Y» за місяць.
 Формати й назви систем — синтетичні припущення команди для демо; справжні контракти погоджуються з
@@ -105,15 +105,15 @@ class Artemida(Source):
                             "late": lambda c: c["closed_on"] is not None and c["closed_on"] > c["deadline_on"]})
 
 
-class NazkDeclarations(Source):
-    """Мок: реєстр декларацій НАЗК (відкриті дані). Записи: org_code, declarant_ref, due_on, submitted_on."""
+class Atestat(Source):
+    """Мок: система атестації персоналу. Декларації (due_on, submitted_on) і призначення (appointed_on, integrity_check)."""
 
-    name = "nazk-declarations"
-    title = "Реєстр декларацій (мок)"
-    indicators = ("declarations_on_time",)
+    name = "atestat"
+    title = "Атестація персоналу (мок)"
+    indicators = ("declarations_on_time", "hiring_checks")
 
     def mock_records(self, orgs, periods, as_of):
-        rows = []
+        declarations, appointments = [], []
         for org in orgs:
             for period in periods:
                 rng = _rng(self.name, org, period)
@@ -121,46 +121,46 @@ class NazkDeclarations(Source):
                     due = _day(period, rng)
                     late = rng.random() > 0.95 * ORG_QUALITY[org] + 0.05
                     submitted = due + timedelta(days=rng.randint(1, 20)) if late else due - timedelta(days=rng.randint(0, 10))
-                    rows.append({"org_code": org, "declarant_ref": f"D-{org}-{period}-{i}", "due_on": due.isoformat(),
-                                 "submitted_on": _iso(submitted if submitted <= as_of else None)})
-        return {"declarations": rows}
+                    declarations.append({"org_code": org, "declarant_ref": f"D-{org}-{period}-{i}", "due_on": due.isoformat(),
+                                         "submitted_on": _iso(submitted if submitted <= as_of else None)})
+                for _ in range(rng.randint(0, 2)):
+                    appointments.append({"org_code": org, "appointed_on": _day(period, rng).isoformat(),
+                                         "integrity_check": "done" if rng.random() < ORG_QUALITY[org] + 0.1 else "not_done"})
+        return {"declarations": declarations, "appointments": appointments}
 
     def facts(self, data, periods, as_of):
-        rows = [r for r in data["declarations"] if date.fromisoformat(r["due_on"]) < as_of]
-        return tally(rows, source=self.name, indicator="declarations_on_time", when="due_on", periods=periods,
+        declarations = [r for r in data["declarations"] if date.fromisoformat(r["due_on"]) < as_of]
+        return tally(declarations, source=self.name, indicator="declarations_on_time", when="due_on", periods=periods,
                      ok=lambda r: r["submitted_on"] is not None and r["submitted_on"] <= r["due_on"],
-                     why="Реєстр декларацій: подано до строку")
+                     why="Атестація: декларацію подано до строку") + \
+            tally(data["appointments"], source=self.name, indicator="hiring_checks", when="appointed_on", periods=periods,
+                  ok=lambda a: a["integrity_check"] == "done", why="Атестація: призначення з перевіркою доброчесності")
 
 
-class Kadry(Source):
-    """Мок: кадрова система. Навчання (due_on, completed_on) і призначення (appointed_on, integrity_check)."""
+class Training(Source):
+    """Мок: облік навчання з доброчесності. Записи: org_code, employee_ref, due_on, completed_on."""
 
-    name = "kadry"
-    title = "Кадрова система (мок)"
-    indicators = ("training_coverage", "hiring_checks")
+    name = "training"
+    title = "Облік навчання (мок)"
+    indicators = ("training_coverage",)
 
     def mock_records(self, orgs, periods, as_of):
-        trainings, appointments = [], []
+        rows = []
         for org in orgs:
             for period in periods:
                 rng = _rng(self.name, org, period)
                 for i in range(rng.randint(3, 8)):
                     due = _day(period, rng)
                     done = due - timedelta(days=rng.randint(0, 40)) if rng.random() < ORG_QUALITY[org] else None
-                    trainings.append({"org_code": org, "employee_ref": f"E-{org}-{period}-{i}", "due_on": due.isoformat(),
-                                      "completed_on": _iso(done)})
-                for _ in range(rng.randint(0, 2)):
-                    appointments.append({"org_code": org, "appointed_on": _day(period, rng).isoformat(),
-                                         "integrity_check": "done" if rng.random() < ORG_QUALITY[org] + 0.1 else "not_done"})
-        return {"trainings": trainings, "appointments": appointments}
+                    rows.append({"org_code": org, "employee_ref": f"E-{org}-{period}-{i}", "due_on": due.isoformat(),
+                                 "completed_on": _iso(done)})
+        return {"trainings": rows}
 
     def facts(self, data, periods, as_of):
-        trainings = [t for t in data["trainings"] if date.fromisoformat(t["due_on"]) < as_of]
-        return tally(trainings, source=self.name, indicator="training_coverage", when="due_on", periods=periods,
+        rows = [t for t in data["trainings"] if date.fromisoformat(t["due_on"]) < as_of]
+        return tally(rows, source=self.name, indicator="training_coverage", when="due_on", periods=periods,
                      ok=lambda t: t["completed_on"] is not None and t["completed_on"] <= t["due_on"],
-                     why="Кадрова система: навчання з доброчесності пройдено до строку") + \
-            tally(data["appointments"], source=self.name, indicator="hiring_checks", when="appointed_on", periods=periods,
-                  ok=lambda a: a["integrity_check"] == "done", why="Кадрова система: призначення з перевіркою доброчесності")
+                     why="Облік навчання: навчання з доброчесності пройдено до строку")
 
 
 class Procurement(Source):
@@ -217,4 +217,4 @@ class Reports(Source):
                      extra={"pending": lambda r: r["answered_on"] is None})
 
 
-SOURCES: dict[str, Source] = {s.name: s for s in (Artemida(), NazkDeclarations(), Kadry(), Procurement(), Reports())}
+SOURCES: dict[str, Source] = {s.name: s for s in (Artemida(), Atestat(), Training(), Procurement(), Reports())}
