@@ -1,43 +1,82 @@
 /* Звіт */
+// Звіт за шаблоном Додатку Г Рекомендацій НУОУ: формальний документ без кольорів і бейджів
+const SEC_ABOUT = {
+  culture: "Розділ оцінює роль керівництва, інтеграцію цінностей доброчесності в корпоративну культуру, ефективність освітніх заходів та рівень відкритості.",
+  system: "Розділ аналізує інституційну спроможність у сфері антикорупції та доброчесності: організацію роботи антикорупційного уповноваженого, процедури й канали звернень.",
+  accountability: "Розділ оцінює практичні механізми контролю та реагування: прозорість рішень, оприлюднення результатів перевірок, контроль виконання заходів.",
+};
+const GRP = { wg: "РГ", os: "ОС", experts: "Експерти" };
 V.report = () => {
-  const m = cur(), recs = m.id === ALPHA ? buildRecs(m) : [], ms = m.id === ALPHA ? measures() : [];
-  const itemRows = arr => arr.map(x => `<tr><td>${esc(x.t)}</td><td>${COMP[x.c].n}</td><td>${x.src ? SRC[x.src][0] : x.kind === "pct" ? `${x.val[0]} з ${x.val[1]}` : `рівень ${x.val} з 5`}</td><td class="tnum">${x.w}</td><td class="tnum"><b>${fb(x.v)}</b></td></tr>`).join("");
+  const m = cur(), recs = m.id === ALPHA ? buildRecs(m) : [], ms = m.id === ALPHA ? measures() : [], gs = respGroups(m);
+  const g = k => gs.filter(x => k === "wg" ? x.n === "Робоча група" : k === "ex" ? x.n === "Експерти" : x.n !== "Робоча група" && x.n !== "Експерти").reduce((a, x) => a + x.resp, 0);
+  const lvT = v => `${level(v)}. ${LEVELS[level(v) - 1]}`;
+  const best = [...m.components].filter(c => !c.cr.lim).sort((a, b) => b.cr.v - a.cr.v), low = [...m.components].sort((a, b) => a.cr.v - b.cr.v).filter(c => c.cr.v < 65 || c.cr.lim);
+  const weakItems = [...allItems(m)].sort((a, b) => a.v - b.v).slice(0, 3);
+  const props = recs.filter(r => r.st !== "rejected");
   return `${backToInst()}
-  <div class="c12 rise toolbar"><div class="sp"></div>
+  <div class="c12 rise toolbar"><span class="lbl">Форма звіту відповідає Додатку Г Рекомендацій НУОУ.</span><div class="sp"></div>
     ${S.aiOn && AI_ROLES.includes(S.role) ? `<button class="btn btn-soft" onclick="aiOpen('Підготуй чернетку опису результатів для звіту')">${IC.spark}Чернетка опису</button>` : ""}
-    <button class="btn btn-soft" onclick="copyOut('csv')">${IC.copy}Копіювати CSV</button>
-    <button class="btn btn-soft" onclick="copyOut('csv',true)">${IC.file}CSV</button>
-    <button class="btn btn-soft" onclick="copyOut('json',true)">${IC.file}JSON</button>
-    <button class="btn btn-soft" onclick="copyOut('html',true)">${IC.file}HTML</button>
-    <button class="btn btn-primary" onclick="window.print()">${IC.print}Друк / PDF</button>
+    <button class="btn btn-primary" onclick="openExport()">${IC.download}Експорт</button>
   </div>
-  <article class="paper c12 rise">
-    <div class="lbl">Звіт за результатами оцінювання · цикл ${CYCLE} · дані станом на ${TODAY_UA}</div>
-    <h2 style="margin-top:6px">${esc(m.name)}</h2>
-    <div style="display:flex;gap:20px;flex-wrap:wrap;margin:18px 0 6px;align-items:flex-end">
-      <div><div class="lbl">Індекс доброчесності</div><div class="big tnum" style="font-size:44px">${numHTML(m.index)}<span class="of">з 100</span></div></div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">${lvPill(m.level)}${trustPill(m.trust)}${deltaHTML(m.delta)}</div>
-    </div>
-    <p style="line-height:1.6">${whyText(m)}</p>
-    <h3>Компоненти</h3>
-    <div class="tbl-wrap"><table><thead><tr><th>Компонент</th><th>Сприйняття</th><th>Факти</th><th>Зараховано</th><th>Рівень</th><th>Зміна</th></tr></thead><tbody>
-    ${m.components.map(c => `<tr><td><b>${COMP[c.id].n}</b>${c.cr.lim ? " " + pill("Обмежувач", "p-warn nodot") : ""}</td><td class="tnum">${fb(c.P)}</td><td class="tnum">${fb(c.F)}</td><td class="tnum"><b>${fb(c.cr.v)}</b></td><td>${lvPill(level(c.cr.v))}</td><td>${deltaHTML(r1(c.cr.v - m.series[m.series.length - 2].cr[c.id]))}</td></tr>`).join("")}
-    </tbody></table></div>
-    <h3>Сприйняття: питання анкет</h3>
-    <div class="tbl-wrap"><table><thead><tr><th>Питання</th><th>Компонент</th><th>Джерело</th><th>Вага, %</th><th>Значення</th></tr></thead><tbody>${itemRows(m.pItems)}</tbody></table></div>
-    <h3>Факти: чек-лист і дані обліку</h3>
-    <div class="tbl-wrap"><table><thead><tr><th>Показник</th><th>Компонент</th><th>Дані</th><th>Вага, %</th><th>Значення</th></tr></thead><tbody>${itemRows(m.fItems)}</tbody></table></div>
-    <h3>Достовірність ${m.trust === "insufficient" ? "" : m.trust}: ${TRUST[m.trust][1].toLowerCase()}</h3>
-    <div class="rows">${m.raised.map(f => `<div class="row"><span class="dot" style="background:${f.w === "major" ? "var(--red)" : "var(--amber)"}"></span><div class="grow">${esc(f.t)}<div class="s">${f.ex}</div></div></div>`).join("") || `<div class="lbl">Жоден прапорець не спрацював.</div>`}</div>
-    ${S.notes.length && m.id === ALPHA ? `<h3>Опис результатів</h3>${S.notes.map((n, i) => `<div class="note-ai"><div>${esc(n.t)}</div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${pill("Чернетка ШІ · затверджено", "p-info nodot")}<span class="lbl">${n.who} · ${n.at}</span>${S.role === "leader" ? `<button class="btn btn-ghost noprint" style="padding:4px 10px;font-size:12px;margin-left:auto" onclick="S.notes.splice(${i},1);persist();render(true)">Прибрати</button>` : ""}</div></div>`).join("")}` : ""}
-    ${recs.length ? `<h3>Рекомендації та рішення</h3><div class="rows">${recs.map(r => `<div class="row"><div class="grow">${r.t}<div class="s">${COMP[r.c].n} · пріоритет ${PRI[r.pri][0].toLowerCase()}${r.note.reason ? " · причина: " + esc(r.note.reason) : ""}${r.note.comment ? " · коментар: " + esc(r.note.comment) : ""}</div></div>${pill(REC_ST[r.st][0], REC_ST[r.st][1])}</div>`).join("")}</div>` : ""}
-    ${ms.length ? `<h3>Заходи</h3><div class="rows">${ms.map(x => `<div class="row"><div class="grow">${x.t}<div class="s">${x.who} · до ${ua(x.due)}</div></div>${pill(M_ST[dispSt(x)][0], M_ST[dispSt(x)][1])}</div>`).join("")}</div>` : ""}
-    <p class="lbl" style="margin-top:24px">Усі оцінки, рівні й прапорці розраховано явними правилами методики. Окремих відповідей, імен і порівнянь підрозділів у звіті немає.</p>
+  <article class="paper doc c12 rise">
+    <div class="doc-approve">ЗАТВЕРДЖУЮ<br>Голова робочої групи<br><span class="doc-blank">військове звання</span><br><span class="doc-blank">Імʼя ПРІЗВИЩЕ</span><br>«___» ____________ 2026 року</div>
+    <h2 class="doc-title">ЗВІТ</h2>
+    <p class="doc-sub">про результати опитувань з визначення поточного рівня зрілості доброчесності<br>${esc(m.name)}</p>
+    <p class="doc-meta">Цикл оцінювання ${CYCLE}. Дані станом на ${TODAY_UA}. Синтетичні дані для демонстрації.</p>
+    <p>На підставі наказу керівника закладу ${esc(m.name)} від «___» ____________ 2026 року № ___ «Про організацію роботи з трансформації функціонування закладу на засадах прозорості та доброчесності» проведено роботу з визначення поточного рівня зрілості доброчесності за Моделлю зрілості НАЗК.</p>
+    <p>Проведено анонімне опитування трьох категорій респондентів:</p>
+    <p>І категорія: члени робочої групи (далі РГ), відповіли ${g("wg")} осіб.<br>ІІ категорія: особовий склад закладу (далі ОС), відповіли ${g("os")} осіб.<br>ІІІ категорія: зовнішні експерти, відповіли ${g("ex")} осіб.</p>
+    <p><b>Мета опитування:</b></p>
+    <ul>
+      <li>визначення фактичного рівня зрілості системи доброчесності за кожним ключовим напрямом;</li>
+      <li>ідентифікація найслабших місць у робочих процесах і визначення сильних сторін;</li>
+      <li>формування базового показника («точки відліку») для відстеження подальшого розвитку;</li>
+      <li>забезпечення керівництва обʼєктивними даними для планування заходів.</li></ul>
+    <p><b>Методика дослідження:</b></p>
+    <p>Онлайн-опитування на платформі з одноразовими анонімними жетонами. Результати групи показуються, лише якщо відповіли щонайменше ${S.k} осіб. Відповіді переведено в бали від 0 до 100. Сприйняття за кожним напрямом зіставлено з фактами контрольного чек-листа та даних обліку. Якщо сприйняття перевищує факти більш ніж на ${CAP} пунктів, зараховується значення «факти + ${CAP}». Індекс доброчесності є середнім трьох напрямів, рівень зрілості визначається межами 12,5 / 37,5 / 62,5 / 87,5.</p>
+    <p><b>Основна частина:</b></p>
+    <p>Аналіз проведено за трьома розділами Моделі зрілості НАЗК: «Культура», «Система» та «Підзвітність».</p>
+    ${m.components.map((c, ci) => `
+    <h3>Розділ ${ci + 1}. ${COMP[c.id].n}</h3>
+    <p>${SEC_ABOUT[c.id]}</p>
+    <p class="doc-cap">Таблиця ${ci * 2 + 1}. Сприйняття за питаннями анкет</p>
+    <table class="doc-t"><thead><tr><th>№</th><th>Питання</th><th>Категорія</th><th>Вага, %</th><th>Середній бал</th><th>Рівень зрілості (за моделлю НАЗК)</th></tr></thead><tbody>
+    ${m.pItems.filter(x => x.c === c.id).map((x, i) => `<tr><td>${ci + 1}.${i + 1}</td><td>${esc(x.t)}</td><td>${GRP[x.src]}</td><td class="tnum">${x.w}</td><td class="tnum">${fb(x.v)}</td><td>${lvT(x.v)}</td></tr>`).join("")}</tbody></table>
+    <p class="doc-cap">Таблиця ${ci * 2 + 2}. Факти: контрольний чек-лист і дані обліку</p>
+    <table class="doc-t"><thead><tr><th>№</th><th>Показник</th><th>Дані</th><th>Вага, %</th><th>Бал</th></tr></thead><tbody>
+    ${m.fItems.filter(x => x.c === c.id).map((x, i) => `<tr><td>${ci + 1}.${i + 1}</td><td>${esc(x.t)}</td><td>${x.kind === "pct" ? `${x.val[0]} з ${x.val[1]}` : `рівень ${x.val} з 5`}</td><td class="tnum">${x.w}</td><td class="tnum">${fb(x.v)}</td></tr>`).join("")}</tbody></table>
+    <p>За розділом «${COMP[c.id].n}» сприйняття становить ${fb(c.P)}, факти ${fb(c.F)}, зараховано ${fb(c.cr.v)} з 100, що відповідає рівню зрілості ${lvT(c.cr.v)}.${c.cr.lim ? ` ${c.cr.reason}` : ""} ${c.P - c.F > 10 ? "Самооцінка помітно вища за підтверджені факти, тож висновки потребують підтвердження документами." : c.F - c.P > 10 ? "Факти вищі за сприйняття: наявні процедури варто краще доносити до особового складу." : "Сприйняття й факти в цілому узгоджуються."}</p>`).join("")}
+    <h3>Розділ 4. Достовірність результатів</h3>
+    <p>Достовірність ${m.trust === "insufficient" ? "не оцінюється" : m.trust}: ${TRUST[m.trust][1].toLowerCase()}. ${m.raised.length ? `Спрацювало автоматичних перевірок: ${m.raised.length}.` : "Жодна автоматична перевірка не спрацювала."}</p>
+    ${m.raised.length ? `<ol>${m.raised.map(f => `<li>${esc(f.t)} (${f.w === "major" ? "серйозна" : "незначна"}). ${f.ex}</li>`).join("")}</ol>` : ""}
+    <h3>Висновок</h3>
+    <p>На основі аналізу відповідей респондентів за критеріями розділів «Культура», «Система» та «Підзвітність» Моделі зрілості НАЗК <b>загальний рівень зрілості доброчесності у ${esc(m.name)} можна оцінити як «${LEVELS[m.level - 1]}»</b> (рівень ${m.level} з 5; індекс доброчесності ${f1(m.index)} з 100; ${m.delta > 0 ? `на ${pts(m.delta)} вище` : m.delta < 0 ? `на ${pts(m.delta)} нижче` : "без змін"} порівняно з попереднім циклом).</p>
+    <p><i>Довідково:</i> ${m.fItems.filter(x => x.kind === "pct").map(x => `${x.t.toLowerCase()}: ${x.val[0]} з ${x.val[1]}`).join("; ")}.</p>
+    <p><b>Найбільш ефективні напрями:</b></p>
+    <ol>${best.slice(0, 2).map(c => `<li>${COMP[c.id].n}: зараховано ${fb(c.cr.v)}, рівень ${lvT(c.cr.v)}.</li>`).join("")}</ol>
+    <p><b>Напрями, що потребують більшої уваги:</b></p>
+    <ol>${(low.length ? low.map(c => `<li>${COMP[c.id].n}: ${c.cr.lim ? "самооцінку не підтверджують факти" : `зараховано ${fb(c.cr.v)}`}.</li>`) : []).concat(weakItems.map(x => `<li>${x.t}: ${fb(x.v)} з 100.</li>`)).slice(0, 4).join("")}</ol>
+    <p><b>Пропозиції:</b></p>
+    ${props.length ? `<ol>${props.map(r => `<li>${r.t} (${COMP[r.c].n}; ${REC_ST[r.st][0].toLowerCase()}).</li>`).join("")}</ol>` : `<ol>${weakItems.map(x => `<li>Розробити заходи щодо показника «${x.t}».</li>`).join("")}</ol>`}
+    ${S.notes.length && m.id === ALPHA ? `<p><b>Опис результатів</b> (чернетку підготовлено асистентом, затверджено керівником):</p>${S.notes.map((n, i) => `<div class="note-ai"><p>${esc(n.t)}</p><div class="noprint" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><span class="lbl">${n.who} · ${n.at}</span>${S.role === "leader" ? `<button class="btn btn-ghost" style="padding:4px 10px;font-size:12px;margin-left:auto" onclick="S.notes.splice(${i},1);persist();render(true)">Прибрати</button>` : ""}</div></div>`).join("")}` : ""}
+    ${ms.length ? `<p class="doc-cap">Таблиця 7. Заходи плану трансформації</p><table class="doc-t"><thead><tr><th>№</th><th>Захід</th><th>Відповідальна посада</th><th>Строк</th><th>Стан</th></tr></thead><tbody>${ms.map((x, i) => `<tr><td>${i + 1}</td><td>${x.t}</td><td>${x.who}</td><td class="tnum">${ua(x.due)}</td><td>${M_ST[dispSt(x)][0]}</td></tr>`).join("")}</tbody></table>` : ""}
+    <p class="doc-note">Усі бали, рівні й перевірки розраховано явними правилами методики v1.0. Окремих відповідей, імен і порівнянь підрозділів у звіті немає.</p>
+    <div class="doc-sign"><span>Секретар робочої групи</span><span class="doc-blank">підпис</span><span class="doc-blank">Імʼя ПРІЗВИЩЕ</span></div>
   </article>`;
 };
+// Експорт: одна кнопка, формат обирається у вікні
+function openExport() {
+  const opts = [["print", IC.print, "PDF або друк", "Звіт у форматі документа. У вікні друку оберіть «Зберегти як PDF»."], ["html", IC.file, "Документ HTML", "Відкривається в будь-якому браузері, можна відкрити в Word."], ["csv", IC.table, "Таблиця CSV", "Усі питання й показники з балами. Для Excel."], ["json", IC.file, "Дані JSON", "Для інших систем і бекенду."], ["copy", IC.copy, "Копіювати CSV", "У буфер обміну, щоб вставити в таблицю."]];
+  const d = $("#exp");
+  d.innerHTML = `<form method="dialog" class="exp-box"><div class="card-h"><h2>Експорт звіту</h2><div class="sp"></div><button class="icon-btn" value="x" aria-label="Закрити">${IC.x}</button></div>
+    <div class="lbl" style="margin-bottom:10px">${esc(cur().name)} · цикл ${CYCLE}</div>
+    <div class="exp-list">${opts.map(([k, ic, t, ds]) => `<button type="button" class="exp-opt" onclick="doExport('${k}')"><span class="comp-ic" style="background:var(--soft)">${ic}</span><span><b>${t}</b><span class="lbl">${ds}</span></span></button>`).join("")}</div></form>`;
+  d.showModal();
+}
+function doExport(k) { $("#exp").close(); if (k === "print") return setTimeout(() => window.print(), 50); if (k === "copy") return copyOut("csv"); copyOut(k, true); }
 function copyOut(kind, dl) {
   const m = cur(); let txt;
-  if (kind === "html") { const doc = `<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>Звіт ${CYCLE}</title><style>body{font:14px/1.5 system-ui,sans-serif;max-width:900px;margin:40px auto;padding:0 20px;color:#111}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:4px 6px;font-size:12px;text-align:left}.dec{color:#999}svg,button{display:none}.pill{padding:2px 8px;border-radius:9px;background:#eee;font-size:12px;margin-right:4px}.row{display:flex;gap:8px;padding:4px 0;border-bottom:1px solid #eee}.s,.lbl{color:#666;font-size:12px}</style></head><body>${document.querySelector(".paper").innerHTML}</body></html>`; return download(`integrity-report-${m.id}-${CYCLE}.html`, doc, "text/html"); }
+  if (kind === "html") { const doc = `<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>Звіт ${CYCLE}</title><style>body{font:14pt/1.5 "Times New Roman",Times,serif;max-width:800px;margin:40px auto;padding:0 24px;color:#000}table{border-collapse:collapse;width:100%;margin:6px 0 12px}td,th{border:1px solid #000;padding:4px 6px;font-size:12pt;text-align:left;vertical-align:top}th{font-weight:bold}.doc-approve{margin-left:auto;width:300px}.doc-title{text-align:center;font-size:16pt;margin:24px 0 4px}.doc-sub{text-align:center;font-weight:bold}.doc-meta,.doc-note{font-size:11pt}.doc-cap{text-align:right;font-style:italic;margin-bottom:2px}.doc-sign{display:flex;justify-content:space-between;margin-top:36px}.doc-blank{display:inline-block;min-width:140px;border-top:1px solid #000;font-size:10pt;text-align:center}.noprint,svg,button{display:none}p{text-align:justify}</style></head><body>${document.querySelector(".paper").innerHTML}</body></html>`; return download(`integrity-report-${m.id}-${CYCLE}.html`, doc, "text/html"); }
   if (kind === "csv") txt = ["id;component;kind;label;source;weight;value", ...allItems(m).map(x => [x.id, x.c, x.src ? "perception" : "fact", `"${x.t.replace(/"/g, '""')}"`, x.src || x.kind, x.w, fb(x.v)].join(";")), ...m.components.map(c => [c.id, c.id, "component", COMP[c.id].n, "credited", "33.3", fb(c.cr.v)].join(";")), ["index", "", "index", "Індекс доброчесності", "", "100", fb(m.index)].join(";")].join("\n");
   else txt = JSON.stringify({ institution: m.name, cycle: CYCLE, asOf: TODAY, index: m.index, level: m.level, trust: m.trust, delta: m.delta,
     components: Object.fromEntries(m.components.map(c => [c.id, { perception: c.P, facts: c.F, credited: c.cr.v, limited: c.cr.lim }])),

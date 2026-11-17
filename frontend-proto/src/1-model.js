@@ -33,6 +33,9 @@ const IC = {
   copy: I('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'),
   chev: I('<path d="M6 9l6 6 6-6"/>'),
   plus: I('<path d="M12 5v14M5 12h14"/>'),
+  dots: I('<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>', 2.4),
+  a11y: I('<circle cx="12" cy="4.5" r="1.8"/><path d="M5 8.5l7 1.5 7-1.5M12 10v5M12 15l-3.5 6M12 15l3.5 6"/>'),
+  download: I('<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>'),
   ok: I('<path d="M5 12l5 5 9-10"/>', 2.6),
   arrowR: I('<path d="M5 12h14M13 6l6 6-6 6"/>'),
   arrowL: I('<path d="M19 12H5M11 6l-6 6 6 6"/>'),
@@ -229,11 +232,19 @@ function buildOther(o) {
 }
 const OTHER_MODELS = {};
 function inst(id) {
-  if (!id || id === ALPHA) return buildAlpha();
-  const o = OTHERS.find(x => x.id === id); if (!o) return buildAlpha();
-  return OTHER_MODELS[id] || (OTHER_MODELS[id] = buildOther(o));
+  const o = OTHERS.find(x => x.id === id);
+  const m = !o ? buildAlpha() : OTHER_MODELS[id] || (OTHER_MODELS[id] = buildOther(o));
+  const ren = S.insts && S.insts.renamed[m.id]; if (ren) m.name = ren; else if (o) m.name = o.name;
+  m.edrpou = EDRPOU[m.id]; return m;
 }
-const INSTITUTIONS = () => [inst(ALPHA), ...OTHERS.map(o => inst(o.id))].sort((a, b) => a.name.localeCompare(b.name, "uk"));
+// Синтетичні коди ЄДРПОУ (не справжні) і синтетичний «реєстр» для демо пошуку
+const EDRPOU = { alpha: "99000101", beta: "99000102", gamma: "99000103", omega: "99000104" };
+const REGISTRY = [
+  ["99000101", "Умовний військовий інститут «Альфа»"], ["99000102", "Умовний навчальний центр «Бета»"], ["99000103", "Умовна академія «Гамма»"], ["99000104", "Умовний університет «Омега»"],
+  ["99000105", "Умовний військовий ліцей «Дельта»"], ["99000106", "Умовна військова академія «Сигма»"], ["99000107", "Умовний навчальний центр «Каппа»"], ["99000108", "Умовний інститут «Лямбда»"],
+  ["99000109", "Умовний коледж сержантського складу «Тета»"], ["99000110", "Умовна кафедра військової підготовки «Йота»"],
+];
+const INSTITUTIONS = () => [inst(ALPHA), ...OTHERS.map(o => inst(o.id)), ...(S.insts ? S.insts.extra.map(x => ({ ...x, name: S.insts.renamed[x.id] || x.name, empty: true })) : [])].sort((a, b) => a.name.localeCompare(b.name, "uk"));
 
 /* ---------- Підрозділи й поріг k ---------- */
 const UNITS = [

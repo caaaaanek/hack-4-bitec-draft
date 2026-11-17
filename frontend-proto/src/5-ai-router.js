@@ -134,13 +134,13 @@ function renderNav(cur) {
   $("#nav").innerHTML = NAV.filter(n => n[3].includes(S.role)).map(([r, n, ic]) => `<a href="#${r}" data-r="${r}" class="${r === cur ? "on" : ""}" ${r === cur ? 'aria-current="page"' : ""}>${IC[ic]}<span>${n}</span></a>`).join("");
   updateBadges();
 }
-const TITLES = { overview: () => S.role === "observer" ? "Огляд закладу" : "Огляд закладу", explain: () => "Розклад індексу", trends: () => "Динаміка", compare: () => "Порівняння: сприйняття і факти", recs: () => "Рекомендації", tracker: () => "Трекер заходів", sources: () => "Звідки беруться дані", report: () => "Звіт", manage: () => "Керування циклом", surveys: () => "Анкети", checklist: () => "Чек-лист", audit: () => "Журнал", survey: () => "Анонімне опитування", me: () => "Мої результати", institutions: () => "Заклади" };
+const TITLES = { overview: () => S.role === "observer" ? "Огляд закладу" : "Огляд закладу", explain: () => "Розклад індексу", trends: () => "Динаміка", compare: () => "Порівняння: сприйняття і факти", recs: () => "Рекомендації", tracker: () => "Трекер заходів", sources: () => "Джерела", report: () => "Звіт", manage: () => "Керування циклом", surveys: () => "Анкети", checklist: () => "Чек-лист", audit: () => "Журнал", survey: () => "Анонімне опитування", me: () => "Мої результати", institutions: () => "Заклади" };
 let lastRoute = null;
 function render(soft) {
   const { r, p } = route();
   if (r === "explain" && p) { S.focus = p; const m = cur(); const it = allItems(m).find(x => x.id === p); if (it && it.kind !== "p" && S.mode !== "facts") S.mode = "facts"; if (it && it.kind === "p" && S.mode === "facts") S.mode = "credited"; const c = COMPS.includes(p) ? p : it && it.c; if (c) S.open[c] = true; }
   const want = "#" + r + (p ? "/" + p : ""); if (location.hash !== want) history.replaceState(null, "", want);
-  renderNav(r);
+  renderNav(r); hideTip(); if (r !== lastRoute) closePop();
   $("#title").textContent = TITLES[r]();
   const v = $("#view");
   v.innerHTML = V[r]();
@@ -183,7 +183,27 @@ $("#q").addEventListener("keydown", e => {
   if (allowed("explain")) { const hit = allItems(cur()).find(x => x.t.toLowerCase().includes(q)); if (hit) { location.hash = "explain/" + hit.id; return; } }
   const nav = NAV.find(n => n[1].toLowerCase().includes(q) && n[3].includes(S.role)); if (nav) location.hash = nav[0]; else toast("Нічого не знайдено");
 });
-document.addEventListener("keydown", e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); $("#q").focus(); } });
+// Пошук: Ctrl+K (на Mac ⌘K) і «/». Ctrl+F лишаємо браузеру: це пошук по тексту сторінки
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+$("#kbd").textContent = isMac ? "⌘K" : "Ctrl K"; $("#kbd").dataset.tip = `Швидкий пошук: ${isMac ? "⌘K" : "Ctrl+K"} або «/»`;
+document.addEventListener("keydown", e => {
+  const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+  if (((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") || (e.key === "/" && !typing)) { e.preventDefault(); $("#q").focus(); }
+  if (e.key === "Escape") closePop();
+});
+/* Доступність: розмір тексту й підвищений контраст (як на сайтах держорганів) */
+function applyA11y() { const a = S.a11y || { z: 1, hc: false }; document.documentElement.style.zoom = a.z === 1 ? "" : a.z; document.documentElement.classList.toggle("hc", !!a.hc); }
+function drawA11y() {
+  const a = S.a11y;
+  $("#pop").innerHTML = `<div class="lbl" style="text-transform:uppercase;letter-spacing:.06em;font-size:11px;margin-bottom:8px">Розмір тексту</div>
+    <div style="display:flex;align-items:center;gap:10px"><button class="icon-btn" aria-label="Зменшити текст" onclick="setZoom(-1)" ${a.z <= 1 ? "disabled" : ""}>−</button><b class="tnum" style="min-width:48px;text-align:center">${Math.round(a.z * 100)} %</b><button class="icon-btn" aria-label="Збільшити текст" onclick="setZoom(1)" ${a.z >= 1.5 ? "disabled" : ""}>+</button></div>
+    <label class="a11y-row"><span>Підвищений контраст</span><span class="sw"><input type="checkbox" ${a.hc ? "checked" : ""} onchange="S.a11y.hc=this.checked;persist();applyA11y()"><span></span></span></label>
+    <button class="link-btn" onclick="S.a11y={z:1,hc:false};persist();applyA11y();drawA11y();render(true)">Скинути</button>`;
+}
+function setZoom(d) { S.a11y.z = Math.round(clamp(S.a11y.z + d * .125, 1, 1.5) * 1000) / 1000; persist(); applyA11y(); drawA11y(); render(true); placePop($("#a11yBtn")); }
+$("#a11yBtn").innerHTML = IC.a11y;
+$("#a11yBtn").onclick = e => { const p = $("#pop"), b = e.currentTarget; if (p.classList.contains("on") && p._btn === b) return closePop(); p._btn = b; drawA11y(); p.classList.add("on"); placePop(b); };
+applyA11y();
 $("#aiLogo").innerHTML = IC.spark.replace("<svg", '<svg width="17" height="17"');
 $("#aiClose").innerHTML = IC.x; $("#aiClose").onclick = aiClose;
 $("#aiSend").innerHTML = IC.send;
