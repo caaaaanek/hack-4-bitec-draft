@@ -253,7 +253,6 @@ html.hc a, html.hc .link { text-decoration: underline; }
 .drawer-b table { min-width: 0; width: 100%; }
 .drawer-b th, .drawer-b td { padding: 8px 6px; font-size: 13px; white-space: normal; }
 .drawer-b td .pill { white-space: normal; }
-<<<<<<< HEAD
 
 /* ---- з бекендом: вхід і анонімне посилання (0-api.js) ---- */
 .app.login .side, .app.login .top, .app.anon .side { display: none; }
@@ -263,7 +262,6 @@ html.hc a, html.hc .link { text-decoration: underline; }
 .login-card { padding: 28px; }
 .role-card b { display: block; }
 @media (max-width: 900px) { .login-wrap { grid-template-columns: 1fr; padding: 16px 0; } }
-=======
 /* v4: трекер, журнал, показники */
 .tl-i .hash { align-self: center; }
 .tl-i.click { cursor: pointer; border-radius: 10px; }
@@ -327,4 +325,3 @@ html.hc a, html.hc .link { text-decoration: underline; }
 .cmp-stack { display: flex; flex-direction: column; gap: inherit; gap: 20px; min-width: 0; }
 .cmp-stack > .card { flex: 1; }
 @media (max-width: 1200px) { .cmp-stack { grid-column: span 12; } }
->>>>>>> origin/dev

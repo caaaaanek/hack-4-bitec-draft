@@ -345,9 +345,6 @@ V.tracker = () => {
     <div class="vf-s tnum"><span><b>${conf}</b>Підтверджено</span><span><b>${wait}</b>Очікують оцінювання</span><span><b>${rev}</b>Потребують перегляду</span></div>
   </section>`;
 };
-<<<<<<< HEAD
-function setMSt(id, st) { if (API.on) return apiSetMSt(id, st); const x = measures().find(m => m.id === id); if (!x || !M_NEXT[x.st].includes(st)) return; S.dec.mst[id] = st; addLog(me(), `Захід «${x.t}»: статус «${M_ST[st][0]}»`); persist(); render(true); toast(`Статус заходу змінено на «${M_ST[st][0]}».`); }
-=======
 // Захід: подробиці й перехід у систему звітування суміжної команди
 const MEASURES_APP = { name: "Система звітування за заходами (суміжна команда)", url: "" };
 function openMeasure(id) {
@@ -361,8 +358,7 @@ function openMeasure(id) {
     <div class="note-box"><b>Звіт виконавця</b><span class="lbl">Документи й звіти про виконання ведуться в окремому застосунку суміжної команди.</span>
       ${MEASURES_APP.url ? `<a class="btn btn-soft" href="${MEASURES_APP.url}" target="_blank" rel="noopener" style="justify-content:center">${IC.arrowR}Відкрити в застосунку звітування</a>` : `<button class="btn btn-soft" disabled style="justify-content:center;opacity:.6">${IC.arrowR}Відкрити в застосунку звітування</button><span class="lbl" style="font-size:12px">Посилання зʼявиться після погодження інтеграції.</span>`}</div>`);
 }
-function setMSt(id, st) { const x = measures().find(m => m.id === id); if (!x || !M_NEXT[x.st].includes(st)) return; S.dec.mst[id] = st; addLog(me(), `Захід «${x.t}»: статус «${M_ST[st][0]}»`); persist(); render(true); toast(`Статус заходу змінено на «${M_ST[st][0]}».`); }
->>>>>>> origin/dev
+function setMSt(id, st) { if (API.on) return apiSetMSt(id, st); const x = measures().find(m => m.id === id); if (!x || !M_NEXT[x.st].includes(st)) return; S.dec.mst[id] = st; addLog(me(), `Захід «${x.t}»: статус «${M_ST[st][0]}»`); persist(); render(true); toast(`Статус заходу змінено на «${M_ST[st][0]}».`); }
 
 /* Джерела */
 const SOURCES = [
