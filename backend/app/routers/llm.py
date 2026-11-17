@@ -59,6 +59,21 @@ class LlmStatus(BaseModel):
     model: str | None
 
 
+# Помилки виклику моделі: мережа, HTTP-статус, неочікувана відповідь.
+CHAT_ERRORS = (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError)
+
+
+def chat(base: str, key: str, model: str, messages: list[dict]) -> str:
+    """Один виклик OpenAI-сумісного /chat/completions (Ollama, vLLM, Groq). Ключ — як Bearer, якщо задано."""
+    headers = {"Content-Type": "application/json"}
+    if key:
+        headers["Authorization"] = f"Bearer {key}"
+    r = httpx.post(f"{base}/chat/completions", headers=headers, timeout=get_settings().llm_timeout_seconds,
+                   json={"model": model, "messages": messages, "temperature": 0.2, "max_tokens": 600})
+    r.raise_for_status()
+    return (r.json()["choices"][0]["message"]["content"] or "").strip()
+
+
 def endpoint() -> tuple[str, str, str] | None:
     s = get_settings()
     base = (s.llm_base_url or (GROQ_URL if s.llm_api_key else "")).rstrip("/")
@@ -91,15 +106,9 @@ def ask(data: LlmIn, db: Session = Depends(get_db), user: User = Depends(require
             messages.append({"role": m["role"], "content": m["content"][:2000]})
     messages.append({"role": "user", "content": f"Дані поточного циклу (агреговані, JSON):\n{ctx}\n\nЗапитання: {data.question.strip()}"})
 
-    headers = {"Content-Type": "application/json"}
-    if key:
-        headers["Authorization"] = f"Bearer {key}"
     try:
-        r = httpx.post(f"{base}/chat/completions", headers=headers, timeout=get_settings().llm_timeout_seconds,
-                       json={"model": model, "messages": messages, "temperature": 0.2, "max_tokens": 600})
-        r.raise_for_status()
-        text = (r.json()["choices"][0]["message"]["content"] or "").strip()
-    except (httpx.HTTPError, KeyError, IndexError, ValueError):
+        text = chat(base, key, model, messages)
+    except CHAT_ERRORS:
         raise HTTPException(status_code=502, detail="Модель не відповіла. Спробуйте ще раз або вимкніть асистента")
     if not text:
         raise HTTPException(status_code=502, detail="Модель повернула порожню відповідь")

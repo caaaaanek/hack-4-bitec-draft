@@ -71,3 +71,43 @@ def test_upstream_failure_is_502(client, llm_env, monkeypatch):
     monkeypatch.setattr(llm.httpx, "post", boom)
     r = client.post("/api/assistant", json={"question": "x"}, headers=auth(client, "leader"))
     assert r.status_code == 502
+
+
+def test_v1_assistant_uses_same_self_hosted_model_with_key(client, llm_env, monkeypatch):
+    """Self-hosted Gemma за ключем: /api/v1/assistant/ask іде в ту саму модель, що й /api/assistant."""
+    from tests.helpers import full_wave
+
+    campaign_id, _, _ = full_wave(client)
+    llm_env(ASSISTANT_ENABLED="true", LLM_BASE_URL="https://llm.example.test/v1", LLM_API_KEY="secret-key-123",
+            LLM_MODEL="gemma3:27b")
+    seen = {}
+
+    def fake_post(url, headers, json, timeout):
+        seen.update(url=url, headers=headers, body=json)
+        return httpx.Response(200, json={"choices": [{"message": {"content": "Підзвітність обмежено фактами."}}]},
+                              request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(llm.httpx, "post", fake_post)
+    r = client.post("/api/v1/assistant/ask", json={"campaign_id": campaign_id, "question": "Чому низька підзвітність?"},
+                    headers=auth(client, "leader"))
+    assert r.status_code == 200, r.text
+    assert r.json()["model"] == "gemma3:27b" and r.json()["answer"] == "Підзвітність обмежено фактами."
+    assert seen["url"] == "https://llm.example.test/v1/chat/completions"
+    assert seen["headers"]["Authorization"] == "Bearer secret-key-123"
+    assert seen["body"]["model"] == "gemma3:27b"
+    assert "staff01" not in str(seen["body"])  # лише агрегати
+
+
+def test_v1_assistant_reports_unavailable_model(client, llm_env, monkeypatch):
+    from tests.helpers import full_wave
+
+    campaign_id, _, _ = full_wave(client)
+    llm_env(ASSISTANT_ENABLED="true", LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma3:27b")
+
+    def unauthorized(url, headers, json, timeout):
+        return httpx.Response(401, json={"error": "bad key"}, request=httpx.Request("POST", url))
+
+    monkeypatch.setattr(llm.httpx, "post", unauthorized)
+    r = client.post("/api/v1/assistant/ask", json={"campaign_id": campaign_id, "question": "Що робити?"},
+                    headers=auth(client, "leader"))
+    assert r.status_code == 503

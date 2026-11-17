@@ -350,6 +350,9 @@ Word-файл повторює шаблон: гриф «Затверджую», 
 
 **Асистент** бачить лише агрегати й пояснення `rule`, нічого не змінює й не рахує, питання не логуються дослівно. Модель —
 локальна Ollama; адреси й моделі з РФ, РБ і китайських хмар відхиляються (`FORBIDDEN_MARKERS`).
+Обидва асистенти (`/api/assistant` для frontend-proto і `/api/v1/assistant/ask`) працюють з однією моделлю, якщо задано
+`LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` (OpenAI-сумісний `/chat/completions`, ключ у `Authorization: Bearer`).
+Self-hosted Gemma на власному сервері за шлюзом із ключем — `deploy/llm/` (Ollama + nginx, інструкція в README).
 
 ## Адаптери джерел фактів
 
