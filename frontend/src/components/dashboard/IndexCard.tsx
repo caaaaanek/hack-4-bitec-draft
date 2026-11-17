@@ -7,7 +7,7 @@ import { cn } from '@/lib/cn'
 import { LEVEL_UPPER_BOUNDS, fmt, fmtIndex, pointsText } from '@/lib/scoring/methodology'
 import { directionOf, type CyclePoint } from '@/lib/trends'
 import type { Institution } from '@/demo/institutions'
-import { CYCLE, CYCLE_DATE } from '@/demo/data'
+import { useCycle } from '@/api/models'
 
 const LEVELS: MaturityLevel[] = [1, 2, 3, 4, 5]
 
@@ -110,6 +110,7 @@ export function IndexCard({
   className?: string
 }) {
   const hid = useId()
+  const { label: CYCLE, date: CYCLE_DATE } = useCycle()
   const grade = inst.trust.grade
   const t = TRUST_GRADE_TEXT[grade]
   const dir = directionOf(inst.delta)

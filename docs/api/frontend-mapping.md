@@ -10,6 +10,11 @@ npx openapi-typescript ../docs/api/openapi.json -o src/api/schema.d.ts
 
 База: `/api/v1`. Вхід: `POST /auth/session` (JSON), далі `Authorization: Bearer <token>`.
 
+**Стан (17.11): фронтенд підключено.** Екрани беруть дані з API через `src/api/AppData.tsx` (остання закрита хвиля,
+знімок, історія, рекомендації, заходи) і адаптери `src/api/adapters.ts` (моделі бекенду → моделі екранів, тести на справжніх
+відповідях у `adapters.test.ts`). Вхід — `src/pages/Login.tsx`, сесія — `src/api/session.tsx`, ролі бекенду → ролі інтерфейсу —
+`frontRole` + `API_ROLE_ROUTES` у `src/lib/access.ts`. Демо-режим без бекенду: `VITE_DEMO=true` (`npm run dev:demo`).
+
 **Готово для підключення (v0.3):**
 - Клієнт `frontend/src/api/client.ts` (fetch, токен у sessionStorage, `ApiError`), типи `frontend/src/api/backend.d.ts`
   (`npm run api:types:backend`), тести `client.test.ts`.

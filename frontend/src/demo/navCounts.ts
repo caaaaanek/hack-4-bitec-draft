@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { allMeasures, applyDecisions } from '@/lib/decisions'
 import { buildRecommendations } from '@/lib/recommendations'
 import { measureSummary } from '@/lib/measures'
+import { useAppData } from '@/api/AppData'
 import { DEMO_MEASURES, TODAY } from './measures'
 import { useDecisions } from './decisionsStore'
 import { institutionById } from './institutions'
@@ -18,17 +19,22 @@ export interface NavCount {
 /** Лічильники біля «Рекомендації» і «Трекер»: завжди текстом, не лише кольором. */
 export function useNavCounts(): Record<string, NavCount> {
   const decisions = useDecisions()
+  const data = useAppData()
   return useMemo(() => {
     const alpha = institutionById('alpha')
-    const recs = applyDecisions(
-      buildRecommendations({
-        items: [...alpha.perceptionItems, ...alpha.factItems],
-        flags: alpha.flags,
-      }),
-      decisions,
-    )
+    const recs = data
+      ? data.recommendations
+      : applyDecisions(
+          buildRecommendations({
+            items: [...alpha.perceptionItems, ...alpha.factItems],
+            flags: alpha.flags,
+          }),
+          decisions,
+        )
     const open = recs.filter((r) => r.status === 'proposed' || r.status === 'clarified').length
-    const m = measureSummary(allMeasures(DEMO_MEASURES, decisions), TODAY)
+    const m = data
+      ? measureSummary(data.measures, data.today)
+      : measureSummary(allMeasures(DEMO_MEASURES, decisions), TODAY)
     return {
       '/recommendations': {
         text: String(open),
@@ -44,5 +50,5 @@ export function useNavCounts(): Record<string, NavCount> {
             : `Заходів у трекері: ${m.total}`,
       },
     }
-  }, [decisions])
+  }, [decisions, data])
 }

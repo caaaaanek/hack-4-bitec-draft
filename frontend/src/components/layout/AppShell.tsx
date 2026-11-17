@@ -15,6 +15,7 @@ import {
   type Role,
 } from '@/lib/access'
 import { useDemo } from '@/demo/demoContext'
+import { useSessionOptional } from '@/api/session'
 import { CommandPalette } from './CommandPalette'
 import { HeaderActions } from './HeaderActions'
 import { PAGE_TITLE_SLOT, PageTitle } from './PageTitle'
@@ -36,6 +37,15 @@ function Brand() {
 /** Картка «Роль» унизу бічної панелі: вибір ролі демо (зміна ролі веде на її головний екран). */
 function RoleCard() {
   const { role, setRole } = useDemo()
+  const session = useSessionOptional()
+  if (session?.user)
+    return (
+      <div className="rounded-[14px] bg-surface-muted p-3 text-fine text-text-muted">
+        <p className="m-0">Роль</p>
+        <p className="m-0 mt-1 text-caption font-semibold text-text">{ROLE_LABELS[role]}</p>
+        <p className="m-0 mt-0.5 truncate">{session.user.display_name}</p>
+      </div>
+    )
   return (
     <div className="rounded-[14px] bg-surface-muted p-3">
       <label className="flex flex-col gap-2 text-fine text-text-muted">

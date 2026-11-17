@@ -1,10 +1,14 @@
 import { CalendarDays } from 'lucide-react'
 import { ThemeToggle, Tooltip } from '@/components/ui'
-import { CYCLE } from '@/demo/data'
+import { useCycle } from '@/api/models'
+import { useSessionOptional } from '@/api/session'
 import { DemoPanel } from './DemoPanel'
+import { UserMenu } from './UserMenu'
 
 /** Праворуч у верхній панелі: «Синтетичні дані», цикл, перемикач теми, аватар ролі з демо-панеллю. */
 export function HeaderActions() {
+  const { label: CYCLE } = useCycle()
+  const session = useSessionOptional()
   return (
     <div data-print="hide" className="flex items-center gap-2">
       <span className="hidden rounded-full border border-border px-2.5 py-1 text-fine font-normal text-text-muted md:inline-block">
@@ -20,7 +24,7 @@ export function HeaderActions() {
         </span>
       </Tooltip>
       <ThemeToggle />
-      <DemoPanel />
+      {session ? <UserMenu /> : <DemoPanel />}
     </div>
   )
 }
