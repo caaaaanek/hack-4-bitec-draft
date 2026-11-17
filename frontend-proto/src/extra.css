@@ -325,3 +325,64 @@ html.hc a, html.hc .link { text-decoration: underline; }
 .cmp-stack { display: flex; flex-direction: column; gap: inherit; gap: 20px; min-width: 0; }
 .cmp-stack > .card { flex: 1; }
 @media (max-width: 1200px) { .cmp-stack { grid-column: span 12; } }
+
+/* ---- правки за відгуками: адаптив, огляд, рекомендації ---- */
+.top h1 { white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.top .synthetic { white-space: nowrap; }
+.drawer:not(.on) { box-shadow: none; }
+.kpi-row, .comp-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+@media (max-width: 900px) { .kpi-row, .comp-row { gap: 14px; } }
+@media (max-width: 640px) { .kpi-row, .comp-row { grid-template-columns: minmax(0, 1fr); } }
+.attn-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 32px; }
+@media (max-width: 760px) { .attn-cols { grid-template-columns: minmax(0, 1fr); } }
+.kt-h .lbl { line-height: 26px; }
+.kt-b .mid { display: inline-grid; place-items: center; min-width: 30px; line-height: 1; }
+.kt-s { line-height: 1.4; }
+.radar-body { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; justify-content: center; }
+.radar-main { flex: 1 1 300px; min-width: 0; max-width: 460px; }
+.radar-side { display: none; flex: 1 1 280px; min-width: 0; }
+.radar-side table { width: 100%; }
+@media (max-width: 1180px) {
+  .view > .radar-card.c4, .view > .lv-card.c8 { grid-column: span 12; }
+  .radar-side { display: block; }
+}
+.legend3 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.lim-callout { display: flex; gap: 12px; align-items: flex-start; margin: 4px 0 12px; padding: 14px 16px; border-radius: 12px; background: var(--amber-soft); color: var(--fg); border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent); line-height: 1.5; }
+.lim-callout .lim-ic { color: var(--amber); display: inline-flex; flex: none; margin-top: 1px; }
+.lim-callout .lim-ic svg { width: 20px; height: 20px; }
+.lim-callout b { font-weight: 600; }
+.lim-callout > div > div { margin-top: 4px; }
+.ev { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
+@media (max-width: 1180px) {
+  .view .rec { grid-template-columns: auto minmax(0, 1fr); }
+  .view .rec .rec-actions { grid-column: 1 / -1; justify-content: flex-start; }
+}
+@media (max-width: 640px) {
+  .view .rec { grid-template-columns: minmax(0, 1fr); padding: 14px; }
+  .view .rec .pri { display: none; }
+  .view .rec .rec-actions .btn { flex: 1 1 auto; justify-content: center; }
+}
+.b-card[draggable="true"] { cursor: grab; }
+.b-card.dragging { opacity: .45; }
+.board.dnd .col-b:not(.can-drop) { opacity: .55; }
+.board.dnd .col-b.can-drop { outline: 2px dashed var(--teal-pale); outline-offset: -2px; border-radius: 12px; }
+.board.dnd .col-b.drop-over { outline-color: var(--teal); background: var(--teal-soft); }
+.combo { position: relative; }
+.combo .inp { width: 100%; }
+.combo-list { position: absolute; left: 0; right: 0; top: 100%; margin: 4px 0 0; padding: 4px; list-style: none; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); max-height: 240px; overflow: auto; z-index: 90; font-family: inherit; }
+.combo-list[hidden] { display: none; }
+.combo-list li { padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.combo-list li:hover, .combo-list li.act { background: var(--soft); }
+.combo-list li.sel { font-weight: 600; color: var(--teal-deep); }
+.combo-list li.add { color: var(--teal-deep); font-weight: 600; }
+.combo-list li.add svg { width: 15px; height: 15px; flex: none; }
+.combo-list li.none { color: var(--muted); cursor: default; }
+.chk-row { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; font-weight: 500; color: var(--fg); padding: 4px 0; cursor: pointer; }
+.chk-row input { margin-top: 3px; flex: none; }
+@media (max-width: 1180px) { .view > .waves-card.c4 { grid-column: span 12; } }
+.field:has(.combo) { position: relative; z-index: 20; }
+.field .chk-row { font-size: 14px; font-weight: 500; color: var(--fg); }
+.combo-list { background: var(--panel); }
+.kt-b { flex-wrap: wrap; }
+/* вхід і анонімна анкета: меню немає, тож «згорнуте меню» не повинно лишати вузьку колонку */
+@media (min-width: 901px) { html.side-mini .app.login, html.side-mini .app.anon { grid-template-columns: minmax(0, 1fr); } }
