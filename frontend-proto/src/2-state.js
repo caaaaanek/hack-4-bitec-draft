@@ -167,6 +167,20 @@ function curveChart(el, vals, labels) {
   });
   svg.addEventListener("mouseleave", () => { vl.setAttribute("opacity", 0); dt.setAttribute("opacity", 0); hideTip(); });
 }
+// Міні-графік лише індексу для «Огляду»
+function miniTrend(el, rows) {
+  if (!el) return;
+  const w = el.clientWidth || 300, h = 140, px = 14, T = 22, Bm = 12, n = rows.length;
+  const vals = rows.map(r => r.index), lo = Math.min(...vals), hi = Math.max(...vals), span = Math.max(hi - lo, 1);
+  const X = i => px + (n === 1 ? (w - 2 * px) / 2 : i * (w - 2 * px) / (n - 1)), Y = v => T + (1 - (v - lo) / span) * (h - T - Bm);
+  const p = vals.map((v, i) => [X(i), Y(v)]), last = n - 1;
+  const area = n > 1 ? `<path d="${smooth(p)} L${X(last)},${h} L${X(0)},${h}Z" class="area-fill reveal"/>` : "";
+  const lab = (i, anchor, dx) => `<text x="${X(i) + dx}" y="${p[i][1] - 9}" text-anchor="${anchor}" class="ax-strong lbl-halo">${f1(vals[i])}</text>`;
+  el.innerHTML = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">${DEFS}${area}
+    <path d="${n > 1 ? smooth(p) : ""}" class="line-teal draw" style="stroke-dasharray:3000;--len:3000"/>
+    ${p.map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="${i === last || i === 0 ? 4.5 : 3}" fill="var(--panel)" stroke="var(--teal)" stroke-width="2.2" class="pop" data-tip="Індекс ${f1(vals[i])}<small>Цикл ${rows[i].cycle}</small>"/>`).join("")}
+    ${lab(0, "start", -4)}${n > 1 ? lab(last, "end", 4) : ""}</svg>`;
+}
 // Динаміка: індекс + лінії компонентів, межі рівнів зрілості, події між циклами
 function trendChart(el, rows, lines, events, showIdx = true) {
   if (!el) return;

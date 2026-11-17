@@ -94,8 +94,7 @@ V.overview = () => {
   ${tile("shield", "Достовірність", `<span class="mid">${m.trust === "insufficient" ? "?" : m.trust}</span>`, `${TRUST[m.trust][1]}<br><span class="lbl">Прапорці: ${m.raised.length}</span>`, "openTrust()")}
   ${S.role === "observer" ? tile("users", "Відповідей у циклі", `<span class="mid tnum">${m.responses}</span>`, `<span class="lbl">Мінімальна група k = ${S.k}</span>`, "openResp()") : tile("target", "Заходи в трекері", `<span class="mid tnum">${ms.length}</span>`, od ? `<span style="color:var(--red);font-weight:600">З них ${od} прострочено</span>` : `<span class="lbl">Прострочених немає</span>`, "location.hash='tracker'")}
   </div>
-  <section class="card c12 rise">${trendCard(m, "ovTrend")}</section>
-  <section class="card c12 rise" id="attn">
+  <section class="card c8 rise" id="attn">
     <div class="attn-cols"><div>
     <div class="card-h"><h2>Що потребує уваги</h2></div>
     <div class="rows">${(S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX)).map(a => `<a class="row click" href="#explain/${a.c}"${a.q ? ` onclick="event.preventDefault();openApiQ('${a.q}')"` : ""} data-tip="${esc(a.hint)}"><span class="dot" style="background:${SCOL[status(a.v)]}"></span><div class="grow"><div class="t">${esc(a.t)}</div></div>${pill(COMP[a.c].n, "p-mute nodot")}<b class="tnum">${fb(a.v)}</b></a>`).join("")}</div>
@@ -105,6 +104,7 @@ V.overview = () => {
     </div></div>
   ${m.attention.length > LIST_MAX || m.strengths.length > LIST_MAX ? `<button class="link-btn" style="margin-top:8px" onclick="S.attnAll=!S.attnAll;render(true)">${S.attnAll ? "Згорнути" : `Показати всі (${m.attention.length + m.strengths.length})`}</button>` : ""}
   </section>
+  <section class="card c4 rise dyn-card">${dynCard(m)}</section>
   <div class="c12 comp-row">${m.components.map((c, ci) => {
     const C = COMP[c.id], pv = prev.cr[c.id], d = r1(c.cr.v - pv), lv = level(c.cr.v);
     return `<a class="card rise comp-card" href="#explain/${c.id}">
@@ -135,21 +135,30 @@ V.overview = () => {
 };
 V.overview.after = () => {
   const m = cur(), prev = m.series[m.series.length - 2];
-  drawTrend("ovTrend", m);
+  miniTrend($("#dynMini"), m.series);
   radar($("#radar"), [{ cls: "r-st", v: COMPS.map(c => m.byId[c].cr.v), delay: 150 }, { cls: "r-prev", v: COMPS.map(c => prev.cr[c]), delay: 0 }]);
 };
 
-/* Динаміка: одна картка з вибором періоду й ліній (Огляд і Динаміка) */
+/* Компактна динаміка індексу на «Огляді»: лише лінія індексу, повний екран на #trends */
+function dynCard(m) {
+  const sr = m.series, a = sr[0], b = sr[sr.length - 1], d = r1(b.index - a.index);
+  const txt = d > 0 ? `Зріс на ${pts(d)}` : d < 0 ? `Знизився на ${pts(d)}` : "Не змінився";
+  const alt = `Індекс за цикли від ${a.cycle} до ${b.cycle}: з ${f1(a.index)} до ${f1(b.index)}. ${txt} за період.`;
+  return `<div class="card-h"><h2>Динаміка індексу</h2><div class="sp"></div><a class="pill-btn" href="#trends" aria-label="Детальніше: відкрити екран «Динаміка»">${IC.arrowR}Детальніше</a></div>
+    <div class="chart dyn-mini" id="dynMini" role="img" aria-label="${esc(alt)}"></div>
+    <div class="dyn-sum"><span class="lbl">${a.cycle}: <b class="tnum">${f1(a.index)}</b></span><span class="dyn-d ${d > 0 ? "up" : d < 0 ? "down" : ""}">${txt}</span><span class="lbl">${b.cycle}: <b class="tnum">${f1(b.index)}</b></span></div>`;
+}
+/* Динаміка: картка з вибором періоду й ліній (екран «Динаміка») */
 const trendRange = m => { const t = S.trend, n = m.series.length - 1, a = clamp(Math.min(t.from, t.to), 0, n), b = clamp(Math.max(t.from, t.to), 0, n); return [a, b]; };
-function trendCard(m, id, full) {
+function trendCard(m, id) {
   const t = S.trend, [from, to] = trendRange(m), rows = m.series.slice(from, to + 1), d = r1(rows[rows.length - 1].index - rows[0].index);
   const evs = m.events.filter(e => rows.slice(0, -1).some(r => r.cycle === e.after));
   const chip = (k, n, c, on) => `<button class="chip ${on ? "on" : ""}" style="--c:${c}" aria-pressed="${on}" onclick="toggleLine('${k}')"><i ${k === "index" ? 'class="solid"' : ""}></i>${n}</button>`;
   return `<div class="card-h" style="flex-wrap:wrap"><h2>Динаміка індексу</h2><div class="sp"></div>
       <button type="button" class="pill-btn" aria-haspopup="dialog" onclick="openPeriod(this)">${IC.cal}${rows[0].cycle} – ${rows[rows.length - 1].cycle}</button>
-      ${full ? `<button class="pill-btn" onclick="S.trTable=!S.trTable;render(true)">${S.trTable ? IC.trend + "Діаграма" : IC.table + "Таблиця"}</button>` : `<a class="pill-btn" href="#trends">${IC.arrowR}Детальніше</a>`}</div>
-    ${full && S.trTable ? "" : `<div class="chips-row"><span class="lbl">Лінії:</span>${chip("index", "Індекс", "var(--teal-deep)", !t.noIdx)}${COMPS.map(c => chip(c, COMP[c].n, COMP[c].c, t.lines.includes(c))).join("")}</div>`}
-    ${full && S.trTable ? `<div class="tbl-wrap"><table><thead><tr><th>Цикл</th><th>Індекс</th><th>Рівень</th>${COMPS.map(c => `<th>${COMP[c].n}</th>`).join("")}<th>Події після циклу</th></tr></thead><tbody>${rows.map(r => `<tr><td><b>${r.cycle}</b></td><td class="tnum"><b>${f1(r.index)}</b></td><td>${lvPill(level(r.index))}</td>${COMPS.map(c => `<td class="tnum">${fb(r.cr[c])}</td>`).join("")}<td class="lbl">${m.events.filter(e => e.after === r.cycle && r !== rows[rows.length - 1]).map(e => e.t).join("; ") || "—"}</td></tr>`).join("")}</tbody></table></div>` : `<div class="chart" id="${id}"></div>`}
+      <button class="pill-btn" onclick="S.trTable=!S.trTable;render(true)">${S.trTable ? IC.trend + "Діаграма" : IC.table + "Таблиця"}</button></div>
+    ${S.trTable ? "" : `<div class="chips-row"><span class="lbl">Лінії:</span>${chip("index", "Індекс", "var(--teal-deep)", !t.noIdx)}${COMPS.map(c => chip(c, COMP[c].n, COMP[c].c, t.lines.includes(c))).join("")}</div>`}
+    ${S.trTable ? `<div class="tbl-wrap"><table><thead><tr><th>Цикл</th><th>Індекс</th><th>Рівень</th>${COMPS.map(c => `<th>${COMP[c].n}</th>`).join("")}<th>Події після циклу</th></tr></thead><tbody>${rows.map(r => `<tr><td><b>${r.cycle}</b></td><td class="tnum"><b>${f1(r.index)}</b></td><td>${lvPill(level(r.index))}</td>${COMPS.map(c => `<td class="tnum">${fb(r.cr[c])}</td>`).join("")}<td class="lbl">${m.events.filter(e => e.after === r.cycle && r !== rows[rows.length - 1]).map(e => e.t).join("; ") || "—"}</td></tr>`).join("")}</tbody></table></div>` : `<div class="chart" id="${id}"></div>`}
     <div class="lbl" style="margin-top:8px;display:flex;align-items:center;flex-wrap:wrap;gap:4px"><span class="ev-ic">${IC.diamond}</span>Виконані заходи між циклами: ${evs.length}. ${d > 0 ? `За період індекс зріс на ${pts(d)}.` : d < 0 ? `За період індекс знизився на ${pts(d)}.` : "За період індекс не змінився."}</div>`;
 }
 function drawTrend(id, m) { const [from, to] = trendRange(m); trendChart($("#" + id), m.series.slice(from, to + 1), S.trend.lines, m.events, !S.trend.noIdx); }
@@ -249,7 +258,7 @@ V.trends = () => {
   const pos = COMPS.filter(c => b.cr[c] > a.cr[c]), neg = COMPS.filter(c => b.cr[c] < a.cr[c]);
   const opt = (sel, lim) => sr.map((r, i) => `<option value="${i}" ${i === sel ? "selected" : ""} ${lim && !lim(i) ? "disabled" : ""}>${r.cycle}</option>`).join("");
   return `${backToInst()}
-  <section class="card c12 rise">${trendCard(m, "trend", true)}</section>
+  <section class="card c12 rise">${trendCard(m, "trend")}</section>
   <section class="card c7 rise">
     <div class="card-h" style="flex-wrap:wrap"><h2>Порівняти два цикли</h2><div class="sp"></div>
       <label class="lbl">Було <select class="inp" onchange="S.cmp.a=+this.value;persist();render(true)">${opt(S.cmp.a)}</select></label>
