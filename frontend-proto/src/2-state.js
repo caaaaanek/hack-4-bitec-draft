@@ -65,11 +65,11 @@ const DEFAULTS = () => ({
   facts: {}, fpend: {}, dec: { rec: {}, mst: {}, added: [] }, qs: QUESTIONNAIRES.map(q => ({ ...q })),
   log: [], notes: [], aiOn: true, tokenUsed: false,
   mode: "credited", trackView: "table", recF: { st: "all", c: "all" }, trF: { st: "all", who: "all" },
-  trend: { from: 0, to: 3, lines: [] }, cmp: { a: 0, b: 3 }, cmpCycle: -1, a11y: { z: 1, hc: false }, insts: { extra: [], renamed: {}, archived: [] }, instQ: "", instArch: false,
+  trend: { from: 0, to: 3, lines: [] }, cmp: { a: 0, b: 3 }, cmpCycle: -1, a11y: { z: 1, hc: false }, insts: { extra: [], renamed: {}, archived: [] }, instQ: "", instArch: false, guideOpen: false,
 });
 const S = Object.assign(DEFAULTS(), { chat: [], survey: { phase: "intro", sec: 0, a: {}, miss: false }, open: {} });
 const KEY = "ii-proto-v2";
-const SAVE = ["role", "k", "inst", "unit", "cycleOpen", "facts", "fpend", "dec", "qs", "log", "notes", "aiOn", "tokenUsed", "mode", "trackView", "recF", "trF", "trend", "cmp", "cmpCycle", "a11y", "insts", "instArch"];
+const SAVE = ["role", "k", "inst", "unit", "cycleOpen", "facts", "fpend", "dec", "qs", "log", "notes", "aiOn", "tokenUsed", "mode", "trackView", "recF", "trF", "trend", "cmp", "cmpCycle", "a11y", "insts", "instArch", "guideOpen"];
 try { const saved = JSON.parse(localStorage.getItem(KEY) || "null"); if (saved) SAVE.forEach(k => { if (saved[k] !== undefined) S[k] = saved[k]; }); } catch (e) {}
 try { const d = JSON.parse(localStorage.getItem("ii-survey-draft") || "null"); if (d) S.survey.a = d; } catch (e) {}
 const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(SAVE.map(k => [k, S[k]])))); } catch (e) {} };
@@ -100,7 +100,7 @@ const f2 = v => v.toLocaleString("uk-UA", { minimumFractionDigits: 2, maximumFra
 const pts = v => { const a = Math.abs(r1(v)); const w = Number.isInteger(a) ? (a % 10 === 1 && a % 100 !== 11 ? "пункт" : [2, 3, 4].includes(a % 10) && ![12, 13, 14].includes(a % 100) ? "пункти" : "пунктів") : "пункта"; return `${fb(a)} ${w}`; };
 const ua = d => d.split("-").reverse().join(".");
 const numHTML = (v, d = 1) => { const s = d ? f1(v) : fb(v); const [a, b] = s.split(","); return `<span class="cu" data-v="${v}" data-d="${d}">${a}<span class="dec">${b ? "," + b : ""}</span></span>`; };
-const deltaHTML = (d, suf = "") => { const up = d > 0, dn = d < 0; return `<span class="delta ${up ? "up" : dn ? "down" : "flat"}"><i>${up ? IC.up : dn ? IC.down : IC.flat}</i><b>${up || dn ? pts(d) : "Без змін"}</b>${up ? " зросло" : dn ? " знизилось" : ""}${suf ? " " + suf : ""}</span>`; };
+const deltaHTML = (d, suf = "") => { const up = d > 0, dn = d < 0; return `<span class="delta ${up ? "up" : dn ? "down" : "flat"}"><i>${up ? IC.up : dn ? IC.down : IC.flat}</i><span>${up ? "Зросло на " : dn ? "Знизилось на " : ""}<b>${up || dn ? pts(d) : "Без змін"}</b>${suf ? " " + suf : ""}</span></span>`; };
 const pill = (txt, cls) => `<span class="pill ${cls}">${txt}</span>`;
 const lvPill = l => `<span class="pill lv lv${l} nodot" data-tip="Рівень зрілості ${l} з 5: ${LSHORT[l - 1]}<small>${LDESC[l - 1]}</small>"><b>${l}</b>${LSHORT[l - 1]}</span>`;
 const trustPill = g => `<span class="pill ${TRUST[g][3]} nodot" data-tip="${esc(TRUST[g][2])}">${g === "insufficient" ? "" : `<b>${g}</b>`}${TRUST[g][1]}</span>`;
@@ -175,10 +175,22 @@ function trendChart(el, rows, lines, events, showIdx = true) {
   const heads = `<text x="${L - 8}" y="${T - 12}" text-anchor="end" class="ax">0–100</text>${wide ? `<text x="${w - Rr + 8}" y="${T - 12}" class="ax">Рівень зрілості</text>` : ""}`;
   const p = rows.map((r, i) => [X(i), Y(r.index)]);
   const area = n > 1 && showIdx ? `<path d="${smooth(p)} L${X(n - 1)},${Y(0)} L${X(0)},${Y(0)}Z" class="area-fill reveal"/>` : "";
-  const compLines = lines.map(c => { const q = rows.map((r, i) => [X(i), Y(r.cr[c])]); return `<path d="${n > 1 ? smooth(q) : ""}" fill="none" stroke="${COMP[c].c}" stroke-width="2" stroke-dasharray="6 5" class="draw" style="--len:3000"/>${q.map(([x, y], i) => `<rect x="${x - 4}" y="${y - 4}" width="8" height="8" rx="2" fill="${COMP[c].c}" class="pop" data-tip="${COMP[c].n}: ${fb(rows[i].cr[c])}<small>Цикл ${rows[i].cycle}</small>"/>${showIdx ? "" : `<text x="${x}" y="${y - 10}" text-anchor="middle" class="ax-strong">${fb(rows[i].cr[c])}</text>`}`).join("")}`; }).join("");
-  const idx = showIdx ? `<path d="${n > 1 ? smooth(p) : ""}" class="line-teal draw" style="stroke-dasharray:3000;--len:3000"/>${p.map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="5" fill="var(--panel)" stroke="var(--teal)" stroke-width="2.5" class="pop" style="animation-delay:${500 + i * 120}ms" data-tip="Індекс ${f1(rows[i].index)} · рівень ${level(rows[i].index)}<small>Цикл ${rows[i].cycle}</small>"/><text x="${x}" y="${y - 12}" text-anchor="middle" class="ax-strong">${f1(rows[i].index)}</text>`).join("")}` : "";
+  // Підписи значень: по одному на кожну видиму лінію в кожному циклі, розсунуті по вертикалі, щоб не накладались
+  const labs = rows.map(() => []);
+  if (showIdx) rows.forEach((r, i) => labs[i].push({ y: Y(r.index), t: f1(r.index), c: "var(--fg)" }));
+  lines.forEach(c => rows.forEach((r, i) => labs[i].push({ y: Y(r.cr[c]), t: fb(r.cr[c]), c: COMP[c].c })));
+  const GAP = 14, labels = labs.map((L0, i) => {
+    // стопка підписів над групою точок (зверху найбільше значення); якщо зверху немає місця, то під групою
+    const s = [...L0].sort((a, b) => a.y - b.y), top = s[0].y, bot = s[s.length - 1].y, k = s.length;
+    const above = top - 10 - (k - 1) * GAP >= 14;
+    s.forEach((l, j) => { l.ly = above ? top - 10 - (k - 1 - j) * GAP : bot + 18 + j * GAP; });
+    const anchor = n > 1 && i === n - 1 ? "end" : n > 1 && i === 0 ? "start" : "middle", dx = anchor === "end" ? -6 : anchor === "start" ? 6 : 0;
+    return s.map(l => `<text x="${X(i) + dx}" y="${l.ly + 4}" text-anchor="${anchor}" class="ax-strong lbl-halo" style="fill:${l.c}">${l.t}</text>`).join("");
+  }).join("");
+  const compLines = lines.map(c => { const q = rows.map((r, i) => [X(i), Y(r.cr[c])]); return `<path d="${n > 1 ? smooth(q) : ""}" fill="none" stroke="${COMP[c].c}" stroke-width="2" stroke-dasharray="6 5" class="draw" style="--len:3000"/>${q.map(([x, y], i) => `<rect x="${x - 4}" y="${y - 4}" width="8" height="8" rx="2" fill="${COMP[c].c}" class="pop" data-tip="${COMP[c].n}: ${fb(rows[i].cr[c])}<small>Цикл ${rows[i].cycle}</small>"/>`).join("")}`; }).join("");
+  const idx = showIdx ? `<path d="${n > 1 ? smooth(p) : ""}" class="line-teal draw" style="stroke-dasharray:3000;--len:3000"/>${p.map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="5" fill="var(--panel)" stroke="var(--teal)" stroke-width="2.5" class="pop" style="animation-delay:${500 + i * 120}ms" data-tip="Індекс ${f1(rows[i].index)} · рівень ${level(rows[i].index)}<small>Цикл ${rows[i].cycle}</small>"/>`).join("")}` : "";
   const ev = events.map(e => { const i = rows.findIndex(r => r.cycle === e.after); if (i < 0 || i >= n - 1) return ""; const x = (X(i) + X(i + 1)) / 2, y = h - B + 21; return `<g class="pop" data-tip="${esc(e.t)}<small>Після циклу ${e.after}</small>"><rect x="${x - 6}" y="${y - 6}" width="12" height="12" fill="var(--panel)" stroke="var(--fg)" stroke-width="1.6" transform="rotate(45 ${x} ${y})"/></g>`; }).join("");
-  el.innerHTML = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Динаміка індексу доброчесності">${DEFS}${grid}${bounds}${bands}${heads}${area}${idx}${compLines}
+  el.innerHTML = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Динаміка індексу доброчесності">${DEFS}${grid}${bounds}${bands}${heads}${area}${idx}${compLines}${labels}
     ${rows.map((r, i) => `<text x="${X(i)}" y="${h - B + 6}" text-anchor="middle" class="ax" style="dominant-baseline:hanging">${r.cycle}</text>`).join("")}${ev}</svg>`;
 }
 // Радар компонентів (два цикли)
@@ -195,7 +207,7 @@ function radar(el, series) {
 function levelBar(v) {
   const spans = [[0, 12.5], [12.5, 37.5], [37.5, 62.5], [62.5, 87.5], [87.5, 100]], lv = level(v);
   return `<div class="lvscale" role="img" aria-label="Індекс ${f1(v)}: рівень ${lv} з 5, ${LSHORT[lv - 1]}">
-    <div class="lvs-mark" style="left:${v}%"><b class="tnum">${f1(v)}</b><i></i></div>
+    <div class="lvs-mark" style="left:${v}%;transform:translateX(${v < 8 ? "-6px" : v > 92 ? "calc(-100% + 6px)" : "-50%"});align-items:${v < 8 ? "flex-start" : v > 92 ? "flex-end" : "center"}"><b class="tnum">${f1(v)}</b><i></i></div>
     <div class="lvs-bar">${spans.map(([lo, hi], i) => `<span class="lv-b${i + 1} ${i + 1 === lv ? "here" : ""}" style="flex:${hi - lo}" data-tip="Рівень ${i + 1}: ${LSHORT[i]}<small>Індекс від ${fb(lo)} до ${fb(hi)}</small>"></span>`).join("")}</div>
     <div class="lvs-lbl">${spans.map(([lo, hi], i) => `<div style="flex:${hi - lo}" class="${i + 1 === lv ? "here" : ""}"><b>${i + 1}</b><span>${LSHORT[i]}</span><small class="tnum">${fb(lo)}–${fb(hi)}</small></div>`).join("")}</div>
   </div>`;

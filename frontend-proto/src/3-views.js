@@ -83,6 +83,7 @@ function openResp() {
     <div><div class="lbl" style="margin-bottom:6px">За групами</div><div class="rows">${gs.map(g => { const hid = g.resp < S.k && g.unit; return `<div class="row"><div class="grow"><div class="t">${g.n}</div><div class="dist-bar" style="margin-top:6px"><i style="width:${g.resp / g.inv * 100}%;background:${hid ? "var(--faint)" : "var(--teal)"}"></i></div></div><b class="tnum">${g.resp} з ${g.inv}</b>${hid ? pill("Приховано", "p-mute nodot") : ""}</div>`; }).join("")}</div></div>
     <div class="note-box"><b>Мінімальна група k = ${S.k}</b><span class="lbl">Результати групи показуються, лише якщо відповіли щонайменше ${S.k} людей. Менші групи додаються до вищого рівня, щоб нікого не можна було впізнати. Окремі відповіді не зберігаються разом з особою: жетон одноразовий і не повʼязаний з іменем.</span></div>`);
 }
+const LIST_MAX = 3; // скільки пунктів показувати в «Що потребує уваги» і «Сильні сторони» до розгортання
 function goAttn() {
   const n = cur().attention.filter(a => a.v < 65).length;
   if (!n) return toast("Напрямів, що потребують уваги, немає: усі компоненти мають 65 і більше");
@@ -101,9 +102,10 @@ V.overview = () => {
   <section class="card c8 rise">${trendCard(m, "ovTrend")}</section>
   <section class="card c4 rise" id="attn">
     <div class="card-h"><h2>Що потребує уваги</h2></div>
-    <div class="rows">${m.attention.map(a => `<a class="row click" href="#explain/${a.c === "culture" || a.c === "accountability" ? (a.t.startsWith("Підтвердити") || a.t.startsWith("Більше") ? a.c : a.c) : a.c}" data-tip="${esc(a.hint)}"><span class="dot" style="background:${SCOL[status(a.v)]}"></span><div class="grow"><div class="t">${a.t}</div></div>${pill(COMP[a.c].n, "p-mute nodot")}<b class="tnum">${fb(a.v)}</b></a>`).join("")}</div>
-    <div class="lbl" style="margin:16px 0 4px">Сильні сторони</div>
-    <div class="rows">${m.strengths.map(a => `<a class="row click" href="${a.c ? "#explain/" + a.c : "#trends"}" data-tip="${esc(a.hint)}"><span class="dot" style="background:var(--teal)"></span><div class="grow"><div class="t">${a.t}</div></div><b class="tnum">${a.unit ? "+" : ""}${fb(a.v)}</b></a>`).join("")}</div>
+    <div class="rows">${(S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX)).map(a => `<a class="row click" href="#explain/${a.c === "culture" || a.c === "accountability" ? (a.t.startsWith("Підтвердити") || a.t.startsWith("Більше") ? a.c : a.c) : a.c}" data-tip="${esc(a.hint)}"><span class="dot" style="background:${SCOL[status(a.v)]}"></span><div class="grow"><div class="t">${a.t}</div></div>${pill(COMP[a.c].n, "p-mute nodot")}<b class="tnum">${fb(a.v)}</b></a>`).join("")}</div>
+    <div class="card-h" style="margin:20px 0 6px"><h2>Сильні сторони</h2></div>
+    <div class="rows">${(S.attnAll ? m.strengths : m.strengths.slice(0, LIST_MAX)).map(a => `<a class="row click" href="${a.c ? "#explain/" + a.c : "#trends"}" data-tip="${esc(a.hint)}"><span class="dot" style="background:var(--teal)"></span><div class="grow"><div class="t">${a.t}</div></div><b class="tnum">${a.unit ? "+" : ""}${fb(a.v)}</b></a>`).join("")}</div>
+  ${m.attention.length > LIST_MAX || m.strengths.length > LIST_MAX ? `<button class="link-btn" style="margin-top:8px" onclick="S.attnAll=!S.attnAll;render(true)">${S.attnAll ? "Згорнути" : `Показати всі (${m.attention.length + m.strengths.length})`}</button>` : ""}
   </section>
   ${m.components.map((c, ci) => {
     const C = COMP[c.id], pv = prev.cr[c.id], d = r1(c.cr.v - pv), lv = level(c.cr.v);
@@ -113,7 +115,7 @@ V.overview = () => {
         <div><div class="mid tnum">${numHTML(c.cr.v)}</div><div style="margin-top:6px">${deltaHTML(d)}</div></div>
         <div class="pf">${[["Сприйняття", c.P, "var(--blue)"], ["Факти", c.F, "var(--amber)"], ["Зараховано", c.cr.v, C.c]].map(([n, v, col], j) => `<div data-tip="${n}: ${fb(v)}"><i class="bar-a" style="height:${Math.max(4, v * .6)}px;background:${col};animation-delay:${300 + ci * 100 + j * 80}ms"></i><small>${n[0]}</small></div>`).join("")}</div>
       </div>
-      <div style="margin-top:14px;min-height:26px">${c.cr.lim ? pill("Зараховано з обмеженням", "p-warn") : `<span class="lbl">Сприйняття ${fb(c.P)} · факти ${fb(c.F)}</span>`}</div>
+      ${c.cr.lim ? `<div style="margin-top:14px">${pill("Зараховано з обмеженням", "p-warn")}</div>` : ""}
     </a>`;
   }).join("")}
   <section class="card c8 rise">
@@ -121,6 +123,8 @@ V.overview = () => {
     <div class="lbl" style="margin-bottom:14px">Індекс ${f1(m.index)} з 100 відповідає рівню ${m.level} «${LEVELS[m.level - 1]}» за Моделлю зрілості НАЗК.</div>
     ${levelBar(m.index)}
     <div class="lbl" style="margin-top:14px">${LDESC[m.level - 1]}</div>
+    <div class="lbl" style="margin:20px 0 8px">Компоненти на тій самій шкалі</div>
+    <div class="lv-comps">${m.components.map(c => { const v = c.cr.v, l = level(v); return `<a class="lv-comp" href="#explain/${c.id}"><b>${COMP[c.id].n}</b><div class="lvc-track">${[12.5, 25, 25, 25, 12.5].map((w, i) => `<span class="lv-b${i + 1} ${i + 1 === l ? "here" : ""}" style="flex:${w}"></span>`).join("")}<i style="left:${v}%" data-tip="${COMP[c.id].n}: ${fb(v)}"></i></div><span class="tnum">${fb(v)}</span>${lvPill(l)}</a>`; }).join("")}</div>
   </section>
   <section class="card c4 rise">
     <div class="card-h"><h2>Радар компонентів</h2></div>
@@ -170,7 +174,7 @@ function drawPeriod() {
   $("#pop").innerHTML = `<div class="lbl" style="text-transform:uppercase;letter-spacing:.06em;font-size:11px">Оберіть період</div>
     <div style="font-size:17px;font-weight:600;margin:2px 0 10px">${pickA != null ? `${sr[pickA].cycle} – …` : `${sr[from].cycle} – ${sr[to].cycle}`}</div>
     ${years.map(y => `<div class="mp-y">${y}</div><div class="mp">${MON.map((mn, i) => { const cy = `${y}-${String(i + 1).padStart(2, "0")}`, k = sr.findIndex(r => r.cycle === cy); if (k < 0) return `<span class="off">${mn}</span>`; const end = k === lo || k === hi, mid = k > lo && k < hi; return `<button class="${end ? "end" : mid ? "mid" : ""}" onclick="pickCycle(${k})" data-tip="Цикл ${cy}">${mn}</button>`; }).join("")}</div>`).join("")}
-    <div class="lbl" style="margin-top:8px">${pickA != null ? "Тепер оберіть кінець періоду." : "Активні місяці це цикли оцінювання. Клацніть початок, потім кінець."}</div>
+    <div class="lbl" style="margin-top:8px">Активні місяці це цикли оцінювання.</div>
     <div style="display:flex;justify-content:space-between;margin-top:10px"><button class="link-btn" onclick="S.trend.from=0;S.trend.to=${sr.length - 1};persist();closePop();render(true)">Увесь період</button><button class="link-btn" onclick="S.trend.from=${Math.max(0, sr.length - 2)};S.trend.to=${sr.length - 1};persist();closePop();render(true)">Останні два цикли</button></div>`;
 }
 function pickCycle(k) {
@@ -414,8 +418,8 @@ function openSource(i) {
 
 /* Заклади (спостерігач) */
 const readGuide = title => `
-  <section class="card c12 rise">
-    <div class="card-h"><h2>${title}</h2></div>
+  <details class="card c12 rise guide" ${S.guideOpen ? "open" : ""} ontoggle="S.guideOpen=this.open;persist()">
+    <summary class="card-h"><h2>${title}</h2><div class="sp"></div><span class="lbl guide-hint"></span><span class="chev">${IC.chev}</span></summary>
     <div class="legend3">
       <div><h3>Індекс доброчесності</h3><p class="lbl">Число від 0 до 100: середнє трьох компонентів (Культура, Система, Підзвітність). Кожен компонент поєднує анкети персоналу й факти з документів. Чим вище, тим краще працює система доброчесності закладу. Оцінюється система, а не окремі люди.</p></div>
       <div><h3>Рівень зрілості</h3><p class="lbl" style="margin-bottom:8px">Рівень за Моделлю зрілості НАЗК, визначається за індексом.</p>
@@ -423,7 +427,7 @@ const readGuide = title => `
       <div><h3>Достовірність</h3><p class="lbl" style="margin-bottom:8px">Наскільки можна довіряти результату. Залежить від прапорців: автоматичних перевірок даних на розбіжності й підозрілі відповіді.</p>
         <div class="rows">${["A", "B", "C", "insufficient"].map(g => `<div class="row" style="align-items:flex-start;gap:10px">${trustPill(g)}<div class="grow lbl" style="font-size:12.5px">${TRUST[g][2]}</div></div>`).join("")}</div></div>
     </div>
-  </section>`;
+  </details>`;
 
 V.institutions = () => {
   const q = S.instQ.trim().toLowerCase(), arch = S.insts.archived;
