@@ -68,7 +68,7 @@ flowchart LR
 | Audit Trail — журнал дій | `audit.py` (ланцюжок хешів), `GET /admin/audit-log`, `POST /admin/audit-log/verify` | `/audit` (заглушка) |
 | Reporting Module | `GET /campaigns/{id}/report?format=json\|csv` | `/reports` |
 | Кабінет учасника — узагальнені результати свого підрозділу | `GET /me/results` | `/me` |
-| Інтеграція з іншими системами | `POST /indicators` (ключ на джерело), тема 2: `/integrations/theme2/*` | `/integrations` карта інтеграції |
+| Інтеграція з іншими системами | `POST /indicators` (ключ на джерело), адаптери `backend/adapters/` (ARTEMIDA + 4 моки), тема 2: `/integrations/theme2/*` | `/integrations` карта інтеграції |
 | Асистент (опційно, вимкнено) | `POST /assistant/ask` | — |
 
 Методика індексу — [`docs/integrity-index.md`](docs/integrity-index.md), ролі й API — [`docs/backend.md`](docs/backend.md).

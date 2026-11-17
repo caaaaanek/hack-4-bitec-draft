@@ -165,6 +165,20 @@ def post_indicator(data: IndicatorIn, db: Session = Depends(get_db), actor: Inte
     return row
 
 
+class IntegrationUnitOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    parent_id: uuid.UUID | None
+
+
+@router.get("/indicators/units", response_model=list[IntegrationUnitOut])
+def integration_units(db: Session = Depends(get_db), _: IntegrationActor = Depends(integration_or_admin)):
+    """Довідник підрозділів для адаптерів джерел: зіставити свої коди з unit_id. Лише id, назва, батько."""
+    return db.scalars(select(Unit).order_by(Unit.name)).all()
+
+
 def check_unit(db: Session, unit_id: uuid.UUID, user: User) -> Unit:
     unit = db.get(Unit, unit_id)
     if unit is None:

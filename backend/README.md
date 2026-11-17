@@ -54,3 +54,4 @@ cd backend && pytest
 | `app/seed/` | Демо-дані, анкети з додатків Б і В, каталог заходів з Додатку Д (JSON) |
 | `migrations/` | Міграції Alembic |
 | `scripts/demo_wave.py` | Демо-хвиля через API від початку до кінця |
+| `adapters/` | Адаптери джерел фактів (ARTEMIDA і моки) → `POST /indicators`: `python -m adapters --help` |

@@ -69,10 +69,23 @@ commissioner його підтверджує, admin закриває хвилю.
 | `staff01`…`staff75` | учасник, особовий склад | Анкета 2, мої результати |
 | `expert1`…`expert5` | учасник, експерт | Анкета 3, мої результати |
 
+## Факти з інших систем (адаптери)
+
+ARTEMIDA і моки чотирьох систем передають факти «X з Y» у `POST /indicators`, кожне джерело своїм ключем
+(деталі — [`backend.md`](backend.md), «Адаптери джерел фактів»). Задайте ключі в `.env`, наприклад
+`INTEGRATION_KEYS=artemida=…;nazk-declarations=…;kadry=…;procurement=…;reports=…`, перезапустіть compose і виконайте:
+
+```bash
+docker compose exec backend python -m adapters all --mock --months 12 --dry-run   # що буде передано
+docker compose exec backend python -m adapters all --mock --months 12             # передати
+```
+
+Нові факти видно в `GET /units/{id}/indicators` і в ризик-сигналах; знімки вже закритих хвиль не змінюються.
+
 ## Перевірки
 
 ```bash
-cd backend && pytest                    # бекенд: 89 тестів (на SQLite один тест xmin пропускається)
+cd backend && pytest                    # бекенд: 95 тестів (на SQLite один тест xmin пропускається)
 TEST_DATABASE_URL=postgresql+psycopg://imd:пароль@localhost:5432/imd_test pytest   # те саме на PostgreSQL
 cd frontend && npm run check            # фронтенд: typecheck, lint, 192 тести, збірка
 cd frontend && npm run check:contrast   # контраст кольорів
