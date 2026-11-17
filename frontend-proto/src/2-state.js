@@ -127,7 +127,7 @@ const tip = $("#tip");
 // Масштаб тексту (zoom на <html>): координати getBoundingClientRect екранні, а left/top задаються в CSS-пікселях
 const Z = () => parseFloat(document.documentElement.style.zoom) || 1;
 const zr = r => { const z = Z(); return { left: r.left / z, right: (r.right ?? r.left + r.width) / z, top: r.top / z, bottom: r.bottom / z, width: r.width / z }; };
-function placePop(btn) { const p = $("#pop"), r = zr(btn.getBoundingClientRect()), w = p.offsetWidth, vw = innerWidth / Z(); p.style.left = Math.max(8, Math.min(r.right - w, vw - w - 8)) + "px"; p.style.top = (r.bottom + 6) + "px"; }
+function placePop(btn) { $("#pop").style.width = ""; const p = $("#pop"), r = zr(btn.getBoundingClientRect()), w = p.offsetWidth, vw = innerWidth / Z(); p.style.left = Math.max(8, Math.min(r.right - w, vw - w - 8)) + "px"; p.style.top = (r.bottom + 6) + "px"; }
 function showTip(r, html) {
   r = zr(r); const innerWidth = window.innerWidth / Z(), innerHeight = window.innerHeight / Z();
   tip.innerHTML = html; tip.style.left = "0px"; tip.style.top = "0px";

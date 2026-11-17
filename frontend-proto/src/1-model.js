@@ -327,12 +327,12 @@ const BASE_MEASURES = [
 ];
 const M_ST = {
   accepted: ["Прийнято", "p-info"], inprogress: ["В роботі", "p-warn"], done: ["Виконано", "p-done"],
-  confirmed: ["Підтверджено", "p-good"], notconfirmed: ["Не підтверджено", "p-bad"], overdue: ["Прострочено", "p-bad"],
+  confirmed: ["Підтверджено", "p-good"], notconfirmed: ["Не підтверджено", "p-bad"], overdue: ["Прострочено", "p-bad"], cancelled: ["Скасовано", "p-mute"],
 };
-const M_NEXT = { accepted: ["inprogress"], inprogress: ["done", "accepted"], done: ["inprogress"], confirmed: [], notconfirmed: ["inprogress"] };
+const M_NEXT = { accepted: ["inprogress"], inprogress: ["done", "accepted"], done: ["inprogress"], confirmed: [], notconfirmed: ["inprogress"], cancelled: [] };
 const dayMs = 864e5, utc = d => { const [y, m, dd] = d.split("-").map(Number); return Date.UTC(y, m - 1, dd); };
-const overdueDays = m => ["done", "confirmed", "notconfirmed"].includes(m.st) ? 0 : Math.max(0, Math.floor((utc(TODAY) - utc(m.due)) / dayMs));
+const overdueDays = m => ["done", "confirmed", "notconfirmed", "cancelled"].includes(m.st) ? 0 : Math.max(0, Math.floor((utc(TODAY) - utc(m.due)) / dayMs));
 const dispSt = m => overdueDays(m) > 0 ? "overdue" : m.st;
 const daysWord = n => { const t = n % 100, u = n % 10; return t >= 11 && t <= 14 ? "днів" : u === 1 ? "день" : u >= 2 && u <= 4 ? "дні" : "днів"; };
 const measures = () => API.on ? API.ms : [...BASE_MEASURES, ...S.dec.added].map(m => S.dec.mst[m.id] ? { ...m, st: S.dec.mst[m.id] } : m);
-const verif = m => m.st === "confirmed" ? ["Підтверджено наступним оцінюванням", "p-good"] : m.st === "notconfirmed" ? ["Не підтверджено, потрібен перегляд", "p-bad"] : m.st === "done" ? ["Очікує наступного оцінювання", "p-info"] : ["Ще не настав час", "p-mute"];
+const verif = m => m.vf ? m.vf : m.st === "cancelled" ? ["Захід скасовано", "p-mute"] : m.st === "confirmed" ? ["Підтверджено наступним оцінюванням", "p-good"] : m.st === "notconfirmed" ? ["Не підтверджено, потрібен перегляд", "p-bad"] : m.st === "done" ? ["Очікує наступного оцінювання", "p-info"] : ["Ще не настав час", "p-mute"];

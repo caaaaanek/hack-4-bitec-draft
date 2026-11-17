@@ -34,7 +34,7 @@
 .pf { display: flex; gap: 8px; align-items: flex-end; height: 70px; }
 .pf div { display: flex; flex-direction: column; align-items: center; gap: 4px; justify-content: flex-end; height: 100%; }
 .pf i { width: 14px; border-radius: 4px; display: block; transform-origin: bottom; }
-.pf small { font-size: 10px; color: var(--muted); }
+.pf small { font-size: 12px; color: var(--muted); }
 .ev-ic { display: inline-flex; width: 13px; height: 13px; vertical-align: -2px; margin-right: 6px; color: var(--fg); }
 .ev-ic svg { width: 13px; height: 13px; }
 .note-box { background: var(--soft); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
@@ -386,3 +386,10 @@ html.hc a, html.hc .link { text-decoration: underline; }
 .kt-b { flex-wrap: wrap; }
 /* вхід і анонімна анкета: меню немає, тож «згорнуте меню» не повинно лишати вузьку колонку */
 @media (min-width: 901px) { html.side-mini .app.login, html.side-mini .app.anon { grid-template-columns: minmax(0, 1fr); } }
+/* v8: підказки пошуку */
+.qs { display: flex; flex-direction: column; gap: 2px; max-height: 60vh; overflow-y: auto; }
+.qs-i { display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 8px; cursor: pointer; color: var(--fg); font: inherit; font-size: 13.5px; }
+.qs-i:hover, .qs-i.on { background: var(--soft); }
+.qs-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qs-i .lbl { flex: none; font-size: 12px; }
+.qs mark { background: var(--lime-soft, #e6f7c8); color: inherit; border-radius: 3px; padding: 0 1px; }

@@ -98,7 +98,7 @@ V.overview = () => {
   <section class="card c12 rise" id="attn">
     <div class="attn-cols"><div>
     <div class="card-h"><h2>Що потребує уваги</h2></div>
-    <div class="rows">${(S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX)).map(a => `<a class="row click" href="#explain/${a.c === "culture" || a.c === "accountability" ? (a.t.startsWith("Підтвердити") || a.t.startsWith("Більше") ? a.c : a.c) : a.c}" data-tip="${esc(a.hint)}"><span class="dot" style="background:${SCOL[status(a.v)]}"></span><div class="grow"><div class="t">${a.t}</div></div>${pill(COMP[a.c].n, "p-mute nodot")}<b class="tnum">${fb(a.v)}</b></a>`).join("")}</div>
+    <div class="rows">${(S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX)).map(a => `<a class="row click" href="#explain/${a.c}"${a.q ? ` onclick="event.preventDefault();openApiQ('${a.q}')"` : ""} data-tip="${esc(a.hint)}"><span class="dot" style="background:${SCOL[status(a.v)]}"></span><div class="grow"><div class="t">${esc(a.t)}</div></div>${pill(COMP[a.c].n, "p-mute nodot")}<b class="tnum">${fb(a.v)}</b></a>`).join("")}</div>
     </div><div>
     <div class="card-h"><h2>Сильні сторони</h2></div>
     <div class="rows">${(S.attnAll ? m.strengths : m.strengths.slice(0, LIST_MAX)).map(a => `<a class="row click" href="${a.c ? "#explain/" + a.c : "#trends"}" data-tip="${esc(a.hint)}"><span class="dot" style="background:var(--teal)"></span><div class="grow"><div class="t">${a.t}</div></div><b class="tnum">${a.unit ? "+" : ""}${fb(a.v)}</b></a>`).join("")}</div>
@@ -182,7 +182,7 @@ function pickCycle(k) {
   if (a === b) { toast("Оберіть два різні цикли"); return drawPeriod(); }
   S.trend.from = a; S.trend.to = b; persist(); closePop(); render(true);
 }
-function closePop() { $("#pop").classList.remove("on"); pickA = null; }
+function closePop() { const p = $("#pop"); p.classList.remove("on"); p.style.width = ""; pickA = null; }
 document.addEventListener("click", e => { const p = $("#pop"); if (p.classList.contains("on") && !p.contains(e.target) && !(p._btn && p._btn.contains(e.target)) && !e.target.closest("#pop")) closePop(); }, true);
 
 /* Розклад індексу */
@@ -281,7 +281,7 @@ V.recs = () => {
       <h3>${r.t}</h3>
       <div class="lbl" style="margin:10px 0 4px">Чому система це пропонує</div><div>${r.why}</div>
       <div class="lbl" style="margin:12px 0 4px">На підставі</div>
-      <div class="ev">${r.evidence.map(e => `<a href="#explain/${e.id}" class="ev-i">${e.item ? "" : `<span style="color:var(--red);display:inline-flex;width:14px">${IC.alert}</span>`}<span>${esc(e.t)}: <b>${e.v}</b></span><span class="lbl">Відкрити в розкладі ${IC.arrowR}</span></a>`).join("")}</div>
+      <div class="ev">${r.evidence.map(e => `<a href="#explain/${e.id}" class="ev-i"${e.q ? ` onclick="event.preventDefault();openApiQ('${e.q}')"` : ""}>${e.item ? "" : `<span style="color:var(--red);display:inline-flex;width:14px">${IC.alert}</span>`}<span>${esc(e.t)}: <b>${e.v}</b></span><span class="lbl">${e.q ? "Відкрити питання" : "Відкрити в розкладі"} ${IC.arrowR}</span></a>`).join("")}</div>
       <details class="acts"><summary>Запропоновані дії (${r.acts.length})</summary><ol>${r.acts.map(a => `<li>${a}</li>`).join("")}</ol></details>
       ${r.note.reason ? `<div class="note-box" style="margin-top:10px"><b>Причина відхилення</b><span>${esc(r.note.reason)}</span></div>` : ""}
       ${r.note.comment ? `<div class="note-box" style="margin-top:10px"><b>Коментар до уточнення</b><span>${esc(r.note.comment)}</span></div>` : ""}
@@ -333,7 +333,7 @@ V.tracker = () => {
   const od = all.filter(x => overdueDays(x) > 0).length;
   const stCell = x => pill(M_ST[x.st][0], M_ST[x.st][1]);
   const actCell = x => x.st === "confirmed" ? `<span class="lbl">Змінює наступне оцінювання</span>` : edit ? `<div class="mv">${M_NEXT[x.st].map(s => `<button class="btn btn-ghost" onclick="setMSt('${x.id}','${s}')">${IC.arrowR}${M_ST[s][0]}</button>`).join("")}</div>` : `<span class="lbl">—</span>`;
-  const board = ["accepted", "inprogress", "done", "confirmed", "notconfirmed"].map(st => { const cards = list.filter(x => x.st === st); return `<div class="col-b" data-st="${st}"><div class="col-h">${pill(M_ST[st][0], M_ST[st][1])}<span class="lbl tnum">${cards.length}</span></div>${cards.map(x => `<div class="b-card tr-click" tabindex="0" ${edit && M_NEXT[x.st].length ? `draggable="true" data-id="${x.id}" data-st="${x.st}"` : ""} onclick="if(!event.target.closest('button'))openMeasure('${x.id}')"><b>${x.t}</b><span class="lbl">${x.who}</span><div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap"><span class="lbl tnum" ${overdueDays(x) ? 'style="color:var(--red);font-weight:600"' : ""}>Строк: ${ua(x.due)}</span>${overdueDays(x) ? pill(`+${overdueDays(x)} ${daysWord(overdueDays(x))}`, "p-bad nodot") : ""}</div>${edit && M_NEXT[x.st].length ? `<div class="seg sm">${M_NEXT[x.st].map(s => `<button onclick="setMSt('${x.id}','${s}')">${IC.arrowR}${M_ST[s][0]}</button>`).join("")}</div>` : ""}</div>`).join("") || `<div class="lbl" style="padding:8px">Порожньо</div>`}</div>`; }).join("");
+  const board = ["accepted", "inprogress", "done", "confirmed", "notconfirmed", ...(list.some(x => x.st === "cancelled") ? ["cancelled"] : [])].map(st => { const cards = list.filter(x => x.st === st); return `<div class="col-b" data-st="${st}"><div class="col-h">${pill(M_ST[st][0], M_ST[st][1])}<span class="lbl tnum">${cards.length}</span></div>${cards.map(x => `<div class="b-card tr-click" tabindex="0" ${edit && M_NEXT[x.st].length ? `draggable="true" data-id="${x.id}" data-st="${x.st}"` : ""} onclick="if(!event.target.closest('button'))openMeasure('${x.id}')"><b>${x.t}</b><span class="lbl">${x.who}</span><div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap"><span class="lbl tnum" ${overdueDays(x) ? 'style="color:var(--red);font-weight:600"' : ""}>Строк: ${ua(x.due)}</span>${overdueDays(x) ? pill(`+${overdueDays(x)} ${daysWord(overdueDays(x))}`, "p-bad nodot") : ""}</div>${edit && M_NEXT[x.st].length ? `<div class="seg sm">${M_NEXT[x.st].map(s => `<button onclick="setMSt('${x.id}','${s}')">${IC.arrowR}${M_ST[s][0]}</button>`).join("")}</div>` : ""}</div>`).join("") || `<div class="lbl" style="padding:8px">Порожньо</div>`}</div>`; }).join("");
   const conf = all.filter(x => x.st === "confirmed").length, wait = all.filter(x => x.st === "done").length, rev = all.filter(x => x.st === "notconfirmed").length;
   return `
   <section class="c12 rise toolbar"><div class="sp"></div>
@@ -510,7 +510,7 @@ V.compare = () => {
   <section class="card c12 rise">
     <div class="card-h" style="flex-wrap:wrap"><h2>Сприйняття проти фактів</h2><button type="button" class="kt-info" aria-label="Як читати" data-tip="Точки показують середню оцінку кожної групи, риска це факти. Праворуч різниця «сприйняття мінус факти». Червоним позначено розрив понад ${CAP} пунктів: тоді вмикається обмежувач.">${IC.info}</button><div class="sp"></div><div class="legend">${marks.map(([s, n]) => `<span><i class="mk ${s}"></i>${n}</span>`).join("")}<span><i class="mk f"></i>Факти</span></div></div>
     ${m.components.map((c, i) => { const vals = marks.map(([s]) => [s, srcAvg(c.id, s)]).filter(([, v]) => v != null); const all = [...vals.map(x => x[1]), c.F]; const lo = Math.min(...all), hi = Math.max(...all), gap = r1(c.P - c.F);
-      return `<div class="db" style="cursor:pointer" onclick="location.hash='explain/${c.id}'"><span class="t"><b>${COMP[c.id].n}</b><br><span class="lbl">Сприйняття ${fb(c.P)} · факти ${fb(c.F)}</span></span>
+      return `<div class="db" style="cursor:pointer" role="link" tabindex="0" aria-label="${COMP[c.id].n}: розклад індексу" onclick="location.hash='explain/${c.id}'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.hash='explain/${c.id}'}"><span class="t"><b>${COMP[c.id].n}</b><br><span class="lbl">Сприйняття ${fb(c.P)} · факти ${fb(c.F)}</span></span>
         <div class="track"><div class="gap ${gap > CAP ? "bad" : ""}" style="left:${lo}%;width:${hi - lo}%;animation-delay:${i * 80}ms"></div>
         ${vals.map(([s, v], j) => `<span class="m mk ${s}" style="left:${v}%;animation-delay:${200 + i * 80 + j * 60}ms" data-tip="${SRC[s][0]}: ${fb(v)}"></span>`).join("")}
         <span class="m mk f" style="left:${c.F}%;animation-delay:${400 + i * 80}ms" data-tip="Факти: ${fb(c.F)}"></span></div>
