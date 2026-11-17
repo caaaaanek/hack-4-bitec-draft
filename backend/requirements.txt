@@ -12,3 +12,6 @@ python-multipart==0.0.33
 tzdata==2026.6
 # Демо-хвилі: seed --with-waves (TestClient) і scripts/demo_wave.py
 httpx==0.28.1
+# Звіт за Додатком Г у Word і Excel (локально, без зовнішніх сервісів)
+python-docx==1.2.0
+openpyxl==3.1.5

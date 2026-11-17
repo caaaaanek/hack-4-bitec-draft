@@ -6598,7 +6598,7 @@
           "reports"
         ],
         "summary": "Campaign Report",
-        "description": "Звіт хвилі (структура Додатку Г): індекс, компоненти, факти, питання, розбіжності,\nдинаміка, рекомендації з рішеннями, заходи. PDF друкує фронтенд (print.css).",
+        "description": "Звіт хвилі (структура Додатку Г): індекс, компоненти, факти, питання, розбіжності,\nдинаміка, рекомендації з рішеннями, заходи з перевіркою наступною хвилею.\nРозділ `appendix_g`: крос-таблиці РГ / ОС / експерти, збіги й розбіжності, висновок, пропозиції.\nPDF друкує фронтенд (print.css).",
         "operationId": "campaign_report_api_v1_campaigns__campaign_id__report_get",
         "security": [
           {
@@ -6639,10 +6639,12 @@
             "required": false,
             "schema": {
               "type": "string",
-              "pattern": "^(json|csv)$",
+              "pattern": "^(json|csv|xlsx|docx)$",
+              "description": "json для сторінки; csv, xlsx (Excel) або docx (Word) для завантаження",
               "default": "json",
               "title": "Format"
-            }
+            },
+            "description": "json для сторінки; csv, xlsx (Excel) або docx (Word) для завантаження"
           }
         ],
         "responses": {
@@ -10621,6 +10623,16 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
+          },
+          "verification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeasureVerification"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -10773,6 +10785,117 @@
         "additionalProperties": false,
         "type": "object",
         "title": "MeasureUpdate"
+      },
+      "MeasureVerification": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "not_done | awaiting_wave | no_data | improved | worsened | within_error | check_data"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "component": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Component"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          },
+          "delta": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta"
+          },
+          "baseline_campaign_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Campaign Id"
+          },
+          "next_campaign_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Campaign Id"
+          },
+          "next_campaign_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Campaign Title"
+          },
+          "rule": {
+            "type": "string",
+            "title": "Rule"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "title",
+          "component",
+          "previous",
+          "current",
+          "delta",
+          "baseline_campaign_id",
+          "next_campaign_id",
+          "next_campaign_title",
+          "rule"
+        ],
+        "title": "MeasureVerification",
+        "description": "Перевірка наступним оцінюванням: як змінився компонент заходу після його виконання."
       },
       "OptionIn": {
         "properties": {
