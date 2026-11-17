@@ -10,7 +10,8 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U imd -d imd"]
+      # По TCP: під час першої ініціалізації тимчасовий сервер слухає лише сокет, і pg_isready без -h відповідав би «готово» зарано
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U imd -d imd"]
       interval: 3s
       retries: 20
 
