@@ -77,3 +77,23 @@ def results(client, campaign_id, admin, unit_id=None, recalculate=False):
     r = client.get(f"{API}/campaigns/{campaign_id}/results", params=params, headers=admin)
     assert r.status_code == 200, r.text
     return r.json()
+
+
+ALL = ("nazk-maturity-staff", "nazk-maturity-wg", "nazk-maturity-expert", "nazk-checklist")
+
+
+def full_wave(client, title="Хвиля 1", staff_pick=2, checklist_status="full"):
+    """Повна хвиля з прикладу ТЗ: Підзвітність зрізається фактами. Повертає (campaign_id, admin, root_id)."""
+    campaign_id, q, admin = open_campaign(client, ALL, title=title)
+    for i in range(1, 7):
+        answer(client, campaign_id, q["nazk-maturity-staff"], f"staff{i:02d}", lambda _: staff_pick)
+    for i in range(1, 6):
+        answer(client, campaign_id, q["nazk-maturity-wg"], f"wg{i}", lambda _: -1)
+        answer(client, campaign_id, q["nazk-maturity-expert"], f"expert{i}", lambda _: 2)
+    fill_checklist(client, campaign_id, status=checklist_status)
+    root = units(client, admin)[ROOT]
+    for indicator, num in (("training_coverage", 72), ("declarations_on_time", 96), ("coi_reviewed", 55),
+                           ("procurement_flags_reviewed", 40), ("reports_handled", 80)):
+        post_fact(client, root, indicator, num, 100)
+    close(client, campaign_id, admin)
+    return campaign_id, admin, root

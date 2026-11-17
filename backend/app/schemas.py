@@ -3,6 +3,7 @@ from datetime import date, datetime
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.config import MIN_GROUP_SIZE_FLOOR
 from app.models import (
     CampaignStatus,
     QuestionnaireKind,
@@ -75,8 +76,19 @@ class UserOut(ORM):
     created_at: datetime
 
 
+class AuditVerifyOut(BaseModel):
+    ok: bool
+    checked: int
+    broken_seq: int | None
+    reason: str | None
+    head_hash: str | None = None
+
+
 class AuditLogOut(ORM):
     id: uuid.UUID
+    seq: int
+    prev_hash: str
+    hash: str
     at: datetime
     actor_id: uuid.UUID | None
     action: str
@@ -190,7 +202,10 @@ class CampaignCreate(BaseModel):
     title: str = Field(min_length=1, max_length=300)
     unit_id: uuid.UUID
     questionnaire_ids: list[uuid.UUID] = Field(min_length=1)
-    min_group_size: int | None = Field(default=None, ge=2)
+    min_group_size: int | None = Field(
+        default=None, ge=MIN_GROUP_SIZE_FLOOR, le=1000,
+        description=f"Поріг k для показу агрегатів, не менше {MIN_GROUP_SIZE_FLOOR}",
+    )
 
 
 class CampaignOut(ORM):

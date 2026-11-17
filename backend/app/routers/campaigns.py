@@ -1,13 +1,12 @@
 """Хвилі оцінювання: створення, відкриття, закриття, контроль проходження."""
 
 import uuid
-from datetime import date
-
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.audit import log_action
+from app.clock import today
 from app.config import get_settings
 from app.db import get_db
 from app.models import (
@@ -24,14 +23,15 @@ from app.models import (
 )
 from app.schemas import CampaignCreate, CampaignOut, CampaignProgress, ProgressItem
 from app.security import require_roles
+from app.services.anonymity import flush_all
 from app.services.eligibility import is_eligible
 from app.services.results import create_snapshots
 from app.services.units import subtree_ids
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 admin_only = require_roles(Role.ADMIN)
-# commissioner бачить список хвиль (для дашборда), але не прогрес проходження.
-can_read = require_roles(Role.ADMIN, Role.COMMISSIONER)
+# commissioner, керівник і аудитор бачать список хвиль (для дашборда), але не прогрес проходження.
+can_read = require_roles(Role.ADMIN, Role.COMMISSIONER, Role.LEADER, Role.AUDITOR)
 
 
 def to_out(campaign: Campaign) -> CampaignOut:
@@ -67,7 +67,7 @@ def create_campaign(data: CampaignCreate, db: Session = Depends(get_db), admin: 
     campaign = Campaign(
         title=data.title,
         unit_id=data.unit_id,
-        min_group_size=data.min_group_size or get_settings().default_min_group_size,
+        min_group_size=data.min_group_size or get_settings().min_group_size,
         created_by_id=admin.id,
     )
     for q_id in dict.fromkeys(data.questionnaire_ids):
@@ -94,7 +94,7 @@ def open_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db), admin: 
     if campaign.status != CampaignStatus.DRAFT:
         raise HTTPException(status_code=409, detail="Відкрити можна лише хвилю в статусі чернетки")
     campaign.status = CampaignStatus.OPEN
-    campaign.opened_on = date.today()
+    campaign.opened_on = today()
     log_action(db, admin, "open", "campaign", campaign.id)
     db.commit()
     return to_out(campaign)
@@ -106,11 +106,13 @@ def close_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db), admin:
     if campaign.status != CampaignStatus.OPEN:
         raise HTTPException(status_code=409, detail="Закрити можна лише відкриту хвилю")
     campaign.status = CampaignStatus.CLOSED
-    campaign.closed_on = date.today()
+    campaign.closed_on = today()
+    # Залишок буфера відповідей переноситься в Response до розрахунку знімків.
+    moved = flush_all(db, campaign)
     db.flush()
     # Знімок результатів фіксується в момент закриття і більше не змінюється.
     snapshots = create_snapshots(db, campaign)
-    log_action(db, admin, "close", "campaign", campaign.id, {"snapshots": snapshots})
+    log_action(db, admin, "close", "campaign", campaign.id, {"snapshots": snapshots, "responses_moved": moved})
     db.commit()
     return to_out(campaign)
 

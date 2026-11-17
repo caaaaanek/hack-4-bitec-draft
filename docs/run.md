@@ -6,7 +6,7 @@
 ## Бекенд через Docker
 
 ```bash
-cp .env.example .env     # заповнити POSTGRES_PASSWORD, JWT_SECRET, DEMO_PASSWORD, INTEGRATION_API_KEY
+cp .env.example .env     # заповнити POSTGRES_PASSWORD, JWT_SECRET (не коротше 32 символів), DEMO_PASSWORD, INTEGRATION_API_KEY
 docker compose up --build
 ```
 
@@ -44,12 +44,17 @@ python scripts/demo_wave.py --title "Хвиля 2 (листопад)" --shift 1
 Або пройти все через API (Swagger): admin створює й відкриває хвилю, учасники проходять анкети, робоча група вносить чек-лист,
 commissioner його підтверджує, admin закриває хвилю.
 
+Після хвиль: `GET /api/v1/dashboard` від імені `leader` показує індекс, динаміку, топ-рекомендації, заходи й ризик-сигнали.
+
 Демо-логіни бекенду (пароль у всіх `DEMO_PASSWORD`):
 
 | Логін | Роль | Що може |
 |---|---|---|
 | `admin` | адміністратор | хвилі, люди, підрозділи, факти, журнал, результати |
 | `commissioner` | укладач анкет | конструктор анкет, підтвердження чек-листа, результати |
+| `leader` | керівник | дашборд, результати, рішення щодо рекомендацій, заходи (усе дерево) |
+| `leader_a` | керівник підрозділу А | те саме, але лише «Підрозділ А» і дочірні |
+| `auditor` | аудитор | лише читання: результати, рекомендації, заходи, журнал і його перевірка |
 | `wg1`…`wg6` | учасник, робоча група | Анкета 1, внесення чек-листа, мої результати |
 | `staff01`…`staff24` | учасник, особовий склад | Анкета 2, мої результати |
 | `expert1`…`expert5` | учасник, експерт | Анкета 3, мої результати |
@@ -57,10 +62,13 @@ commissioner його підтверджує, admin закриває хвилю.
 ## Перевірки
 
 ```bash
-cd backend && pytest                    # бекенд: 59 тестів
+cd backend && pytest                    # бекенд: 86 тестів (на SQLite один тест xmin пропускається)
+TEST_DATABASE_URL=postgresql+psycopg://imd:пароль@localhost:5432/imd_test pytest   # те саме на PostgreSQL
 cd frontend && npm run check            # фронтенд: typecheck, lint, 192 тести, збірка
 cd frontend && npm run check:contrast   # контраст кольорів
 ```
 
 `npm run verify` додатково збирає фронтенд, піднімає `vite preview` і знімає скріншоти всіх екранів у Playwright (Chromium має бути встановлений:
 `npx playwright install chromium`). Бекенд для цього не потрібен. Скріншоти лягають у `frontend/artifacts/` (не комітиться).
+
+> Після 5 невдалих спроб входу для пари логін + IP вхід блокується на 5 хвилин (429). Перезапуск сервера скидає лічильник.

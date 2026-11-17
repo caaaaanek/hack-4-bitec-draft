@@ -4,13 +4,13 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
+from app.clock import today
 from app.models import (
-    Answer,
     Campaign,
     Participation,
     Questionnaire,
     QuestionType,
-    Response,
+    ResponsePool,
     User,
 )
 from app.schemas import AnswerIn, ValidationIssue
@@ -59,30 +59,34 @@ def save_submission(
     user: User,
     answers_in: list[AnswerIn],
 ) -> date:
-    """Записує дві незв'язані речі: факт участі (з користувачем) і відповідь (без нього)."""
-    today = date.today()
+    """Записує дві незв'язані речі: факт участі (з користувачем) і відповідь у буфер (без нього).
+
+    У постійну таблицю Response відповідь потрапить пізніше, пачкою (services/anonymity.py).
+    """
+    submitted_on = today()
 
     db.add(
         Participation(
             campaign_id=campaign.id,
             questionnaire_id=questionnaire.id,
             user_id=user.id,
-            submitted_on=today,
+            submitted_on=submitted_on,
         )
     )
 
-    response = Response(
-        campaign_id=campaign.id,
-        questionnaire_id=questionnaire.id,
-        category=questionnaire.target_category,
-        unit_id=user.unit_id,
-        submitted_on=today,
-    )
+    answers = []
     for a in answers_in:
         if a.option_ids:
-            for option_id in a.option_ids:
-                response.answers.append(Answer(question_id=a.question_id, option_id=option_id))
+            answers.extend({"question_id": str(a.question_id), "option_id": str(o), "value": None} for o in a.option_ids)
         elif a.value is not None:
-            response.answers.append(Answer(question_id=a.question_id, value=a.value))
-    db.add(response)
-    return today
+            answers.append({"question_id": str(a.question_id), "option_id": None, "value": a.value})
+    db.add(
+        ResponsePool(
+            campaign_id=campaign.id,
+            questionnaire_id=questionnaire.id,
+            category=questionnaire.target_category,
+            unit_id=user.unit_id,
+            answers=answers,
+        )
+    )
+    return submitted_on

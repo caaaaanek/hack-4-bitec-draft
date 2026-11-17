@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app.db import Base, SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
+from app.security import login_throttle  # noqa: E402
 from app.seed import seed  # noqa: E402
 
 PASSWORD = os.environ["DEMO_PASSWORD"]
@@ -21,6 +22,7 @@ PASSWORD = os.environ["DEMO_PASSWORD"]
 
 @pytest.fixture()
 def client():
+    login_throttle.reset()
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     with SessionLocal() as db:

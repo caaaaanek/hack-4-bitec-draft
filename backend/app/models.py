@@ -2,7 +2,9 @@
 
 Головне правило анонімності: таблиця Participation (хто пройшов) і таблиця
 Response (що відповіли) не мають спільного ключа. Response не зберігає ні
-користувача, ні часу, лише дату подання.
+користувача, ні часу, ні дати. Відповідь спершу потрапляє в ResponsePool і
+переноситься в Response пачкою щонайменше з k перемішаних анкет, тож системні
+поля БД (порядок вставки, xmin транзакції) не вказують на конкретне подання.
 """
 
 import uuid
@@ -40,6 +42,8 @@ class Role(StrEnum):
     ADMIN = "admin"                # користувачі, підрозділи, хвилі, журнал дій
     COMMISSIONER = "commissioner"  # розробляє анкети, підтверджує пункти чек-листа
     RESPONDENT = "respondent"      # проходить анкети
+    LEADER = "leader"              # керівник: результати, рішення щодо рекомендацій, заходи
+    AUDITOR = "auditor"            # аудитор: лише читання результатів, заходів і журналу дій
 
 
 class RespondentCategory(StrEnum):
@@ -222,8 +226,26 @@ class Participation(Base):
     submitted_on: Mapped[date] = mapped_column(Date)
 
 
+class ResponsePool(Base):
+    """Буфер анонімних відповідей до перенесення в Response.
+
+    Немає користувача, часу й дати. Рядок живе, доки в буфері анкети не назбирається
+    2k відповідей (або до закриття хвилі), потім переноситься в Response пачкою.
+    """
+
+    __tablename__ = "response_pool"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    campaign_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), index=True)
+    questionnaire_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("questionnaires.id"))
+    category: Mapped[RespondentCategory] = mapped_column(str_enum(RespondentCategory))
+    unit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("units.id"))
+    # [{"question_id": "...", "option_id": "..." | null, "value": float | null}, ...]
+    answers: Mapped[list] = mapped_column(JSON)
+
+
 class Response(Base):
-    """Анонімна відповідь. Немає користувача і часу, ID випадковий."""
+    """Анонімна відповідь. Немає користувача, часу й дати, ID випадковий."""
 
     __tablename__ = "responses"
 
@@ -232,7 +254,6 @@ class Response(Base):
     questionnaire_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("questionnaires.id"))
     category: Mapped[RespondentCategory] = mapped_column(str_enum(RespondentCategory))
     unit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("units.id"))
-    submitted_on: Mapped[date] = mapped_column(Date)
 
     answers: Mapped[list["Answer"]] = relationship(cascade="all, delete-orphan")
 
@@ -309,14 +330,106 @@ class IndexSnapshot(Base):
 
 
 class AuditLog(Base):
-    """Журнал дій. Відповіді респондентів сюди не потрапляють."""
+    """Журнал дій. Відповіді респондентів сюди не потрапляють.
+
+    Записи утворюють ланцюжок хешів: hash = sha256(prev_hash + вміст запису).
+    Зміна чи видалення будь-якого запису ламає ланцюжок, це видно в /admin/audit-log/verify.
+    """
 
     __tablename__ = "audit_log"
+    __table_args__ = (UniqueConstraint("seq", name="uq_audit_log_seq"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    seq: Mapped[int] = mapped_column(Integer)
+    prev_hash: Mapped[str] = mapped_column(String(64))
+    hash: Mapped[str] = mapped_column(String(64))
     at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
     actor_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
     action: Mapped[str] = mapped_column(String(64))
     entity: Mapped[str] = mapped_column(String(64))
     entity_id: Mapped[str | None] = mapped_column(String(64))
     details: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class AuditHead(Base):
+    """Голова ланцюжка журналу (один рядок). Блокується при записі, щоб ланцюжок не розгалужувався."""
+
+    __tablename__ = "audit_head"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    seq: Mapped[int] = mapped_column(Integer, default=0)
+    hash: Mapped[str] = mapped_column(String(64))
+
+
+# ---------- Рекомендації й заходи ----------
+
+class RecommendationDecisionType(StrEnum):
+    ACCEPTED = "accepted"  # прийнято, буде захід
+    CLARIFY = "clarify"    # потрібне уточнення
+    REJECTED = "rejected"  # відхилено (з обґрунтуванням)
+
+
+class RecommendationDecision(Base):
+    """Рішення керівника щодо рекомендації. Самі рекомендації не зберігаються:
+    їх детерміновано дають правила зі знімка хвилі, а код рекомендації стабільний."""
+
+    __tablename__ = "recommendation_decisions"
+    __table_args__ = (UniqueConstraint("campaign_id", "unit_id", "recommendation_code"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    campaign_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"))
+    unit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("units.id"))
+    recommendation_code: Mapped[str] = mapped_column(String(128))
+    decision: Mapped[RecommendationDecisionType] = mapped_column(str_enum(RecommendationDecisionType))
+    comment: Mapped[str] = mapped_column(Text, default="")
+    decided_by_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    decided_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class MeasureStatus(StrEnum):
+    PLANNED = "planned"
+    IN_PROGRESS = "in_progress"
+    DONE = "done"
+    CANCELLED = "cancelled"
+
+
+class Measure(Base):
+    """Захід плану трансформації: відповідальний (посада, не ПІБ), строк, статус, доказ виконання."""
+
+    __tablename__ = "measures"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    unit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("units.id"), index=True)
+    campaign_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("campaigns.id", ondelete="SET NULL"))
+    recommendation_code: Mapped[str | None] = mapped_column(String(128))
+    component: Mapped[str | None] = mapped_column(String(32))
+    catalog_number: Mapped[str | None] = mapped_column(String(16))  # пункт Додатку Д
+    title: Mapped[str] = mapped_column(String(500))
+    description: Mapped[str] = mapped_column(Text, default="")
+    owner: Mapped[str] = mapped_column(String(200))  # посада чи підрозділ відповідального
+    due_date: Mapped[date] = mapped_column(Date)
+    status: Mapped[MeasureStatus] = mapped_column(str_enum(MeasureStatus), default=MeasureStatus.PLANNED)
+    done_on: Mapped[date | None] = mapped_column(Date)
+    evidence: Mapped[str] = mapped_column(Text, default="")  # чим підтверджено виконання
+    # Синхронізація з темою 2.
+    external_id: Mapped[str | None] = mapped_column(String(128))
+    external_source: Mapped[str | None] = mapped_column(String(64))
+    created_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
+
+
+class OutboxMessage(Base):
+    """Вихідні повідомлення в інші системи. Надсилаються пізніше й повторюються,
+    тож недоступність зовнішнього сервісу не ламає роботу в нас."""
+
+    __tablename__ = "outbox"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    target: Mapped[str] = mapped_column(String(32))  # theme2
+    topic: Mapped[str] = mapped_column(String(64))   # measure.upsert
+    payload: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    last_error: Mapped[str] = mapped_column(Text, default="")
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

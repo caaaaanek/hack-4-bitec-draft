@@ -1,19 +1,21 @@
 """Адмін-панель: користувачі, ролі, підрозділи, журнал дій."""
 
 import uuid
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.audit import log_action
+from app.audit import log_action, verify_chain
 from app.db import get_db
 from app.models import AuditLog, Role, Unit, User
-from app.schemas import AuditLogOut, UnitIn, UnitOut, UserCreate, UserOut, UserUpdate
+from app.schemas import AuditLogOut, AuditVerifyOut, UnitIn, UnitOut, UserCreate, UserOut, UserUpdate
 from app.security import hash_password, require_roles
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 admin_only = require_roles(Role.ADMIN)
+audit_readers = require_roles(Role.ADMIN, Role.AUDITOR)
 
 
 def check_respondent_fields(role: Role, category, unit_id, db: Session) -> None:
@@ -111,11 +113,34 @@ def create_unit(data: UnitIn, db: Session = Depends(get_db), admin: User = Depen
 @router.get("/audit-log", response_model=list[AuditLogOut])
 def audit_log(
     entity: str | None = None,
+    action: str | None = None,
+    actor_id: uuid.UUID | None = None,
+    date_from: datetime | None = Query(default=None, description="Від (включно), ISO 8601"),
+    date_to: datetime | None = Query(default=None, description="До (не включно), ISO 8601"),
     limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-    _: User = Depends(admin_only),
+    _: User = Depends(audit_readers),
 ):
-    query = select(AuditLog).order_by(AuditLog.at.desc()).limit(limit)
+    """Журнал дій, найновіші першими. Для сторінок: offset і limit."""
+    query = select(AuditLog).order_by(AuditLog.seq.desc())
     if entity:
         query = query.where(AuditLog.entity == entity)
-    return db.scalars(query).all()
+    if action:
+        query = query.where(AuditLog.action == action)
+    if actor_id:
+        query = query.where(AuditLog.actor_id == actor_id)
+    if date_from:
+        query = query.where(AuditLog.at >= date_from)
+    if date_to:
+        query = query.where(AuditLog.at < date_to)
+    return db.scalars(query.offset(offset).limit(limit)).all()
+
+
+@router.post("/audit-log/verify", response_model=AuditVerifyOut)
+def audit_verify(db: Session = Depends(get_db), user: User = Depends(audit_readers)):
+    """Перевірка цілісності журналу: перераховує ланцюжок хешів від першого запису."""
+    result = verify_chain(db)
+    log_action(db, user, "verify", "audit_log", None, {"ok": result["ok"], "checked": result["checked"]})
+    db.commit()
+    return result

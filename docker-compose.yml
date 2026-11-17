@@ -19,6 +19,14 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Задайте JWT_SECRET у .env}
       DEMO_PASSWORD: ${DEMO_PASSWORD:?Задайте DEMO_PASSWORD у .env}
       INTEGRATION_API_KEY: ${INTEGRATION_API_KEY:-}
+      INTEGRATION_KEYS: ${INTEGRATION_KEYS:-}
+      TIMEZONE: ${TIMEZONE:-Europe/Kyiv}
+      DEFAULT_MIN_GROUP_SIZE: ${DEFAULT_MIN_GROUP_SIZE:-5}
+      THEME2_URL: ${THEME2_URL:-}
+      THEME2_API_KEY: ${THEME2_API_KEY:-}
+      ASSISTANT_ENABLED: ${ASSISTANT_ENABLED:-false}
+      ASSISTANT_URL: ${ASSISTANT_URL:-http://host.docker.internal:11434/api/generate}
+      ASSISTANT_MODEL: ${ASSISTANT_MODEL:-llama3.1:8b}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
     ports:
       - "8000:8000"

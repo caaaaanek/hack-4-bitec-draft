@@ -19,6 +19,7 @@ from app.models import (
 )
 from app.schemas import AssignmentOut, FormOut, SubmissionIn, SubmissionOut
 from app.security import require_roles
+from app.services.anonymity import flush_pool
 from app.services.eligibility import is_eligible
 from app.services.responses import save_submission, validate_submission
 from app.services.units import subtree_ids
@@ -115,4 +116,7 @@ def submit(
     # користувачем дозволив би зіставити його з відповіддю.
     submitted_on = save_submission(db, campaign, questionnaire, user, data.answers)
     db.commit()
+    # Окрема транзакція: відповіді переносяться з буфера пачкою щонайменше з k анкет.
+    if flush_pool(db, campaign, questionnaire.id):
+        db.commit()
     return SubmissionOut(submitted_on=submitted_on)

@@ -11,6 +11,7 @@ from pathlib import Path
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.clock import today as clock_today
 from app.config import get_settings
 from app.db import SessionLocal
 from app.models import (
@@ -70,6 +71,9 @@ def seed_users(db: Session, units: dict[str, Unit], password: str) -> int:
     people: list[tuple[str, str, Role, RespondentCategory | None, Unit | None]] = [
         ("admin", "Адміністратор (демо)", Role.ADMIN, None, None),
         ("commissioner", "Розробник анкет (демо)", Role.COMMISSIONER, None, None),
+        ("leader", "Керівник (демо)", Role.LEADER, None, None),
+        ("leader_a", "Керівник підрозділу А (демо)", Role.LEADER, None, units["Підрозділ А"]),
+        ("auditor", "Аудитор (демо)", Role.AUDITOR, None, None),
     ]
     people += [(f"wg{i}", f"Член робочої групи {i}", Role.RESPONDENT, RespondentCategory.WORKING_GROUP, root) for i in range(1, 7)]
     people += [
@@ -135,7 +139,7 @@ DEMO_FACTS = {
 
 def seed_indicators(db: Session, units: dict[str, Unit], today: date | None = None) -> int:
     """Факти за 12 місяців для всіх підрозділів, крім кореневого. Детерміновано, без випадковості."""
-    periods = months_back(today or date.today(), FACTS_WINDOW_MONTHS)
+    periods = months_back(today or clock_today(), FACTS_WINDOW_MONTHS)
     created = 0
     for u_index, (name, unit) in enumerate(units.items()):
         if name == ROOT_UNIT:

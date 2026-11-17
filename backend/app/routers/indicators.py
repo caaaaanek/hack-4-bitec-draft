@@ -19,9 +19,9 @@ from app.audit import log_action
 from app.config import get_settings
 from app.db import get_db
 from app.models import Indicator, Role, Unit, User
-from app.security import get_current_user, require_roles
+from app.clock import today
+from app.security import RESULT_READERS, ensure_unit_access, get_current_user, require_roles
 from app.services import facts, methodology as m
-from app.services.units import subtree_ids
 
 router = APIRouter(tags=["indicators"])
 optional_token = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
@@ -106,28 +106,46 @@ class RiskSignal(BaseModel):
     extra_counts: dict
 
 
+class IntegrationActor:
+    """Хто передає факт: користувач-адмін або інша система з ключем, прив'язаним до джерела."""
+
+    def __init__(self, user: User | None = None, source: str | None = None, any_source: bool = False):
+        self.user = user
+        self.source = source
+        self.any_source = any_source
+
+
 def integration_or_admin(
     token: str | None = Depends(optional_token),
     x_integration_key: str | None = Header(default=None),
     db: Session = Depends(get_db),
-) -> User | None:
-    """Факти може передавати інша система (ключ інтеграції) або адмін."""
-    key = get_settings().integration_api_key
+) -> IntegrationActor:
+    """Факти може передавати інша система (ключ інтеграції) або адмін.
+
+    Ключ із INTEGRATION_KEYS прив'язаний до одного джерела. Спільний INTEGRATION_API_KEY
+    дозволяє будь-яке джерело (застарілий спосіб, для демо).
+    """
+    settings = get_settings()
     if x_integration_key:
-        if key and hmac.compare_digest(x_integration_key, key):
-            return None
+        for source, key in settings.integration_key_map.items():
+            if hmac.compare_digest(x_integration_key, key):
+                return IntegrationActor(source=source)
+        if settings.integration_api_key and hmac.compare_digest(x_integration_key, settings.integration_api_key):
+            return IntegrationActor(any_source=True)
         raise HTTPException(status_code=401, detail="Невірний ключ інтеграції")
     if token is None:
         raise HTTPException(status_code=401, detail="Потрібна авторизація")
     user = get_current_user(token, db)
     if user.role != Role.ADMIN:
         raise HTTPException(status_code=403, detail="Недостатньо прав")
-    return user
+    return IntegrationActor(user=user, any_source=True)
 
 
 @router.post("/indicators", response_model=IndicatorOut, status_code=status.HTTP_201_CREATED)
-def post_indicator(data: IndicatorIn, db: Session = Depends(get_db), actor: User | None = Depends(integration_or_admin)):
+def post_indicator(data: IndicatorIn, db: Session = Depends(get_db), actor: IntegrationActor = Depends(integration_or_admin)):
     """Приймає або оновлює факт за місяць (одна пара підрозділ + місяць + показник)."""
+    if not actor.any_source and data.source != actor.source:
+        raise HTTPException(status_code=403, detail=f"Цей ключ дозволяє передавати лише джерело «{actor.source}»")
     if db.get(Unit, data.unit_id) is None:
         raise HTTPException(status_code=422, detail="Підрозділ не знайдено")
     row = db.scalar(
@@ -141,16 +159,17 @@ def post_indicator(data: IndicatorIn, db: Session = Depends(get_db), actor: User
     for field in ("numerator", "denominator", "source", "why", "extra_counts"):
         setattr(row, field, getattr(data, field))
     db.flush()
-    log_action(db, actor, "upsert", "indicator", row.id,
+    log_action(db, actor.user, "upsert", "indicator", row.id,
                {"indicator": data.indicator, "period": data.period, "source": data.source})
     db.commit()
     return row
 
 
-def check_unit(db: Session, unit_id: uuid.UUID) -> Unit:
+def check_unit(db: Session, unit_id: uuid.UUID, user: User) -> Unit:
     unit = db.get(Unit, unit_id)
     if unit is None:
         raise HTTPException(status_code=404, detail="Підрозділ не знайдено")
+    ensure_unit_access(db, user, unit_id)
     return unit
 
 
@@ -160,14 +179,14 @@ def unit_facts(
     months: int = Query(default=12, description="3, 6 або 12"),
     end: date | None = Query(default=None, description="Останній місяць періоду, за замовчуванням поточний"),
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles(Role.ADMIN, Role.COMMISSIONER)),
+    user: User = Depends(require_roles(*RESULT_READERS)),
 ):
     """Факти підрозділу (разом із дочірніми) у форматі 'X з Y'."""
     if months not in (3, 6, 12):
         raise HTTPException(status_code=422, detail="months: 3, 6 або 12")
-    check_unit(db, unit_id)
-    periods = facts.months_back(end or date.today(), months)
-    return facts.aggregate(db, subtree_ids(db, unit_id), periods, get_settings().default_min_group_size)
+    check_unit(db, unit_id, user)
+    periods = facts.months_back(end or today(), months)
+    return facts.aggregate_for_unit(db, unit_id, periods, get_settings().min_group_size)
 
 
 @router.get("/units/{unit_id}/risk-signals", response_model=list[RiskSignal])
@@ -176,7 +195,7 @@ def risk_signals(
     months: int = Query(default=3, description="3, 6 або 12"),
     end: date | None = None,
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles(Role.ADMIN, Role.COMMISSIONER)),
+    user: User = Depends(require_roles(*RESULT_READERS)),
 ):
     """Панель ризик-сигналів: сирі кількості знайденого і їх зміна до попереднього періоду.
 
@@ -184,38 +203,5 @@ def risk_signals(
     """
     if months not in (3, 6, 12):
         raise HTTPException(status_code=422, detail="months: 3, 6 або 12")
-    check_unit(db, unit_id)
-    end = end or date.today()
-    current = facts.months_back(end, months)
-    prev_end_year, prev_end_month = int(current[0][:4]), int(current[0][5:])
-    prev_end_month -= 1
-    if prev_end_month == 0:
-        prev_end_year, prev_end_month = prev_end_year - 1, 12
-    previous = facts.months_back(date(prev_end_year, prev_end_month, 1), months)
-    k = get_settings().default_min_group_size
-    units = subtree_ids(db, unit_id)
-    now = {f["indicator"]: f for f in facts.aggregate(db, units, current, k)}
-    before = {f["indicator"]: f for f in facts.aggregate(db, units, previous, k)}
-
-    signals = []
-    for code in ("coi_reviewed", "procurement_flags_reviewed", "reports_handled"):
-        f = now.get(code)
-        if f is None:
-            continue
-        prev = before.get(code)
-        found = f["denominator"]
-        prev_found = prev["denominator"] if prev else None
-        signals.append(
-            RiskSignal(
-                indicator=code,
-                title=m.FACTS[code]["title"],
-                status=f["status"],
-                found=found,
-                handled=f["numerator"],
-                pending=None if found is None else found - f["numerator"],
-                previous_found=prev_found,
-                change=None if found is None or prev_found is None else found - prev_found,
-                extra_counts=f["extra_counts"],
-            )
-        )
-    return signals
+    check_unit(db, unit_id, user)
+    return facts.risk_signals(db, unit_id, months, end or today(), get_settings().min_group_size)
