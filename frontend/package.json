@@ -5,17 +5,21 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:demo": "vite --mode demo",
     "build": "tsc -b && vite build",
+    "build:demo": "tsc -b && vite build --mode demo",
     "typecheck": "tsc -b --noEmit",
     "lint": "eslint .",
     "format": "prettier --write .",
     "test": "vitest run",
     "check:contrast": "node scripts/check-contrast.mjs",
-    "verify": "npm run check && npm run check:contrast && npm run verify:screens",
+    "verify": "npm run check && npm run check:contrast && vite build --mode demo && npm run verify:screens",
     "preview": "vite preview",
     "check": "npm run typecheck && npm run lint && npm run test && npm run build",
     "verify:screens": "tsx scripts/verify.ts",
+    "e2e:api": "node scripts/e2e-api.mjs",
     "api:types": "openapi-typescript docs/api/openapi.yaml -o src/api/schema.d.ts",
+    "api:types:backend": "openapi-typescript ../docs/api/openapi.json -o src/api/backend.d.ts",
     "api:lint": "redocly lint docs/api/openapi.yaml"
   },
   "dependencies": {

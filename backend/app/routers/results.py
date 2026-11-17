@@ -13,7 +13,7 @@ from app.schemas import UnitOut
 from app.schemas_results import CampaignResultsOut, CompareOut, HistoryOut, ParticipantResultOut
 from app.security import RESULT_READERS, ensure_unit_access, get_current_user, require_roles
 from app.services import methodology, results
-from app.services.eligibility import is_eligible
+from app.services.eligibility import is_eligible, participants_of
 from app.services.units import subtree_ids
 
 router = APIRouter(tags=["results"])
@@ -150,7 +150,8 @@ def my_results(db: Session = Depends(get_db), user: User = Depends(require_roles
     closed = db.scalars(select(Campaign).where(Campaign.status == CampaignStatus.CLOSED).order_by(Campaign.created_at.desc()))
     for campaign in closed:
         units = subtree_ids(db, campaign.unit_id)
-        if not any(is_eligible(user, link.questionnaire, units) for link in campaign.questionnaire_links):
+        participants = participants_of(db, campaign)
+        if not any(is_eligible(user, link.questionnaire, units, participants) for link in campaign.questionnaire_links):
             continue
         whole = results.results_for(db, campaign, None)
         my_unit = None

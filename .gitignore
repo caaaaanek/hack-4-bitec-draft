@@ -97,3 +97,9 @@ target/
 
 # --- Docker (локальні оверрайди) ---
 docker-compose.override.yml
+
+# Локальне сховище файлів-доказів
+backend/data/
+
+# Демо-режим фронтенду: не секрет, лише VITE_DEMO=true
+!frontend/.env.demo

@@ -42,6 +42,7 @@ export const KNOWN_ROUTES = [
   '/audit',
   '/me',
   '/s/:token',
+  '/answer/:campaignId/:questionnaireId',
   '/design',
 ] as const
 
@@ -79,15 +80,46 @@ export const DEFAULT_ROUTE: Record<Role, string> = {
   auditor: '/',
 }
 
+/**
+ * Маршрути, коли застосунок працює з бекендом (а не на демо-даних). Ролі приходять з облікового запису:
+ * admin, commissioner, leader, auditor; респондент робочої групи — checklist_editor (ще й вносить чек-лист),
+ * решта респондентів — respondent. Права дублюють перевірки бекенду, а не замінюють їх.
+ */
+const RESULTS = ['/', '/explain', '/compare', '/trends', '/integrations', '/reports'] as const
+export const API_ROLE_ROUTES: Record<Role, readonly string[]> = {
+  admin: ['/manage', '/audit', ...RESULTS],
+  commissioner: ['/surveys', '/checklist', ...RESULTS],
+  respondent: ['/me', '/answer/:campaignId/:questionnaireId'],
+  leader: [...RESULTS, '/recommendations', '/tracker'],
+  observer: [...RESULTS],
+  checklist_editor: ['/me', '/checklist', '/answer/:campaignId/:questionnaireId'],
+  checklist_approver: ['/checklist'],
+  auditor: [...RESULTS, '/recommendations', '/tracker', '/checklist', '/audit'],
+}
+
+export const API_DEFAULT_ROUTE: Record<Role, string> = {
+  ...DEFAULT_ROUTE,
+  checklist_editor: '/me',
+}
+
+let apiMode = false
+/** Перемикає таблиці доступу на ролі бекенду. Викликається один раз на старті застосунку. */
+export function setApiAccess(on: boolean): void {
+  apiMode = on
+}
+export const isApiAccess = (): boolean => apiMode
+
 const matches = (patterns: readonly string[], pathname: string) =>
   patterns.some((p) => matchPath({ path: p, end: true }, pathname) !== null)
 
 export const isKnownRoute = (pathname: string): boolean => matches(KNOWN_ROUTES, pathname)
 
 export const canAccess = (role: Role, pathname: string): boolean =>
-  matches(OPEN_ROUTES, pathname) || matches(ROLE_ROUTES[role], pathname)
+  matches(OPEN_ROUTES, pathname) ||
+  matches((apiMode ? API_ROLE_ROUTES : ROLE_ROUTES)[role], pathname)
 
-export const defaultRoute = (role: Role): string => DEFAULT_ROUTE[role]
+export const defaultRoute = (role: Role): string =>
+  (apiMode ? API_DEFAULT_ROUTE : DEFAULT_ROUTE)[role]
 
 /** Підрозділ за замовчуванням: респондент бачить свій, решта ролей корінь. */
 export const defaultScope = (role: Role, respondentUnitId: string): string =>

@@ -1,3 +1,4 @@
+import ipaddress
 import threading
 import time
 import uuid
@@ -6,7 +7,7 @@ from functools import lru_cache
 
 import bcrypt
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
@@ -14,7 +15,40 @@ from app.config import check_settings, get_settings
 from app.db import get_db
 from app.models import Role, User
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+# Відносна адреса: працює і під ROOT_PATH (кнопка Authorize у /docs).
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
+
+
+def _networks(items: list[str]) -> list:
+    nets = []
+    for item in items:
+        try:
+            nets.append(ipaddress.ip_network(item, strict=False))
+        except ValueError:
+            continue
+    return nets
+
+
+def is_trusted_proxy(host: str | None) -> bool:
+    if not host:
+        return False
+    try:
+        addr = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return any(addr in net for net in _networks(get_settings().trusted_proxy_list))
+
+
+def client_ip(request: Request) -> str:
+    """Адреса клієнта. X-Forwarded-For враховується лише від довіреного проксі."""
+    peer = request.client.host if request.client else ""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded and is_trusted_proxy(peer):
+        # Беремо найправішу адресу, яку додав не довірений проксі.
+        for hop in reversed([h.strip() for h in forwarded.split(",") if h.strip()]):
+            if not is_trusted_proxy(hop):
+                return hop
+    return peer
 
 
 def hash_password(password: str) -> str:
@@ -77,7 +111,7 @@ def create_access_token(user: User) -> str:
     settings = get_settings()
     check_settings(settings)
     expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
-    payload = {"sub": str(user.id), "role": user.role.value, "exp": expire}
+    payload = {"sub": str(user.id), "role": user.role.value, "exp": expire, "iat": datetime.now(timezone.utc)}
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 

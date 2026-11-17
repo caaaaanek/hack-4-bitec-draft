@@ -6,6 +6,16 @@ import path from 'node:path'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   resolve: { alias: { '@': path.resolve(import.meta.dirname, 'src') } },
+  // У розробці /api іде на бекенд через той самий origin: CORS і cookie не потрібні.
+  server: {
+    proxy: {
+      '/api': {
+        target: process.env.VITE_PROXY_TARGET ?? 'http://localhost:8000',
+        changeOrigin: false,
+      },
+      '/health': { target: process.env.VITE_PROXY_TARGET ?? 'http://localhost:8000' },
+    },
+  },
   test: {
     environment: 'jsdom',
     globals: true,

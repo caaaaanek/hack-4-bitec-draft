@@ -13,6 +13,7 @@ from enum import StrEnum
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     Date,
     DateTime,
@@ -22,6 +23,7 @@ from sqlalchemy import (
     Integer,
     String,
     Text,
+    Index,
     UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -75,6 +77,11 @@ class CampaignStatus(StrEnum):
     CLOSED = "closed"
 
 
+class AccessMode(StrEnum):
+    LOGIN = "login"  # респонденти входять своїм обліковим записом
+    TOKEN = "token"  # анонімне проходження за одноразовими посиланнями, без облікових записів
+
+
 class Unit(Base):
     """Підрозділ. Типів немає: ієрархію будь-якої глибини задає адміністратор."""
 
@@ -82,7 +89,7 @@ class Unit(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     name: Mapped[str] = mapped_column(String(200))
-    parent_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("units.id"))
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("units.id"), index=True)
 
 
 class User(Base):
@@ -93,9 +100,9 @@ class User(Base):
     # Лише псевдонім, без ПІБ: персональні дані в системі не потрібні.
     display_name: Mapped[str] = mapped_column(String(100))
     password_hash: Mapped[str] = mapped_column(String(100))
-    role: Mapped[Role] = mapped_column(str_enum(Role))
+    role: Mapped[Role] = mapped_column(str_enum(Role), index=True)
     category: Mapped[RespondentCategory | None] = mapped_column(str_enum(RespondentCategory))
-    unit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("units.id"))
+    unit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("units.id"), index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -194,8 +201,12 @@ class Campaign(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     title: Mapped[str] = mapped_column(String(300))
     unit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("units.id"))
-    status: Mapped[CampaignStatus] = mapped_column(str_enum(CampaignStatus), default=CampaignStatus.DRAFT)
+    status: Mapped[CampaignStatus] = mapped_column(str_enum(CampaignStatus), default=CampaignStatus.DRAFT, index=True)
     min_group_size: Mapped[int] = mapped_column(Integer, default=5)
+    access_mode: Mapped[AccessMode] = mapped_column(str_enum(AccessMode), default=AccessMode.LOGIN,
+                                                    server_default=AccessMode.LOGIN.value)
+    # True: проходять лише явно додані учасники (CampaignParticipant), а не всі за категорією й підрозділом.
+    explicit_participants: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     opened_on: Mapped[date | None] = mapped_column(Date)
     closed_on: Mapped[date | None] = mapped_column(Date)
     created_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
@@ -211,6 +222,34 @@ class CampaignQuestionnaire(Base):
     questionnaire_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("questionnaires.id"), primary_key=True)
 
     questionnaire: Mapped[Questionnaire] = relationship()
+
+
+class CampaignParticipant(Base):
+    """Явний склад учасників хвилі (коли campaign.explicit_participants). Лише хто запрошений, без відповідей."""
+
+    __tablename__ = "campaign_participants"
+
+    campaign_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+
+
+class AccessToken(Base):
+    """Одноразове посилання для анонімного проходження.
+
+    Зберігається лише sha256 токена: сам токен бачить тільки адміністратор у момент видачі.
+    Немає користувача, часу використання й жодного зв'язку з відповіддю: після подання
+    лишається тільки позначка used. Підрозділ потрібен для агрегатів (як unit_id у відповіді).
+    """
+
+    __tablename__ = "access_tokens"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    campaign_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), index=True)
+    questionnaire_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("questionnaires.id"))
+    unit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("units.id"))
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    used: Mapped[bool] = mapped_column(Boolean, default=False)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class Participation(Base):
@@ -250,7 +289,7 @@ class Response(Base):
     __tablename__ = "responses"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    campaign_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("campaigns.id"))
+    campaign_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("campaigns.id"), index=True)
     questionnaire_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("questionnaires.id"))
     category: Mapped[RespondentCategory] = mapped_column(str_enum(RespondentCategory))
     unit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("units.id"))
@@ -262,7 +301,7 @@ class Answer(Base):
     __tablename__ = "answers"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
-    response_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("responses.id", ondelete="CASCADE"))
+    response_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("responses.id", ondelete="CASCADE"), index=True)
     question_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("questions.id"))
     option_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("options.id"))
     value: Mapped[float | None] = mapped_column(Float)  # для питань-шкал
@@ -293,6 +332,29 @@ class ChecklistEntry(Base):
     confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
+class EvidenceFile(Base):
+    """Файл-доказ до пункту чек-листа (Evidence Repository).
+
+    Вміст лежить на диску за sha256 (EVIDENCE_DIR/ab/abcdef...), тут — опис і хто додав.
+    Видалення м'яке: запис і файл лишаються для журналу, але не показуються й не рахуються як доказ.
+    """
+
+    __tablename__ = "evidence_files"
+    __table_args__ = (Index("ix_evidence_files_item", "campaign_id", "question_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    campaign_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"))
+    question_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("questions.id"))
+    filename: Mapped[str] = mapped_column(String(255))
+    content_type: Mapped[str] = mapped_column(String(128))
+    size: Mapped[int] = mapped_column(BigInteger)
+    sha256: Mapped[str] = mapped_column(String(64), index=True)
+    uploaded_by_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"))
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    deleted_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+
+
 class Indicator(Base):
     """Факт з іншої системи: лише агрегат "numerator з denominator", без імен."""
 
@@ -319,7 +381,7 @@ class IndexSnapshot(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     campaign_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"))
-    unit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("units.id"))
+    unit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("units.id"), index=True)
     methodology_version: Mapped[str] = mapped_column(String(16))
     closed_on: Mapped[date] = mapped_column(Date)
     index_score: Mapped[float | None] = mapped_column(Float)
@@ -337,7 +399,6 @@ class AuditLog(Base):
     """
 
     __tablename__ = "audit_log"
-    __table_args__ = (UniqueConstraint("seq", name="uq_audit_log_seq"),)
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     seq: Mapped[int] = mapped_column(Integer)
@@ -349,6 +410,8 @@ class AuditLog(Base):
     entity: Mapped[str] = mapped_column(String(64))
     entity_id: Mapped[str | None] = mapped_column(String(64))
     details: Mapped[dict] = mapped_column(JSON, default=dict)
+
+    __table_args__ = (UniqueConstraint("seq", name="uq_audit_log_seq"), Index("ix_audit_log_entity", "entity", "entity_id"))
 
 
 class AuditHead(Base):
@@ -400,7 +463,7 @@ class Measure(Base):
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     unit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("units.id"), index=True)
-    campaign_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("campaigns.id", ondelete="SET NULL"))
+    campaign_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("campaigns.id", ondelete="SET NULL"), index=True)
     recommendation_code: Mapped[str | None] = mapped_column(String(128))
     component: Mapped[str | None] = mapped_column(String(32))
     catalog_number: Mapped[str | None] = mapped_column(String(16))  # пункт Додатку Д
@@ -432,4 +495,4 @@ class OutboxMessage(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     last_error: Mapped[str] = mapped_column(Text, default="")
-    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)

@@ -9,6 +9,8 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.clock import today
 from app.models import (
+    AccessMode,
+    AccessToken,
     Campaign,
     CampaignStatus,
     ChecklistEntry,
@@ -29,7 +31,8 @@ from app.services import facts as facts_service
 from app.services import methodology as m
 from app.services import scoring
 from app.services.anonymity import suppressed_nodes
-from app.services.eligibility import is_eligible
+from app.services import tokens as token_service
+from app.services.eligibility import is_eligible, participants_of
 from app.services.units import Children, subtree_from, unit_tree
 
 
@@ -49,6 +52,9 @@ class WaveData:
     # questionnaire_id -> підрозділи, де групу приховано вторинним приховуванням
     hidden_groups: dict[uuid.UUID, set[uuid.UUID]] = field(default_factory=dict)
     unit_names: dict[uuid.UUID, str] = field(default_factory=dict)
+    # Явний склад учасників (None — за правилом) і посилання для хвилі access_mode = token.
+    participants: set[uuid.UUID] | None = None
+    tokens: list[AccessToken] = field(default_factory=list)
 
     def subtree(self, unit_id: uuid.UUID) -> set[uuid.UUID]:
         return subtree_from(self.children, unit_id)
@@ -73,6 +79,8 @@ def load_wave(db: Session, campaign: Campaign) -> WaveData:
         periods=periods,
         indicator_rows=facts_service.load_rows(db, campaign_units, periods),
         unit_names={u.id: u.name for u in db.scalars(select(Unit).where(Unit.id.in_(campaign_units)))},
+        participants=participants_of(db, campaign),
+        tokens=token_service.load(db, campaign.id) if campaign.access_mode == AccessMode.TOKEN else [],
     )
     k = campaign.min_group_size
     for link in campaign.questionnaire_links:
@@ -117,14 +125,20 @@ def load_groups(wave: WaveData, scope: uuid.UUID, units: set[uuid.UUID]) -> list
         # Експерти зовнішні: їхня оцінка стосується лише рівня всієї хвилі.
         if questionnaire.target_category == RespondentCategory.EXPERT and not at_root:
             continue
-        eligible = sum(1 for u in wave.users
-                       if is_eligible(u, questionnaire, wave.campaign_units) and in_scope(u.category, u.unit_id))
-        submitted = sum(
-            1 for p in wave.participations
-            if p.questionnaire_id == questionnaire.id
-            and (u := users_by_id.get(p.user_id)) is not None
-            and in_scope(u.category, u.unit_id)
-        )
+        if campaign.access_mode == AccessMode.TOKEN:
+            # Анонімна хвиля: «мали пройти» = видані посилання, «пройшли» = використані.
+            eligible, submitted = token_service.counts(
+                wave.tokens, questionnaire.id, lambda unit: in_scope(questionnaire.target_category, unit))
+        else:
+            eligible = sum(1 for u in wave.users
+                           if is_eligible(u, questionnaire, wave.campaign_units, wave.participants)
+                           and in_scope(u.category, u.unit_id))
+            submitted = sum(
+                1 for p in wave.participations
+                if p.questionnaire_id == questionnaire.id
+                and (u := users_by_id.get(p.user_id)) is not None
+                and in_scope(u.category, u.unit_id)
+            )
         data = []
         for r in wave.responses:
             if r.questionnaire_id != questionnaire.id or not in_scope(r.category, r.unit_id):

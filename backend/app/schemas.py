@@ -5,6 +5,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from app.config import MIN_GROUP_SIZE_FLOOR
 from app.models import (
+    AccessMode,
     CampaignStatus,
     QuestionnaireKind,
     QuestionnaireStatus,
@@ -18,11 +19,33 @@ class ORM(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+# ---------- Помилки (див. app/errors.py) ----------
+
+class ErrorItem(BaseModel):
+    path: str
+    message: str
+
+
+class ErrorOut(BaseModel):
+    code: str = Field(description="Стабільний код для програми: not_found, conflict, invalid, token_used...")
+    message: str = Field(description="Що сталося, українською")
+    hint: str = Field(description="Що робити далі")
+    detail: str | list | dict | None = Field(default=None, description="Те саме, що повертав FastAPI (сумісність)")
+    errors: list[ErrorItem] | None = Field(default=None, description="Для 422: помилки по полях")
+    missing_question_ids: list[str] | None = Field(default=None, description="Для code = incomplete")
+    request_id: str
+
+
+ERROR_RESPONSES = {status: {"model": ErrorOut} for status in (401, 403, 404, 409, 422)}
+
+
 # ---------- Авторизація ----------
 
 class TokenOut(BaseModel):
     access_token: str
     token_type: str = "bearer"
+    expires_in: int | None = None  # секунд до завершення сесії
+    role: Role | None = None
 
 
 class MeOut(ORM):
@@ -32,6 +55,10 @@ class MeOut(ORM):
     role: Role
     category: RespondentCategory | None
     unit_id: uuid.UUID | None
+
+
+class SessionOut(TokenOut):
+    user: MeOut
 
 
 # ---------- Адміністрування ----------
@@ -206,6 +233,22 @@ class CampaignCreate(BaseModel):
         default=None, ge=MIN_GROUP_SIZE_FLOOR, le=1000,
         description=f"Поріг k для показу агрегатів, не менше {MIN_GROUP_SIZE_FLOOR}",
     )
+    access_mode: AccessMode = Field(
+        default=AccessMode.LOGIN,
+        description="login: за обліковими записами; token: анонімно за одноразовими посиланнями",
+    )
+
+
+class CampaignUpdate(BaseModel):
+    """Зміна хвилі. Лише в статусі чернетки; передані поля замінюються повністю."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    title: str | None = Field(default=None, min_length=1, max_length=300)
+    unit_id: uuid.UUID | None = None
+    questionnaire_ids: list[uuid.UUID] | None = Field(default=None, min_length=1)
+    min_group_size: int | None = Field(default=None, ge=MIN_GROUP_SIZE_FLOOR, le=1000)
+    access_mode: AccessMode | None = None
 
 
 class CampaignOut(ORM):
@@ -217,6 +260,84 @@ class CampaignOut(ORM):
     opened_on: date | None
     closed_on: date | None
     questionnaire_ids: list[uuid.UUID]
+    access_mode: AccessMode = AccessMode.LOGIN
+    explicit_participants: bool = False
+
+
+class ParticipantsIn(BaseModel):
+    user_ids: list[uuid.UUID] = Field(max_length=10000)
+
+
+class ParticipantOut(BaseModel):
+    id: uuid.UUID
+    login: str
+    display_name: str
+    category: RespondentCategory | None
+    unit_id: uuid.UUID | None
+    # Чи підходить людина під анкети хвилі (категорія, підрозділ, активність). Хто вже пройшов — не показується.
+    eligible: bool
+
+
+class ParticipantsOut(BaseModel):
+    campaign_id: uuid.UUID
+    explicit: bool
+    participants: list[ParticipantOut]
+
+
+class ImportIssue(BaseModel):
+    line: int
+    message: str
+
+
+class ImportedCredential(BaseModel):
+    login: str
+    password: str
+
+
+class ImportOut(BaseModel):
+    campaign_id: uuid.UUID
+    rows: int
+    created_users: int
+    added_participants: int
+    # Паролі нових облікових записів показуються один раз: передайте людям і не зберігайте.
+    credentials: list[ImportedCredential] = []
+    issued_tokens: int = 0
+
+
+class TokensIn(BaseModel):
+    questionnaire_id: uuid.UUID
+    unit_id: uuid.UUID | None = Field(default=None, description="Підрозділ людей; для експертів не потрібен")
+    count: int = Field(ge=1, le=1000)
+
+
+class IssuedToken(BaseModel):
+    token: str
+    link: str
+
+
+class TokensOut(BaseModel):
+    campaign_id: uuid.UUID
+    questionnaire_id: uuid.UUID
+    unit_id: uuid.UUID | None
+    tokens: list[IssuedToken]
+    group_total: int
+    warning: str | None = None
+
+
+class TokensRevokeIn(BaseModel):
+    questionnaire_id: uuid.UUID | None = None
+    unit_id: uuid.UUID | None = None
+
+
+class TokensRevokeOut(BaseModel):
+    revoked: int
+
+
+class UnitUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=200)
+    parent_id: uuid.UUID | None = None
 
 
 class ProgressItem(BaseModel):
@@ -287,4 +408,10 @@ class SubmissionIn(BaseModel):
 
 class SubmissionOut(BaseModel):
     status: str = "accepted"
-    submitted_on: date
+    # Для анонімного посилання дата не повертається й не зберігається.
+    submitted_on: date | None
+
+
+class TokenFormOut(FormOut):
+    campaign_title: str
+    min_group_size: int

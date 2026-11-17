@@ -1,5 +1,5 @@
 import { PageTitle } from '@/components/layout/PageTitle'
-import { useMemo, useState, type FormEvent } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowRight, CircleCheck, Lightbulb, MessageSquareText, X } from 'lucide-react'
 import {
@@ -22,14 +22,11 @@ import { cn } from '@/lib/cn'
 import {
   PRIORITY_LABEL,
   RECOMMENDATION_STATUS_LABEL,
-  buildRecommendations,
   type Recommendation,
   type RecommendationStatus,
 } from '@/lib/recommendations'
-import { accept, applyDecisions, clarify, reject } from '@/lib/decisions'
-import { getDecisions, setDecisions, useDecisions } from '@/demo/decisionsStore'
-import { POSITIONS, TODAY } from '@/demo/measures'
-import { useInstitution } from '@/demo/useInstitution'
+import { useRecommendationsModel, type RecommendationsModel } from '@/api/models'
+import { ApiError } from '@/api/client'
 
 const STATUS_IDS: RecommendationStatus[] = ['proposed', 'accepted', 'clarified', 'rejected']
 
@@ -41,26 +38,42 @@ function plusDays(iso: string, days: number): string {
 
 type DialogState = { kind: 'accept' | 'clarify' | 'reject'; rec: Recommendation } | null
 
+const errorText = (e: unknown) =>
+  e instanceof ApiError
+    ? `${e.message}. ${e.hint}`
+    : 'Не вдалося зберегти рішення. Спробуйте ще раз.'
+
 function AcceptDialog({
   rec,
+  model,
   onClose,
   onDone,
 }: {
   rec: Recommendation
+  model: RecommendationsModel
   onClose: () => void
   onDone: (msg: string) => void
 }) {
-  const [position, setPosition] = useState<string>(POSITIONS[0])
-  const [due, setDue] = useState(plusDays(TODAY, 60))
+  const { positions, today } = model
+  const [position, setPosition] = useState<string>(positions[0] ?? '')
+  const [due, setDue] = useState(plusDays(today, 60))
   const [error, setError] = useState('')
-  const submit = (e: FormEvent) => {
+  const [busy, setBusy] = useState(false)
+  const submit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!due || due < TODAY) {
+    if (!due || due < today) {
       setError('Оберіть строк не раніше за сьогодні.')
       return
     }
-    setDecisions(accept(getDecisions(), rec, { position, dueDate: due, measureId: `m-${rec.id}` }))
-    onDone(`Рекомендацію прийнято. Захід «${rec.title}» додано до трекера.`)
+    setBusy(true)
+    try {
+      await model.accept(rec, { position, dueDate: due })
+      onDone(`Рекомендацію прийнято. Захід «${rec.title}» додано до трекера.`)
+    } catch (err) {
+      setError(errorText(err))
+    } finally {
+      setBusy(false)
+    }
   }
   return (
     <Dialog
@@ -73,17 +86,22 @@ function AcceptDialog({
           <Button variant="secondary" onClick={onClose}>
             Скасувати
           </Button>
-          <Button type="submit" form="accept-form">
+          <Button type="submit" form="accept-form" loading={busy}>
             Прийняти й створити захід
           </Button>
         </>
       }
     >
-      <form id="accept-form" onSubmit={submit} noValidate className="flex flex-col gap-4 pb-4">
+      <form
+        id="accept-form"
+        onSubmit={(e) => void submit(e)}
+        noValidate
+        className="flex flex-col gap-4 pb-4"
+      >
         <FormField label="Відповідальна посада" required>
           {({ id }) => (
             <Select id={id} value={position} onChange={(e) => setPosition(e.target.value)}>
-              {POSITIONS.map((p) => (
+              {positions.map((p) => (
                 <option key={p} value={p}>
                   {p}
                 </option>
@@ -97,7 +115,7 @@ function AcceptDialog({
               id={id}
               type="date"
               value={due}
-              min={TODAY}
+              min={today}
               aria-describedby={describedBy}
               invalid={invalid}
               onChange={(e) => {
@@ -119,29 +137,35 @@ function AcceptDialog({
 function TextDialog({
   rec,
   kind,
+  model,
   onClose,
   onDone,
 }: {
   rec: Recommendation
   kind: 'clarify' | 'reject'
+  model: RecommendationsModel
   onClose: () => void
   onDone: (msg: string) => void
 }) {
   const [text, setText] = useState('')
   const [error, setError] = useState('')
   const isReject = kind === 'reject'
-  const submit = (e: FormEvent) => {
+  const submit = async (e: FormEvent) => {
     e.preventDefault()
     if (!text.trim()) {
       setError(isReject ? 'Вкажіть причину відхилення.' : 'Напишіть, що саме потрібно уточнити.')
       return
     }
-    if (isReject) {
-      setDecisions(reject(getDecisions(), rec.id, text))
-      onDone('Рекомендацію відхилено. Причину збережено.')
-    } else {
-      setDecisions(clarify(getDecisions(), rec.id, text.trim()))
-      onDone('Рекомендацію позначено як «Уточнено». Коментар збережено.')
+    try {
+      if (isReject) {
+        await model.reject(rec.id, text)
+        onDone('Рекомендацію відхилено. Причину збережено.')
+      } else {
+        await model.clarify(rec.id, text.trim())
+        onDone('Рекомендацію позначено як «Уточнено». Коментар збережено.')
+      }
+    } catch (err) {
+      setError(errorText(err))
     }
   }
   return (
@@ -161,7 +185,7 @@ function TextDialog({
         </>
       }
     >
-      <form id="text-form" onSubmit={submit} noValidate className="pb-4">
+      <form id="text-form" onSubmit={(e) => void submit(e)} noValidate className="pb-4">
         <FormField
           label={isReject ? 'Причина відхилення' : 'Короткий коментар'}
           hint={
@@ -321,36 +345,20 @@ function RecommendationRow({
 }
 
 export function Recommendations() {
-  const inst = useInstitution()
-  const decisions = useDecisions()
+  const model = useRecommendationsModel()
   const toast = useToast()
   const [status, setStatus] = useState<'all' | RecommendationStatus>('all')
   const [component, setComponent] = useState<'all' | ComponentId>('all')
   const [dialog, setDialog] = useState<DialogState>(null)
   const [announce, setAnnounce] = useState('')
 
-  const all = useMemo(
-    () =>
-      applyDecisions(
-        buildRecommendations({
-          items: [...inst.perceptionItems, ...inst.factItems],
-          flags: inst.flags,
-        }),
-        decisions,
-      ),
-    [inst, decisions],
-  )
+  const all = model.list
   const list = all.filter(
     (r) =>
       (status === 'all' || r.status === status) &&
       (component === 'all' || r.component === component),
   )
-  const noteFor = (r: Recommendation): string | undefined => {
-    const d = decisions.recommendations[r.id]
-    if (r.status === 'rejected' && d?.reason) return `Причина відхилення: ${d.reason}`
-    if (r.status === 'clarified' && d?.comment) return `Коментар до уточнення: ${d.comment}`
-    return undefined
-  }
+  const noteFor = model.noteFor
   const done = (msg: string) => {
     setDialog(null)
     setAnnounce(msg)
@@ -438,12 +446,18 @@ export function Recommendations() {
       </Card>
 
       {dialog?.kind === 'accept' && (
-        <AcceptDialog rec={dialog.rec} onClose={() => setDialog(null)} onDone={done} />
+        <AcceptDialog
+          rec={dialog.rec}
+          model={model}
+          onClose={() => setDialog(null)}
+          onDone={done}
+        />
       )}
       {dialog && dialog.kind !== 'accept' && (
         <TextDialog
           rec={dialog.rec}
           kind={dialog.kind}
+          model={model}
           onClose={() => setDialog(null)}
           onDone={done}
         />

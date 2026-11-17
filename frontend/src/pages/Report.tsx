@@ -1,16 +1,43 @@
-import { Printer } from 'lucide-react'
+import { Download, Printer } from 'lucide-react'
 import { PageTitle } from '@/components/layout/PageTitle'
 import { BigNumber, Button, Card, MATURITY, MaturityBadge } from '@/components/ui'
 import { FLAG_WEIGHT_LABEL, TRUST_GRADE_TEXT } from '@/components/ui/messages'
 import { COMPONENT_LABELS, fmt, fmtIndex, levelOf, pointsText } from '@/lib/scoring/methodology'
-import { CYCLE, CYCLE_DATE } from '@/demo/data'
+import { useCycle } from '@/api/models'
+import { useAppData } from '@/api/AppData'
+import { downloadWithAuth, endpoints } from '@/api/endpoints'
+import { useToast } from '@/components/ui'
 import { useInstitution } from '@/demo/useInstitution'
+
+/** CSV зі структурою Додатку Г (з бекенду), лише коли застосунок підключено. */
+function CsvButton({ cycle }: { cycle: string }) {
+  const data = useAppData()
+  const toast = useToast()
+  const inst = data?.institution
+  if (!inst) return null
+  return (
+    <Button
+      variant="secondary"
+      leftIcon={<Download aria-hidden className="size-4" />}
+      onClick={() =>
+        downloadWithAuth(
+          endpoints.reportUrl(inst.campaignId, inst.unitId, 'csv'),
+          `report-${cycle}.csv`,
+        ).catch(() => toast.push({ title: 'Не вдалося завантажити CSV.', tone: 'error' }))
+      }
+    >
+      Завантажити CSV
+    </Button>
+  )
+}
 
 /** Звіт: екранний вигляд аркуша з підсумками циклу, друк кнопкою (друкарський шаблон світлий). */
 export function Report() {
   const inst = useInstitution()
+  const { label: CYCLE, date: CYCLE_DATE } = useCycle()
+  const data = useAppData()
   const t = TRUST_GRADE_TEXT[inst.trust.grade]
-  const prev = inst.series[inst.series.length - 2]!
+  const prev = inst.series[inst.series.length - 2] ?? inst.series[inst.series.length - 1]!
   return (
     <div data-ready="true" className="flex flex-col gap-4">
       <PageTitle>Звіт</PageTitle>
@@ -18,12 +45,15 @@ export function Report() {
         <p className="m-0 text-body text-text-muted">
           Підсумок циклу {CYCLE} для друку або збереження у PDF через діалог друку.
         </p>
-        <Button
-          leftIcon={<Printer aria-hidden className="size-4" />}
-          onClick={() => window.print()}
-        >
-          Друкувати
-        </Button>
+        <div className="flex flex-wrap gap-2">
+          {data?.institution && <CsvButton cycle={CYCLE} />}
+          <Button
+            leftIcon={<Printer aria-hidden className="size-4" />}
+            onClick={() => window.print()}
+          >
+            Друкувати
+          </Button>
+        </div>
       </div>
 
       <Card as="article" aria-labelledby="rep-h" className="mx-auto w-full max-w-3xl p-5 md:p-10">

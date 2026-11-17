@@ -1,21 +1,41 @@
 # Як запустити: база, бекенд, фронтенд
 
-> Зараз фронтенд не підключений до бекенду: він працює на власних синтетичних даних (`frontend/src/demo`).
-> Бекенд і фронтенд запускаються й перевіряються окремо.
+> Фронтенд — `frontend-proto/` (одна сторінка, vanilla JS). У `docker compose` він бере всі дані з бекенду: вхід, індекс,
+> рекомендації, заходи, хвилі, посилання, анкети, чек-лист, журнал. Відкритий як файл (без API) — працює на демо-даних.
+> Старий `frontend/` (React) у compose більше не використовується.
 
-## Бекенд через Docker
+## Усе через Docker (одна команда)
 
 ```bash
-cp .env.example .env     # заповнити POSTGRES_PASSWORD, JWT_SECRET (не коротше 32 символів), DEMO_PASSWORD, INTEGRATION_API_KEY
+cp .env.example .env     # заповнити POSTGRES_PASSWORD, JWT_SECRET (не коротше 32 символів), DEMO_PASSWORD
 docker compose up --build
 ```
 
-API і Swagger: http://localhost:8000/docs. Під час старту застосовуються міграції й створюються синтетичні демо-дані.
+| Що | Адреса |
+|---|---|
+| Фронтенд (nginx, `/api` проксіюється на бекенд) | http://localhost:8080 — вхід: `leader`, `admin`, `commissioner`, `auditor`, `wg1`, `staff01`, `expert1`, пароль `DEMO_PASSWORD` |
+| API і Swagger напряму | http://localhost:8000/docs |
+| Стан (процес + БД) | http://localhost:8080/health, http://localhost:8000/health |
 
-Почати з чистої бази: `docker compose down -v`, потім `docker compose up --build`.
+Порядок старту: `db` (healthcheck `pg_isready`) → `backend` (міграції, seed, healthcheck `/health` з БД) → `frontend`.
+Файли-докази лежать у томі `evidence`. Почати з чистої бази: `docker compose down -v`, потім `docker compose up --build`.
 
-Сервіс `frontend` у `docker-compose.yml` винесено в профіль `frontend`: у `frontend/` ще немає Dockerfile (план — nginx зі статикою
-і проксі `/api` на бекенд). Поки його немає, `docker compose --profile frontend up` не збереться.
+Перевірити стенд з кінця в кінець (вхід, хвиля за посиланнями, повтор → 409, файл-доказ із sha256, журнал):
+
+```bash
+python backend/scripts/smoke.py --base http://localhost:8080 --password "$DEMO_PASSWORD"
+```
+
+Скрипт створює демо-хвилю «Smoke …», тож запускайте його на демо-стенді.
+
+### За проксі організації
+
+- Під підшляхом (`https://portal.example/imd/`): `ROOT_PATH=/imd` для бекенду; адреси в `/docs` і OpenAPI стануть `/imd/...`.
+- Посилання на анкети будуються від `PUBLIC_URL` (`https://portal.example/imd` → `.../s/<токен>`).
+- Вхід через SSO: `PROXY_AUTH_ENABLED=true`, `TRUSTED_PROXIES=<IP чи мережа проксі>`, за бажання `PROXY_AUTH_SECRET`.
+  Проксі має сам задавати `X-Remote-User` (і `X-Proxy-Secret`) після автентифікації й не пропускати їх від браузера.
+  Фронтенд викликає `POST /api/v1/auth/proxy`, коли `GET /api/v1/config` → `auth.proxy: true`.
+  Без `TRUSTED_PROXIES` API з увімкненим входом через проксі не стартує.
 
 ## Бекенд без Docker
 
@@ -23,13 +43,37 @@ API і Swagger: http://localhost:8000/docs. Під час старту заст�
 
 ## Фронтенд
 
+Код — у `frontend-proto/src/`, після правок `python3 frontend-proto/src/build.py` збирає `frontend-proto/index.html`.
+Сторінка сама визначає режим: якщо `GET /api/v1/config` відповідає — вхід і дані з бекенду, інакше демо-дані.
+
+- Через Docker: `docker compose up --build frontend` перезбирає лише фронтенд.
+- Як файл: відкрити `frontend-proto/index.html` — демо без бекенду, роль перемикається в меню.
+
+Що бачить кожна роль після входу:
+
+| Логін | Екрани |
+|---|---|
+| `leader` | огляд, розклад, динаміка, порівняння, рекомендації (прийняти / уточнити / відхилити), трекер, звіт |
+| `admin` | керування циклом: нова хвиля, відкрити / завершити, одноразові посилання, відкликання; журнал |
+| `commissioner` | анкети (публікація, нова версія), підтвердження пунктів чек-листа, результати |
+| `auditor` | результати лише на перегляд, журнал і перевірка ланцюжка хешів |
+| `wg1` | чек-лист (статус, доказ, файл), анкета, мої результати |
+| `staff01`, `expert1` | анкета за обліковим записом, мої результати |
+
+Анонімна анкета відкривається за посиланням `http://localhost:8080/s/<токен>` без входу; повторне відкриття — «вже заповнено».
+
+## Асистент (опційно)
+
+Кнопка «Асистент» працює і без моделі (шаблони правил). Щоб підключити модель, задайте в `.env`
+будь-який OpenAI-сумісний `/chat/completions`:
+
 ```bash
-cd frontend
-npm ci
-npm run dev          # http://localhost:5173
+LLM_BASE_URL=http://host.docker.internal:11434/v1   # Ollama; для Groq достатньо LLM_API_KEY
+LLM_API_KEY=
+LLM_MODEL=gemma3:4b
 ```
 
-Роль (керівник, адміністратор, учасник тощо) і заклад перемикаються в демо-панелі інтерфейсу, логін не потрібен.
+Бекенд (`/api/assistant`) пускає лише ролі з доступом до результатів і пише в журнал довжину питання, а не його текст.
 
 ## Демо-дані бекенду
 
@@ -85,9 +129,9 @@ docker compose exec backend python -m adapters all --mock --months 12           
 ## Перевірки
 
 ```bash
-cd backend && pytest                    # бекенд: 95 тестів (на SQLite один тест xmin пропускається)
+cd backend && pytest                    # бекенд: 137 тестів (на SQLite один тест xmin пропускається)
 TEST_DATABASE_URL=postgresql+psycopg://imd:пароль@localhost:5432/imd_test pytest   # те саме на PostgreSQL
-cd frontend && npm run check            # фронтенд: typecheck, lint, 192 тести, збірка
+cd frontend && npm run check            # фронтенд: typecheck, lint, тести, збірка
 cd frontend && npm run check:contrast   # контраст кольорів
 ```
 

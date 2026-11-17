@@ -20,9 +20,9 @@ const setup = (unit: string) => {
 }
 
 describe('логіка k на екрані учасника', () => {
-  it('рівно 10 показується, 9 ховається', () => {
-    expect(getMyResults('unit-a', { ...unitResponses, 'unit-a': 10 }).resolved.hidden).toBe(false)
-    expect(getMyResults('unit-a', { ...unitResponses, 'unit-a': 9 }).resolved.hidden).toBe(true)
+  it('рівно 5 показується, 4 ховається', () => {
+    expect(getMyResults('unit-a', { ...unitResponses, 'unit-a': 5 }).resolved.hidden).toBe(false)
+    expect(getMyResults('unit-a', { ...unitResponses, 'unit-a': 4 }).resolved.hidden).toBe(true)
   })
 })
 
