@@ -17,6 +17,7 @@ from app.routers.recommendations import build, closed_campaign, with_decisions
 from app.security import RESULT_READERS, ensure_unit_access, require_roles
 from app.services import measures as measures_service
 from app.services import report_export, report_g
+from app.services.safe_export import SafeCsvWriter
 from app.services.units import subtree_ids
 
 router = APIRouter(tags=["reports"])
@@ -58,7 +59,7 @@ def to_csv(report: dict) -> str:
     """Одна таблиця «розділ; код; назва; значення; пояснення» — відкривається в Excel."""
     out = io.StringIO()
     out.write("﻿")  # BOM, щоб Excel правильно показав кирилицю
-    w = csv.writer(out, delimiter=";")
+    w = SafeCsvWriter(csv.writer(out, delimiter=";"))
     w.writerow(["розділ", "код", "назва", "значення", "рівень / статус", "достовірність", "пояснення"])
     idx = report["index"]
     w.writerow(["індекс", "integrity_index", "Integrity Index", idx["score"],

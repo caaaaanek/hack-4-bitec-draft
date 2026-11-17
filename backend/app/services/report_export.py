@@ -13,6 +13,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Font, PatternFill
 from openpyxl.utils import get_column_letter
 
+from app.services.safe_export import safe_row
 from app.services.scoring import fmt
 
 CATEGORY_SHORT = {"working_group": "РГ", "staff": "ОС", "expert": "Експерти"}
@@ -183,11 +184,11 @@ WRAP = Alignment(wrap_text=True, vertical="top")
 
 def _sheet(wb: Workbook, title: str, header: list[str], rows: list[list], widths: list[int]):
     ws = wb.create_sheet(title)
-    ws.append(header)
+    ws.append(safe_row(header))
     for cell in ws[1]:
         cell.font, cell.fill, cell.alignment = HEAD, HEAD_FILL, WRAP
     for row in rows:
-        ws.append(row)
+        ws.append(safe_row(row))
     for i, w in enumerate(widths, start=1):
         ws.column_dimensions[get_column_letter(i)].width = w
     for row in ws.iter_rows(min_row=2):

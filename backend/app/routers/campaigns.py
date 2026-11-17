@@ -54,6 +54,7 @@ from app.services import tokens as token_service
 from app.services.anonymity import flush_all
 from app.services.eligibility import is_eligible, participants_of
 from app.services.results import create_snapshots
+from app.services.safe_export import FORMULA_PREFIXES, SafeCsvWriter
 from app.services.units import subtree_ids
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
@@ -435,7 +436,7 @@ async def import_participants(
         if category != RespondentCategory.EXPERT and unit is None:
             issues.append({"path": f"line {n}", "message": f"{login}: для нового облікового запису потрібен unit"})
             continue
-        password = secrets.token_urlsafe(9)
+        password = new_password()
         new_users.append((User(login=login, display_name=display_name, password_hash="", role=Role.RESPONDENT,
                                category=category, unit_id=unit.id if unit else None), password))
     if issues:
@@ -460,12 +461,20 @@ async def import_participants(
                        credentials=credentials)
     if format == "csv":
         out = io.StringIO()
-        w = csv.writer(out)
+        w = SafeCsvWriter(csv.writer(out))
         w.writerow(["login", "password"])
         for c in credentials:
             w.writerow([c.login, c.password])
         return csv_attachment(out.getvalue(), f"credentials-{campaign.id}.csv")
     return result
+
+
+def new_password() -> str:
+    """Випадковий пароль, що не починається з символу формули: у CSV облікових даних він лишається точним."""
+    while True:
+        password = secrets.token_urlsafe(9)
+        if not password.startswith(FORMULA_PREFIXES):
+            return password
 
 
 def csv_attachment(text: str, filename: str) -> PlainTextResponse:
@@ -501,7 +510,7 @@ def import_as_tokens(db: Session, campaign: Campaign, admin: User, parsed, issue
     db.commit()
     if format == "csv":
         out = io.StringIO()
-        w = csv.writer(out)
+        w = SafeCsvWriter(csv.writer(out))
         w.writerow(["login", "questionnaire", "unit", "link"])
         w.writerows(issued)
         return csv_attachment(out.getvalue(), f"links-{campaign.id}.csv")
@@ -560,7 +569,7 @@ def issue_tokens(campaign_id: uuid.UUID, data: TokensIn,
     db.commit()
     if format == "csv":
         out = io.StringIO()
-        w = csv.writer(out)
+        w = SafeCsvWriter(csv.writer(out))
         w.writerow(["link"])
         w.writerows([token_link(t)] for t in plain)
         return csv_attachment(out.getvalue(), f"links-{campaign.id}.csv")
