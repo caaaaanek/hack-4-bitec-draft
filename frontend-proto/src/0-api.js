@@ -179,22 +179,56 @@ function apiModel(r, h) {
   if (r.index.reliability_reasons && r.index.reliability_reasons[0]) m.summary = r.index.reliability_reasons[0];
   m.groups = r.groups; m.rule = r.index.rule;
   const sorted = [...comps].sort((a, b) => a.cr.v - b.cr.v), top = sorted[sorted.length - 1];
-  m.attention = sorted.map(c => ({ t: c.cr.lim ? `${COMP[c.id].n}: підтвердити фактами` : `${COMP[c.id].n}: підсилити напрям`, c: c.id, v: c.cr.v, hint: `Зараховане значення компонента ${COMP[c.id].n}, 0-100.` }));
-  m.strengths = [{ t: `Найвищий результат у компоненті ${COMP[top.id].n}`, c: top.id, v: top.cr.v, hint: `Зараховане значення компонента ${COMP[top.id].n}, 0-100.` }];
+  // «Що потребує уваги» і «Сильні сторони» — з сервера (problems, weakest_questions, strengths за зонами методики)
+  const byCode = Object.fromEntries(comps.map(c => [c.id, c])), qComp = code => (code || "").split(".")[0];
+  m.attention = [
+    ...(r.problems || []).filter(p => byCode[p.code]).map(p => ({ t: byCode[p.code].cr.lim ? `${COMP[p.code].n}: підтвердити фактами` : `${COMP[p.code].n}: підсилити напрям`, c: p.code, v: p.score ?? byCode[p.code].cr.v, hint: `Зараховане значення компонента ${COMP[p.code].n}, 0-100.` })),
+    ...(r.weakest_questions || []).filter(q => q.score != null && q.score < 62.5 && COMPS.includes(qComp(q.code))).slice(0, 3).map(q => ({ t: q.text, c: qComp(q.code), v: q.score, q: q.code, hint: `Середній бал питання ${q.code}, 0-100.` })),
+  ];
+  m.strengths = (r.strengths || []).filter(s => byCode[s.code]).map(s => ({ t: `Сильний компонент: ${COMP[s.code].n}`, c: s.code, v: s.score ?? byCode[s.code].cr.v, hint: `Зараховане значення компонента ${COMP[s.code].n}, 0-100.` }));
+  if (!m.strengths.length) m.strengths = [{ t: `Найвищий результат у компоненті ${COMP[top.id].n}`, c: top.id, v: top.cr.v, hint: `Зараховане значення компонента ${COMP[top.id].n}, 0-100.` }];
   if (series[0].index !== m.index) m.strengths.push({ t: m.index > series[0].index ? "Зростання індексу з першої хвилі" : "Зміна індексу з першої хвилі", v: r1(m.index - series[0].index), hint: "Сумарна зміна індексу з першої закритої хвилі, у пунктах.", unit: "пт" });
   return m;
 }
 
+const CK_ST = { full: "впроваджено повністю", partial: "частково", none: "не впроваджено" };
 const DEC_ST = { accepted: "accepted", clarify: "clarified", rejected: "rejected" };
 const BASIS = { self_score: "Самооцінка", facts_score: "Факти", score: "Зараховано", percent: "Відсоток", confirmed: "Підтверджено пунктів", total: "Усього", found: "Знайдено", pending: "Не розглянуто", change: "Зміна", level: "Рівень" };
-function apiRec(x) {
+function apiRec(x, m, res) {
   const c = COMPS.includes(x.component) ? x.component : "system", st = x.decision ? DEC_ST[x.decision.decision] || "proposed" : "proposed", cm = x.decision && x.decision.comment || "";
-  return { id: x.code, t: x.title, c, pri: ["high", "medium", "low"].includes(x.priority) ? x.priority : "medium", items: [],
+  // Звʼязок рекомендації з питанням чи показником, з якого вона виникла (код правила: fact:<показник>, question:<питання>)
+  const [kind, ref] = x.code.split(":"), links = [];
+  if (kind === "fact" && m) { const f = m.fItems.find(i => i.id.endsWith("-f-" + ref)); if (f) links.push({ id: f.id, t: f.t, v: fb(f.v), item: true }); }
+  const qLink = q => ({ id: COMPS.includes(q.component) ? q.component : c, q: q.code, t: `Питання «${q.text}»`, v: q.score != null ? fb(q.score) : "—", item: true });
+  if (kind === "checklist" && res && res.checklist) { const i = (res.checklist.items || []).find(i => i.number === ref); if (i) links.push({ id: COMPS.includes(i.component) ? i.component : c, ck: i.number, t: `Пункт чек-листа ${i.number}${i.text ? ` «${i.text.replace(/^[\d.]+\s*/, "")}»` : ""}`, v: CK_ST[i.status] || "не заповнено", item: true }); }
+  if (kind === "question" && res) { const q = (res.questions || []).find(i => i.code === ref); if (q) links.push(qLink(q)); }
+  if (kind === "cut" && m) m.fItems.filter(i => i.c === x.component && i.v < 62.5).slice(0, 2).forEach(f => links.push({ id: f.id, t: f.t, v: fb(f.v), item: true }));
+  if (kind === "weakest" && res) (res.questions || []).filter(q => q.component === x.component && q.score != null).sort((a, b) => a.score - b.score).slice(0, 2).forEach(q => links.push(qLink(q)));
+  return { id: x.code, t: x.title, c, pri: ["high", "medium", "low"].includes(x.priority) ? x.priority : "medium", items: links.filter(l => !l.q).map(l => l.id), links,
     why: `${x.description} Правило: ${x.rule}`, acts: (x.suggested_measures || []).slice(0, 4).map(s => s.catalog_number ? `${s.catalog_number}. ${s.title}` : s.title),
-    evidence: Object.entries(x.basis || {}).filter(([k, v]) => typeof v === "number" && BASIS[k]).slice(0, 4).map(([k, v]) => ({ id: COMPS.includes(x.component) ? x.component : "", t: BASIS[k], v: fb(v), item: true })),
+    evidence: [...links, ...Object.entries(x.basis || {}).filter(([k, v]) => typeof v === "number" && BASIS[k] && !(links.length && k === "score")).slice(0, 4 - links.length).map(([k, v]) => ({ id: COMPS.includes(x.component) ? x.component : "", t: BASIS[k], v: fb(v), item: true }))],
     st, note: st === "rejected" ? { reason: cm } : st === "clarified" ? { comment: cm } : {} };
 }
-const MEAS_ST = { planned: "accepted", in_progress: "inprogress", done: "done", cancelled: "notconfirmed" };
+// Питання анкети з результатів хвилі: бал, бал за групами й розподіл відповідей
+function openApiQ(code) {
+  const q = API.res && (API.res.questions || []).find(i => i.code === code); if (!q) return toast("Питання не знайдено в результатах хвилі");
+  const grp = k => (CATEGORY_SRC[k] || [null, k])[1];
+  openDrawer("Питання анкети", `<div style="font-weight:600;font-size:16px">${esc(q.text)}</div>
+    <div class="lbl" style="margin:4px 0 14px">${[q.section, COMP[q.component] ? COMP[q.component].n : q.component].filter((v, i, a) => v && a.indexOf(v) === i).map(esc).join(" · ")} · код ${esc(q.code)}</div>
+    <div class="stat4 tnum" style="grid-template-columns:1fr 1fr"><div><small>Середній бал</small><b>${q.score != null ? fb(q.score) : "—"}</b></div><div><small>Рівень</small><b>${q.score != null ? LSHORT[level(q.score) - 1] : "—"}</b></div></div>
+    ${q.by_category.map(g => `<div style="margin-top:16px"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(grp(g.category))}</b><span class="lbl tnum">${g.n} відп. · бал ${g.score != null ? fb(g.score) : "—"}</span></div>
+      ${g.distribution.map(d => `<div style="display:grid;grid-template-columns:minmax(0,1fr) 90px 44px;gap:8px;align-items:center;margin-top:6px;font-size:13px"><span>${esc(d.option_text)}</span><div class="contrib"><i style="width:${d.percent}%;background:var(--teal)"></i></div><span class="lbl tnum" style="text-align:right">${fb(d.percent)}%</span></div>`).join("")}</div>`).join("")}
+    <a class="btn btn-soft" href="#explain/${q.component}" onclick="closeDrawer()" style="justify-content:center;margin-top:18px">${IC.arrowR}Компонент у розкладі індексу</a>`);
+}
+const MEAS_ST = { planned: "accepted", in_progress: "inprogress", done: "done", cancelled: "cancelled" };
+// Перевірка наступною хвилею (бекенд, services/measures.verify): зріс компонент заходу — підтверджено; не зріс — потрібен перегляд
+const VERIFY_ST = { improved: "confirmed", worsened: "notconfirmed", within_error: "notconfirmed" };
+function apiMeasure(x, titles) {
+  const v = x.verification || {}, st = x.status === "done" && VERIFY_ST[v.status] ? VERIFY_ST[v.status] : MEAS_ST[x.status] || "accepted";
+  const d = v.delta != null ? ` (${v.delta > 0 ? "+" : ""}${fb(v.delta)})` : "";
+  const vf = x.status === "done" ? (st === "confirmed" ? [`Підтверджено: компонент зріс${d}`, "p-good"] : st === "notconfirmed" ? [`Не підтверджено: ${v.title || "без змін"}${d}`, "p-bad"] : v.status === "check_data" ? ["Перевірити дані: достовірність C", "p-warn"] : ["Очікує наступного оцінювання", "p-info"]) : null;
+  return { id: x.id, rec: titles[x.recommendation_code] || (x.recommendation_code ? "попередньої хвилі" : "окремий захід"), t: x.title, who: x.owner, due: x.due_date, st, ind: x.component, vf, vrule: v.rule };
+}
 const MEAS_BACK = { accepted: "planned", inprogress: "in_progress", done: "done" };
 
 async function apiLoadResults() {
@@ -209,9 +243,9 @@ async function apiLoadResults() {
     api(`/campaigns/${d.campaign_id}/recommendations${q}`).catch(() => ({ items: [] })), api(`/measures${q}`).catch(() => []),
   ]);
   API.model = apiModel(r, h);
-  API.recs = recs.items.map(apiRec);
+  API.res = r; API.recs = recs.items.map(x => apiRec(x, API.model, r));
   const titles = Object.fromEntries(recs.items.map(x => [x.code, x.title]));
-  API.ms = ms.map(x => ({ id: x.id, rec: titles[x.recommendation_code] || (x.recommendation_code ? "попередньої хвилі" : "окремий захід"), t: x.title, who: x.owner, due: x.due_date, st: MEAS_ST[x.status] || "accepted", ind: x.component }));
+  API.ms = ms.map(x => apiMeasure(x, titles));
   TODAY = new Date().toISOString().slice(0, 10); TODAY_UA = ua(TODAY);
   CYCLE = API.model.series[API.model.series.length - 1].cycle;
   $("#cycleBtn").innerHTML = `${IC.cal}Цикл ${CYCLE}`;
@@ -244,8 +278,8 @@ function apiSurveyModel(form, kind, category) {
   const guess = t => /культур/i.test(t) ? "culture" : /систем/i.test(t) ? "system" : /підзвітн/i.test(t) ? "accountability" : null;
   const opt = {};
   const sections = form.sections.map((s, si) => {
-    const id = guess(s.title) || COMPS[si % 3];
-    return { id, t: s.title, about: guess(s.title) ? { culture: "про ставлення до доброчесності", system: "про процедури й канали звернень", accountability: "про прозорість рішень і виконання заходів" }[id] : "за темою розділу",
+    const id = s.component || guess(s.title) || "overall"; // компонент з сервера (culture/system/accountability/overall); за назвою лише для старих відповідей
+    return { id, t: s.title, about: COMPS.includes(id) ? { culture: "про ставлення до доброчесності", system: "про процедури й канали звернень", accountability: "про прозорість рішень і виконання заходів" }[id] : id === "overall" ? "" : "за темою розділу",
       q: s.questions.map(q => {
         if (q.type === "scale" && !q.options.length) { const vals = []; for (let v = q.scale_min; v <= q.scale_max; v++) vals.push(v); opt[q.id] = vals.map(v => ({ value: v })); return [q.id, q.text, vals.map(String)]; }
         opt[q.id] = q.options.map(o => ({ id: o.id })); return [q.id, q.text, q.options.map(o => o.text)];

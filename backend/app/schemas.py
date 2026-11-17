@@ -385,6 +385,7 @@ class FormQuestion(ORM):
 class FormSection(ORM):
     id: uuid.UUID
     title: str
+    component: str  # culture / system / accountability: до якого компонента індексу належить розділ
     questions: list[FormQuestion]
 
 
