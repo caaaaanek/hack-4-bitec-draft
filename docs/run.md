@@ -122,6 +122,7 @@ commissioner його підтверджує, admin закриває хвилю.
 ```bash
 docker compose exec backend python scripts/mock_sources.py --dry-run   # що буде передано
 docker compose exec backend python scripts/mock_sources.py             # передати (12 місяців, усі 5 джерел)
+docker compose --profile mocks run --rm mocks                         # те саме окремим контейнером (профіль mocks)
 ```
 
 Нові факти видно в `GET /units/{id}/indicators` і в ризик-сигналах; знімки вже закритих хвиль не змінюються.
@@ -129,7 +130,7 @@ docker compose exec backend python scripts/mock_sources.py             # пер�
 ## Перевірки
 
 ```bash
-cd backend && pytest                    # бекенд: 137 тестів (на SQLite один тест xmin пропускається)
+cd backend && pytest                    # бекенд: 158 тестів (на SQLite один тест xmin пропускається)
 TEST_DATABASE_URL=postgresql+psycopg://imd:пароль@localhost:5432/imd_test pytest   # те саме на PostgreSQL
 cd frontend && npm run check            # фронтенд: typecheck, lint, тести, збірка
 cd frontend && npm run check:contrast   # контраст кольорів

@@ -54,6 +54,20 @@ services:
         condition: service_healthy
 
   # Фронтенд: frontend-proto (одна сторінка) через nginx; /api проксіюється на backend.
+  # Моки 5 джерел фактів (ARTEMIDA, атестація, навчання, закупівлі, повідомлення): шлють факти за 12 місяців
+  # у POST /indicators, кожне своїм ключем з INTEGRATION_KEYS. Лише на вимогу:
+  #   docker compose --profile mocks run --rm mocks
+  mocks:
+    profiles: ["mocks"]
+    build: ./backend
+    command: ["python", "scripts/mock_sources.py", "--url", "http://backend:8000"]
+    environment:
+      # Порожньо — скрипт сам скаже, якого ключа бракує (тут не :?, бо compose перевіряє весь файл навіть без профілю)
+      INTEGRATION_KEYS: ${INTEGRATION_KEYS:-}
+    depends_on:
+      backend:
+        condition: service_healthy
+
   frontend:
     build: ./frontend-proto
     ports:

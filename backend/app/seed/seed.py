@@ -149,6 +149,17 @@ def seed_questionnaires(db: Session) -> int:
     return created
 
 
+# Джерело кожного факту — та сама система, що й в адаптерах (adapters/sources.py), щоб у демо було видно,
+# звідки береться показник. Тест test_seed_fact_sources_match_adapters стежить за відповідністю.
+FACT_SOURCES = {
+    "coi_reviewed": "artemida",
+    "declarations_on_time": "atestat",
+    "hiring_checks": "atestat",
+    "training_coverage": "training",
+    "procurement_flags_reviewed": "procurement",
+    "reports_handled": "reports",
+}
+
 # Синтетичні факти за місяць для кожного підрозділу: (з них, всього).
 # Підібрано так, щоб частки були близькі до прикладу з методики:
 # навчання ~72%, декларації ~96%, КІ ~55%, закупівлі ~40%, повідомлення ~80%, перевірка ~90%.
@@ -196,7 +207,8 @@ def seed_indicators(db: Session, units: dict[str, Unit], today: date | None = No
                 if exists:
                     continue
                 db.add(Indicator(unit_id=unit.id, period=period, indicator=code, numerator=numerator,
-                                 denominator=denominator, source="demo-mock", why="Синтетичні демо-дані"))
+                                 denominator=denominator, source=FACT_SOURCES[code],
+                                 why="Синтетичні демо-дані (seed)"))
                 created += 1
     return created
 

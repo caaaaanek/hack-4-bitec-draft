@@ -118,3 +118,25 @@ def test_key_of_other_source_is_refused(client, source_keys):
     facts = source.facts(source.mock_records(list(ORG_QUALITY), periods, AS_OF), set(periods), AS_OF)
     sent, warnings = pusher.push(facts)
     assert sent == 0 and warnings and all("403" in w for w in warnings)
+
+
+def test_fact_intake_refuses_unknown_key_and_extra_fields(client, source_keys):
+    admin = auth(client, "admin")
+    root = units(client, admin)[ROOT]
+    body = {"unit_id": root, "period": "2026-10", "indicator": "coi_reviewed", "numerator": 1, "denominator": 2,
+            "source": "artemida"}
+    url = f"{API}/indicators"
+    assert client.post(url, json=body, headers={"X-Integration-Key": "not-a-key"}).status_code == 401
+    assert client.post(url, json=body, headers={"X-Integration-Key": KEYS["training"]}).status_code == 403
+    # Зайве поле (наприклад, ім'я людини) не приймається: передаються лише агрегати.
+    extra = {**body, "person_name": "Синтетичне ім'я"}
+    assert client.post(url, json=extra, headers={"X-Integration-Key": KEYS["artemida"]}).status_code == 422
+    assert client.post(url, json=body, headers={"X-Integration-Key": KEYS["artemida"]}).status_code == 201
+
+
+def test_seed_fact_sources_match_adapters():
+    from app.seed.seed import FACT_SOURCES
+
+    assert set(FACT_SOURCES) == set(m.FACTS)
+    for indicator, source in FACT_SOURCES.items():
+        assert indicator in SOURCES[source].indicators, (indicator, source)
