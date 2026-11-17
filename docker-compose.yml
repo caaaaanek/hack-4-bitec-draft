@@ -1,3 +1,5 @@
+# Усе одним запуском: cp .env.example .env (заповнити), потім docker compose up --build
+# Фронтенд: http://localhost:8080 (API там само за /api/v1), API напряму: http://localhost:8000/docs
 services:
   db:
     image: postgres:16-alpine
@@ -30,20 +32,30 @@ services:
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
       # Демо-історія при старті: дві закриті хвилі, рішення й заходи (повторний старт нічого не дублює)
       SEED_WITH_WAVES: ${SEED_WITH_WAVES:-true}
+      ROOT_PATH: ${ROOT_PATH:-}
+      PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+      EVIDENCE_MAX_BYTES: ${EVIDENCE_MAX_BYTES:-10485760}
+      PASSWORD_LOGIN_ENABLED: ${PASSWORD_LOGIN_ENABLED:-true}
+      PROXY_AUTH_ENABLED: ${PROXY_AUTH_ENABLED:-false}
+      PROXY_AUTH_HEADER: ${PROXY_AUTH_HEADER:-X-Remote-User}
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
+      PROXY_AUTH_SECRET: ${PROXY_AUTH_SECRET:-}
+    volumes:
+      - evidence:/data/evidence
     ports:
       - "8000:8000"
     depends_on:
       db:
         condition: service_healthy
 
-  # Dockerfile у frontend/ ще немає, тому сервіс у профілі: docker compose --profile frontend up
   frontend:
-    profiles: ["frontend"]
     build: ./frontend
     ports:
-      - "8080:80"
+      - "8080:8080"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
 
 volumes:
   pgdata:
+  evidence: 

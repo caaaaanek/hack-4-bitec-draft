@@ -16,9 +16,10 @@ export const COMPONENT_LABELS: Record<ComponentId, string> = {
 
 /**
  * Мінімальний розмір групи (k): менші групи не показуються, їхні дані додаються до батьківського підрозділу.
- * Налаштовується адміністратором циклу, за замовчуванням 10.
+ * Те саме значення, що на бекенді (`GET /api/v1/config` → `min_group_size`, `DEFAULT_MIN_GROUP_SIZE`):
+ * за замовчуванням 5, менше задати не можна. Для конкретної хвилі береться її `min_group_size`.
  */
-export const K_MIN_GROUP = 10
+export const K_MIN_GROUP = 5
 
 /** Рівні ваг компонентів: рівні, 1/3. */
 export const COMPONENT_WEIGHT = 1 / 3

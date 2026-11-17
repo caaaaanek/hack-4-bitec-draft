@@ -46,10 +46,10 @@ describe('Дашборд за композицією еталона', () => {
     expect(container.textContent).not.toMatch(/—|підприємств|рейтинг/i)
   })
 
-  it('«Участь»: категорії, «N з M», k = 10 і примітка для групи менше k', () => {
+  it('«Участь»: категорії, «N з M», k = 5 і примітка для групи менше k', () => {
     setup()
     const card = screen.getByRole('region', { name: 'Участь' })
-    expect(within(card).getByText('k = 10')).toBeInTheDocument()
+    expect(within(card).getByText('k = 5')).toBeInTheDocument()
     expect(within(card).getByText('Робоча група')).toBeInTheDocument()
     expect(within(card).getByText('Особовий склад')).toBeInTheDocument()
     expect(within(card).getByText('Експерти')).toBeInTheDocument()

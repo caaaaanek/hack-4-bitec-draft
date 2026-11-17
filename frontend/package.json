@@ -16,6 +16,7 @@
     "check": "npm run typecheck && npm run lint && npm run test && npm run build",
     "verify:screens": "tsx scripts/verify.ts",
     "api:types": "openapi-typescript docs/api/openapi.yaml -o src/api/schema.d.ts",
+    "api:types:backend": "openapi-typescript ../docs/api/openapi.json -o src/api/backend.d.ts",
     "api:lint": "redocly lint docs/api/openapi.yaml"
   },
   "dependencies": {

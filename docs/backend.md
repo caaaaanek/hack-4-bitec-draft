@@ -71,14 +71,21 @@ stateDiagram-v2
 
 ## Хвиля оцінювання і проходження
 
-1. Адмін створює хвилю: підрозділ + опубліковані анкети + `min_group_size` (за замовчуванням 5).
-2. `open`: респонденти бачать анкету в `GET /me/assignments`, якщо їхня категорія збігається з цільовою категорією анкети, а підрозділ входить у підрозділ хвилі (з дочірніми).
-3. Респондент отримує форму **без балів** і надсилає відповіді. Сервер перевіряє повноту: на кожне обов'язкове питання є відповідь, варіанти належать саме цьому питанню, для single_choice обрано рівно один.
-4. Адмін бачить прогрес: скільки людей мають пройти анкету і скільки пройшли. **Імен немає.** Для груп, менших за поріг, кількості приховано (`too_few_people: true`).
-5. Член робочої групи вносить чек-лист (`PUT /campaigns/{id}/checklist/{question_id}`), commissioner підтверджує його за доказами.
-6. `close`: прийом відповідей зупиняється, для підрозділу хвилі і кожного дочірнього зберігається незмінний знімок результатів.
+1. Адмін створює хвилю: підрозділ + опубліковані анкети + `min_group_size` (за замовчуванням 5) + спосіб проходження
+   `access_mode`: `login` (за обліковими записами) або `token` (анонімно за одноразовими посиланнями, без облікових записів).
+   Поки хвиля в чернетці, її можна змінити (`PATCH /campaigns/{id}`).
+2. Учасники. `login`: за замовчуванням усі активні респонденти потрібної категорії в підрозділі хвилі; або явний склад
+   (`PUT /campaigns/{id}/participants`, імпорт CSV псевдонімів). `token`: адмін видає посилання групі (анкета + підрозділ + кількість)
+   або імпортом CSV отримує таблицю «псевдонім → посилання»; псевдоніми не зберігаються.
+3. `open`: респонденти бачать анкету в `GET /me/assignments`, якщо їхня категорія збігається з цільовою категорією анкети, а підрозділ входить у підрозділ хвилі (з дочірніми) і, за явного складу, вони в ньому. За посиланням анкета відкривається без входу.
+4. Респондент отримує форму **без балів** і надсилає відповіді. Сервер перевіряє повноту: на кожне обов'язкове питання є відповідь, варіанти належать саме цьому питанню, для single_choice обрано рівно один.
+5. Адмін бачить прогрес: скільки людей мають пройти анкету і скільки пройшли. **Імен немає.** Для груп, менших за поріг, кількості приховано (`too_few_people: true`).
+6. Член робочої групи вносить чек-лист (`PUT /campaigns/{id}/checklist/{question_id}`) і додає файли-докази, commissioner підтверджує його за доказами.
+7. `close`: прийом відповідей зупиняється, для підрозділу хвилі і кожного дочірнього зберігається незмінний знімок результатів.
 
 ## Як забезпечено анонімність на рівні зберігання
+
+Повний опис з моделлю загроз і залишковими ризиками: [`anonymity.md`](anonymity.md). Зловживання й протидія: [`abuse-analysis.md`](abuse-analysis.md).
 
 - `participations` знає, **хто** пройшов (user_id), але не знає відповідей.
 - `responses` знає, **що** відповіли, але не має user_id, часу чи дати. ID випадковий (UUID4).
@@ -140,14 +147,15 @@ stateDiagram-v2
 
 Базовий шлях: `/api/v1`. Повний контракт: [`docs/api/openapi.json`](api/openapi.json). Інтерактивна документація на запущеному сервері: `http://localhost:8000/docs`.
 
-Авторизація: `POST /auth/login` (form-data `username`, `password`) повертає `access_token`. Далі заголовок `Authorization: Bearer <token>`.
+Авторизація: `POST /auth/session` (JSON `{login, password}`) або `POST /auth/login` (form-data `username`, `password`) повертає `access_token`,
+`expires_in`, `role` (і `user` для `/auth/session`). Далі заголовок `Authorization: Bearer <token>`. Вхід через проксі організації — `POST /auth/proxy` (див. нижче).
 Після 5 невдалих спроб за 5 хвилин для пари логін + IP відповідь 429 із заголовком `Retry-After`. API не стартує, якщо `JWT_SECRET` коротший за 32 символи.
 
 | Метод і шлях | Роль | Призначення |
 |---|---|---|
 | `POST /auth/login`, `GET /auth/me` | усі | Вхід, поточний користувач |
 | `GET/POST /admin/users`, `PATCH /admin/users/{id}` | admin | Користувачі й ролі |
-| `GET/POST /admin/units` | admin | Підрозділи |
+| `GET/POST /admin/units`, `PATCH/DELETE /admin/units/{id}` | admin | Підрозділи |
 | `GET /admin/audit-log?entity=&action=&actor_id=&date_from=&date_to=&limit=&offset=` | admin, auditor | Журнал дій |
 | `POST /admin/audit-log/verify` | admin, auditor | Перевірка ланцюжка хешів журналу |
 | `GET /questionnaires?status=&kind=&target_category=` | commissioner; admin (лише опубліковані) | Список анкет |
@@ -168,7 +176,7 @@ stateDiagram-v2
 | `GET /units/{id}/history` | admin, commissioner, leader, auditor | Усі хвилі підрозділу для графіка динаміки |
 | `GET /units/{id}/compare?from_campaign=&to_campaign=` | admin, commissioner, leader, auditor | Порівняння двох хвиль, радар «було / стало» |
 | `GET /me/results` | respondent | Екран учасника: узагальнені результати хвилі і свого підрозділу |
-| `GET /campaigns/{id}/checklist` | робоча група, admin, commissioner | Стан чек-листа: 36 пунктів, статус, доказ, підтвердження, бал |
+| `GET /campaigns/{id}/checklist` | робоча група, admin, commissioner, auditor | Стан чек-листа: 36 пунктів, статус, доказ, підтвердження, бал |
 | `PUT /campaigns/{id}/checklist/{question_id}` | робоча група | Внести статус (`full` / `partial` / `none`), доказ, коментар |
 | `POST` / `DELETE /campaigns/{id}/checklist/{question_id}/confirm` | commissioner | Підтвердити (лише з доказом) або відкликати |
 | `POST /indicators` | інша система (`X-Integration-Key`) або admin | Факт за місяць «X з Y». Ключ з `INTEGRATION_KEYS` дозволяє лише своє джерело (`source`) |
@@ -190,6 +198,40 @@ stateDiagram-v2
 | `POST /integrations/theme2/sync` | admin | Надіслати заходи з черги `outbox` у трекер теми 2 |
 | `POST /integrations/theme2/measures/status` | тема 2 (`X-Integration-Key` = `THEME2_API_KEY`) | Вебхук: тема 2 змінює статус заходу за нашим `measure_id` або їхнім `external_id` |
 | `POST /assistant/ask` | admin, commissioner, leader, auditor | Опційний асистент. Вимкнено (`ASSISTANT_ENABLED=false`) → 404 |
+
+**Нове у версії 0.3 (підключення фронтенду, анонімні посилання, Assessment Manager, докази, вхід через проксі):**
+
+| Метод і шлях | Роль | Призначення |
+|---|---|---|
+| `GET /config` | без входу | `min_group_size` (одне k для фронтенду), версія методики, способи входу, ліміти файлів |
+| `GET /health` (і `/api/v1/health`) | без входу | Готовність: процес + `SELECT 1` у БД; 503, якщо БД недоступна |
+| `POST /auth/session`, `GET /auth/session`, `DELETE /auth/session` | усі | Вхід JSON → токен і профіль; поточний користувач; вихід (204, токен видаляє клієнт) |
+| `POST /auth/proxy` | через довірений проксі | Вхід за заголовком від проксі організації (`PROXY_AUTH_*`, `TRUSTED_PROXIES`) |
+| `PATCH /campaigns/{id}` | admin | Змінити чернетку: назва, підрозділ, анкети, k, `access_mode`. Не чернетка → 409 `not_draft`; видано посилання → 409 `tokens_issued` |
+| `GET` / `PUT` / `DELETE /campaigns/{id}/participants` | admin | Явний склад учасників (лише хвиля `login`; змінити — лише в чернетці). Хто пройшов, не показується |
+| `POST /campaigns/{id}/participants/import?format=json\|csv` | admin | CSV `login,category,unit[,display_name]`. `login`: створює респондентів (пароль один раз) і додає до складу. `token`: видає посилання, повертає «псевдонім → посилання». Усе або нічого, 422 з номерами рядків; стовпці з ПД → 422 `personal_data` |
+| `POST /campaigns/{id}/tokens?format=json\|csv` | admin | Видати одноразові посилання: анкета + підрозділ + кількість (≤ 1000). Токени лише у відповіді, у БД sha256 |
+| `POST /campaigns/{id}/tokens/revoke` | admin | Відкликати невикористані посилання: усі, анкети або анкети + підрозділу |
+| `GET /respond/form`, `POST /respond/responses` | без входу, заголовок `X-Response-Token` | Анкета й подання за посиланням. Повтор → 409 `token_used`, недійсне → 404 `token_invalid`, перебір → 429 |
+| `PATCH /admin/units/{id}`, `DELETE /admin/units/{id}` | admin | Перейменувати, перенести (без циклів; не під час відкритої хвилі), видалити невикористаний |
+| `GET` / `POST /campaigns/{id}/checklist/{qid}/files` | перегляд: РГ, admin, commissioner, auditor; додавання: РГ | Файли-докази. Ліміти розміру, кількості, типів (за сигнатурою). Додавання знімає підтвердження |
+| `GET` / `DELETE /campaigns/{id}/checklist/{qid}/files/{file_id}` | як вище; видалення: РГ | Завантаження зі звіркою sha256 (`X-Content-SHA256`; невідповідність → 409 `evidence_tampered`), м'яке видалення |
+
+Хвиля `access_mode = token`: прогрес і результати рахують «мали пройти» як видані (не відкликані) посилання, «пройшли» — як використані.
+Підтвердження пункту чек-листа можливе з текстовим доказом **або** файлом; у журнал підтвердження пишуться sha256 файлів.
+
+**Файли-докази** лежать у `EVIDENCE_DIR` (у Docker том `evidence`) за своїм sha256: `ab/abcdef…`. Однаковий вміст зберігається один раз.
+Дозволені типи: PDF, PNG, JPEG, DOCX, XLSX, ODT, ODS, TXT, CSV (перевіряється сигнатура вмісту, а не лише розширення).
+Віддача: `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, `Content-Security-Policy: sandbox`.
+
+**Вхід через довірений проксі (модуль наявної ІС).** Проксі організації (Keycloak/ADFS через oauth2-proxy, Authelia тощо) автентифікує
+людину й передає логін у `PROXY_AUTH_HEADER` (за замовчуванням `X-Remote-User`). API приймає його лише від адрес `TRUSTED_PROXIES`
+(безпосередній співрозмовник TCP) і, якщо задано, з правильним `X-Proxy-Secret`. Логін має збігатися з наявним обліковим записом
+(`user@domain` → `user`), ролі призначає адмін. `PASSWORD_LOGIN_ENABLED=false` вимикає вхід паролем. Під підшляхом проксі
+(`https://portal/imd/`) задайте `ROOT_PATH=/imd`.
+
+Оновити `docs/api/openapi.json` після зміни API: `cd backend && python scripts/export_openapi.py`; типи фронтенду:
+`cd frontend && npm run api:types:backend`.
 
 Конструктор зберігає анкету **цілком** через `PUT /structure`. Порядок розділів, питань і варіантів задається порядком у масивах:
 
@@ -223,7 +265,17 @@ stateDiagram-v2
 {"answers": [{"question_id": "…", "option_ids": ["…"]}, {"question_id": "…", "value": 4}]}
 ```
 
-Помилки валідації (422) приходять як список `{"path": "...", "message": "..."}` у полі `detail`.
+**Формат помилок** (усі статуси, `app/errors.py`):
+
+```json
+{"code": "incomplete", "message": "Дані не пройшли перевірку", "hint": "Дайте відповідь на позначені питання.",
+ "detail": [...], "errors": [{"path": "…", "message": "…"}], "missing_question_ids": ["…"], "request_id": "…"}
+```
+
+`code` стабільний для програми (`unauthorized`, `forbidden`, `not_found`, `conflict`, `invalid`, `too_many_requests`, `internal` та
+предметні: `token_used`, `token_invalid`, `not_draft`, `incomplete`, `evidence_tampered`, `unit_in_use`…). `message` і `hint` — для людини.
+`detail` лишився для сумісності (рядок або список, як раніше). `errors` — для 422 з шляхами полів. `request_id` збігається з
+заголовком `X-Request-ID`: за ним шукати в логах. Необроблені помилки повертаються як `500 internal` без тексту винятку.
 
 ## Результати й Integrity Index
 
@@ -278,6 +330,7 @@ stateDiagram-v2
 
 ## Що далі (не реалізовано)
 
-- Підключити фронтенд до API: див. [`api/frontend-mapping.md`](api/frontend-mapping.md).
+- Перевести екрани фронтенду з `src/demo` на `src/api/client.ts` (клієнт, типи й контракт уже є): див. [`api/frontend-mapping.md`](api/frontend-mapping.md).
+- OIDC напряму (без проксі), спільне сховище для обмеження спроб входу.
 - PDF звіту на бекенді (поки друкує фронтенд), чернетки анкет лише на клієнті.
 - Винести буфер і відповіді в окрему схему з окремими правами доступу.

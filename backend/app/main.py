@@ -3,7 +3,9 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app import errors
 from app.config import check_settings, get_settings
+from app.schemas import ERROR_RESPONSES
 from app.routers import (
     admin,
     assistant,
@@ -20,8 +22,10 @@ from app.routers import (
     respond,
     results,
 )
+from app.routers import config as config_router
 
 API_PREFIX = "/api/v1"
+API_VERSION = "0.3.0"
 
 
 @asynccontextmanager
@@ -31,27 +35,37 @@ async def lifespan(_: FastAPI):
     yield
 
 
+settings = get_settings()
+
 app = FastAPI(
     title="Integrity Management Dashboard API",
-    version="0.2.0",
+    version=API_VERSION,
     description="Опитувальники, конструктор анкет, ролі, хвилі оцінювання, Integrity Index, "
-    "рекомендації, трекер заходів, журнал дій з ланцюжком хешів.",
+    "рекомендації, трекер заходів, журнал дій з ланцюжком хешів.\n\n"
+    "Помилки мають вигляд `{code, message, hint, detail, errors?, request_id}`. Поля відповідей у `snake_case`.",
     lifespan=lifespan,
+    # За зворотним проксі під підшляхом (наприклад /imd): ROOT_PATH=/imd.
+    root_path=settings.root_path,
 )
 
+errors.install(app)
+
+# Токен передається в заголовку Authorization, а не в cookie, тому credentials не потрібні.
+# Із «*» і credentials браузер усе одно відмовив би, тож тут їх не вмикаємо взагалі.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=get_settings().cors_origin_list,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=settings.cors_origin_list,
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", errors.REQUEST_ID_HEADER, "X-Response-Token"],
+    expose_headers=[errors.REQUEST_ID_HEADER, "Retry-After", "Content-Disposition"],
+    max_age=600,
 )
 
-for module in (auth, admin, questionnaires, campaigns, respond, checklist, indicators, results,
+for module in (config_router, auth, admin, questionnaires, campaigns, respond, checklist, indicators, results,
                dashboard, recommendations, measures, reports, integrations, assistant):
-    app.include_router(module.router, prefix=API_PREFIX)
+    app.include_router(module.router, prefix=API_PREFIX, responses=ERROR_RESPONSES)
 
-
-@app.get("/health", tags=["service"])
-def health():
-    return {"status": "ok"}
+# /health і /api/v1/health: перевірка процесу й БД (див. routers/config.py).
+app.include_router(config_router.health_router)
+app.include_router(config_router.health_router, prefix=API_PREFIX, include_in_schema=False)

@@ -97,3 +97,6 @@ target/
 
 # --- Docker (локальні оверрайди) ---
 docker-compose.override.yml
+
+# Локальне сховище файлів-доказів
+backend/data/

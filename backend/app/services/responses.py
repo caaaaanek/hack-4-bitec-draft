@@ -52,6 +52,31 @@ def validate_submission(questionnaire: Questionnaire, answers_in: list[AnswerIn]
     return issues
 
 
+def pool_answers(
+    db: Session,
+    campaign: Campaign,
+    questionnaire: Questionnaire,
+    unit_id,
+    answers_in: list[AnswerIn],
+) -> None:
+    """Кладе відповіді в буфер: без користувача, часу й способу входу (логін чи посилання)."""
+    answers = []
+    for a in answers_in:
+        if a.option_ids:
+            answers.extend({"question_id": str(a.question_id), "option_id": str(o), "value": None} for o in a.option_ids)
+        elif a.value is not None:
+            answers.append({"question_id": str(a.question_id), "option_id": None, "value": a.value})
+    db.add(
+        ResponsePool(
+            campaign_id=campaign.id,
+            questionnaire_id=questionnaire.id,
+            category=questionnaire.target_category,
+            unit_id=unit_id,
+            answers=answers,
+        )
+    )
+
+
 def save_submission(
     db: Session,
     campaign: Campaign,
@@ -64,7 +89,6 @@ def save_submission(
     У постійну таблицю Response відповідь потрапить пізніше, пачкою (services/anonymity.py).
     """
     submitted_on = today()
-
     db.add(
         Participation(
             campaign_id=campaign.id,
@@ -73,20 +97,5 @@ def save_submission(
             submitted_on=submitted_on,
         )
     )
-
-    answers = []
-    for a in answers_in:
-        if a.option_ids:
-            answers.extend({"question_id": str(a.question_id), "option_id": str(o), "value": None} for o in a.option_ids)
-        elif a.value is not None:
-            answers.append({"question_id": str(a.question_id), "option_id": None, "value": a.value})
-    db.add(
-        ResponsePool(
-            campaign_id=campaign.id,
-            questionnaire_id=questionnaire.id,
-            category=questionnaire.target_category,
-            unit_id=user.unit_id,
-            answers=answers,
-        )
-    )
+    pool_answers(db, campaign, questionnaire, user.unit_id, answers_in)
     return submitted_on

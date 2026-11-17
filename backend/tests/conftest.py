@@ -8,12 +8,16 @@ os.environ["JWT_SECRET"] = "test-secret-not-for-production-0123456789"
 os.environ["DEMO_PASSWORD"] = "demo-pass-123"
 os.environ["BCRYPT_ROUNDS"] = "4"
 os.environ["INTEGRATION_API_KEY"] = "test-integration-key"
+os.environ["EVIDENCE_DIR"] = tempfile.mkdtemp(prefix="imd_evidence_")
+os.environ["EVIDENCE_MAX_BYTES"] = str(64 * 1024)
+os.environ["EVIDENCE_MAX_FILES_PER_ITEM"] = "3"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
 
 from app.db import Base, SessionLocal, engine  # noqa: E402
 from app.main import app  # noqa: E402
+from app.routers.respond import token_throttle  # noqa: E402
 from app.security import login_throttle  # noqa: E402
 from app.seed import seed  # noqa: E402
 
@@ -23,6 +27,7 @@ PASSWORD = os.environ["DEMO_PASSWORD"]
 @pytest.fixture()
 def client():
     login_throttle.reset()
+    token_throttle.reset()
     Base.metadata.drop_all(engine)
     Base.metadata.create_all(engine)
     with SessionLocal() as db:

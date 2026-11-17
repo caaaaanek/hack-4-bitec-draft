@@ -56,6 +56,31 @@ class Settings(BaseSettings):
     # Пароль для синтетичних демо-користувачів, яких створює seed.
     demo_password: str = ""
 
+    # Підшлях, під яким застосунок стоїть за зворотним проксі (наприклад "/imd"). Порожньо: корінь.
+    root_path: str = ""
+    # Публічна адреса фронтенду для посилань на анонімне проходження (наприклад "https://imd.example").
+    # Порожньо: посилання відносні ("/s#<токен>").
+    public_url: str = ""
+
+    # Одноразові посилання (анонімне проходження без облікового запису).
+    token_batch_max: int = 1000
+
+    # Файли-докази до пунктів чек-листа.
+    evidence_dir: str = "/data/evidence"
+    evidence_max_bytes: int = 10 * 1024 * 1024
+    evidence_max_files_per_item: int = 10
+
+    # Вхід паролем. Можна вимкнути, коли всі входять через проксі організації.
+    password_login_enabled: bool = True
+    # Вхід через довірений зворотний проксі (SSO організації): проксі автентифікує людину
+    # і передає логін у заголовку. Приймається лише з адрес TRUSTED_PROXIES.
+    proxy_auth_enabled: bool = False
+    proxy_auth_header: str = "X-Remote-User"
+    # Через кому: IP або мережі CIDR проксі, наприклад "10.0.0.5,172.16.0.0/12".
+    trusted_proxies: str = ""
+    # Необов'язковий спільний секрет, який проксі додає в заголовок X-Proxy-Secret.
+    proxy_auth_secret: str = ""
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
@@ -72,6 +97,10 @@ class Settings(BaseSettings):
         return result
 
     @property
+    def trusted_proxy_list(self) -> list[str]:
+        return [p.strip() for p in self.trusted_proxies.split(",") if p.strip()]
+
+    @property
     def min_group_size(self) -> int:
         return max(self.default_min_group_size, MIN_GROUP_SIZE_FLOOR)
 
@@ -83,6 +112,12 @@ def check_settings(settings: "Settings") -> None:
             f"JWT_SECRET не задано або коротший за {JWT_SECRET_MIN_LENGTH} символи. "
             "Згенеруйте: python -c \"import secrets; print(secrets.token_urlsafe(48))\""
         )
+    if "*" in settings.cors_origin_list:
+        raise RuntimeError("CORS_ORIGINS не може містити «*»: перелічіть адреси фронтенду явно.")
+    if settings.root_path and (not settings.root_path.startswith("/") or settings.root_path.endswith("/")):
+        raise RuntimeError("ROOT_PATH має починатися з «/» і не закінчуватися нею, наприклад /imd.")
+    if settings.proxy_auth_enabled and not settings.trusted_proxy_list:
+        raise RuntimeError("PROXY_AUTH_ENABLED=true потребує TRUSTED_PROXIES: інакше заголовок підробить будь-хто.")
 
 
 @lru_cache

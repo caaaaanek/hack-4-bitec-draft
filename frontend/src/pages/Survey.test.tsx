@@ -71,7 +71,7 @@ describe('екран опитування', () => {
     const user = userEvent.setup()
     const { unmount } = setup('demo')
     expect(screen.getByText(/не повʼязані з вами і не містять імен/)).toBeInTheDocument()
-    expect(screen.getByText(/не менше 10 осіб/)).toBeInTheDocument()
+    expect(screen.getByText(/не менше 5 осіб/)).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Розумію, почати' }))
     expect(screen.getByText('Розділ 1 з 3')).toBeInTheDocument()
 
