@@ -1,0 +1,37 @@
+# Self-hosted модель для асистента (Gemma через Ollama) за шлюзом із ключем.
+# Запуск на сервері: cp .env.example .env (заповнити), docker compose up -d,
+# потім: docker compose exec ollama ollama pull "$LLM_MODEL". Деталі — README.md.
+services:
+  ollama:
+    image: ${OLLAMA_IMAGE:-ollama/ollama}
+    environment:
+      # Дані хвилі в запиті — до ~10 тис. токенів; за замовчуванням Ollama обрізала б контекст мовчки.
+      OLLAMA_CONTEXT_LENGTH: ${OLLAMA_CONTEXT_LENGTH:-16384}
+      # Модель лишається в пам'яті, щоб перша відповідь на демо не чекала завантаження.
+      OLLAMA_KEEP_ALIVE: ${OLLAMA_KEEP_ALIVE:-24h}
+    volumes:
+      - models:/root/.ollama
+    # Порт Ollama назовні не відкривається: доступ лише через шлюз із ключем.
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  gateway:
+    image: nginx:1.27-alpine
+    environment:
+      LLM_API_KEY: ${LLM_API_KEY:?Задайте LLM_API_KEY у .env (довгий випадковий рядок)}
+    volumes:
+      - ./nginx.conf.template:/etc/nginx/templates/default.conf.template:ro
+    ports:
+      - "${GATEWAY_PORT:-8080}:8080"
+    depends_on:
+      - ollama
+    restart: unless-stopped
+
+volumes:
+  models:
