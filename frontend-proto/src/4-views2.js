@@ -73,7 +73,7 @@ function openExport() {
     <div class="exp-list">${opts.map(([k, ic, t, ds]) => `<button type="button" class="exp-opt" onclick="doExport('${k}')"><span class="comp-ic" style="background:var(--soft)">${ic}</span><span><b>${t}</b><span class="lbl">${ds}</span></span></button>`).join("")}</div></form>`;
   d.showModal();
 }
-function doExport(k) { $("#exp").close(); if (k === "print") return setTimeout(() => window.print(), 50); if (k === "copy") return copyOut("csv"); copyOut(k, true); }
+function doExport(k) { $("#exp").close(); if (k === "print") { addLog(me(), "Експорт звіту (PDF / друк)"); return setTimeout(() => window.print(), 50); } if (k === "copy") return copyOut("csv"); copyOut(k, true); }
 function copyOut(kind, dl) {
   const m = cur(); let txt;
   if (kind === "html") { const doc = `<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>Звіт ${CYCLE}</title><style>body{font:14pt/1.5 "Times New Roman",Times,serif;max-width:800px;margin:40px auto;padding:0 24px;color:#000}table{border-collapse:collapse;width:100%;margin:6px 0 12px}td,th{border:1px solid #000;padding:4px 6px;font-size:12pt;text-align:left;vertical-align:top}th{font-weight:bold}.doc-approve{margin-left:auto;width:300px}.doc-title{text-align:center;font-size:16pt;margin:24px 0 4px}.doc-sub{text-align:center;font-weight:bold}.doc-meta,.doc-note{font-size:11pt}.doc-cap{text-align:right;font-style:italic;margin-bottom:2px}.doc-sign{display:flex;justify-content:space-between;margin-top:36px}.doc-blank{display:inline-block;min-width:140px;border-top:1px solid #000;font-size:10pt;text-align:center}.noprint,svg,button{display:none}p{text-align:justify}</style></head><body>${document.querySelector(".paper").innerHTML}</body></html>`; return download(`integrity-report-${m.id}-${CYCLE}.html`, doc, "text/html"); }
@@ -195,14 +195,30 @@ function returnFact(id) {
 
 /* Журнал */
 V.audit = () => {
-  const items = logItems().reverse();
+  const all = logItems(), q = (S.logQ || "").trim().toLowerCase(), who = S.logWho || "all";
+  const shown = all.map((x, i) => ({ ...x, n: i + 1 })).filter(x => (who === "all" || x.who === who) && (!q || (x.a + " " + x.who + " " + x.t + " " + x.h).toLowerCase().includes(q))).reverse();
+  // однакові записи підряд (наприклад, кілька перевірок) показуються одним рядком з лічильником
+  const groups = []; shown.forEach(x => { const g = groups[groups.length - 1]; if (g && g[0].a === x.a && g[0].who === x.who) g.push(x); else groups.push([x]); });
+  const actors = [...new Set(all.map(x => x.who))].sort();
   return `<section class="card c12 rise">
-    <div class="card-h"><h2>Журнал дій</h2><div class="sp"></div><span id="chainSt">${pill("Ланцюг цілісний", "p-good")}</span><button class="btn btn-soft" onclick="verifyChain()">${IC.shield}Перевірити цілісність</button></div>
-    <div class="lbl" style="margin-bottom:10px">Хто, коли й що змінив у налаштуваннях і даних. Кожен запис містить хеш попереднього, тож тиха правка ламає ланцюг. Відповідей респондентів у журналі немає.</div>
-    <div class="tl">${items.map((x, i) => `<div class="tl-i rise" style="animation-delay:${Math.min(i, 12) * 40}ms"><span class="nd"></span><div><div style="font-weight:500">${esc(x.a)}</div><div class="lbl">${x.who} · ${x.t}</div></div><span class="hash">${x.h}</span></div>`).join("")}</div>
+    <div class="card-h" style="flex-wrap:wrap"><h2>Журнал дій</h2><div class="sp"></div><span id="chainSt">${pill("Ланцюг цілісний", "p-good")}</span><button class="btn btn-soft" onclick="verifyChain()">${IC.shield}Перевірити цілісність</button></div>
+    <div class="toolbar" style="margin-bottom:8px"><label class="search inst-search"><span>${IC.search}</span><input id="logQ" placeholder="Дія, роль, дата або хеш" value="${esc(S.logQ || "")}" oninput="S.logQ=this.value;render(true);const i=$('#logQ');i.focus();i.setSelectionRange(i.value.length,i.value.length)"></label>
+      <select class="inp" aria-label="Хто" onchange="S.logWho=this.value;render(true)"><option value="all">Усі ролі</option>${actors.map(a => `<option ${who === a ? "selected" : ""}>${esc(a)}</option>`).join("")}</select>
+      <span class="lbl tnum">Показано ${shown.length} з ${all.length}</span></div>
+    ${groups.length ? `<div class="tl">${groups.map((g, i) => { const x = g[0]; return `<div class="tl-i rise click" role="button" tabindex="0" style="animation-delay:${Math.min(i, 12) * 40}ms" onclick="openLog(${x.n}${g.length > 1 ? `,${g[g.length - 1].n}` : ""})" onkeydown="if(event.key==='Enter')this.click()"><span class="nd"></span><div><div style="font-weight:500">${esc(x.a)}${g.length > 1 ? ` <span class="pill p-mute nodot">×${g.length}</span>` : ""}</div><div class="lbl">${esc(x.who)} · ${g.length > 1 ? `${g[g.length - 1].t} – ${x.t}` : x.t}</div></div><span class="hash">${x.h}</span></div>`; }).join("")}</div>` : `<div class="empty">Записів за цим запитом немає.</div>`}
   </section>`;
 };
-function verifyChain() { let prev = "0", ok = true; logItems().forEach(x => { const h = fnv(prev + x.t + x.who + x.a); if (h !== x.h) ok = false; prev = h; }); $("#chainSt").innerHTML = pill(ok ? `Перевірено: ${logItems().length} записів, розривів немає` : "Ланцюг порушено", ok ? "p-good" : "p-bad"); addLog(me(), "Перевірка цілісності журналу"); }
+// Подробиці запису: що, хто, коли, номер у ланцюгу, хеш попереднього, перевірка саме цього запису
+function openLog(n, n2) {
+  const all = logItems(), x = all[n - 1], prev = n > 1 ? all[n - 2].h : "0", ok = fnv(prev + x.t + x.who + x.a) === x.h;
+  openDrawer("Запис журналу", `
+    <div><div class="lbl">Запис № ${n} з ${all.length}</div><div style="font-size:16px;font-weight:600;margin-top:4px">${esc(x.a)}</div></div>
+    ${n2 ? `<div class="note-box"><span class="lbl">Таких записів підряд: ${n - n2 + 1} (№ ${n2}–${n}). Показано останній.</span></div>` : ""}
+    <dl class="inst-kv" style="grid-template-columns:auto 1fr"><dt>Хто</dt><dd>${esc(x.who)}</dd><dt>Коли</dt><dd class="tnum">${x.t}</dd><dt>Хеш запису</dt><dd><span class="hash">${x.h}</span></dd><dt>Хеш попереднього</dt><dd><span class="hash">${prev}</span></dd></dl>
+    <div>${pill(ok ? "Запис не змінювали" : "Запис змінено після створення", ok ? "p-good" : "p-bad")}</div>
+    <div class="lbl">Хеш рахується з попереднього хешу, часу, ролі й опису дії. Якщо змінити будь-що в цьому чи попередніх записах, хеші далі по ланцюгу не зійдуться. Імен і відповідей респондентів у журналі немає, лише ролі.</div>`);
+}
+function verifyChain() { let prev = "0", ok = true; logItems().forEach(x => { const h = fnv(prev + x.t + x.who + x.a); if (h !== x.h) ok = false; prev = h; }); addLog(me(), "Перевірка цілісності журналу"); const n = logItems().length; render(true); $("#chainSt").innerHTML = pill(ok ? `Перевірено ${n} записів, розривів немає` : "Ланцюг порушено", ok ? "p-good" : "p-bad"); toast(ok ? "Ланцюг цілісний. Сама перевірка теж записана в журнал." : "Ланцюг порушено"); }
 
 /* Опитування за жетоном */
 const answered = () => SURVEY_Q.filter(q => S.survey.a[q.id] != null).length;
