@@ -1,0 +1,41 @@
+/* --- конструктор анкет --- */
+body.bld-open { overflow: hidden; }
+.bld { position: fixed; inset: 0; z-index: 85; background: var(--bg); display: flex; flex-direction: column; }
+.bld-top { background: var(--panel); border-bottom: 1px solid var(--line); padding: 12px max(16px, env(safe-area-inset-right, 0px)) 12px max(16px, env(safe-area-inset-left, 0px)); }
+.bld-top-in { max-width: 980px; margin: 0 auto; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.bld-title { display: flex; flex-direction: column; min-width: 0; flex: 1 1 200px; }
+.bld-title b { font-size: 16px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bld-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-left: auto; }
+.bld-body { flex: 1; overflow: auto; padding: 18px max(16px, env(safe-area-inset-right, 0px)) 60px max(16px, env(safe-area-inset-left, 0px)); }
+.bld-wrap { max-width: 980px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+.bld-meta { display: flex; flex-direction: column; gap: 12px; }
+.bld-row { display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
+.bld-row > .field { flex: 1 1 200px; min-width: 0; }
+.bld-row > .bld-w { flex: 0 0 110px; }
+.bld-grow { flex: 1 1 260px; min-width: 0; }
+.bld-comp { flex: 0 1 230px; min-width: 0; }
+.bld-hint { padding-bottom: 12px; }
+.bld-req { padding-bottom: 10px; }
+.bld-sec { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.bld-sec-h { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+.bld-sec-h .pv-num { align-self: center; }
+.bld-move { display: inline-flex; gap: 6px; margin-left: auto; align-items: center; }
+.bld-q { border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 12px; background: var(--bg); min-width: 0; }
+.bld-q-h { display: flex; align-items: center; gap: 10px; }
+.bld-qn { width: 26px; height: 26px; border-radius: 50%; background: var(--soft); color: var(--muted); display: grid; place-items: center; font-size: 12px; font-weight: 700; }
+.bld-opts { display: flex; flex-direction: column; gap: 8px; }
+.bld-opt { display: flex; gap: 8px; align-items: center; }
+.bld-opt > .inp:first-child { flex: 1; min-width: 0; }
+.bld-score { display: inline-flex; align-items: center; gap: 6px; flex: none; }
+.bld-score .inp { width: 70px; text-align: center; padding: 8px 6px; }
+.bld-add { align-self: flex-start; }
+.bld-add-s { align-self: stretch; justify-content: center; }
+.bld-more summary { cursor: pointer; color: var(--teal-deep); font-weight: 600; font-size: 13px; }
+.bld-more textarea { margin-top: 8px; width: 100%; }
+.bld-q textarea.inp, .bld-meta textarea.inp { width: 100%; resize: vertical; font-family: inherit; }
+.bld-note { border-radius: 12px; padding: 14px 16px; line-height: 1.5; background: var(--soft); }
+.bld-note.warn { background: var(--amber-soft); }
+.bld-note.ok { background: var(--teal-soft); }
+.bld-note ul { margin: 6px 0 0; padding-left: 20px; }
+.bld-note-act { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+@media (max-width: 640px) { .bld-opt { flex-wrap: wrap; } .bld-opt > .inp:first-child { flex-basis: 100%; } .bld-actions { width: 100%; } .bld-actions .btn { flex: 1; justify-content: center; } }

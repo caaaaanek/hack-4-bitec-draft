@@ -62,7 +62,7 @@ function openHow() {
       <li>Сприйняття не може бути вищим за факти більш ніж на ${CAP} пунктів. Якщо розрив більший, зараховується «факти + ${CAP}».</li>
       <li>Рівень зрілості від 1 до 5 визначають межі шкали нижче.</li>
       <li>Достовірність показує, наскільки результату можна довіряти. Вона залежить від прапорців: автоматичних перевірок даних.</li></ol>
-      <a class="link" href="#explain" onclick="closeDrawer()">Відкрити розклад індексу ${IC.arrowR}</a></div>
+      ${route().r !== "explain" ? `<a class="link" href="#explain" onclick="closeDrawer()">Відкрити розклад індексу ${IC.arrowR}</a>` : ""}</div>
     <div><div class="lbl" style="margin-bottom:4px">Шкала рівнів зрілості</div><div class="rows">${scale}</div></div>`);
 }
 function capBars(c) {
@@ -98,10 +98,10 @@ V.overview = () => {
   <section class="card c12 rise" id="attn">
     <div class="attn-cols"><div>
     <div class="card-h"><h2>Що потребує уваги</h2></div>
-    <div class="rows">${(S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX)).map(a => `<a class="row click" href="#explain/${a.c}"${a.q ? ` onclick="event.preventDefault();openApiQ('${a.q}')"` : ""} data-tip="${esc(a.hint)}"><span class="dot" style="background:${SCOL[status(a.v)]}"></span><div class="grow"><div class="t">${esc(a.t)}</div></div>${pill(COMP[a.c].n, "p-mute nodot")}<b class="tnum">${fb(a.v)}</b></a>`).join("")}</div>
+    ${m.attention.length ? `<div class="rows">${(S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX)).map(a => `<a class="row click" href="#explain/${a.c}"${a.q ? ` onclick="event.preventDefault();openApiQ('${a.q}')"` : ""} data-tip="${esc(a.hint)}"><span class="dot" style="background:${SCOL[status(a.v)]}"></span><div class="grow"><div class="t">${esc(a.t)}</div></div>${pill(COMP[a.c].n, "p-mute nodot")}<b class="tnum">${fb(a.v)}</b></a>`).join("")}</div>` : `<div class="lbl">Зауважень немає: нічого не потребує уваги.</div>`}
     </div><div>
     <div class="card-h"><h2>Сильні сторони</h2></div>
-    <div class="rows">${(S.attnAll ? m.strengths : m.strengths.slice(0, LIST_MAX)).map(a => `<a class="row click" href="${a.c ? "#explain/" + a.c : "#trends"}" data-tip="${esc(a.hint)}"><span class="dot" style="background:var(--teal)"></span><div class="grow"><div class="t">${a.t}</div></div><b class="tnum">${a.unit ? "+" : ""}${fb(a.v)}</b></a>`).join("")}</div>
+    ${m.strengths.length ? `<div class="rows">${(S.attnAll ? m.strengths : m.strengths.slice(0, LIST_MAX)).map(a => `<a class="row click" href="${a.c ? "#explain/" + a.c : "#trends"}" data-tip="${esc(a.hint)}"><span class="dot" style="background:var(--teal)"></span><div class="grow"><div class="t">${a.t}</div></div><b class="tnum">${a.unit ? "+" : ""}${fb(a.v)}</b></a>`).join("")}</div>` : `<div class="lbl">Поки що немає даних про сильні сторони.</div>`}
     </div></div>
   ${m.attention.length > LIST_MAX || m.strengths.length > LIST_MAX ? `<button class="link-btn" style="margin-top:8px" onclick="S.attnAll=!S.attnAll;render(true)">${S.attnAll ? "Згорнути" : `Показати всі (${m.attention.length + m.strengths.length})`}</button>` : ""}
   </section>
@@ -294,11 +294,11 @@ function acceptRec(id) {
   openDrawer("Прийняти рекомендацію", `
     <div><div class="lbl">${COMP[r.c].n}</div><div style="font-size:16px;font-weight:600;margin-top:4px">${r.t}</div></div>
     <div class="field"><label for="f-who">Відповідальна посада</label><select id="f-who" class="inp">${POSITIONS.map(w => `<option>${w}</option>`).join("")}</select></div>
-    <div class="field"><label for="f-due">Строк виконання</label><input class="inp" type="date" id="f-due" min="${TODAY}" value="2027-02-28"><span class="err lbl" id="f-err"></span></div>
+    <div class="field"><label for="f-due">Строк виконання</label>${datePicker("f-due", "2027-02-28", TODAY)}<span class="err lbl" id="f-err"></span></div>
     <div class="note-box"><span class="lbl">Після прийняття в трекері зʼявиться захід із цією посадою й строком. Посаду і строк можна буде уточнити пізніше.</span></div>
     <div style="display:flex;gap:8px"><button class="btn btn-ghost" style="flex:1;justify-content:center" onclick="closeDrawer()">Скасувати</button><button class="btn btn-primary" id="f-ok" style="flex:2;justify-content:center">${IC.ok}Прийняти й створити захід</button></div>`, b => {
     b.querySelector("#f-ok").onclick = () => {
-      const due = b.querySelector("#f-due").value;
+      const due = b.querySelector("#f-due").dataset.val;
       if (!due || due < TODAY) { b.querySelector("#f-err").textContent = "Оберіть строк не раніше за сьогодні."; return; }
       if (API.on) { b.querySelector("#f-ok").disabled = true; apiDecide(id, "accepted", "", { owner: b.querySelector("#f-who").value, due_date: due }).then(() => { closeDrawer(); toast(`Рекомендацію прийнято. Захід «${r.t}» додано до трекера.`); }, e => { b.querySelector("#f-err").textContent = apiErrText(e); b.querySelector("#f-ok").disabled = false; }); return; }
       const mid = "m-" + (BASE_MEASURES.length + S.dec.added.length + 1);

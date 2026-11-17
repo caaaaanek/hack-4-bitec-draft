@@ -1,0 +1,23 @@
+/* прогрес хвилі: підпис праворуч у рядку з назвою, смужка нижче на всю ширину */
+.prog-row { align-items: stretch; }
+.prog-h { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.prog-h .t { flex: 1; min-width: 0; }
+.prog-lock { display: inline-flex; width: 15px; color: var(--muted); flex: none; }
+.prog-n { margin-left: auto; white-space: nowrap; text-align: right; }
+/* список одноразових посилань з кнопкою копіювання біля кожного */
+.link-list { display: flex; flex-direction: column; gap: 6px; max-height: 260px; overflow: auto; margin-top: 8px; }
+.link-row { display: flex; align-items: center; gap: 10px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 5px 6px 5px 12px; }
+.link-row a { flex: 1; min-width: 0; word-break: break-all; font-size: 13px; }
+.link-n { color: var(--muted); min-width: 18px; font-size: 12px; }
+.icon-btn.sm { width: 30px; height: 30px; border-radius: 9px; flex: none; }
+.icon-btn.sm svg { width: 15px; height: 15px; }
+/* три плитки чек-листа лишаються в один ряд і на малому екрані */
+@media (max-width: 640px) {
+  .kpi-row.kpi-row-s { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+  .kpi-row-s .kpi-tile { padding: 12px; gap: 8px; }
+  .kpi-row-s .kt-h { flex-direction: column; align-items: flex-start; gap: 6px; min-height: 0; }
+  .kpi-row-s .kt-h .lbl { font-size: 12px; line-height: 1.25; }
+}
+/* довідка «Як читати цей екран»: перший блок на всю ширину, решта поруч, без порожнеч */
+.legend3 { align-items: start; }
+.legend3 > div:first-child { grid-column: 1 / -1; }

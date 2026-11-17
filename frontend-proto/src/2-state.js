@@ -137,7 +137,7 @@ function showTip(r, html) {
   tip.style.left = x + "px"; tip.style.top = y + "px"; tip.classList.add("on");
 }
 function hideTip() { tip.classList.remove("on"); }
-document.addEventListener("mouseover", e => { const el = e.target.closest("[data-tip]"); if (!el) return; const r = el.getBoundingClientRect(); showTip(r, el.dataset.tip); });
+document.addEventListener("mouseover", e => { const el = e.target.closest("[data-tip]"); if (!el) return; if ($("#pop").classList.contains("on") && $("#pop")._btn === el) return; const r = el.getBoundingClientRect(); showTip(r, el.dataset.tip); });
 document.addEventListener("mouseout", e => { if (e.target.closest("[data-tip]")) hideTip(); });
 
 /* ---------- Charts ---------- */
