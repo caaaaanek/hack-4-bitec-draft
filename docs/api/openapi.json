@@ -9826,6 +9826,10 @@
             "type": "string",
             "title": "Title"
           },
+          "component": {
+            "type": "string",
+            "title": "Component"
+          },
           "questions": {
             "items": {
               "$ref": "#/components/schemas/FormQuestion"
@@ -9838,6 +9842,7 @@
         "required": [
           "id",
           "title",
+          "component",
           "questions"
         ],
         "title": "FormSection"

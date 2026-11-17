@@ -213,7 +213,7 @@ stateDiagram-v2
 | `POST /campaigns/{id}/participants/import?format=json\|csv` | admin | CSV `login,category,unit[,display_name]`. `login`: створює респондентів (пароль один раз) і додає до складу. `token`: видає посилання, повертає «псевдонім → посилання». Усе або нічого, 422 з номерами рядків; стовпці з ПД → 422 `personal_data` |
 | `POST /campaigns/{id}/tokens?format=json\|csv` | admin | Видати одноразові посилання: анкета + підрозділ + кількість (≤ 1000). Токени лише у відповіді, у БД sha256 |
 | `POST /campaigns/{id}/tokens/revoke` | admin | Відкликати невикористані посилання: усі, анкети або анкети + підрозділу |
-| `GET /respond/form`, `POST /respond/responses` | без входу, заголовок `X-Response-Token` | Анкета й подання за посиланням. Повтор → 409 `token_used`, недійсне → 404 `token_invalid`, перебір → 429 |
+| `GET /respond/form`, `POST /respond/responses` | без входу, заголовок `X-Response-Token` | Анкета й подання за посиланням. Кожен розділ форми має `component` (`culture` / `system` / `accountability` / `overall`). Повтор → 409 `token_used`, недійсне → 404 `token_invalid`, перебір → 429 |
 | `PATCH /admin/units/{id}`, `DELETE /admin/units/{id}` | admin | Перейменувати, перенести (без циклів; не під час відкритої хвилі), видалити невикористаний |
 | `GET` / `POST /campaigns/{id}/checklist/{qid}/files` | перегляд: РГ, admin, commissioner, auditor; додавання: РГ | Файли-докази. Ліміти розміру, кількості, типів (за сигнатурою). Додавання знімає підтвердження |
 | `GET` / `DELETE /campaigns/{id}/checklist/{qid}/files/{file_id}` | як вище; видалення: РГ | Завантаження зі звіркою sha256 (`X-Content-SHA256`; невідповідність → 409 `evidence_tampered`), м'яке видалення |

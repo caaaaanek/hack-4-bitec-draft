@@ -452,7 +452,7 @@ td select, .inp { border: 1px solid var(--line); border-radius: 10px; padding: 7
 .pf { display: flex; gap: 8px; align-items: flex-end; height: 70px; }
 .pf div { display: flex; flex-direction: column; align-items: center; gap: 4px; justify-content: flex-end; height: 100%; }
 .pf i { width: 14px; border-radius: 4px; display: block; transform-origin: bottom; }
-.pf small { font-size: 10px; color: var(--muted); }
+.pf small { font-size: 12px; color: var(--muted); }
 .ev-ic { display: inline-flex; width: 13px; height: 13px; vertical-align: -2px; margin-right: 6px; color: var(--fg); }
 .ev-ic svg { width: 13px; height: 13px; }
 .note-box { background: var(--soft); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
@@ -758,7 +758,7 @@ html.hc a, html.hc .link { text-decoration: underline; }
 .kt-s { line-height: 1.4; }
 .radar-body { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; justify-content: center; }
 .radar-main { flex: 1 1 300px; min-width: 0; max-width: 460px; }
-.radar-side { display: none; flex: 1 1 280px; min-width: 0; }
+.radar-side { display: none; flex: 1 1 280px; min-width: 0; overflow-x: auto; }
 .radar-side table { width: 100%; }
 @media (max-width: 1180px) {
   .view > .radar-card.c4, .view > .lv-card.c8 { grid-column: span 12; }
@@ -804,6 +804,14 @@ html.hc a, html.hc .link { text-decoration: underline; }
 .kt-b { flex-wrap: wrap; }
 /* вхід і анонімна анкета: меню немає, тож «згорнуте меню» не повинно лишати вузьку колонку */
 @media (min-width: 901px) { html.side-mini .app.login, html.side-mini .app.anon { grid-template-columns: minmax(0, 1fr); } }
+/* v8: підказки пошуку */
+.qs { display: flex; flex-direction: column; gap: 2px; max-height: 60vh; overflow-y: auto; }
+.qs-i { display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 8px; cursor: pointer; color: var(--fg); font: inherit; font-size: 13.5px; }
+.qs-i:hover, .qs-i.on { background: var(--soft); }
+.qs-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qs-i .lbl { flex: none; font-size: 12px; }
+.qs mark { background: var(--lime-soft, #e6f7c8); color: inherit; border-radius: 3px; padding: 0 1px; }
+@media (max-width: 640px) { .radar-side th, .radar-side td { padding-left: 6px; padding-right: 6px; } }
 
 @media (max-width: 1180px) {
   .c3 { grid-column: span 6; } .c4 { grid-column: span 6; } .c5, .c7, .c8 { grid-column: span 12; } .c6 { grid-column: span 12; }
@@ -1067,22 +1075,56 @@ function apiModel(r, h) {
   if (r.index.reliability_reasons && r.index.reliability_reasons[0]) m.summary = r.index.reliability_reasons[0];
   m.groups = r.groups; m.rule = r.index.rule;
   const sorted = [...comps].sort((a, b) => a.cr.v - b.cr.v), top = sorted[sorted.length - 1];
-  m.attention = sorted.map(c => ({ t: c.cr.lim ? `${COMP[c.id].n}: підтвердити фактами` : `${COMP[c.id].n}: підсилити напрям`, c: c.id, v: c.cr.v, hint: `Зараховане значення компонента ${COMP[c.id].n}, 0-100.` }));
-  m.strengths = [{ t: `Найвищий результат у компоненті ${COMP[top.id].n}`, c: top.id, v: top.cr.v, hint: `Зараховане значення компонента ${COMP[top.id].n}, 0-100.` }];
+  // «Що потребує уваги» і «Сильні сторони» — з сервера (problems, weakest_questions, strengths за зонами методики)
+  const byCode = Object.fromEntries(comps.map(c => [c.id, c])), qComp = code => (code || "").split(".")[0];
+  m.attention = [
+    ...(r.problems || []).filter(p => byCode[p.code]).map(p => ({ t: byCode[p.code].cr.lim ? `${COMP[p.code].n}: підтвердити фактами` : `${COMP[p.code].n}: підсилити напрям`, c: p.code, v: p.score ?? byCode[p.code].cr.v, hint: `Зараховане значення компонента ${COMP[p.code].n}, 0-100.` })),
+    ...(r.weakest_questions || []).filter(q => q.score != null && q.score < 62.5 && COMPS.includes(qComp(q.code))).slice(0, 3).map(q => ({ t: q.text, c: qComp(q.code), v: q.score, q: q.code, hint: `Середній бал питання ${q.code}, 0-100.` })),
+  ];
+  m.strengths = (r.strengths || []).filter(s => byCode[s.code]).map(s => ({ t: `Сильний компонент: ${COMP[s.code].n}`, c: s.code, v: s.score ?? byCode[s.code].cr.v, hint: `Зараховане значення компонента ${COMP[s.code].n}, 0-100.` }));
+  if (!m.strengths.length) m.strengths = [{ t: `Найвищий результат у компоненті ${COMP[top.id].n}`, c: top.id, v: top.cr.v, hint: `Зараховане значення компонента ${COMP[top.id].n}, 0-100.` }];
   if (series[0].index !== m.index) m.strengths.push({ t: m.index > series[0].index ? "Зростання індексу з першої хвилі" : "Зміна індексу з першої хвилі", v: r1(m.index - series[0].index), hint: "Сумарна зміна індексу з першої закритої хвилі, у пунктах.", unit: "пт" });
   return m;
 }
 
+const CK_ST = { full: "впроваджено повністю", partial: "частково", none: "не впроваджено" };
 const DEC_ST = { accepted: "accepted", clarify: "clarified", rejected: "rejected" };
 const BASIS = { self_score: "Самооцінка", facts_score: "Факти", score: "Зараховано", percent: "Відсоток", confirmed: "Підтверджено пунктів", total: "Усього", found: "Знайдено", pending: "Не розглянуто", change: "Зміна", level: "Рівень" };
-function apiRec(x) {
+function apiRec(x, m, res) {
   const c = COMPS.includes(x.component) ? x.component : "system", st = x.decision ? DEC_ST[x.decision.decision] || "proposed" : "proposed", cm = x.decision && x.decision.comment || "";
-  return { id: x.code, t: x.title, c, pri: ["high", "medium", "low"].includes(x.priority) ? x.priority : "medium", items: [],
+  // Звʼязок рекомендації з питанням чи показником, з якого вона виникла (код правила: fact:<показник>, question:<питання>)
+  const [kind, ref] = x.code.split(":"), links = [];
+  if (kind === "fact" && m) { const f = m.fItems.find(i => i.id.endsWith("-f-" + ref)); if (f) links.push({ id: f.id, t: f.t, v: fb(f.v), item: true }); }
+  const qLink = q => ({ id: COMPS.includes(q.component) ? q.component : c, q: q.code, t: `Питання «${q.text}»`, v: q.score != null ? fb(q.score) : "—", item: true });
+  if (kind === "checklist" && res && res.checklist) { const i = (res.checklist.items || []).find(i => i.number === ref); if (i) links.push({ id: COMPS.includes(i.component) ? i.component : c, ck: i.number, t: `Пункт чек-листа ${i.number}${i.text ? ` «${i.text.replace(/^[\d.]+\s*/, "")}»` : ""}`, v: CK_ST[i.status] || "не заповнено", item: true }); }
+  if (kind === "question" && res) { const q = (res.questions || []).find(i => i.code === ref); if (q) links.push(qLink(q)); }
+  if (kind === "cut" && m) m.fItems.filter(i => i.c === x.component && i.v < 62.5).slice(0, 2).forEach(f => links.push({ id: f.id, t: f.t, v: fb(f.v), item: true }));
+  if (kind === "weakest" && res) (res.questions || []).filter(q => q.component === x.component && q.score != null).sort((a, b) => a.score - b.score).slice(0, 2).forEach(q => links.push(qLink(q)));
+  return { id: x.code, t: x.title, c, pri: ["high", "medium", "low"].includes(x.priority) ? x.priority : "medium", items: links.filter(l => !l.q).map(l => l.id), links,
     why: `${x.description} Правило: ${x.rule}`, acts: (x.suggested_measures || []).slice(0, 4).map(s => s.catalog_number ? `${s.catalog_number}. ${s.title}` : s.title),
-    evidence: Object.entries(x.basis || {}).filter(([k, v]) => typeof v === "number" && BASIS[k]).slice(0, 4).map(([k, v]) => ({ id: COMPS.includes(x.component) ? x.component : "", t: BASIS[k], v: fb(v), item: true })),
+    evidence: [...links, ...Object.entries(x.basis || {}).filter(([k, v]) => typeof v === "number" && BASIS[k] && !(links.length && k === "score")).slice(0, 4 - links.length).map(([k, v]) => ({ id: COMPS.includes(x.component) ? x.component : "", t: BASIS[k], v: fb(v), item: true }))],
     st, note: st === "rejected" ? { reason: cm } : st === "clarified" ? { comment: cm } : {} };
 }
-const MEAS_ST = { planned: "accepted", in_progress: "inprogress", done: "done", cancelled: "notconfirmed" };
+// Питання анкети з результатів хвилі: бал, бал за групами й розподіл відповідей
+function openApiQ(code) {
+  const q = API.res && (API.res.questions || []).find(i => i.code === code); if (!q) return toast("Питання не знайдено в результатах хвилі");
+  const grp = k => (CATEGORY_SRC[k] || [null, k])[1];
+  openDrawer("Питання анкети", `<div style="font-weight:600;font-size:16px">${esc(q.text)}</div>
+    <div class="lbl" style="margin:4px 0 14px">${[q.section, COMP[q.component] ? COMP[q.component].n : q.component].filter((v, i, a) => v && a.indexOf(v) === i).map(esc).join(" · ")} · код ${esc(q.code)}</div>
+    <div class="stat4 tnum" style="grid-template-columns:1fr 1fr"><div><small>Середній бал</small><b>${q.score != null ? fb(q.score) : "—"}</b></div><div><small>Рівень</small><b>${q.score != null ? LSHORT[level(q.score) - 1] : "—"}</b></div></div>
+    ${q.by_category.map(g => `<div style="margin-top:16px"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(grp(g.category))}</b><span class="lbl tnum">${g.n} відп. · бал ${g.score != null ? fb(g.score) : "—"}</span></div>
+      ${g.distribution.map(d => `<div style="display:grid;grid-template-columns:minmax(0,1fr) 90px 44px;gap:8px;align-items:center;margin-top:6px;font-size:13px"><span>${esc(d.option_text)}</span><div class="contrib"><i style="width:${d.percent}%;background:var(--teal)"></i></div><span class="lbl tnum" style="text-align:right">${fb(d.percent)}%</span></div>`).join("")}</div>`).join("")}
+    <a class="btn btn-soft" href="#explain/${q.component}" onclick="closeDrawer()" style="justify-content:center;margin-top:18px">${IC.arrowR}Компонент у розкладі індексу</a>`);
+}
+const MEAS_ST = { planned: "accepted", in_progress: "inprogress", done: "done", cancelled: "cancelled" };
+// Перевірка наступною хвилею (бекенд, services/measures.verify): зріс компонент заходу — підтверджено; не зріс — потрібен перегляд
+const VERIFY_ST = { improved: "confirmed", worsened: "notconfirmed", within_error: "notconfirmed" };
+function apiMeasure(x, titles) {
+  const v = x.verification || {}, st = x.status === "done" && VERIFY_ST[v.status] ? VERIFY_ST[v.status] : MEAS_ST[x.status] || "accepted";
+  const d = v.delta != null ? ` (${v.delta > 0 ? "+" : ""}${fb(v.delta)})` : "";
+  const vf = x.status === "done" ? (st === "confirmed" ? [`Підтверджено: компонент зріс${d}`, "p-good"] : st === "notconfirmed" ? [`Не підтверджено: ${v.title || "без змін"}${d}`, "p-bad"] : v.status === "check_data" ? ["Перевірити дані: достовірність C", "p-warn"] : ["Очікує наступного оцінювання", "p-info"]) : null;
+  return { id: x.id, rec: titles[x.recommendation_code] || (x.recommendation_code ? "попередньої хвилі" : "окремий захід"), t: x.title, who: x.owner, due: x.due_date, st, ind: x.component, vf, vrule: v.rule };
+}
 const MEAS_BACK = { accepted: "planned", inprogress: "in_progress", done: "done" };
 
 async function apiLoadResults() {
@@ -1097,9 +1139,9 @@ async function apiLoadResults() {
     api(`/campaigns/${d.campaign_id}/recommendations${q}`).catch(() => ({ items: [] })), api(`/measures${q}`).catch(() => []),
   ]);
   API.model = apiModel(r, h);
-  API.recs = recs.items.map(apiRec);
+  API.res = r; API.recs = recs.items.map(x => apiRec(x, API.model, r));
   const titles = Object.fromEntries(recs.items.map(x => [x.code, x.title]));
-  API.ms = ms.map(x => ({ id: x.id, rec: titles[x.recommendation_code] || (x.recommendation_code ? "попередньої хвилі" : "окремий захід"), t: x.title, who: x.owner, due: x.due_date, st: MEAS_ST[x.status] || "accepted", ind: x.component }));
+  API.ms = ms.map(x => apiMeasure(x, titles));
   TODAY = new Date().toISOString().slice(0, 10); TODAY_UA = ua(TODAY);
   CYCLE = API.model.series[API.model.series.length - 1].cycle;
   $("#cycleBtn").innerHTML = `${IC.cal}Цикл ${CYCLE}`;
@@ -1132,8 +1174,8 @@ function apiSurveyModel(form, kind, category) {
   const guess = t => /культур/i.test(t) ? "culture" : /систем/i.test(t) ? "system" : /підзвітн/i.test(t) ? "accountability" : null;
   const opt = {};
   const sections = form.sections.map((s, si) => {
-    const id = guess(s.title) || COMPS[si % 3];
-    return { id, t: s.title, about: guess(s.title) ? { culture: "про ставлення до доброчесності", system: "про процедури й канали звернень", accountability: "про прозорість рішень і виконання заходів" }[id] : "за темою розділу",
+    const id = s.component || guess(s.title) || "overall"; // компонент з сервера (culture/system/accountability/overall); за назвою лише для старих відповідей
+    return { id, t: s.title, about: COMPS.includes(id) ? { culture: "про ставлення до доброчесності", system: "про процедури й канали звернень", accountability: "про прозорість рішень і виконання заходів" }[id] : id === "overall" ? "" : "за темою розділу",
       q: s.questions.map(q => {
         if (q.type === "scale" && !q.options.length) { const vals = []; for (let v = q.scale_min; v <= q.scale_max; v++) vals.push(v); opt[q.id] = vals.map(v => ({ value: v })); return [q.id, q.text, vals.map(String)]; }
         opt[q.id] = q.options.map(o => ({ id: o.id })); return [q.id, q.text, q.options.map(o => o.text)];
@@ -1858,15 +1900,15 @@ const BASE_MEASURES = [
 ];
 const M_ST = {
   accepted: ["Прийнято", "p-info"], inprogress: ["В роботі", "p-warn"], done: ["Виконано", "p-done"],
-  confirmed: ["Підтверджено", "p-good"], notconfirmed: ["Не підтверджено", "p-bad"], overdue: ["Прострочено", "p-bad"],
+  confirmed: ["Підтверджено", "p-good"], notconfirmed: ["Не підтверджено", "p-bad"], overdue: ["Прострочено", "p-bad"], cancelled: ["Скасовано", "p-mute"],
 };
-const M_NEXT = { accepted: ["inprogress"], inprogress: ["done", "accepted"], done: ["inprogress"], confirmed: [], notconfirmed: ["inprogress"] };
+const M_NEXT = { accepted: ["inprogress"], inprogress: ["done", "accepted"], done: ["inprogress"], confirmed: [], notconfirmed: ["inprogress"], cancelled: [] };
 const dayMs = 864e5, utc = d => { const [y, m, dd] = d.split("-").map(Number); return Date.UTC(y, m - 1, dd); };
-const overdueDays = m => ["done", "confirmed", "notconfirmed"].includes(m.st) ? 0 : Math.max(0, Math.floor((utc(TODAY) - utc(m.due)) / dayMs));
+const overdueDays = m => ["done", "confirmed", "notconfirmed", "cancelled"].includes(m.st) ? 0 : Math.max(0, Math.floor((utc(TODAY) - utc(m.due)) / dayMs));
 const dispSt = m => overdueDays(m) > 0 ? "overdue" : m.st;
 const daysWord = n => { const t = n % 100, u = n % 10; return t >= 11 && t <= 14 ? "днів" : u === 1 ? "день" : u >= 2 && u <= 4 ? "дні" : "днів"; };
 const measures = () => API.on ? API.ms : [...BASE_MEASURES, ...S.dec.added].map(m => S.dec.mst[m.id] ? { ...m, st: S.dec.mst[m.id] } : m);
-const verif = m => m.st === "confirmed" ? ["Підтверджено наступним оцінюванням", "p-good"] : m.st === "notconfirmed" ? ["Не підтверджено, потрібен перегляд", "p-bad"] : m.st === "done" ? ["Очікує наступного оцінювання", "p-info"] : ["Ще не настав час", "p-mute"];
+const verif = m => m.vf ? m.vf : m.st === "cancelled" ? ["Захід скасовано", "p-mute"] : m.st === "confirmed" ? ["Підтверджено наступним оцінюванням", "p-good"] : m.st === "notconfirmed" ? ["Не підтверджено, потрібен перегляд", "p-bad"] : m.st === "done" ? ["Очікує наступного оцінювання", "p-info"] : ["Ще не настав час", "p-mute"];
 
 /* ---------- Анкета особового складу (токен demo) ---------- */
 const SURVEY = {
@@ -1997,7 +2039,7 @@ const tip = $("#tip");
 // Масштаб тексту (zoom на <html>): координати getBoundingClientRect екранні, а left/top задаються в CSS-пікселях
 const Z = () => parseFloat(document.documentElement.style.zoom) || 1;
 const zr = r => { const z = Z(); return { left: r.left / z, right: (r.right ?? r.left + r.width) / z, top: r.top / z, bottom: r.bottom / z, width: r.width / z }; };
-function placePop(btn) { const p = $("#pop"), r = zr(btn.getBoundingClientRect()), w = p.offsetWidth, vw = innerWidth / Z(); p.style.left = Math.max(8, Math.min(r.right - w, vw - w - 8)) + "px"; p.style.top = (r.bottom + 6) + "px"; }
+function placePop(btn) { $("#pop").style.width = ""; const p = $("#pop"), r = zr(btn.getBoundingClientRect()), w = p.offsetWidth, vw = innerWidth / Z(); p.style.left = Math.max(8, Math.min(r.right - w, vw - w - 8)) + "px"; p.style.top = (r.bottom + 6) + "px"; }
 function showTip(r, html) {
   r = zr(r); const innerWidth = window.innerWidth / Z(), innerHeight = window.innerHeight / Z();
   tip.innerHTML = html; tip.style.left = "0px"; tip.style.top = "0px";
@@ -2196,7 +2238,7 @@ V.overview = () => {
   <section class="card c12 rise" id="attn">
     <div class="attn-cols"><div>
     <div class="card-h"><h2>Що потребує уваги</h2></div>
-    <div class="rows">${(S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX)).map(a => `<a class="row click" href="#explain/${a.c === "culture" || a.c === "accountability" ? (a.t.startsWith("Підтвердити") || a.t.startsWith("Більше") ? a.c : a.c) : a.c}" data-tip="${esc(a.hint)}"><span class="dot" style="background:${SCOL[status(a.v)]}"></span><div class="grow"><div class="t">${a.t}</div></div>${pill(COMP[a.c].n, "p-mute nodot")}<b class="tnum">${fb(a.v)}</b></a>`).join("")}</div>
+    <div class="rows">${(S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX)).map(a => `<a class="row click" href="#explain/${a.c}"${a.q ? ` onclick="event.preventDefault();openApiQ('${a.q}')"` : ""} data-tip="${esc(a.hint)}"><span class="dot" style="background:${SCOL[status(a.v)]}"></span><div class="grow"><div class="t">${esc(a.t)}</div></div>${pill(COMP[a.c].n, "p-mute nodot")}<b class="tnum">${fb(a.v)}</b></a>`).join("")}</div>
     </div><div>
     <div class="card-h"><h2>Сильні сторони</h2></div>
     <div class="rows">${(S.attnAll ? m.strengths : m.strengths.slice(0, LIST_MAX)).map(a => `<a class="row click" href="${a.c ? "#explain/" + a.c : "#trends"}" data-tip="${esc(a.hint)}"><span class="dot" style="background:var(--teal)"></span><div class="grow"><div class="t">${a.t}</div></div><b class="tnum">${a.unit ? "+" : ""}${fb(a.v)}</b></a>`).join("")}</div>
@@ -2280,7 +2322,7 @@ function pickCycle(k) {
   if (a === b) { toast("Оберіть два різні цикли"); return drawPeriod(); }
   S.trend.from = a; S.trend.to = b; persist(); closePop(); render(true);
 }
-function closePop() { $("#pop").classList.remove("on"); pickA = null; }
+function closePop() { const p = $("#pop"); p.classList.remove("on"); p.style.width = ""; pickA = null; }
 document.addEventListener("click", e => { const p = $("#pop"); if (p.classList.contains("on") && !p.contains(e.target) && !(p._btn && p._btn.contains(e.target)) && !e.target.closest("#pop")) closePop(); }, true);
 
 /* Розклад індексу */
@@ -2379,7 +2421,7 @@ V.recs = () => {
       <h3>${r.t}</h3>
       <div class="lbl" style="margin:10px 0 4px">Чому система це пропонує</div><div>${r.why}</div>
       <div class="lbl" style="margin:12px 0 4px">На підставі</div>
-      <div class="ev">${r.evidence.map(e => `<a href="#explain/${e.id}" class="ev-i">${e.item ? "" : `<span style="color:var(--red);display:inline-flex;width:14px">${IC.alert}</span>`}<span>${esc(e.t)}: <b>${e.v}</b></span><span class="lbl">Відкрити в розкладі ${IC.arrowR}</span></a>`).join("")}</div>
+      <div class="ev">${r.evidence.map(e => `<a href="#explain/${e.id}" class="ev-i"${e.q ? ` onclick="event.preventDefault();openApiQ('${e.q}')"` : ""}>${e.item ? "" : `<span style="color:var(--red);display:inline-flex;width:14px">${IC.alert}</span>`}<span>${esc(e.t)}: <b>${e.v}</b></span><span class="lbl">${e.q ? "Відкрити питання" : "Відкрити в розкладі"} ${IC.arrowR}</span></a>`).join("")}</div>
       <details class="acts"><summary>Запропоновані дії (${r.acts.length})</summary><ol>${r.acts.map(a => `<li>${a}</li>`).join("")}</ol></details>
       ${r.note.reason ? `<div class="note-box" style="margin-top:10px"><b>Причина відхилення</b><span>${esc(r.note.reason)}</span></div>` : ""}
       ${r.note.comment ? `<div class="note-box" style="margin-top:10px"><b>Коментар до уточнення</b><span>${esc(r.note.comment)}</span></div>` : ""}
@@ -2431,7 +2473,7 @@ V.tracker = () => {
   const od = all.filter(x => overdueDays(x) > 0).length;
   const stCell = x => pill(M_ST[x.st][0], M_ST[x.st][1]);
   const actCell = x => x.st === "confirmed" ? `<span class="lbl">Змінює наступне оцінювання</span>` : edit ? `<div class="mv">${M_NEXT[x.st].map(s => `<button class="btn btn-ghost" onclick="setMSt('${x.id}','${s}')">${IC.arrowR}${M_ST[s][0]}</button>`).join("")}</div>` : `<span class="lbl">—</span>`;
-  const board = ["accepted", "inprogress", "done", "confirmed", "notconfirmed"].map(st => { const cards = list.filter(x => x.st === st); return `<div class="col-b" data-st="${st}"><div class="col-h">${pill(M_ST[st][0], M_ST[st][1])}<span class="lbl tnum">${cards.length}</span></div>${cards.map(x => `<div class="b-card tr-click" tabindex="0" ${edit && M_NEXT[x.st].length ? `draggable="true" data-id="${x.id}" data-st="${x.st}"` : ""} onclick="if(!event.target.closest('button'))openMeasure('${x.id}')"><b>${x.t}</b><span class="lbl">${x.who}</span><div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap"><span class="lbl tnum" ${overdueDays(x) ? 'style="color:var(--red);font-weight:600"' : ""}>Строк: ${ua(x.due)}</span>${overdueDays(x) ? pill(`+${overdueDays(x)} ${daysWord(overdueDays(x))}`, "p-bad nodot") : ""}</div>${edit && M_NEXT[x.st].length ? `<div class="seg sm">${M_NEXT[x.st].map(s => `<button onclick="setMSt('${x.id}','${s}')">${IC.arrowR}${M_ST[s][0]}</button>`).join("")}</div>` : ""}</div>`).join("") || `<div class="lbl" style="padding:8px">Порожньо</div>`}</div>`; }).join("");
+  const board = ["accepted", "inprogress", "done", "confirmed", "notconfirmed", ...(list.some(x => x.st === "cancelled") ? ["cancelled"] : [])].map(st => { const cards = list.filter(x => x.st === st); return `<div class="col-b" data-st="${st}"><div class="col-h">${pill(M_ST[st][0], M_ST[st][1])}<span class="lbl tnum">${cards.length}</span></div>${cards.map(x => `<div class="b-card tr-click" tabindex="0" ${edit && M_NEXT[x.st].length ? `draggable="true" data-id="${x.id}" data-st="${x.st}"` : ""} onclick="if(!event.target.closest('button'))openMeasure('${x.id}')"><b>${x.t}</b><span class="lbl">${x.who}</span><div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap"><span class="lbl tnum" ${overdueDays(x) ? 'style="color:var(--red);font-weight:600"' : ""}>Строк: ${ua(x.due)}</span>${overdueDays(x) ? pill(`+${overdueDays(x)} ${daysWord(overdueDays(x))}`, "p-bad nodot") : ""}</div>${edit && M_NEXT[x.st].length ? `<div class="seg sm">${M_NEXT[x.st].map(s => `<button onclick="setMSt('${x.id}','${s}')">${IC.arrowR}${M_ST[s][0]}</button>`).join("")}</div>` : ""}</div>`).join("") || `<div class="lbl" style="padding:8px">Порожньо</div>`}</div>`; }).join("");
   const conf = all.filter(x => x.st === "confirmed").length, wait = all.filter(x => x.st === "done").length, rev = all.filter(x => x.st === "notconfirmed").length;
   return `
   <section class="c12 rise toolbar"><div class="sp"></div>
@@ -2608,7 +2650,7 @@ V.compare = () => {
   <section class="card c12 rise">
     <div class="card-h" style="flex-wrap:wrap"><h2>Сприйняття проти фактів</h2><button type="button" class="kt-info" aria-label="Як читати" data-tip="Точки показують середню оцінку кожної групи, риска це факти. Праворуч різниця «сприйняття мінус факти». Червоним позначено розрив понад ${CAP} пунктів: тоді вмикається обмежувач.">${IC.info}</button><div class="sp"></div><div class="legend">${marks.map(([s, n]) => `<span><i class="mk ${s}"></i>${n}</span>`).join("")}<span><i class="mk f"></i>Факти</span></div></div>
     ${m.components.map((c, i) => { const vals = marks.map(([s]) => [s, srcAvg(c.id, s)]).filter(([, v]) => v != null); const all = [...vals.map(x => x[1]), c.F]; const lo = Math.min(...all), hi = Math.max(...all), gap = r1(c.P - c.F);
-      return `<div class="db" style="cursor:pointer" onclick="location.hash='explain/${c.id}'"><span class="t"><b>${COMP[c.id].n}</b><br><span class="lbl">Сприйняття ${fb(c.P)} · факти ${fb(c.F)}</span></span>
+      return `<div class="db" style="cursor:pointer" role="link" tabindex="0" aria-label="${COMP[c.id].n}: розклад індексу" onclick="location.hash='explain/${c.id}'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.hash='explain/${c.id}'}"><span class="t"><b>${COMP[c.id].n}</b><br><span class="lbl">Сприйняття ${fb(c.P)} · факти ${fb(c.F)}</span></span>
         <div class="track"><div class="gap ${gap > CAP ? "bad" : ""}" style="left:${lo}%;width:${hi - lo}%;animation-delay:${i * 80}ms"></div>
         ${vals.map(([s, v], j) => `<span class="m mk ${s}" style="left:${v}%;animation-delay:${200 + i * 80 + j * 60}ms" data-tip="${SRC[s][0]}: ${fb(v)}"></span>`).join("")}
         <span class="m mk f" style="left:${c.F}%;animation-delay:${400 + i * 80}ms" data-tip="Факти: ${fb(c.F)}"></span></div>
@@ -2888,11 +2930,11 @@ V.survey = () => {
     <h2 style="margin:18px 0 6px;font-size:24px;font-weight:600">Дякуємо. Ваші відповіді збережено анонімно.</h2>
     <p class="lbl" style="max-width:520px;margin:0 auto 20px">Що далі: коли відповість достатньо людей (не менше ${S.k}), ${API.anon ? "узагальнені результати підрозділу стануть доступні керівництву й учасникам" : "ви зможете побачити узагальнені результати свого підрозділу"}. Окремих відповідей і імен там не буде.</p>
     ${API.anon ? "" : `<a class="btn btn-primary" href="#me">Переглянути результати підрозділу ${IC.arrowR}</a>`}</section></div>`;
-  const sec = SV().sections[sv.sec], last = sv.sec === SV().sections.length - 1, miss = SQ().filter(q => sv.a[q.id] == null);
+  const sec = SV().sections[sv.sec], SC = COMP[sec.id] || { s: "var(--soft)", c: "var(--muted)", ic: "survey" }, last = sv.sec === SV().sections.length - 1, miss = SQ().filter(q => sv.a[q.id] == null);
   return `<div class="survey c12">
     <div class="sv-top"><span class="lbl">Розділ ${sv.sec + 1} з ${SV().sections.length}</span><div class="qprog" style="flex:1">${SQ().map(q => `<span class="${q.si === sv.sec ? "cur" : ""} ${sv.a[q.id] != null ? "done" : ""}"></span>`).join("")}</div><span class="lbl tnum">Відповіли на ${answered()} з ${N}</span><button class="icon-btn" aria-label="Закрити" onclick="S.survey.phase='intro';render();toast('Відповіді лишаються на цьому пристрої. Їх ще не надіслано.')">${IC.x}</button></div>
     <section class="card qcard" style="padding:24px" key="${sv.sec}">
-      <div class="comp-top" style="margin-bottom:4px"><span class="comp-ic" style="background:${COMP[sec.id].s};color:${COMP[sec.id].c}">${IC[COMP[sec.id].ic]}</span><b style="font-size:18px">${sec.t}</b><span class="lbl">${sec.about}</span></div>
+      <div class="comp-top" style="margin-bottom:4px"><span class="comp-ic" style="background:${SC.s};color:${SC.c}">${IC[SC.ic]}</span><b style="font-size:18px">${sec.t}</b><span class="lbl">${sec.about}</span></div>
       ${sec.q.map(([id, t, o], qi) => `<fieldset class="qf" id="q-${id}"><legend>${qi + 1}. ${t}</legend><div class="opts">${o.map((x, i) => `<button type="button" class="opt ${sv.a[id] === i ? "on" : ""}" aria-pressed="${sv.a[id] === i}" onclick="pick('${id}',${i})"><span class="rb"></span><span>${x}</span></button>`).join("")}</div></fieldset>`).join("")}
       ${sv.miss && last && miss.length ? `<div class="note-box" style="margin-top:12px"><b>Залишилось відповісти на ${miss.length} ${miss.length === 1 ? "питання" : miss.length < 5 ? "питання" : "питань"}</b><span class="lbl">Натисніть на питання, щоб перейти до нього.</span>${miss.map(q => `<a class="link" href="javascript:void 0" onclick="S.survey.sec=${q.si};S.survey.miss=false;render(true);setTimeout(()=>document.getElementById('q-${q.id}').scrollIntoView({behavior:'smooth',block:'center'}),60)">Розділ «${SV().sections[q.si].t}», питання ${q.qi + 1}</a>`).join("")}</div>` : ""}
       <div style="display:flex;justify-content:space-between;margin-top:20px;gap:10px">
@@ -3074,7 +3116,7 @@ function renderNav(cur) {
   $("#nav").innerHTML = NAV.filter(n => n[3].includes(S.role)).map(([r, n, ic]) => `<a href="#${r}" data-r="${r}" class="${r === cur ? "on" : ""}" ${r === cur ? 'aria-current="page"' : ""} aria-label="${n}"${document.documentElement.classList.contains("side-mini") ? ` data-tip="${n}"` : ""}>${IC[ic]}<span>${n}</span></a>`).join("");
   updateBadges();
 }
-const TITLES = { overview: () => S.role === "observer" ? "Огляд закладу" : "Огляд закладу", explain: () => "Розклад індексу", trends: () => "Динаміка", compare: () => "Порівняння: сприйняття і факти", recs: () => "Рекомендації", tracker: () => "Трекер заходів", sources: () => "Джерела", report: () => "Звіт", manage: () => "Керування циклом", surveys: () => "Анкети", checklist: () => "Чек-лист", audit: () => "Журнал", survey: () => "Анонімне опитування", me: () => "Мої результати", institutions: () => "Заклади" };
+const TITLES = { overview: () => "Огляд закладу", explain: () => "Розклад індексу", trends: () => "Динаміка", compare: () => "Порівняння: сприйняття і факти", recs: () => "Рекомендації", tracker: () => "Трекер заходів", sources: () => "Джерела", report: () => "Звіт", manage: () => "Керування циклом", surveys: () => "Анкети", checklist: () => "Чек-лист", audit: () => "Журнал", survey: () => "Анонімне опитування", me: () => "Мої результати", institutions: () => "Заклади" };
 let lastRoute = null, lastApiView = false;
 function render(soft) {
   if (API.on && !API.user && !API.anon) return showLogin();
@@ -3095,7 +3137,11 @@ function render(soft) {
   $("#side").classList.remove("on");
 }
 window.addEventListener("hashchange", () => render());
-let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { const { r } = route(); !lastApiView && V[r].after && V[r].after(); }, 150); });
+// Клік по пункту меню поточного екрана теж оновлює екран (напр., «Пройти опитування» одразу після надсилання)
+$("#nav").addEventListener("click", e => { const a = e.target.closest("a[data-r]"); if (a && "#" + a.dataset.r === location.hash.split("/")[0]) { e.preventDefault(); render(); } });
+let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(redrawAfter, 150); });
+// Перемалювати графіки поточного екрана (не на екранах сервера й не до завантаження даних)
+function redrawAfter() { const { r } = route(); if (!lastApiView && (!API.on || API.model) && $("#view").children.length && V[r] && V[r].after) V[r].after(); }
 
 /* ---------- Chrome ---------- */
 $("#logo").innerHTML = IC.pulse.replace("<svg", '<svg width="20" height="20"');
@@ -3130,10 +3176,35 @@ $("#themeBtn").onclick = () => {
 };
 try { const t = localStorage.getItem("ii-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
 themeIcon();
+/* Пошук: підказки під час введення (екрани, компоненти, питання й показники, заклади) */
+function searchHits(q) {
+  q = q.trim().toLowerCase(); if (!q) return [];
+  const has = t => t.toLowerCase().includes(q), out = [];
+  NAV.filter(n => n[3].includes(S.role) && allowed(n[0]) && has(n[1])).forEach(n => out.push({ k: "Екран", t: n[1], go: () => location.hash = n[0] }));
+  if (allowed("explain")) {
+    COMPS.filter(c => has(COMP[c].n)).forEach(c => out.push({ k: "Компонент", t: COMP[c].n, go: () => location.hash = "explain/" + c }));
+    try { allItems(cur()).filter(x => has(x.t)).forEach(x => out.push({ k: x.kind === "p" ? "Питання" : "Показник", t: x.t, go: () => location.hash = "explain/" + x.id })); } catch (e) {}
+  }
+  if (allowed("institutions") && !API.on) INSTITUTIONS().filter(m => !(S.insts.archived || []).includes(m.id) && (has(m.name) || (m.edrpou || "").includes(q))).forEach(m => out.push({ k: "Заклад", t: m.name, go: () => { S.inst = m.id; persist(); location.hash = "overview"; render(); } }));
+  return out.slice(0, 8);
+}
+let qHits = [], qSel = 0;
+function drawSearch() {
+  const p = $("#pop"), box = document.querySelector(".side .search"), q = $("#q").value;
+  qHits = searchHits(q); if (!q.trim()) return closePop();
+  const hl = t => { const i = t.toLowerCase().indexOf(q.trim().toLowerCase()); return i < 0 ? esc(t) : esc(t.slice(0, i)) + "<mark>" + esc(t.slice(i, i + q.trim().length)) + "</mark>" + esc(t.slice(i + q.trim().length)); };
+  p.innerHTML = qHits.length ? `<div class="qs" role="listbox" aria-label="Результати пошуку">${qHits.map((h, i) => `<button type="button" role="option" aria-selected="${i === qSel}" class="qs-i ${i === qSel ? "on" : ""}" onmousedown="event.preventDefault();pickSearch(${i})"><span class="qs-t">${hl(h.t)}</span><span class="lbl">${h.k}</span></button>`).join("")}</div>` : `<div class="lbl" style="padding:6px 4px">Нічого не знайдено</div>`;
+  p._btn = box; p.classList.add("on");
+  const r = zr(box.getBoundingClientRect()), w = Math.max(r.width, 320); p.style.width = w + "px"; p.style.left = Math.max(8, Math.min(r.left, innerWidth / Z() - w - 8)) + "px"; p.style.top = (r.bottom + 6) + "px";
+}
+function pickSearch(i) { const h = qHits[i]; if (!h) return; $("#q").value = ""; $("#q").blur(); closePop(); $("#pop").style.width = ""; h.go(); }
+$("#q").addEventListener("input", () => { qSel = 0; drawSearch(); });
+$("#q").addEventListener("focus", () => { if ($("#q").value.trim()) drawSearch(); });
 $("#q").addEventListener("keydown", e => {
-  if (e.key !== "Enter") return; const q = e.target.value.trim().toLowerCase(); if (!q) return;
-  if (allowed("explain")) { const hit = allItems(cur()).find(x => x.t.toLowerCase().includes(q)); if (hit) { location.hash = "explain/" + hit.id; return; } }
-  const nav = NAV.find(n => n[1].toLowerCase().includes(q) && n[3].includes(S.role)); if (nav) location.hash = nav[0]; else toast("Нічого не знайдено");
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") { if (!qHits.length) return; e.preventDefault(); qSel = (qSel + (e.key === "ArrowDown" ? 1 : qHits.length - 1)) % qHits.length; drawSearch(); return; }
+  if (e.key === "Escape") { $("#q").value = ""; closePop(); $("#q").blur(); return; }
+  if (e.key !== "Enter") return; e.preventDefault();
+  if (qHits.length) pickSearch(qSel); else if ($("#q").value.trim()) toast("Нічого не знайдено");
 });
 // Пошук: Ctrl+K (на Mac ⌘K) і «/». Ctrl+F лишаємо браузеру: це пошук по тексту сторінки
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -3144,15 +3215,24 @@ document.addEventListener("keydown", e => {
   if (e.key === "Escape") closePop();
 });
 /* Доступність: розмір тексту й підвищений контраст (як на сайтах держорганів) */
-function applyA11y() { const a = S.a11y || { z: 1, hc: false }; document.documentElement.style.zoom = a.z === 1 ? "" : a.z; document.documentElement.classList.toggle("hc", !!a.hc); }
+function applyA11y() { const a = S.a11y || { z: 1, hc: false }; document.documentElement.style.zoom = a.z === 1 ? "" : a.z; document.documentElement.classList.toggle("hc", !!a.hc); scaleMedia(a.z); }
+// CSS zoom не змінює ширину, яку бачать медіазапити. Тому межі (max-width/min-width) множимо на масштаб:
+// при 150 % на екрані 1280 px сторінка верстається як для 853 px, без горизонтального скролу (WCAG 1.4.10).
+function scaleMedia(z) {
+  for (const sh of document.styleSheets) { let rules; try { rules = sh.cssRules; } catch (e) { continue; }
+    for (const r of rules) { if (!(r instanceof CSSMediaRule) || !/width/.test(r.media.mediaText + (r._mq || ""))) continue;
+      r._mq = r._mq || r.media.mediaText;
+      const t = r._mq.replace(/(min|max)-width:\s*([\d.]+)px/g, (_, k, n) => `${k}-width: ${Math.round(+n * z * 10) / 10}px`);
+      if (r.media.mediaText !== t) { while (r.media.length) r.media.deleteMedium(r.media.item(0)); t.split(",").forEach(m => r.media.appendMedium(m.trim())); } } }
+}
 function drawA11y() {
   const a = S.a11y;
   $("#pop").innerHTML = `<div class="lbl" style="text-transform:uppercase;letter-spacing:.06em;font-size:11px;margin-bottom:8px">Розмір тексту</div>
     <div style="display:flex;align-items:center;gap:10px"><button class="icon-btn" aria-label="Зменшити текст" onclick="setZoom(-1)" ${a.z <= 1 ? "disabled" : ""}>−</button><b class="tnum" style="min-width:48px;text-align:center">${Math.round(a.z * 100)} %</b><button class="icon-btn" aria-label="Збільшити текст" onclick="setZoom(1)" ${a.z >= 1.5 ? "disabled" : ""}>+</button></div>
     <label class="a11y-row"><span>Підвищений контраст</span><span class="sw"><input type="checkbox" ${a.hc ? "checked" : ""} onchange="S.a11y.hc=this.checked;persist();applyA11y()"><span></span></span></label>
-    <button class="link-btn" onclick="S.a11y={z:1,hc:false};persist();applyA11y();drawA11y();render(true)">Скинути</button>`;
+    <button class="link-btn" onclick="S.a11y={z:1,hc:false};persist();applyA11y();autoSide();drawA11y();render(true)">Скинути</button>`;
 }
-function setZoom(d) { S.a11y.z = Math.round(clamp(S.a11y.z + d * .125, 1, 1.5) * 1000) / 1000; persist(); applyA11y(); drawA11y(); render(true); placePop($("#a11yBtn")); }
+function setZoom(d) { S.a11y.z = Math.round(clamp(S.a11y.z + d * .125, 1, 1.5) * 1000) / 1000; persist(); applyA11y(); autoSide(); drawA11y(); render(true); placePop($("#a11yBtn")); }
 $("#a11yBtn").innerHTML = IC.a11y;
 $("#a11yBtn").onclick = e => { const p = $("#pop"), b = e.currentTarget; if (p.classList.contains("on") && p._btn === b) return closePop(); p._btn = b; drawA11y(); p.classList.add("on"); placePop(b); };
 applyA11y();
@@ -3161,14 +3241,14 @@ function setSide(mini, auto) {
   document.documentElement.classList.toggle("side-mini", mini);
   const b = $("#sideBtn"); b.innerHTML = mini ? IC.chevR : IC.chevL; b.setAttribute("aria-label", mini ? "Розгорнути меню" : "Згорнути меню"); b.setAttribute("aria-expanded", String(!mini)); b.dataset.tip = mini ? "Розгорнути меню" : "Згорнути меню";
   if (!auto) try { localStorage.setItem("ii-side2", mini ? "mini" : ""); } catch (e) {}
-  const { r } = route(); renderNav(r); setTimeout(() => V[r] && V[r].after && V[r].after(), 260);
+  const { r } = route(); renderNav(r); setTimeout(redrawAfter, 260);
 }
 $("#sideBtn").onclick = () => setSide(!document.documentElement.classList.contains("side-mini"));
 document.querySelector(".side .search").addEventListener("click", () => { if (document.documentElement.classList.contains("side-mini")) { setSide(false); setTimeout(() => $("#q").focus(), 50); } });
 // Меню: збережений вибір користувача, а без нього на вузьких екранах (до 1100 px) воно згорнуте, щоб не стискати вміст
 const sidePref = () => { try { return localStorage.getItem("ii-side2"); } catch (e) { return null; } };
-const autoSide = () => { if (sidePref() === null && innerWidth > 900) { document.documentElement.classList.toggle("side-mini", innerWidth < 1100); const { r } = route(); renderNav(r); } };
-try { const sp = sidePref(); if (sp === null) { document.documentElement.classList.toggle("side-mini", innerWidth > 900 && innerWidth < 1100); setSide(document.documentElement.classList.contains("side-mini"), true); } else setSide(sp === "mini"); } catch (e) { setSide(false); }
+const autoSide = () => { const w = innerWidth / Z(); if (sidePref() === null && w > 900) { document.documentElement.classList.toggle("side-mini", w < 1100); const { r } = route(); renderNav(r); } };
+try { const sp = sidePref(); if (sp === null) { document.documentElement.classList.toggle("side-mini", innerWidth / Z() > 900 && innerWidth / Z() < 1100); setSide(document.documentElement.classList.contains("side-mini"), true); } else setSide(sp === "mini"); } catch (e) { setSide(false); }
 addEventListener("resize", autoSide);
 $("#aiLogo").innerHTML = IC.spark.replace("<svg", '<svg width="17" height="17"');
 $("#aiClose").innerHTML = IC.x; $("#aiClose").onclick = aiClose;
