@@ -1,0 +1,1898 @@
+<!doctype html>
+<html lang="uk">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Integrity Index</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Onest:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: app shell — белый сайдбар + рабочая область с сеткой карточек; drawer справа */
+:root {
+  --bg: #f6f7f9; --panel: #ffffff; --soft: #f2f3f5; --line: #e8eaee;
+  --fg: #111418; --muted: #7b818b; --faint: #c3c7ce;
+  --lime: #9be07a; --lime-ink: #10290f; --lime-soft: #e8f7df;
+  --teal: #1db58f; --teal-deep: #2f7d68; --teal-soft: #dcf3eb; --teal-pale: #c9ead9;
+  --amber: #d98f1e; --amber-soft: #fbefd9;
+  --red: #e0554a; --red-soft: #fce5e2;
+  --blue: #5a8dee; --blue-soft: #e3ecfd;
+  --tip: #111418; --tip-ink: #ffffff;
+  --shadow: 0 1px 2px rgba(17,20,24,.04), 0 8px 24px rgba(17,20,24,.06);
+  --font: "Onest", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --r: 16px; --r-sm: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0d121d; --panel: #141a27; --soft: #1b2232; --line: #242c3d;
+    --fg: #eef1f6; --muted: #8b93a5; --faint: #4b5367;
+    --lime: #a8e88a; --lime-ink: #0d230d; --lime-soft: #1d2f1f;
+    --teal: #2cc9a0; --teal-deep: #4fae93; --teal-soft: #15302a; --teal-pale: #1d4a3e;
+    --amber: #f0b453; --amber-soft: #33281a; --red: #f07f75; --red-soft: #3a1f1f;
+    --blue: #7ea6f5; --blue-soft: #1c2740;
+    --tip: #eef1f6; --tip-ink: #0d121d;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0d121d; --panel: #141a27; --soft: #1b2232; --line: #242c3d;
+  --fg: #eef1f6; --muted: #8b93a5; --faint: #4b5367;
+  --lime: #a8e88a; --lime-ink: #0d230d; --lime-soft: #1d2f1f;
+  --teal: #2cc9a0; --teal-deep: #4fae93; --teal-soft: #15302a; --teal-pale: #1d4a3e;
+  --amber: #f0b453; --amber-soft: #33281a; --red: #f07f75; --red-soft: #3a1f1f;
+  --blue: #7ea6f5; --blue-soft: #1c2740;
+  --tip: #eef1f6; --tip-ink: #0d121d;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 14px/1.45 var(--font); -webkit-font-smoothing: antialiased; }
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.tnum { font-variant-numeric: tabular-nums; }
+
+/* Shell */
+.app { display: grid; grid-template-columns: 260px 1fr; min-height: 100%; }
+.side {
+  background: var(--panel); border-right: 1px solid var(--line);
+  padding: 22px 16px; display: flex; flex-direction: column; gap: 18px;
+  position: sticky; top: 0; height: 100vh; overflow-y: auto;
+}
+.brand { display: flex; align-items: center; gap: 10px; padding: 0 6px; font-weight: 700; font-size: 18px; letter-spacing: -.01em; }
+.logo { width: 34px; height: 34px; border-radius: 10px; background: var(--lime); display: grid; place-items: center; color: var(--lime-ink); }
+.search { display: flex; align-items: center; gap: 8px; background: var(--soft); border-radius: 12px; padding: 9px 12px; color: var(--muted); }
+.search input { border: 0; background: transparent; outline: none; flex: 1; min-width: 0; }
+.kbd { font-size: 11px; background: var(--panel); border-radius: 6px; padding: 2px 6px; color: var(--fg); box-shadow: var(--shadow); }
+.nav-label { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 0 10px; }
+.nav { display: flex; flex-direction: column; gap: 2px; }
+.nav a {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 12px;
+  color: var(--muted); text-decoration: none; font-weight: 500; position: relative;
+  transition: background .2s, color .2s;
+}
+.nav a:hover { color: var(--fg); background: var(--soft); }
+.nav a.on { color: var(--fg); background: var(--soft); }
+.nav a .badge { margin-left: auto; font-size: 11px; font-weight: 600; background: var(--red-soft); color: var(--red); border-radius: 999px; padding: 1px 7px; }
+.nav svg { width: 19px; height: 19px; flex: none; }
+.side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 10px; }
+.role-card { background: var(--soft); border-radius: 14px; padding: 12px; display: flex; flex-direction: column; gap: 8px; }
+.role-card small { color: var(--muted); }
+.role-card select { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; background: var(--panel); }
+
+.main { min-width: 0; display: flex; flex-direction: column; }
+.top {
+  display: flex; align-items: center; gap: 12px; padding: 18px 28px;
+  padding-left: max(28px, env(safe-area-inset-left, 0px)); padding-right: max(28px, env(safe-area-inset-right, 0px));
+  position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: color-mix(in srgb, var(--bg) 88%, transparent); backdrop-filter: blur(10px);
+}
+.top h1 { margin: 0; font-size: 22px; font-weight: 600; letter-spacing: -.01em; }
+.top .sp { flex: 1; }
+.pill-btn {
+  display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--panel);
+  border-radius: 999px; padding: 8px 14px; font-weight: 500; white-space: nowrap;
+}
+.pill-btn svg { width: 16px; height: 16px; }
+.pill-btn.lime { background: var(--lime-soft); border-color: transparent; color: var(--fg); }
+.icon-btn { width: 38px; height: 38px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); display: grid; place-items: center; }
+.icon-btn svg { width: 18px; height: 18px; }
+.avatar { width: 38px; height: 38px; border-radius: 50%; background: var(--teal-soft); color: var(--teal-deep); display: grid; place-items: center; font-weight: 700; font-size: 13px; }
+.menu-btn { display: none; }
+.synthetic { font-size: 11px; color: var(--muted); border: 1px dashed var(--line); border-radius: 999px; padding: 4px 10px; }
+
+.view {
+  padding: 4px 28px 48px;
+  padding-left: max(28px, env(safe-area-inset-left, 0px)); padding-right: max(28px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 18px; grid-template-columns: repeat(12, minmax(0, 1fr)); align-content: start;
+}
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 20px; min-width: 0; position: relative; }
+.c12 { grid-column: span 12; } .c8 { grid-column: span 8; } .c7 { grid-column: span 7; } .c6 { grid-column: span 6; }
+.c5 { grid-column: span 5; } .c4 { grid-column: span 4; } .c3 { grid-column: span 3; }
+.card-h { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; }
+.card-h h2 { margin: 0; font-size: 16px; font-weight: 600; }
+.card-h .sp { flex: 1; }
+.lbl { color: var(--muted); font-size: 13px; }
+.big { font-size: 52px; font-weight: 600; letter-spacing: -.03em; line-height: 1; }
+.mid { font-size: 30px; font-weight: 600; letter-spacing: -.02em; line-height: 1.05; }
+.dec { color: var(--faint); }
+
+/* Pills / chips */
+.pill { display: inline-flex; align-items: center; gap: 6px; border-radius: 999px; padding: 4px 10px; font-size: 12px; font-weight: 600; white-space: nowrap; }
+.pill::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.pill.nodot::before { display: none; }
+.p-good { background: var(--teal-soft); color: var(--teal-deep); }
+.p-warn { background: var(--amber-soft); color: var(--amber); }
+.p-bad { background: var(--red-soft); color: var(--red); }
+.p-info { background: var(--blue-soft); color: var(--blue); }
+.p-mute { background: var(--soft); color: var(--muted); }
+.delta { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.delta i { width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center; font-style: normal; }
+.delta.up i { background: var(--teal); color: #fff; }
+.delta.down i { background: var(--red); color: #fff; }
+.delta b { color: var(--fg); font-weight: 600; }
+.delta svg { width: 12px; height: 12px; }
+
+.btn { border: 0; border-radius: 12px; padding: 10px 16px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: transform .15s, filter .15s; }
+.btn:active { transform: scale(.97); }
+.btn svg { width: 16px; height: 16px; }
+.btn-primary { background: var(--lime); color: var(--lime-ink); }
+.btn-primary:hover { filter: brightness(1.04); }
+.btn-soft { background: var(--soft); }
+.btn-ghost { background: transparent; border: 1px solid var(--line); }
+.btn-danger { background: var(--red-soft); color: var(--red); }
+.btn:disabled { opacity: .5; cursor: default; }
+
+/* Seg control */
+.seg { display: inline-flex; background: var(--soft); border-radius: 12px; padding: 3px; gap: 2px; }
+.seg button { border: 0; background: transparent; border-radius: 9px; padding: 6px 12px; font-weight: 500; color: var(--muted); transition: background .2s, color .2s; }
+.seg button.on { background: var(--panel); color: var(--fg); box-shadow: var(--shadow); }
+
+/* Hero */
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 20px; align-items: stretch; }
+.hero-l { display: flex; flex-direction: column; gap: 14px; }
+.levelbar { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-top: auto; }
+.levelbar div { display: flex; flex-direction: column; gap: 6px; }
+.levelbar .tk { display: flex; gap: 2px; height: 26px; align-items: flex-end; }
+.levelbar .tk span { flex: 1; border-radius: 2px; background: var(--line); height: 100%; transform-origin: bottom; }
+.levelbar .tk span.f { background: var(--teal); }
+.levelbar .tk span.cur { background: var(--teal-deep); }
+.levelbar small { font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.levelbar .here small { color: var(--fg); font-weight: 600; }
+
+.part-row { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; }
+.ticks { display: flex; gap: 2px; height: 20px; align-items: stretch; grid-column: 1 / -1; }
+.ticks span { flex: 1; border-radius: 2px; background: var(--line); }
+.ticks span.f { background: var(--lime); }
+.ticks span.f2 { background: var(--teal); }
+
+/* Component cards */
+.comp-top { display: flex; align-items: center; gap: 10px; }
+.comp-ic { width: 32px; height: 32px; border-radius: 50%; display: grid; place-items: center; }
+.comp-ic svg { width: 17px; height: 17px; }
+.matrix { display: flex; gap: 4px; align-items: flex-end; height: 44px; }
+.matrix .col { display: flex; flex-direction: column-reverse; gap: 3px; }
+.matrix .col i { width: 9px; height: 6px; border-radius: 2px; background: var(--line); }
+.matrix .col i.f { background: var(--teal); }
+.matrix .col i.fw { background: var(--amber); }
+.matrix .col i.fb { background: var(--red); }
+
+/* Lists */
+.rows { display: flex; flex-direction: column; }
+.row { display: flex; align-items: center; gap: 12px; padding: 11px 0; border-top: 1px solid var(--line); }
+.row:first-child { border-top: 0; }
+.row .grow { flex: 1; min-width: 0; }
+.row .t { font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.row .s { color: var(--muted); font-size: 12px; }
+.row.click { cursor: pointer; border-radius: 10px; transition: background .2s; padding-left: 8px; padding-right: 8px; margin: 0 -8px; }
+.row.click:hover { background: var(--soft); }
+.dot { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+
+/* Tables */
+.tbl-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; }
+th { text-align: left; font-size: 12px; font-weight: 500; color: var(--muted); padding: 10px 12px; background: var(--soft); white-space: nowrap; }
+th:first-child { border-radius: 10px 0 0 10px; } th:last-child { border-radius: 0 10px 10px 0; }
+td { padding: 12px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+tr:last-child td { border-bottom: 0; }
+tbody tr { transition: background .2s; }
+tbody tr:hover { background: color-mix(in srgb, var(--lime-soft) 55%, transparent); }
+td select, .inp { border: 1px solid var(--line); border-radius: 10px; padding: 7px 10px; background: var(--panel); max-width: 100%; }
+
+/* Charts */
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; width: 100%; overflow: visible; }
+.ax { fill: var(--muted); font-size: 11px; font-family: var(--font); }
+.ax-strong { fill: var(--fg); font-size: 13px; font-weight: 600; font-family: var(--font); }
+.grid-l { stroke: var(--line); stroke-dasharray: 3 4; }
+.area-fill { fill: url(#gArea); }
+.line-teal { fill: none; stroke: var(--teal); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+.step-fill { fill: url(#hatch); }
+.step-line { fill: none; stroke: var(--teal); stroke-width: 2.5; stroke-linejoin: round; }
+.col-hl { fill: var(--lime-soft); opacity: 0; transition: opacity .25s; }
+.col-hl.on { opacity: 1; }
+.bar-a { transform-box: fill-box; transform-origin: bottom; animation: grow .8s cubic-bezier(.2,.8,.2,1) both; }
+.draw { animation: draw 1.2s cubic-bezier(.3,.7,.2,1) both; }
+.reveal { transform-box: fill-box; transform-origin: left; animation: revealx 1.1s cubic-bezier(.3,.7,.2,1) both; }
+.radar-grid { fill: none; stroke: var(--line); }
+.radar-ax { stroke: var(--line); }
+.r-wg { fill: color-mix(in srgb, var(--blue) 14%, transparent); stroke: var(--blue); stroke-width: 2; }
+.r-st { fill: color-mix(in srgb, var(--teal) 16%, transparent); stroke: var(--teal); stroke-width: 2; }
+.r-f { fill: none; stroke: var(--fg); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.pop { transform-box: fill-box; transform-origin: center; animation: pop .7s cubic-bezier(.2,.9,.3,1.3) both; }
+@keyframes grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+@keyframes draw { from { stroke-dashoffset: var(--len, 1000); } to { stroke-dashoffset: 0; } }
+@keyframes revealx { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+@keyframes pop { from { transform: scale(.2); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+.tip {
+  position: fixed; z-index: 100; pointer-events: none; background: var(--tip); color: var(--tip-ink);
+  font-size: 12px; font-weight: 600; padding: 6px 10px; border-radius: 9px; transform: translate(-50%, calc(-100% - 12px));
+  opacity: 0; transition: opacity .15s; white-space: nowrap;
+}
+.tip.on { opacity: 1; }
+.tip small { font-weight: 400; opacity: .7; display: block; }
+
+/* Indicator bars (spending style) */
+.ibars { display: grid; grid-template-columns: repeat(10, 1fr); gap: 10px; align-items: end; height: 220px; }
+.ibar { display: flex; flex-direction: column; align-items: stretch; gap: 8px; height: 100%; justify-content: flex-end; cursor: pointer; }
+.ibar .b { border-radius: 12px; position: relative; transform-origin: bottom; animation: grow .9s cubic-bezier(.2,.8,.2,1) both; transition: filter .2s; }
+.ibar .b::after { content: ""; position: absolute; left: 22%; right: 22%; bottom: 7px; height: 6px; border-radius: 4px; background: rgba(255,255,255,.85); }
+.ibar:hover .b, .ibar.sel .b { background-image: repeating-linear-gradient(135deg, rgba(255,255,255,.28) 0 2px, transparent 2px 7px) !important; filter: saturate(1.1); }
+.ibar .v { text-align: center; font-weight: 600; font-size: 13px; }
+.ibar .n { text-align: center; font-size: 11px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Dumbbell */
+.db { display: grid; grid-template-columns: 190px 1fr 54px; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); }
+.db:first-of-type { border-top: 0; }
+.db .track { position: relative; height: 22px; }
+.db .track::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 2px; background: var(--line); border-radius: 2px; }
+.db .gap { position: absolute; top: calc(50% - 3px); height: 6px; border-radius: 3px; background: var(--amber-soft); transform-origin: left; animation: revealx .9s both; }
+.db .gap.bad { background: var(--red-soft); }
+.db .m { position: absolute; top: 50%; width: 14px; height: 14px; margin: -7px 0 0 -7px; border-radius: 50%; border: 2px solid var(--panel); animation: pop .6s both; }
+.db .m.wg { background: var(--blue); } .db .m.st { background: var(--teal); }
+.db .m.f { background: var(--fg); border-radius: 3px; transform: rotate(45deg); width: 12px; height: 12px; margin: -6px 0 0 -6px; }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+
+/* KPI tiles */
+.kpis { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.kpi { background: var(--soft); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.kpi .ring { display: flex; align-items: center; gap: 10px; }
+
+/* Recs */
+.rec { display: grid; grid-template-columns: auto 1fr auto; gap: 14px; align-items: start; padding: 16px; border: 1px solid var(--line); border-radius: 14px; transition: border-color .2s, transform .2s, box-shadow .2s; background: var(--panel); }
+.rec:hover { border-color: var(--teal-pale); box-shadow: var(--shadow); }
+.rec .pri { width: 36px; height: 36px; border-radius: 11px; display: grid; place-items: center; font-weight: 700; }
+.rec h3 { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+.why { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.why span { font-size: 12px; background: var(--soft); border-radius: 8px; padding: 4px 8px; color: var(--muted); }
+.why span b { color: var(--fg); font-weight: 600; }
+.rec-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.recs { display: flex; flex-direction: column; gap: 10px; }
+.rec.leaving { animation: leave .4s forwards; }
+@keyframes leave { to { opacity: 0; transform: translateX(40px); } }
+
+/* Drawer */
+.scrim { position: fixed; inset: 0; background: rgba(13,18,29,.32); backdrop-filter: blur(2px); opacity: 0; pointer-events: none; transition: opacity .3s; z-index: 60; }
+.scrim.on { opacity: 1; pointer-events: auto; }
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: min(460px, 100%); background: var(--panel); z-index: 70;
+  border-left: 1px solid var(--line); box-shadow: -20px 0 50px rgba(0,0,0,.12);
+  transform: translateX(105%); transition: transform .45s cubic-bezier(.2,.8,.2,1);
+  display: flex; flex-direction: column;
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); padding-right: env(safe-area-inset-right, 0px);
+}
+.drawer.on { transform: none; }
+.drawer-h { display: flex; align-items: center; gap: 10px; padding: 18px 20px; border-bottom: 1px solid var(--line); }
+.drawer-h h3 { margin: 0; font-size: 16px; font-weight: 600; flex: 1; }
+.drawer-b { padding: 20px; overflow-y: auto; display: flex; flex-direction: column; gap: 16px; }
+.drawer-b > * { animation: rise .5s both; }
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label { font-size: 12px; color: var(--muted); }
+.field .inp, .field select { width: 100%; padding: 10px 12px; }
+.stat4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.stat4 div { background: var(--soft); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 2px; }
+.stat4 b { font-size: 18px; }
+.stat4 small { color: var(--muted); font-size: 11px; }
+.dist { display: flex; flex-direction: column; gap: 6px; }
+.dist-row { display: grid; grid-template-columns: 18px 1fr 1fr; gap: 8px; align-items: center; font-size: 12px; }
+.dist-bar { height: 8px; border-radius: 4px; background: var(--soft); overflow: hidden; }
+.dist-bar i { display: block; height: 100%; border-radius: 4px; transform-origin: left; animation: revealx .8s both; }
+
+/* Survey */
+.survey { max-width: 760px; margin: 0 auto; width: 100%; display: flex; flex-direction: column; gap: 16px; }
+.qprog { display: flex; gap: 4px; height: 26px; align-items: flex-end; }
+.qprog span { flex: 1; border-radius: 3px; background: var(--line); height: 60%; transition: background .3s, height .3s; cursor: pointer; }
+.qprog span.done { background: var(--teal); height: 80%; }
+.qprog span.cur { background: var(--lime); height: 100%; }
+.opt {
+  display: flex; gap: 12px; align-items: flex-start; text-align: left; width: 100%;
+  border: 1.5px solid var(--line); background: var(--panel); border-radius: 14px; padding: 14px 16px;
+  transition: border-color .2s, background .2s, transform .15s;
+}
+.opt:hover { border-color: var(--teal-pale); }
+.opt.on { border-color: var(--teal); background: var(--teal-soft); }
+.opt .rb { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--faint); flex: none; margin-top: 1px; display: grid; place-items: center; transition: border-color .2s; }
+.opt.on .rb { border-color: var(--teal); }
+.opt.on .rb::after { content: ""; width: 10px; height: 10px; border-radius: 50%; background: var(--teal); animation: pop .3s both; }
+.opts { display: flex; flex-direction: column; gap: 8px; }
+.qcard { animation: slidein .45s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes slidein { from { opacity: 0; transform: translateX(24px); } to { opacity: 1; transform: none; } }
+.guar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.guar div { background: var(--soft); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 8px; }
+.guar svg { width: 22px; height: 22px; color: var(--teal); }
+.done-ic { width: 72px; height: 72px; border-radius: 50%; background: var(--lime); color: var(--lime-ink); display: grid; place-items: center; margin: 0 auto; animation: pop .6s both; }
+.done-ic svg { width: 34px; height: 34px; }
+
+/* Lock card */
+.lock { display: flex; gap: 14px; align-items: center; background: var(--soft); border-radius: 14px; padding: 14px 16px; }
+.lock svg { width: 22px; height: 22px; color: var(--muted); flex: none; }
+
+/* Timeline */
+.tl { display: flex; flex-direction: column; }
+.tl-i { display: grid; grid-template-columns: 22px 1fr auto; gap: 12px; padding: 10px 0; position: relative; }
+.tl-i::before { content: ""; position: absolute; left: 10px; top: 0; bottom: 0; width: 2px; background: var(--line); }
+.tl-i:first-child::before { top: 18px; } .tl-i:last-child::before { bottom: calc(100% - 18px); }
+.tl-i .nd { width: 22px; height: 22px; border-radius: 50%; background: var(--panel); border: 2px solid var(--teal); position: relative; z-index: 1; margin-top: 2px; }
+.hash { font-family: ui-monospace, Menlo, monospace; font-size: 11px; color: var(--muted); background: var(--soft); padding: 2px 6px; border-radius: 6px; }
+
+/* Report paper */
+.paper { background: var(--panel); border: 1px solid var(--line); border-radius: 6px; padding: 40px clamp(18px, 5vw, 56px); max-width: 860px; margin: 0 auto; width: 100%; box-shadow: var(--shadow); }
+.paper h2 { font-size: 20px; margin: 0 0 4px; }
+.paper h3 { font-size: 15px; margin: 24px 0 10px; }
+.heat td { text-align: center; font-size: 12px; padding: 7px 4px; }
+.heat td:first-child { text-align: left; font-size: 13px; }
+.heat .h { border-radius: 6px; display: block; padding: 4px 0; }
+
+/* Tree */
+.tree-c { border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.tree-c + .tree-c { margin-top: 10px; }
+.tree-head { display: grid; grid-template-columns: 1fr 70px 90px 160px 28px; gap: 12px; align-items: center; padding: 14px 16px; cursor: pointer; background: var(--panel); border: 0; width: 100%; text-align: left; }
+.tree-head:hover { background: var(--soft); }
+.tree-body { display: none; padding: 0 16px 10px; }
+.tree-c.open .tree-body { display: block; }
+.tree-c.open .chev { transform: rotate(180deg); }
+.chev { transition: transform .25s; width: 18px; height: 18px; }
+.tree-row { display: grid; grid-template-columns: 1fr 62px 62px 62px 70px 160px; gap: 10px; align-items: center; padding: 9px 0; border-top: 1px solid var(--line); font-size: 13px; cursor: pointer; }
+.tree-row:hover .tn { color: var(--teal-deep); }
+.contrib { height: 8px; background: var(--soft); border-radius: 4px; overflow: hidden; }
+.contrib i { display: block; height: 100%; background: var(--teal); border-radius: 4px; transform-origin: left; animation: revealx .9s both; }
+.formula { display: flex; flex-wrap: wrap; gap: 10px; }
+.formula div { background: var(--soft); border-radius: 12px; padding: 10px 14px; font-size: 13px; }
+.formula b { font-weight: 600; }
+
+.rise { animation: rise .6s cubic-bezier(.2,.8,.2,1) both; }
+@keyframes rise { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+
+.toast { position: fixed; bottom: calc(20px + env(safe-area-inset-bottom, 0px)); left: 50%; transform: translate(-50%, 30px); background: var(--tip); color: var(--tip-ink); padding: 10px 16px; border-radius: 12px; font-weight: 500; opacity: 0; transition: all .35s cubic-bezier(.2,.8,.2,1); z-index: 120; }
+.toast.on { opacity: 1; transform: translate(-50%, 0); }
+.empty { text-align: center; color: var(--muted); padding: 30px 10px; }
+
+
+/* AI assistant */
+.ai-btn { background: var(--lime-soft); border-color: transparent; }
+.ai-btn.off { opacity: .55; }
+.ai-btn svg { color: var(--teal-deep); }
+#ai .drawer-h .logo { width: 30px; height: 30px; border-radius: 9px; }
+.ai-mode { padding: 8px 20px; font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 8px; }
+.ai-mode i { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.ai-log { flex: 1; overflow-y: auto; padding: 18px 20px; display: flex; flex-direction: column; gap: 12px; }
+.m { max-width: 88%; border-radius: 16px; padding: 10px 14px; animation: rise .35s both; }
+.m.u { align-self: flex-end; background: var(--lime); color: var(--lime-ink); border-bottom-right-radius: 5px; font-weight: 500; }
+.m.a { align-self: flex-start; background: var(--soft); border-bottom-left-radius: 5px; display: flex; flex-direction: column; gap: 8px; max-width: 100%; }
+.m-h { display: flex; align-items: center; gap: 8px; }
+.m-t { white-space: pre-wrap; line-height: 1.55; }
+.src { display: flex; flex-wrap: wrap; gap: 6px; }
+.src span { font-size: 11px; background: var(--panel); border: 1px solid var(--line); border-radius: 7px; padding: 2px 7px; color: var(--muted); }
+.m-act { display: flex; gap: 6px; flex-wrap: wrap; }
+.m-act button { font-size: 12px; font-weight: 500; padding: 5px 10px; border-radius: 9px; border: 1px solid var(--line); background: var(--panel); display: inline-flex; gap: 6px; align-items: center; }
+.m-act button svg { width: 13px; height: 13px; }
+.m-act button.ok { background: var(--lime); border-color: transparent; color: var(--lime-ink); }
+.typing { align-self: flex-start; background: var(--soft); border-radius: 16px; padding: 12px 14px; display: flex; gap: 5px; }
+.typing span { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); animation: blink 1s infinite; }
+.typing span:nth-child(2) { animation-delay: .15s; } .typing span:nth-child(3) { animation-delay: .3s; }
+@keyframes blink { 0%, 80%, 100% { opacity: .25; transform: none; } 40% { opacity: 1; transform: translateY(-3px); } }
+.ai-hello { margin: auto 0; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 20px 0; }
+.ai-orb { width: 58px; height: 58px; border-radius: 50%; background: radial-gradient(circle at 30% 30%, var(--lime), var(--teal)); display: grid; place-items: center; color: #fff; animation: pop .6s both, float 3.2s ease-in-out .6s infinite; }
+.ai-orb svg { width: 26px; height: 26px; }
+@keyframes float { 50% { transform: translateY(-5px); } }
+.chips { display: flex; flex-direction: column; gap: 8px; align-items: center; margin-top: 6px; }
+.chip-q { border: 0; border-radius: 999px; padding: 8px 14px; font-weight: 500; font-size: 13px; animation: rise .45s both; transition: transform .15s; }
+.chip-q:hover { transform: translateY(-1px); }
+.ai-in { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid var(--line); }
+.ai-in input { flex: 1; min-width: 0; border: 0; background: var(--soft); border-radius: 12px; padding: 11px 14px; outline: none; }
+.ai-in input:focus-visible { outline: 2px solid var(--teal); outline-offset: 0; }
+.ai-in .send { background: var(--lime); border-color: transparent; color: var(--lime-ink); }
+.ai-off { margin: auto 0; text-align: center; color: var(--muted); display: flex; flex-direction: column; gap: 10px; align-items: center; padding: 20px; }
+.ai-off svg { width: 30px; height: 30px; }
+.sw { position: relative; width: 40px; height: 23px; flex: none; cursor: pointer; }
+.sw input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
+.sw span { position: absolute; inset: 0; background: var(--line); border-radius: 999px; transition: background .25s; pointer-events: none; }
+.sw span::after { content: ""; position: absolute; left: 3px; top: 3px; width: 17px; height: 17px; border-radius: 50%; background: var(--panel); box-shadow: 0 1px 3px rgba(0,0,0,.25); transition: transform .25s cubic-bezier(.2,.8,.2,1); }
+.sw input:checked + span { background: var(--teal); }
+.sw input:checked + span::after { transform: translateX(17px); }
+.sw input:focus-visible + span { outline: 2px solid var(--teal); outline-offset: 2px; }
+.note-ai { border: 1px dashed var(--line); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 8px; white-space: pre-wrap; }
+/* ---- v2: наповнення як у робочій версії команди ---- */
+.levelbar { display: flex; gap: 6px; }
+.levelbar > div { min-width: 0; }
+.of { font-size: 14px; font-weight: 500; color: var(--muted); letter-spacing: 0; margin-left: 6px; }
+.lv { gap: 6px; } .lv b { font-weight: 700; }
+.lv1, .lvsq.lv1 { background: var(--red-soft); color: var(--red); }
+.lv2, .lvsq.lv2 { background: var(--amber-soft); color: var(--amber); }
+.lv3, .lvsq.lv3 { background: var(--teal-soft); color: var(--teal-deep); }
+.lv4, .lvsq.lv4 { background: color-mix(in srgb, var(--teal) 30%, var(--panel)); color: var(--teal-deep); }
+.lv5, .lvsq.lv5 { background: var(--teal-deep); color: #fff; }
+.lvsq { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; font-weight: 700; flex: none; }
+.lvsq.on { outline: 2px solid var(--fg); outline-offset: 1px; }
+.src-dot { width: 10px; height: 10px; display: inline-block; background: var(--c); flex: none; margin-right: 6px; }
+.src-dot.circle { border-radius: 50%; } .src-dot.square { border-radius: 2px; }
+.src-dot.diamond { transform: rotate(45deg) scale(.85); border-radius: 1px; }
+.src-dot.triangle { background: none; width: 0; height: 0; border-left: 5px solid transparent; border-right: 5px solid transparent; border-bottom: 9px solid var(--c); }
+.crumbs { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.crumbs a { display: inline-flex; align-items: center; gap: 6px; color: var(--teal-deep); text-decoration: none; font-weight: 600; }
+.crumbs svg { width: 15px; height: 15px; }
+.kpi-tile { display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; transition: box-shadow .2s, border-color .2s; }
+.kpi-tile[role="button"] { cursor: pointer; }
+.kpi-tile[role="button"]:hover { box-shadow: var(--shadow); border-color: var(--teal-pale); }
+.kt-h { display: flex; align-items: center; gap: 8px; }
+.kt-ic { width: 26px; height: 26px; border-radius: 8px; background: var(--lime-soft); color: var(--teal-deep); display: grid; place-items: center; }
+.kt-ic svg { width: 15px; height: 15px; }
+.kt-b { display: flex; align-items: center; gap: 14px; }
+.kt-s { font-size: 13px; line-height: 1.5; }
+.quick { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.quick .btn { text-decoration: none; color: inherit; padding: 8px 12px; font-size: 13px; }
+.quick .btn-primary { color: var(--lime-ink); }
+.comp-card { text-decoration: none; color: inherit; transition: box-shadow .2s, border-color .2s, transform .2s; }
+.comp-card:hover { box-shadow: var(--shadow); border-color: var(--teal-pale); }
+.pf { display: flex; gap: 8px; align-items: flex-end; height: 70px; }
+.pf div { display: flex; flex-direction: column; align-items: center; gap: 4px; justify-content: flex-end; height: 100%; }
+.pf i { width: 14px; border-radius: 4px; display: block; transform-origin: bottom; }
+.pf small { font-size: 10px; color: var(--muted); }
+.ev-ic { display: inline-flex; width: 13px; height: 13px; vertical-align: -2px; margin-right: 6px; color: var(--fg); }
+.ev-ic svg { width: 13px; height: 13px; }
+.note-box { background: var(--soft); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
+.howto { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; line-height: 1.5; }
+.link { color: var(--teal-deep); font-weight: 600; text-decoration: none; display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; }
+.link svg { width: 15px; height: 15px; }
+.cap { display: flex; flex-direction: column; gap: 6px; margin-top: 4px; }
+.cap-row { display: grid; grid-template-columns: 90px 1fr 40px; gap: 8px; align-items: center; font-size: 12px; }
+.flag-ic { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; flex: none; background: var(--amber-soft); color: var(--amber); }
+.flag-ic.major { background: var(--red-soft); color: var(--red); }
+.flag-ic svg { width: 16px; height: 16px; }
+.toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.toolbar .sp { flex: 1; }
+.toolbar .inp, .card-h .inp { padding: 8px 10px; }
+.card-h label.lbl { display: inline-flex; align-items: center; gap: 6px; }
+.tree-root { display: grid; grid-template-columns: 1fr 70px 90px 160px 28px; gap: 12px; align-items: center; padding: 14px 16px; background: var(--lime-soft); border-radius: 14px; margin-bottom: 10px; }
+.tree-row { grid-template-columns: 1fr 70px 70px 170px; }
+.tree-row.hdr { cursor: default; font-size: 12px; }
+.tree-row .tn { display: flex; flex-direction: column; gap: 3px; }
+.tsub { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px; font-size: 12px; color: var(--muted); }
+.lim-tag { color: var(--amber); font-weight: 600; margin-left: 8px; }
+.lim-note { padding: 0 16px 12px 58px; font-size: 13px; color: var(--muted); }
+.tree-c.hl, .tree-row.hl { background: var(--lime-soft); border-radius: 10px; }
+.tree-row.hl { padding-left: 8px; padding-right: 8px; margin: 0 -8px; }
+.sum-ok { margin-top: 14px; display: flex; align-items: center; gap: 8px; background: var(--teal-soft); color: var(--teal-deep); border-radius: 12px; padding: 12px 14px; font-weight: 600; }
+.sum-ok svg { width: 17px; height: 17px; flex: none; }
+.chips-row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
+.chip { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: var(--panel); border-radius: 999px; padding: 6px 12px; font-weight: 500; }
+.chip i { width: 18px; height: 0; border-top: 2px dashed var(--c); }
+.chip.on { background: color-mix(in srgb, var(--c) 14%, var(--panel)); border-color: var(--c); }
+.seg.sm button { padding: 5px 10px; font-size: 12px; display: inline-flex; align-items: center; gap: 4px; }
+.seg.sm svg { width: 12px; height: 12px; }
+.seg button:disabled { cursor: default; }
+.board { display: grid; grid-template-columns: repeat(5, minmax(200px, 1fr)); gap: 12px; overflow-x: auto; align-items: start; }
+.col-b { background: var(--soft); border-radius: 16px; padding: 10px; display: flex; flex-direction: column; gap: 8px; min-height: 140px; }
+.col-h { display: flex; justify-content: space-between; align-items: center; padding: 2px 4px 4px; }
+.b-card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 6px; animation: rise .4s both; }
+.ev { display: flex; flex-direction: column; gap: 6px; }
+.ev-i { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; text-decoration: none; color: inherit; background: var(--soft); border-radius: 10px; padding: 8px 10px; font-size: 13px; transition: background .2s; }
+.ev-i:hover { background: var(--lime-soft); }
+.ev-i .lbl { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 12px; }
+.ev-i svg { width: 13px; height: 13px; }
+details.acts { margin-top: 12px; }
+details.acts summary { cursor: pointer; font-weight: 600; color: var(--teal-deep); }
+details.acts ol { margin: 8px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.rec { grid-template-columns: auto 1fr auto; }
+.rec .pri svg { width: 18px; height: 18px; }
+.rec-actions .btn { text-decoration: none; color: inherit; }
+.rec-actions .btn-primary { color: var(--lime-ink); }
+.integ { border-top: 3px solid var(--line); }
+.integ.auto { border-top-color: var(--teal); } .integ.manual { border-top-color: var(--blue); } .integ.approval { border-top-color: var(--amber); }
+.inst { text-decoration: none; color: inherit; transition: box-shadow .2s, border-color .2s; }
+.inst:hover { box-shadow: var(--shadow); border-color: var(--teal-pale); }
+.sv-top { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.qf { border: 0; margin: 18px 0 0; padding: 0; }
+.qf legend { font-weight: 600; font-size: 16px; line-height: 1.4; margin-bottom: 10px; padding: 0; }
+.ticks span.f3 { background: var(--faint); }
+.r-prev { fill: color-mix(in srgb, var(--faint) 20%, transparent); stroke: var(--faint); stroke-width: 1.5; stroke-dasharray: 4 4; }
+.delta.flat i { background: var(--soft); color: var(--muted); }
+.nav a .badge.mute { background: var(--soft); color: var(--muted); }
+.role-card .btn { justify-content: center; font-size: 13px; padding: 8px 10px; }
+@media (max-width: 1180px) { .board { grid-template-columns: repeat(5, 220px); } }
+@media (max-width: 900px) {
+  .tree-root { grid-template-columns: 1fr 56px 70px; } .tree-root .hm { display: none; }
+  .tree-row { grid-template-columns: 1fr 56px 110px; }
+  .rec { grid-template-columns: auto 1fr; }
+  .lim-note { padding-left: 16px; }
+}
+@media print {
+  .side, .top, .toolbar, .noprint, .crumbs { display: none !important; }
+  .app { display: block; } .view { display: block; padding: 0; }
+  .paper { box-shadow: none; border: 0; max-width: none; padding: 0; }
+  body { background: #fff; }
+}
+
+a.row { color: inherit; text-decoration: none; }
+a.pill-btn { color: inherit; text-decoration: none; }
+.mv { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.mv .btn { padding: 6px 10px; font-size: 12px; white-space: nowrap; }
+.mv .btn svg { width: 13px; height: 13px; }
+.levelbar .here small { overflow: visible; }
+
+.db .m.ex { background: #8b6fd6; }
+.ibar .n { display: flex; justify-content: center; }
+.ibar .n .src-dot { margin: 0; }
+
+@media (max-width: 1180px) {
+  .c3 { grid-column: span 6; } .c4 { grid-column: span 6; } .c5, .c7, .c8 { grid-column: span 12; } .c6 { grid-column: span 12; }
+  .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .app { grid-template-columns: 1fr; }
+  .side { position: fixed; left: 0; top: 0; bottom: 0; width: 280px; z-index: 80; transform: translateX(-105%); transition: transform .35s cubic-bezier(.2,.8,.2,1); padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-top: calc(22px + env(safe-area-inset-top, 0px)); }
+  .side.on { transform: none; box-shadow: 20px 0 50px rgba(0,0,0,.15); }
+  .menu-btn { display: grid; }
+  .top { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+  .view { padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); gap: 14px; }
+  .hero { grid-template-columns: 1fr; }
+  .c3, .c4 { grid-column: span 12; }
+  .hide-m { display: none !important; }
+  .ibars { gap: 5px; }
+  .ibar .n { display: none; }
+  .db { grid-template-columns: 110px 1fr 40px; }
+  .tree-head { grid-template-columns: 1fr 56px 28px; }
+  .tree-head .hm { display: none; }
+  .tree-row { grid-template-columns: 1fr 52px 60px; }
+  .tree-row .hm { display: none; }
+  .guar { grid-template-columns: 1fr; }
+  .rec { grid-template-columns: auto 1fr; }
+  .rec-actions { grid-column: 1 / -1; justify-content: flex-start; }
+  .big { font-size: 44px; }
+  .stat4 { grid-template-columns: repeat(2, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0ms !important; transition-duration: .01ms !important; }
+}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <aside class="side" id="side">
+    <div class="brand"><span class="logo" id="logo"></span>Integrity<span style="color:var(--muted);font-weight:500">Index</span></div>
+    <label class="search"><span id="ic-search"></span><input id="q" placeholder="Пошук"><span class="kbd">⌘K</span></label>
+    <div class="nav-label">Меню</div>
+    <nav class="nav" id="nav"></nav>
+    <div class="side-foot">
+      <div class="role-card">
+        <small>Демо: роль</small>
+        <select id="role" aria-label="Роль для демо"></select>
+        <button class="btn btn-ghost" id="resetBtn" type="button"></button>
+        <small>Усі дані синтетичні. Зміна ролі веде на її головний екран.</small>
+      </div>
+    </div>
+  </aside>
+  <div class="main">
+    <header class="top">
+      <button class="icon-btn menu-btn" id="menuBtn" aria-label="Меню"></button>
+      <h1 id="title">Огляд закладу</h1>
+      <div class="sp"></div>
+      <span class="synthetic hide-m">Синтетичні дані</span>
+      <button class="pill-btn hide-m" id="cycleBtn"></button>
+      <button class="pill-btn ai-btn" id="aiBtn"></button>
+      <button class="icon-btn" id="themeBtn" aria-label="Тема"></button>
+      <div class="avatar" id="avatar">КЗ</div>
+    </header>
+    <main class="view" id="view"></main>
+  </div>
+</div>
+<div class="scrim" id="scrim"></div>
+<aside class="drawer" id="drawer" aria-hidden="true">
+  <div class="drawer-h"><h3 id="dTitle"></h3><button class="icon-btn" id="dClose" aria-label="Закрити"></button></div>
+  <div class="drawer-b" id="dBody"></div>
+</aside>
+<aside class="drawer" id="ai" aria-hidden="true" aria-label="ШІ-асистент">
+  <div class="drawer-h"><span class="logo" id="aiLogo"></span><h3>Асистент</h3><label class="sw" title="Увімкнути / вимкнути ШІ"><input type="checkbox" id="aiOn"><span></span></label><button class="icon-btn" id="aiClose" aria-label="Закрити"></button></div>
+  <div class="ai-mode" id="aiMode"></div>
+  <div class="ai-log" id="aiLog" aria-live="polite"></div>
+  <form class="ai-in" id="aiForm"><input id="aiQ" placeholder="Запитайте про результати" autocomplete="off" maxlength="1000"><button class="icon-btn send" aria-label="Надіслати" id="aiSend"></button></form>
+</aside>
+<div class="tip" id="tip"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ---------- Icons ---------- */
+const I = (d, w = 1.8) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const IC = {
+  grid: I('<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>'),
+  gauge: I('<path d="M12 14l4-4"/><path d="M3.3 17a9 9 0 1 1 17.4 0"/><circle cx="12" cy="14" r="1.5"/>'),
+  tree: I('<path d="M4 5h6M4 12h6M4 19h6M14 5h6M14 12h6M14 19h6"/><path d="M7 5v14"/>'),
+  trend: I('<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>'),
+  plug: I('<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>'),
+  building: I('<path d="M3 21h18M5 21V8l7-5 7 5v13"/><path d="M9 21v-5h6v5M9 11h.01M15 11h.01"/>'),
+  survey: I('<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/>'),
+  check: I('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12l3 3 5-6"/>'),
+  bulb: I('<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>'),
+  target: I('<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/>'),
+  cal: I('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>'),
+  user: I('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>'),
+  file: I('<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>'),
+  history: I('<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>'),
+  sliders: I('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>'),
+  menu: I('<path d="M4 7h16M4 12h16M4 17h16"/>'),
+  sun: I('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
+  moon: I('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'),
+  x: I('<path d="M6 6l12 12M18 6L6 18"/>'),
+  lock: I('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'),
+  up: I('<path d="M7 17L17 7M9 7h8v8"/>', 2.4),
+  down: I('<path d="M7 7l10 10M17 9v8H9"/>', 2.4),
+  flat: I('<path d="M5 12h14"/>', 2.4),
+  search: I('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'),
+  shield: I('<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>'),
+  eye: I('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
+  users: I('<circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.6c2.4.6 4 2.4 4 5.4"/>'),
+  layers: I('<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>'),
+  scale: I('<path d="M12 3v18M7 21h10M5 7h14"/><path d="M5 7l-3 6a3 3 0 0 0 6 0zM19 7l-3 6a3 3 0 0 0 6 0z"/>'),
+  copy: I('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'),
+  chev: I('<path d="M6 9l6 6 6-6"/>'),
+  plus: I('<path d="M12 5v14M5 12h14"/>'),
+  ok: I('<path d="M5 12l5 5 9-10"/>', 2.6),
+  arrowR: I('<path d="M5 12h14M13 6l6 6-6 6"/>'),
+  arrowL: I('<path d="M19 12H5M11 6l-6 6 6 6"/>'),
+  spark: I('<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>'),
+  send: I('<path d="M5 12h14M13 6l6 6-6 6"/>', 2.2),
+  pulse: I('<path d="M3 12h4l3-8 4 16 3-8h4"/>', 2.2),
+  help: I('<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17h.01"/>'),
+  alert: I('<path d="M12 3l9.5 16.5h-19z"/><path d="M12 10v4M12 17h.01"/>'),
+  flag: I('<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>'),
+  table: I('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/>'),
+  board: I('<rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="11" rx="1.5"/><rect x="17" y="4" width="4" height="7" rx="1.5"/>'),
+  edit: I('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/>'),
+  reset: I('<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>'),
+  print: I('<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/>'),
+  compare: I('<path d="M8 3v18M16 3v18"/><path d="M3 8h5M16 16h5M3 16h5M16 8h5"/>'),
+  diamond: I('<path d="M12 3l9 9-9 9-9-9z"/>'),
+};
+
+/* ---------- Методика (як у робочій версії команди) ---------- */
+const COMPS = ["culture", "system", "accountability"];
+const COMP = {
+  culture: { n: "Культура", loc: "Культурі", ic: "users", c: "var(--teal)", s: "var(--teal-soft)" },
+  system: { n: "Система", loc: "Системі", ic: "layers", c: "var(--blue)", s: "var(--blue-soft)" },
+  accountability: { n: "Підзвітність", loc: "Підзвітності", ic: "scale", c: "var(--amber)", s: "var(--amber-soft)" },
+};
+const LEVELS = ["Початковий (хаотичний)", "Керований", "Визначений", "Вимірюваний", "Оптимізуючий"];
+const LSHORT = ["Початковий", "Керований", "Визначений", "Вимірюваний", "Оптимізуючий"];
+const BOUNDS = [12.5, 37.5, 62.5, 87.5];
+const CAP = 25;
+const TODAY = "2026-11-16", TODAY_UA = "16.11.2026", CYCLE = "2026-11";
+const r1 = v => Math.round(v * 10) / 10;
+const clamp = (v, a = 0, b = 100) => Math.max(a, Math.min(b, v));
+const level = v => { const i = BOUNDS.findIndex(b => v <= b); return i === -1 ? 5 : i + 1; };
+const lvl100 = l => (l - 1) * 25;
+const status = v => v >= 65 ? "good" : v >= 40 ? "warn" : "bad";
+const ST = { good: ["Сильна сторона", "p-good"], warn: ["Потребує уваги", "p-warn"], bad: ["Критична зона", "p-bad"] };
+const SCOL = { good: "var(--teal)", warn: "var(--amber)", bad: "var(--red)" };
+const SRC = { wg: ["Сприйняття РГ", "var(--blue)", "circle"], os: ["Сприйняття ОС", "var(--teal)", "square"], experts: ["Експерти", "#8b6fd6", "diamond"], facts: ["Факти", "var(--amber)", "triangle"] };
+const SRC_HINT = { wg: "Середня оцінка відповідей робочої групи, 0-100.", os: "Середня оцінка відповідей особового складу, 0-100.", experts: "Середня оцінка експертів, 0-100." };
+const wmean = arr => { const w = arr.reduce((a, x) => a + x.w, 0); return r1(arr.reduce((a, x) => a + x.w * x.v, 0) / w); };
+const indexOf = cr => r1(COMPS.reduce((a, c) => a + cr[c] / 3, 0));
+
+const PERCEPTION = [
+  ["cu-p1", "culture", "Відкритість до обговорення етичних питань", 30, 70, "wg"],
+  ["cu-p2", "culture", "Особистий приклад керівників", 30, 50, "os"],
+  ["cu-p3", "culture", "Готовність повідомляти про проблеми без страху наслідків", 20, 45, "os"],
+  ["cu-p4", "culture", "Розуміння правил доброчесності", 20, 62.5, "experts"],
+  ["sy-p1", "system", "Зрозумілість процедур", 30, 40, "os"],
+  ["sy-p2", "system", "Доступність каналів звернень", 30, 50, "wg"],
+  ["sy-p3", "system", "Захищеність тих, хто повідомляє про проблеми", 20, 40, "os"],
+  ["sy-p4", "system", "Якість внутрішніх документів", 20, 50, "experts"],
+  ["ac-p1", "accountability", "Прозорість рішень керівництва", 30, 85, "wg"],
+  ["ac-p2", "accountability", "Оприлюднення результатів перевірок", 30, 80, "wg"],
+  ["ac-p3", "accountability", "Відповідальність за виконання заходів", 20, 75, "os"],
+  ["ac-p4", "accountability", "Контроль виконання рішень", 20, 77.5, "experts"],
+].map(([id, c, t, w, v, src]) => ({ id, c, t, w, v, src, kind: "p" }));
+
+// Факти: відсоток за даними обліку або рівень 1–5 за анкетою чек-листа
+const FACTS = [
+  ["cu-f1", "culture", "Прапорці, за якими прийнято рішення або захід протягом 30 днів", 50, "pct", [11, 20], "Журнал рішень уповноваженого"],
+  ["cu-f2", "culture", "Рівень за анкетою «Етичні практики»", 25, "lvl", 2, "Чек-лист закладу"],
+  ["cu-f3", "culture", "Рівень за анкетою «Навчання з доброчесності»", 25, "lvl", 2, "Чек-лист закладу"],
+  ["sy-f1", "system", "Скарги й звернення, розглянуті в строк", 50, "pct", [36, 60], "Журнал звернень закладу"],
+  ["sy-f2", "system", "Рівень за анкетою «Процедури та інструкції»", 25, "lvl", 3, "Чек-лист закладу"],
+  ["sy-f3", "system", "Рівень за анкетою «Захист заявників»", 25, "lvl", 3, "Чек-лист закладу"],
+  ["ac-f1", "accountability", "Подано декларацій вчасно серед зобовʼязаних", 40, "pct", [45, 100], "Відкрита база декларацій (поки вручну)"],
+  ["ac-f2", "accountability", "Потенційні конфлікти інтересів, за якими уповноважений дав висновок у строк", 40, "pct", [6, 20], "Журнал уповноваженого"],
+  ["ac-f3", "accountability", "Рівень за анкетою «Звітність і оприлюднення»", 20, "lvl", 2, "Чек-лист закладу"],
+].map(([id, c, t, w, kind, val, from]) => ({ id, c, t, w, kind, base: val, from }));
+const factValue = (f, val) => f.kind === "pct" ? Math.round(val[0] / val[1] * 1000) / 10 : lvl100(val);
+
+function credit(P, F) {
+  const lim = F + CAP;
+  return P <= lim ? { v: P, lim: false } : { v: lim, lim: true, reason: `Сприйняття (${fb(P)}) перевищує факти (${fb(F)}) більш ніж на ${CAP} пунктів, тому зараховано ${fb(lim)}.` };
+}
+function components(pItems, fItems) {
+  return COMPS.map(c => {
+    const P = wmean(pItems.filter(x => x.c === c)), F = wmean(fItems.filter(x => x.c === c));
+    return { id: c, P, F, cr: credit(P, F) };
+  });
+}
+function trust(flags, responses) {
+  if (responses < S.k) return "insufficient";
+  const raised = flags.filter(f => f.raised), major = raised.filter(f => f.w === "major").length, minor = raised.length - major;
+  return major >= 1 || minor >= 3 ? "C" : minor >= 1 ? "B" : "A";
+}
+const TRUST = {
+  A: ["A", "Підтверджується", "Жоден прапорець не спрацював.", "p-good"],
+  B: ["B", "Є зауваження", "Спрацювали один або два незначні прапорці.", "p-warn"],
+  C: ["C", "Потрібна перевірка", "Спрацював хоча б один серйозний прапорець або три і більше незначних.", "p-bad"],
+  insufficient: ["?", "Недостатньо даних", "У групі менше k відповідей, тому достовірність не оцінюється.", "p-mute"],
+};
+const TRUST_HINT = "Наскільки результату можна довіряти. Літера залежить від прапорців: A без прапорців, B один-два незначних, C серйозний або три і більше незначних.";
+const FLAGS = [
+  { id: "tf-gap", w: "major", t: "Розбіжність сприйняття й фактів", ex: "Сприйняття значно вище за факти, тому зараховано з обмеженням. Варто звірити з чек-листом." },
+  { id: "tf-same", w: "minor", t: "Однакові відповіді в частині анкет особового складу", ex: "У частині анкет усі відповіді однакові. Це може означати, що анкету заповнювали поспіхом. Варто перевірити додатково." },
+  { id: "tf-jump", w: "major", t: "Різка зміна індексу між циклами без пояснення", ex: "Індекс змінився помірно, різкого стрибка немає." },
+  { id: "tf-experts", w: "minor", t: "Замало відповідей від експертів", ex: "Отримано всі очікувані експертні анкети." },
+];
+const ATTN_TITLE = { culture: "Більше практичних прикладів", system: "Зробити процедури помітнішими", accountability: "Підтвердити факти" };
+
+/* ---------- Заклади ---------- */
+const ALPHA = "alpha";
+const ALPHA_HISTORY = [
+  { cycle: "2025-06", cr: { culture: 38, system: 30, accountability: 36 } },
+  { cycle: "2025-12", cr: { culture: 44, system: 36, accountability: 43 } },
+  { cycle: "2026-06", cr: { culture: 50, system: 41, accountability: 50 } },
+];
+const ALPHA_EVENTS = [
+  { after: "2025-06", t: "Виконано захід: пам’ятка з правил доброчесності" },
+  { after: "2025-12", t: "Виконано захід: канал анонімних звернень" },
+  { after: "2026-06", t: "Виконано захід: навчання для кураторів груп" },
+];
+const OTHERS = [
+  { id: "beta", name: "Умовний навчальний центр «Бета»", seed: 11, perception: [62, 58, 66], facts: [55, 50, 52] },
+  { id: "gamma", name: "Умовна академія «Гамма»", seed: 23, perception: [72, 68, 70], facts: [70, 64, 66] },
+  { id: "omega", name: "Умовний університет «Омега»", seed: 37, perception: [44, 40, 48], facts: [40, 36, 38], declining: "system" },
+];
+function rng(seed) {
+  let t = seed >>> 0;
+  return () => { t = (t + 1831565813) >>> 0; let e = t; e = Math.imul(e ^ (e >>> 15), e | 1); e ^= e + Math.imul(e ^ (e >>> 7), e | 61); return ((e ^ (e >>> 14)) >>> 0) / 4294967296; };
+}
+const round5 = v => Math.round(clamp(v) / 5) * 5;
+
+function finish(m) {
+  const cur = m.series[m.series.length - 1], prev = m.series[m.series.length - 2];
+  m.index = cur.index; m.level = level(cur.index); m.prevIndex = prev.index; m.delta = r1(cur.index - prev.index);
+  m.limited = m.components.find(c => c.cr.lim);
+  m.trust = trust(m.flags, m.responses);
+  m.raised = m.flags.filter(f => f.raised);
+  m.summary = m.limited ? `${COMP[m.limited.id].n}: самооцінку не підтверджують факти` : "Суттєвих розбіжностей між сприйняттям і фактами немає";
+  m.byId = Object.fromEntries(m.components.map(c => [c.id, c]));
+  return m;
+}
+function buildAlpha() {
+  const facts = FACTS.map(f => { const st = S.facts[f.id]; const val = st ? st.val : f.base; return { ...f, val, v: factValue(f, val) }; });
+  const comps = components(PERCEPTION, facts);
+  const cr = Object.fromEntries(comps.map(c => [c.id, c.cr.v]));
+  const series = [...ALPHA_HISTORY.map(h => ({ cycle: h.cycle, index: indexOf(h.cr), cr: h.cr })), { cycle: CYCLE, index: indexOf(cr), cr }];
+  const lim = comps.find(c => c.cr.lim);
+  const flags = FLAGS.map(f => ({ ...f, raised: f.id === "tf-gap" ? !!lim : f.id === "tf-same", t: f.id === "tf-gap" && lim ? `Розбіжність сприйняття й фактів у ${COMP[lim.id].loc} (${fb(lim.P)} проти ${fb(lim.F)})` : f.t }));
+  const m = finish({ id: ALPHA, name: "Умовний військовий інститут «Альфа»", components: comps, pItems: PERCEPTION, fItems: facts, series, events: ALPHA_EVENTS, flags, responses: UNIT_RESP[ALPHA] });
+  const byId = m.byId;
+  m.attention = [
+    { t: "Підтвердити факти", c: "accountability", v: byId.accountability.F, hint: "Факти за компонентом Підзвітність, 0-100." },
+    { t: "Зробити процедури помітнішими", c: "system", v: byId.system.cr.v, hint: "Зараховане значення компонента Система, 0-100." },
+    { t: "Більше практичних прикладів", c: "culture", v: byId.culture.F, hint: "Факти за компонентом Культура, 0-100." },
+  ];
+  m.strengths = [
+    { t: "Відкритість до етичних питань", c: "culture", v: byId.culture.cr.v, hint: "Зараховане значення компонента Культура, 0-100." },
+    { t: "Зростання індексу два цикли поспіль", v: r1(m.index - series[1].index), hint: "Сумарне зростання індексу з циклу 2025-12, у пунктах.", unit: "пт" },
+  ];
+  return m;
+}
+function buildOther(o) {
+  const t = rng(o.seed), n = a => (t() * 2 - 1) * a, ci = c => COMPS.indexOf(c);
+  const pItems = PERCEPTION.map(x => ({ ...x, v: round5(o.perception[ci(x.c)] + n(8)) }));
+  const lv = new Map();
+  const fItems = FACTS.map(f => {
+    const base = o.facts[ci(f.c)];
+    if (f.kind === "pct") { const den = f.base[1], num = Math.round(round5(base + n(10)) / 100 * den); return { ...f, val: [num, den], v: r1(num / den * 100) }; }
+    if (!lv.has(f.c)) lv.set(f.c, Math.min(5, Math.max(1, Math.round(clamp(base + n(10)) / 25) + 1)));
+    return { ...f, val: lv.get(f.c), v: lvl100(lv.get(f.c)) };
+  });
+  const comps = components(pItems, fItems);
+  const cr = Object.fromEntries(comps.map(c => [c.id, c.cr.v]));
+  const series = [{ cycle: CYCLE, index: indexOf(cr), cr }];
+  let u = cr;
+  for (const cy of ["2026-06", "2025-12", "2025-06"]) {
+    const prev = Object.fromEntries(COMPS.map(c => { const d = 2 + t() * 5, a = o.declining === c && cy === "2026-06" ? -3 : d; return [c, r1(clamp(u[c] - a))]; }));
+    series.unshift({ cycle: cy, index: indexOf(prev), cr: prev }); u = prev;
+  }
+  const lim = comps.find(c => c.cr.lim);
+  const flags = FLAGS.map(f => ({ ...f, t: f.id === "tf-gap" && lim ? `Розбіжність сприйняття й фактів у ${COMP[lim.id].loc} (${fb(lim.P)} проти ${fb(lim.F)})` : f.t, raised: f.id === "tf-gap" ? !!lim : f.id !== "tf-jump" && t() < 0.35 }));
+  const responses = 40 + Math.floor(t() * 30);
+  const m = finish({ id: o.id, name: o.name, components: comps, pItems, fItems, series, flags, responses,
+    events: [{ after: "2025-12", t: "Виконано захід: оновлено процедури" }, { after: "2026-06", t: "Виконано захід: проведено навчання" }] });
+  const sorted = [...comps].sort((a, b) => a.cr.v - b.cr.v), top = sorted[sorted.length - 1];
+  m.attention = sorted.map(c => ({ t: ATTN_TITLE[c.id], c: c.id, v: c.cr.v, hint: `Зараховане значення компонента ${COMP[c.id].n}, 0-100.` }));
+  m.strengths = [
+    { t: `Найвищий результат у компоненті ${COMP[top.id].n}`, c: top.id, v: top.cr.v, hint: `Зараховане значення компонента ${COMP[top.id].n}, 0-100.` },
+    { t: "Зростання індексу кілька циклів поспіль", v: r1(m.index - series[0].index), hint: "Сумарне зростання індексу з першого циклу, у пунктах.", unit: "пт" },
+  ];
+  return m;
+}
+const OTHER_MODELS = {};
+function inst(id) {
+  if (!id || id === ALPHA) return buildAlpha();
+  const o = OTHERS.find(x => x.id === id); if (!o) return buildAlpha();
+  return OTHER_MODELS[id] || (OTHER_MODELS[id] = buildOther(o));
+}
+const INSTITUTIONS = () => [inst(ALPHA), ...OTHERS.map(o => inst(o.id))].sort((a, b) => a.name.localeCompare(b.name, "uk"));
+
+/* ---------- Підрозділи й поріг k ---------- */
+const UNITS = [
+  { id: ALPHA, n: "Умовний військовий інститут «Альфа»", parent: null },
+  { id: "unit-a", n: "Підрозділ А", parent: ALPHA },
+  { id: "unit-b", n: "Підрозділ Б", parent: ALPHA },
+  { id: "unit-v", n: "Підрозділ В", parent: ALPHA },
+];
+const UNIT_RESP = { [ALPHA]: 48, "unit-a": 12, "unit-b": 3, "unit-v": 33 };
+const UNIT_CR = { "unit-a": { culture: 58, system: 47, accountability: 52 } };
+function resolveUnit(id) {
+  const req = UNITS.find(u => u.id === id) || UNITS[0]; let u = req;
+  while ((UNIT_RESP[u.id] || 0) < S.k && u.parent) u = UNITS.find(x => x.id === u.parent);
+  return { unit: u, req, hidden: u.id !== req.id, resp: UNIT_RESP[u.id] || 0 };
+}
+const GROUPS = [
+  { n: "Робоча група", inv: 15, resp: 14 },
+  { n: "Підрозділ А", inv: 15, resp: 12, unit: "unit-a" },
+  { n: "Підрозділ Б", inv: 9, resp: 3, unit: "unit-b" },
+  { n: "Підрозділ В", inv: 40, resp: 33, unit: "unit-v" },
+  { n: "Експерти", inv: 5, resp: 5 },
+];
+
+/* ---------- Рекомендації: явні правила ---------- */
+const REC_RULES = [
+  { id: "rec-procurement", t: "Розібрати закупівлі, що потребують додаткової перевірки", c: "accountability", items: ["ac-p1", "ac-f1"], flags: ["tf-gap"],
+    why: "Працівники оцінюють прозорість рішень високо, а факти це не підтверджують. Розбір закупівель допоможе звірити сприйняття з документами.",
+    acts: ["Скласти перелік закупівель за останній цикл, що потребують перевірки", "Звірити умови закупівель із чек-листом", "Оприлюднити короткий підсумок розбору"] },
+  { id: "rec-conflicts", t: "Скоротити строки перевірки конфліктів інтересів", c: "accountability", items: ["ac-f2"], flags: [],
+    why: "Лише частина випадків потенційних конфліктів інтересів розглянута в строк. Чіткі строки допоможуть закрити цю прогалину.",
+    acts: ["Затвердити граничний строк розгляду повідомлення", "Призначити відповідальну особу за облік строків", "Щомісяця переглядати перелік нерозглянутих випадків"] },
+  { id: "rec-complaints", t: "Дотримуватися строків розгляду скарг і звернень", c: "accountability", items: ["sy-f1", "ac-p3"], flags: [],
+    why: "Частина скарг і звернень розглянута з порушенням строків. Прозорий облік строків підвищує довіру до каналів звернень.",
+    acts: ["Запровадити облік строків розгляду в єдиному журналі", "Нагадувати виконавцям за три дні до граничного строку", "Повідомляти заявникам про результат розгляду"] },
+  { id: "rec-procedures", t: "Зробити внутрішні процедури зрозумілішими", c: "system", items: ["sy-p1", "sy-p3"], flags: [],
+    why: "Працівники вважають процедури недостатньо зрозумілими. Коротка пам’ятка зі схемою дій зменшує кількість помилок.",
+    acts: ["Підготувати пам’ятку зі схемою дій для типових ситуацій", "Провести короткі роз’яснення в підрозділах", "Зібрати питання працівників і оновити пам’ятку"] },
+  { id: "rec-culture", t: "Додати практичні приклади до навчання з доброчесності", c: "culture", items: ["cu-p3", "cu-f1"], flags: [],
+    why: "Навчання проводять за планом, але працівники рідко бачать практичні приклади. Приклади допомагають вчасно повідомляти про проблеми.",
+    acts: ["Підібрати три-чотири типові ситуації для обговорення", "Додати розбір ситуацій у плани занять", "Зібрати відгуки учасників після занять"] },
+];
+const PRI = { high: ["Високий", "var(--red-soft)", "var(--red)", "!"], medium: ["Середній", "var(--amber-soft)", "var(--amber)", "2"], low: ["Низький", "var(--blue-soft)", "var(--blue)", "3"] };
+const REC_ST = { proposed: ["Запропоновано", "p-info"], accepted: ["Прийнято", "p-good"], clarified: ["Уточнено", "p-warn"], rejected: ["Відхилено", "p-mute"] };
+const REC_NEXT = { proposed: ["accepted", "clarified", "rejected"], clarified: ["accepted", "rejected"], accepted: [], rejected: [] };
+const priority = (vals, flag) => { const mn = vals.length ? Math.min(...vals) : 100; return mn < 40 || (flag && mn < 65) ? "high" : mn < 65 || flag ? "medium" : "low"; };
+function buildRecs(m = inst(ALPHA)) {
+  const all = [...m.pItems, ...m.fItems], out = [];
+  for (const r of REC_RULES) {
+    const items = all.filter(x => r.items.includes(x.id)), flags = m.flags.filter(f => r.flags.includes(f.id) && f.raised);
+    if (!items.some(x => x.v < 65) && !flags.length) continue;
+    out.push({ ...r, pri: priority(items.map(x => x.v), flags.length > 0), evidence: [...items.map(x => ({ id: x.id, t: x.t, v: `${fb(x.v)} зі 100`, item: true })), ...flags.map(f => ({ id: f.id, t: f.t, v: "Прапорець спрацював" }))],
+      st: (S.dec.rec[r.id] || {}).status || "proposed", note: S.dec.rec[r.id] || {} });
+  }
+  const o = { high: 0, medium: 1, low: 2 };
+  return out.sort((a, b) => o[a.pri] - o[b.pri]);
+}
+const pendingRecs = () => buildRecs().filter(r => r.st === "proposed" || r.st === "clarified").length;
+
+/* ---------- Трекер заходів ---------- */
+const POSITIONS = ["Заступник начальника з виховної роботи", "Начальник навчального відділу", "Начальник юридичного відділу", "Уповноважений з доброчесності", "Начальник штабу"];
+const BASE_MEASURES = [
+  { id: "m-1", rec: "Запровадити канал анонімних звернень", t: "Запровадити канал анонімних звернень", who: "Заступник начальника з виховної роботи", due: "2026-03-31", st: "confirmed", ind: "sy-p2" },
+  { id: "m-2", rec: "Провести навчання для кураторів груп", t: "Провести навчання для кураторів груп", who: "Начальник навчального відділу", due: "2026-10-15", st: "done", ind: "cu-p3" },
+  { id: "m-3", rec: "Оновити порядок розгляду скарг", t: "Оновити порядок розгляду скарг і звернень", who: "Начальник юридичного відділу", due: "2026-11-05", st: "inprogress", ind: "sy-f1" },
+  { id: "m-4", rec: "Скласти календар обов’язкових декларацій", t: "Скласти календар подання декларацій", who: "Уповноважений з доброчесності", due: "2026-12-15", st: "inprogress", ind: "ac-f1" },
+  { id: "m-5", rec: "Підготувати пам’ятку з правил доброчесності", t: "Підготувати пам’ятку з правил доброчесності", who: "Заступник начальника з виховної роботи", due: "2026-12-20", st: "inprogress", ind: "cu-p4" },
+  { id: "m-6", rec: "Оновити порядок розгляду скарг", t: "Призначити відповідальну особу за облік звернень", who: "Начальник штабу", due: "2027-01-31", st: "accepted", ind: "sy-f1" },
+];
+const M_ST = {
+  accepted: ["Прийнято", "p-info"], inprogress: ["В роботі", "p-warn"], done: ["Виконано", "p-good"],
+  confirmed: ["Підтверджено", "p-good"], notconfirmed: ["Не підтверджено", "p-bad"], overdue: ["Прострочено", "p-bad"],
+};
+const M_NEXT = { accepted: ["inprogress"], inprogress: ["done", "accepted"], done: ["inprogress"], confirmed: [], notconfirmed: ["inprogress"] };
+const dayMs = 864e5, utc = d => { const [y, m, dd] = d.split("-").map(Number); return Date.UTC(y, m - 1, dd); };
+const overdueDays = m => ["done", "confirmed", "notconfirmed"].includes(m.st) ? 0 : Math.max(0, Math.floor((utc(TODAY) - utc(m.due)) / dayMs));
+const dispSt = m => overdueDays(m) > 0 ? "overdue" : m.st;
+const daysWord = n => { const t = n % 100, u = n % 10; return t >= 11 && t <= 14 ? "днів" : u === 1 ? "день" : u >= 2 && u <= 4 ? "дні" : "днів"; };
+const measures = () => [...BASE_MEASURES, ...S.dec.added].map(m => S.dec.mst[m.id] ? { ...m, st: S.dec.mst[m.id] } : m);
+const verif = m => m.st === "confirmed" ? ["Підтверджено наступним оцінюванням", "p-good"] : m.st === "notconfirmed" ? ["Не підтверджено, потрібен перегляд", "p-bad"] : m.st === "done" ? ["Очікує наступного оцінювання", "p-info"] : ["Ще не настав час", "p-mute"];
+
+/* ---------- Анкета особового складу (токен demo) ---------- */
+const SURVEY = {
+  title: "Анонімне опитування про систему доброчесності закладу", cat: "Особовий склад",
+  sections: [
+    { id: "culture", t: "Культура", about: "про ставлення до доброчесності", q: [
+      ["cu-1", "Як у вашому підрозділі обговорюють питання етики й доброчесності?", ["Не обговорюють взагалі, і ніхто цього не планує", "Обговорюють лише після окремих випадків", "Обговорюють за планом, але учасники здебільшого слухають", "Обговорюють регулярно, учасники висловлюються й ставлять запитання", "Обговорюють системно, висновки застосовують і щороку переглядають формат"]],
+      ["cu-2", "Наскільки керівники підрозділу особистим прикладом підтримують правила доброчесності?", ["Правила й практика керівників помітно розходяться", "Приклад є в окремих керівників, але непослідовно", "Більшість керівників діють відповідно до правил", "Керівники діють відповідно до правил і пояснюють свої рішення", "Приклад керівників системний, його оцінюють і він покращується разом із практикою"]],
+      ["cu-3", "Чи можна повідомити про проблему, не боячись наслідків для себе?", ["Ні, про проблеми краще мовчати", "Скоріше ні, бо відомі випадки тиску", "Інколи так, залежить від людей", "Так, і відомо, що повідомлення розглядають по суті", "Так, це перевірено на практиці, а захист заявників регулярно оцінюють і вдосконалюють"]],
+    ] },
+    { id: "system", t: "Система", about: "про процедури й канали звернень", q: [
+      ["sy-1", "Наскільки зрозумілі процедури, за якими приймають рішення щодо доброчесності?", ["Процедур не існує або про них нічого не відомо", "Процедури існують, але їх знають одиниці", "Процедури описано, і більшість знає, де їх знайти", "Процедури зрозумілі, їх застосовують однаково", "Процедури працюють системно, перевіряються й удосконалюються"]],
+      ["sy-2", "Чи доступні канали звернень (куди повідомити про проблему чи поставити запитання)?", ["Каналів немає або вони не працюють", "Канал є, але мало хто знає про нього", "Канали відомі, але користуватися ними незручно", "Канали відомі, зручні, відповідь надходить у зазначений строк", "Канали працюють стабільно, їх якість перевіряють і поліпшують"]],
+      ["sy-3", "Як навчають правилам доброчесності та чи допомагає це в роботі?", ["Навчання не проводять", "Навчання проводять рідко й формально", "Навчання проводять за планом, але без практичних прикладів", "Навчання регулярне, з прикладами з роботи закладу", "Навчання системне, його результати перевіряють і оновлюють зміст"]],
+    ] },
+    { id: "accountability", t: "Підзвітність", about: "про прозорість рішень і виконання заходів", q: [
+      ["ac-1", "Наскільки прозорі рішення керівництва щодо доброчесності?", ["Рішення приймають закрито, причини невідомі", "Про рішення дізнаються випадково", "Про рішення повідомляють, але причини пояснюють не завжди", "Рішення оприлюднюють разом із поясненням причин", "Рішення прозорі, а їх зрозумілість регулярно перевіряють і покращують"]],
+      ["ac-2", "Чи оприлюднюють результати перевірок і що з ними роблять далі?", ["Результатів перевірок немає або їх не оприлюднюють", "Результати оприлюднюють рідко й без наступних кроків", "Результати оприлюднюють, наступні кроки визначають не завжди", "Результати оприлюднюють, і за ними визначено заходи зі строками", "Результати та виконання заходів відстежують системно й оприлюднюють щоразу"]],
+      ["ac-3", "Як контролюють виконання заходів із доброчесності?", ["Виконання не контролюють", "Контролюють лише коли щось пішло не так", "Контролюють, але без чітких строків і відповідальних", "Контролюють за строками, відповідальні відомі", "Контроль системний, а його ефективність перевіряють і вдосконалюють"]],
+    ] },
+  ],
+};
+const SURVEY_Q = SURVEY.sections.flatMap((s, si) => s.q.map(([id, t, o], qi) => ({ id, t, o, si, qi })));
+
+/* ---------- Ролі ---------- */
+const ROLE = {
+  admin: ["Уповноважений (адміністратор)", "УП"],
+  commissioner: ["Укладач анкет", "УА"],
+  respondent: ["Респондент", "Р"],
+  leader: ["Керівник закладу", "КЗ"],
+  observer: ["Спостерігач Департаменту", "СД"],
+  checklist_editor: ["Вносить дані чек-листа", "ВД"],
+  checklist_approver: ["Підтверджує дані чек-листа", "ПД"],
+  auditor: ["Внутрішній аудит", "ВА"],
+};
+const NAV = [
+  ["institutions", "Заклади", "building", ["observer"]],
+  ["overview", "Огляд", "gauge", ["leader", "observer", "auditor"]],
+  ["explain", "Розклад індексу", "tree", ["leader", "observer", "auditor"]],
+  ["trends", "Динаміка", "trend", ["leader", "observer", "auditor"]],
+  ["compare", "Порівняння", "compare", ["leader", "observer", "auditor"]],
+  ["recs", "Рекомендації", "bulb", ["leader"]],
+  ["tracker", "Трекер", "target", ["leader", "auditor"]],
+  ["sources", "Звідки беруться дані", "plug", ["leader", "observer", "auditor"]],
+  ["report", "Звіт", "file", ["leader", "observer"]],
+  ["manage", "Керування циклом", "sliders", ["admin"]],
+  ["surveys", "Анкети", "survey", ["commissioner"]],
+  ["checklist", "Чек-лист", "check", ["checklist_editor", "checklist_approver"]],
+  ["audit", "Журнал", "history", ["admin", "auditor"]],
+  ["survey", "Пройти опитування", "survey", ["respondent"]],
+  ["me", "Мої результати", "user", ["respondent"]],
+];
+const HOME = { admin: "manage", commissioner: "surveys", respondent: "me", leader: "overview", observer: "institutions", checklist_editor: "checklist", checklist_approver: "checklist", auditor: "overview" };
+const AI_ROLES = ["leader", "observer", "auditor"];
+
+/* ---------- Стан ---------- */
+const FACT_META = { "sy-f1": ["12.11.2026", "Уповноважений"] };
+const QUESTIONNAIRES = [
+  { id: "q-os", t: "Анонімне опитування особового складу", grp: "Особовий склад", ver: 3, st: "published", n: 9, upd: "02.11.2026" },
+  { id: "q-wg", t: "Анкета робочої групи", grp: "Робоча група", ver: 2, st: "published", n: 11, upd: "28.10.2026" },
+  { id: "q-ex", t: "Експертне оцінювання", grp: "Експерти", ver: 1, st: "published", n: 8, upd: "28.10.2026" },
+  { id: "q-ck", t: "Чек-лист: анкети фактів", grp: "Відповідальні за чек-лист", ver: 1, st: "draft", n: 4, upd: "14.11.2026" },
+];
+const DEFAULTS = () => ({
+  role: "leader", k: 10, inst: ALPHA, unit: "unit-a", cycleOpen: true,
+  facts: {}, fpend: {}, dec: { rec: {}, mst: {}, added: [] }, qs: QUESTIONNAIRES.map(q => ({ ...q })),
+  log: [], notes: [], aiOn: true, tokenUsed: false,
+  mode: "credited", trackView: "table", recF: { st: "all", c: "all" }, trF: { st: "all", who: "all" },
+  trend: { from: 0, to: 3, lines: [] }, cmp: { a: 0, b: 3 },
+});
+const S = Object.assign(DEFAULTS(), { chat: [], survey: { phase: "intro", sec: 0, a: {}, miss: false }, open: {} });
+const KEY = "ii-proto-v2";
+const SAVE = ["role", "k", "inst", "unit", "cycleOpen", "facts", "fpend", "dec", "qs", "log", "notes", "aiOn", "tokenUsed", "mode", "trackView", "recF", "trF", "trend", "cmp"];
+try { const saved = JSON.parse(localStorage.getItem(KEY) || "null"); if (saved) SAVE.forEach(k => { if (saved[k] !== undefined) S[k] = saved[k]; }); } catch (e) {}
+try { const d = JSON.parse(localStorage.getItem("ii-survey-draft") || "null"); if (d) S.survey.a = d; } catch (e) {}
+const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(SAVE.map(k => [k, S[k]])))); } catch (e) {} };
+function resetDemo() { const role = S.role; Object.assign(S, DEFAULTS(), { role, chat: [], survey: { phase: "intro", sec: 0, a: {}, miss: false } }); try { localStorage.removeItem("ii-survey-draft"); } catch (e) {} persist(); render(); toast("Демо-дані скинуто"); }
+
+/* Журнал дій із ланцюгом хешів */
+function fnv(s) { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, "0"); }
+const SEEDLOG = [
+  ["2026-11-01 09:12", "Уповноважений (адміністратор)", "Відкрито цикл 2026-11, мінімальна група k = 10"],
+  ["2026-11-01 09:20", "Уповноважений (адміністратор)", "Видано 84 одноразові жетони (РГ 15, ОС 64, експерти 5)"],
+  ["2026-11-02 10:05", "Укладач анкет", "Опубліковано анкету «Анонімне опитування особового складу», версія 3"],
+  ["2026-11-10 14:05", "Вносить дані чек-листа", "Чек-лист: внесено 8 показників фактів"],
+  ["2026-11-11 10:41", "Підтверджує дані чек-листа", "Чек-лист: підтверджено 8 показників"],
+  ["2026-11-12 16:20", "Уповноважений (адміністратор)", "Журнал звернень: внесено 36 з 60 розглянутих у строк"],
+  ["2026-11-15 18:00", "Система", "Розрахунок індексу за методикою v1.0: 54,2"],
+];
+const logItems = () => { let prev = "0"; return [...SEEDLOG, ...S.log].map(([t, who, a]) => { const h = fnv(prev + t + who + a); prev = h; return { t, who, a, h }; }); };
+function addLog(who, a) { const t = new Date().toISOString().slice(0, 16).replace("T", " "); S.log.push([t, who, a]); persist(); }
+const me = () => ROLE[S.role][0];
+
+/* ---------- Helpers ---------- */
+const $ = s => document.querySelector(s);
+const esc = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const strip = h => String(h).replace(/<[^>]+>/g, "");
+const fb = v => r1(v).toLocaleString("uk-UA", { maximumFractionDigits: 1 });
+const f1 = v => r1(v).toLocaleString("uk-UA", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
+const f2 = v => v.toLocaleString("uk-UA", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const pts = v => { const a = Math.abs(r1(v)); const w = Number.isInteger(a) ? (a % 10 === 1 && a % 100 !== 11 ? "пункт" : [2, 3, 4].includes(a % 10) && ![12, 13, 14].includes(a % 100) ? "пункти" : "пунктів") : "пункта"; return `${fb(a)} ${w}`; };
+const ua = d => d.split("-").reverse().join(".");
+const numHTML = (v, d = 1) => { const s = d ? f1(v) : fb(v); const [a, b] = s.split(","); return `<span class="cu" data-v="${v}" data-d="${d}">${a}<span class="dec">${b ? "," + b : ""}</span></span>`; };
+const deltaHTML = (d, suf = "") => { const up = d > 0, dn = d < 0; return `<span class="delta ${up ? "up" : dn ? "down" : "flat"}"><i>${up ? IC.up : dn ? IC.down : IC.flat}</i><b>${up || dn ? pts(d) : "Без змін"}</b>${up ? " зросло" : dn ? " знизилось" : ""}${suf ? " " + suf : ""}</span>`; };
+const pill = (txt, cls) => `<span class="pill ${cls}">${txt}</span>`;
+const lvPill = l => `<span class="pill lv lv${l} nodot"><b>${l}</b>${LSHORT[l - 1]}</span>`;
+const trustPill = g => `<span class="pill ${TRUST[g][3]} nodot" data-tip="${esc(TRUST[g][2])}">${g === "insufficient" ? "" : `<b>${g}</b>`}${TRUST[g][1]}</span>`;
+const srcDot = s => `<span class="src-dot ${SRC[s][2]}" style="--c:${SRC[s][1]}"></span>`;
+const allItems = m => [...m.pItems, ...m.fItems];
+function countUp(root) {
+  root.querySelectorAll(".cu").forEach(el => {
+    const v = +el.dataset.v, d = +el.dataset.d, t0 = performance.now(), dur = 1100;
+    const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const step = t => {
+      const p = reduce ? 1 : Math.min(1, (t - t0) / dur), e = 1 - Math.pow(1 - p, 3);
+      const s = d ? f1(v * e) : fb(v * e); const [a, b] = s.split(",");
+      el.innerHTML = `${a}<span class="dec">${b ? "," + b : ""}</span>`;
+      if (p < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+}
+function toast(m) { const t = $("#toast"); t.textContent = m; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 2400); }
+const tip = $("#tip");
+function showTip(x, y, html) { tip.innerHTML = html; tip.style.left = x + "px"; tip.style.top = y + "px"; tip.classList.add("on"); }
+function hideTip() { tip.classList.remove("on"); }
+document.addEventListener("mouseover", e => { const el = e.target.closest("[data-tip]"); if (!el) return; const r = el.getBoundingClientRect(); showTip(r.left + r.width / 2, r.top, el.dataset.tip); });
+document.addEventListener("mouseout", e => { if (e.target.closest("[data-tip]")) hideTip(); });
+
+/* ---------- Charts ---------- */
+const DEFS = `<defs>
+  <linearGradient id="gArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="var(--teal)" stop-opacity=".28"/><stop offset="1" stop-color="var(--teal)" stop-opacity="0"/></linearGradient>
+  <pattern id="hatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="7" height="7" fill="var(--teal-deep)"/><rect width="2.2" height="7" fill="rgba(255,255,255,.22)"/></pattern>
+</defs>`;
+function smooth(p) { let d = `M${p[0][0]},${p[0][1]}`; for (let i = 1; i < p.length; i++) { const [x0, y0] = p[i - 1], [x1, y1] = p[i], cx = (x0 + x1) / 2; d += ` C${cx},${y0} ${cx},${y1} ${x1},${y1}`; } return d; }
+function curveChart(el, vals, labels) {
+  if (!el) return;
+  const w = el.clientWidth || 400, h = 150, pad = 10;
+  const min = Math.min(...vals) - 8, max = Math.max(...vals) + 6;
+  const X = i => pad + i * (w - 2 * pad) / (vals.length - 1), Y = v => h - 24 - (v - min) / (max - min) * (h - 44);
+  const p = vals.map((v, i) => [X(i), Y(v)]), line = smooth(p);
+  el.innerHTML = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${DEFS}
+    <path d="${line} L${X(vals.length - 1)},${h - 24} L${X(0)},${h - 24}Z" class="area-fill reveal"/>
+    <path d="${line}" class="line-teal draw" style="stroke-dasharray:2000;--len:2000"/>
+    ${p.map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="3.5" fill="var(--panel)" stroke="var(--teal)" stroke-width="2" class="pop" style="animation-delay:${600 + i * 120}ms"/>`).join("")}
+    ${labels.map((l, i) => `<text x="${X(i)}" y="${h - 4}" text-anchor="${i === 0 ? "start" : i === labels.length - 1 ? "end" : "middle"}" class="ax">${l}</text>`).join("")}
+    <line id="cvl" x1="0" x2="0" y1="0" y2="${h - 24}" stroke="var(--teal)" stroke-dasharray="3 3" opacity="0"/>
+    <circle id="cvd" r="5" fill="var(--panel)" stroke="var(--teal)" stroke-width="2.5" opacity="0"/></svg>`;
+  const svg = el.querySelector("svg"), vl = svg.querySelector("#cvl"), dt = svg.querySelector("#cvd");
+  svg.addEventListener("mousemove", e => {
+    const r = svg.getBoundingClientRect(), i = Math.round(clamp((e.clientX - r.left - pad) / (w - 2 * pad) * (vals.length - 1), 0, vals.length - 1)), [px, py] = p[i];
+    vl.setAttribute("x1", px); vl.setAttribute("x2", px); vl.setAttribute("opacity", 1); dt.setAttribute("cx", px); dt.setAttribute("cy", py); dt.setAttribute("opacity", 1);
+    showTip(r.left + px, r.top + py, `${f1(vals[i])}<small>Цикл ${labels[i]}</small>`);
+  });
+  svg.addEventListener("mouseleave", () => { vl.setAttribute("opacity", 0); dt.setAttribute("opacity", 0); hideTip(); });
+}
+// Динаміка: індекс + лінії компонентів, межі рівнів зрілості, події між циклами
+function trendChart(el, rows, lines, events) {
+  if (!el) return;
+  const w = el.clientWidth || 600, h = 300, L = 36, Rr = 74, T = 22, B = 46;
+  const n = rows.length, X = i => L + (n === 1 ? (w - L - Rr) / 2 : i * (w - L - Rr) / (n - 1)), Y = v => T + (1 - v / 100) * (h - T - B);
+  const grid = [0, ...BOUNDS, 100].map(v => `<line x1="${L}" x2="${w - Rr}" y1="${Y(v)}" y2="${Y(v)}" class="grid-l"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end" class="ax">${fb(v)}</text>`).join("");
+  const bands = [0, ...BOUNDS].map((lo, i) => { const hi = [...BOUNDS, 100][i]; return `<text x="${w - Rr + 8}" y="${(Y(lo) + Y(hi)) / 2 + 4}" class="ax">Рівень ${i + 1}</text>`; }).join("");
+  const p = rows.map((r, i) => [X(i), Y(r.index)]);
+  const area = n > 1 ? `<path d="${smooth(p)} L${X(n - 1)},${Y(0)} L${X(0)},${Y(0)}Z" class="area-fill reveal"/>` : "";
+  const compLines = lines.map(c => { const q = rows.map((r, i) => [X(i), Y(r.cr[c])]); return `<path d="${n > 1 ? smooth(q) : ""}" fill="none" stroke="${COMP[c].c}" stroke-width="2" stroke-dasharray="6 5" class="draw" style="--len:3000"/>${q.map(([x, y], i) => `<rect x="${x - 4}" y="${y - 4}" width="8" height="8" rx="2" fill="${COMP[c].c}" class="pop" data-tip="${COMP[c].n}: ${fb(rows[i].cr[c])}<small>Цикл ${rows[i].cycle}</small>"/>`).join("")}`; }).join("");
+  const ev = events.map(e => { const i = rows.findIndex(r => r.cycle === e.after); if (i < 0 || i >= n - 1) return ""; const x = (X(i) + X(i + 1)) / 2; return `<g class="pop" data-tip="${esc(e.t)}<small>Після циклу ${e.after}</small>"><rect x="${x - 7}" y="${h - B + 14}" width="14" height="14" fill="var(--panel)" stroke="var(--fg)" stroke-width="1.6" transform="rotate(45 ${x} ${h - B + 21})"/></g>`; }).join("");
+  el.innerHTML = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${DEFS}${grid}${bands}${area}
+    <path d="${n > 1 ? smooth(p) : ""}" class="line-teal draw" style="stroke-dasharray:3000;--len:3000"/>${compLines}
+    ${p.map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="5" fill="var(--panel)" stroke="var(--teal)" stroke-width="2.5" class="pop" style="animation-delay:${500 + i * 120}ms" data-tip="Індекс ${f1(rows[i].index)} · рівень ${level(rows[i].index)}<small>Цикл ${rows[i].cycle}</small>"/><text x="${x}" y="${y - 12}" text-anchor="middle" class="ax-strong">${f1(rows[i].index)}</text>`).join("")}
+    ${rows.map((r, i) => `<text x="${X(i)}" y="${h - B + 6}" text-anchor="middle" class="ax" style="dominant-baseline:hanging">${r.cycle}</text>`).join("")}${ev}</svg>`;
+}
+// Радар компонентів (два цикли)
+function radar(el, series) {
+  if (!el) return;
+  const w = Math.min(el.clientWidth || 320, 360), h = w * 0.86, cx = w / 2, cy = h / 2 + 10, rad = Math.min(w, h) / 2 - 40, n = COMPS.length;
+  const P = (i, v) => { const a = -Math.PI / 2 + i * 2 * Math.PI / n; return [cx + Math.cos(a) * rad * v / 100, cy + Math.sin(a) * rad * v / 100]; };
+  const rings = [...BOUNDS, 100].map(v => `<polygon class="radar-grid" points="${COMPS.map((_, i) => P(i, v).join(",")).join(" ")}"/>`).join("");
+  const axes = COMPS.map((c, i) => { const [ex, ey] = P(i, 100), [lx, ly] = P(i, 124); return `<line class="radar-ax" x1="${cx}" y1="${cy}" x2="${ex}" y2="${ey}"/><text x="${lx}" y="${ly}" text-anchor="middle" class="ax">${COMP[c].n}</text><text x="${lx}" y="${ly + 15}" text-anchor="middle" class="ax-strong">${fb(series[0].v[i])}</text>`; }).join("");
+  const polys = series.map(s => `<polygon class="${s.cls} pop" style="animation-delay:${s.delay || 0}ms" points="${s.v.map((v, i) => P(i, v).join(",")).join(" ")}"/>`).join("");
+  el.innerHTML = `<svg width="${w}" height="${h + 14}" viewBox="0 0 ${w} ${h + 14}" style="margin:0 auto;max-width:100%">${rings}${axes}${polys}</svg>`;
+}
+// Рівнева шкала (нерівні межі 12,5 / 37,5 / 62,5 / 87,5)
+function levelBar(v) {
+  const spans = [[0, 12.5], [12.5, 37.5], [37.5, 62.5], [62.5, 87.5], [87.5, 100]], lv = level(v);
+  return `<div class="levelbar">${spans.map(([lo, hi], i) => { const cnt = Math.round((hi - lo) / 3.125); return `<div class="${i + 1 === lv ? "here" : ""}" style="flex:${hi - lo}"><div class="tk">${Array.from({ length: cnt }, (_, j) => { const t = lo + (j + 1) * 3.125; const cls = t <= v + 1.5 ? (Math.abs(t - v) <= 3.2 ? "cur" : "f") : ""; return `<span class="${cls} bar-a" style="animation-delay:${(lo / 3.125 + j) * 16}ms"></span>`; }).join("")}</div><small>${i + 1 === lv ? `${i + 1} · ${LSHORT[i]}` : i + 1}</small></div>`; }).join("")}</div>`;
+}
+
+/* ---------- Drawer ---------- */
+function openDrawer(title, html, after) {
+  $("#dTitle").textContent = title; $("#dBody").innerHTML = html;
+  [...$("#dBody").children].forEach((c, i) => c.style.animationDelay = (80 + i * 60) + "ms");
+  $("#drawer").classList.add("on"); $("#scrim").classList.add("on"); $("#drawer").setAttribute("aria-hidden", "false");
+  countUp($("#dBody")); after && after($("#dBody"));
+  setTimeout(() => { const f = $("#dBody").querySelector("textarea, input, select"); if (f) f.focus(); }, 350);
+}
+function closeDrawer() { $("#drawer").classList.remove("on"); if (!$("#ai").classList.contains("on")) $("#scrim").classList.remove("on"); $("#drawer").setAttribute("aria-hidden", "true"); }
+
+/* ---------- Views ---------- */
+const V = {};
+const cur = () => inst(S.role === "observer" ? S.inst : ALPHA);
+const can = r => NAV.some(n => n[0] === r && n[3].includes(S.role));
+const backToInst = () => S.role === "observer" ? `<div class="c12 crumbs rise"><a href="#institutions">${IC.arrowL}Усі заклади</a><span class="lbl">/</span><b>${esc(cur().name)}</b></div>` : "";
+
+/* «Чому такий індекс» */
+function whyText(m) {
+  const t = m.delta > 0 ? `що на ${pts(m.delta)} вище, ніж у попередньому циклі` : m.delta < 0 ? `що на ${pts(m.delta)} нижче, ніж у попередньому циклі` : "що не змінилося порівняно з попереднім циклом";
+  let s = `Заклад перебуває на рівні зрілості ${m.level} «${LEVELS[m.level - 1]}»: індекс доброчесності ${f1(m.index)} з 100, ${t}.`;
+  if (m.limited) s += ` Для компонента «${COMP[m.limited.id].n}» сприйняття (${fb(m.limited.P)}) помітно вище за факти (${fb(m.limited.F)}), тому зараховано ${fb(m.limited.cr.v)}.`;
+  const tr = TRUST[m.trust]; s += ` Достовірність ${tr[0]}: ${tr[1].toLowerCase()}${m.trust === "C" ? ", тож спершу варто підтвердити факти документами" : ""}.`;
+  return s;
+}
+function openWhy(focusFlags) {
+  const m = cur(), lim = m.limited, tr = TRUST[m.trust];
+  const scale = [1, 2, 3, 4, 5].map(l => { const lo = [0, ...BOUNDS][l - 1], hi = [...BOUNDS, 100][l - 1]; return `<div class="row"><span class="lvsq lv${l} ${l === m.level ? "on" : ""}">${l}</span><div class="grow">${LEVELS[l - 1]} <span class="lbl">${l === 1 ? `від 0 до ${fb(hi)}` : l === 5 ? `вище ${fb(lo)}` : `вище ${fb(lo)} до ${fb(hi)}`}</span></div>${l === m.level ? pill("Поточний", "p-good nodot") : ""}</div>`; }).join("");
+  openDrawer("Чому такий індекс", `
+    <div><div class="lbl" style="margin-bottom:4px">Короткий висновок</div><div style="line-height:1.55">${whyText(m)}</div></div>
+    ${lim ? `<div class="note-box"><b>Показано з обмеженням</b><span class="lbl">${lim.cr.reason}</span>${capBars(lim)}</div>` : ""}
+    <div><div class="lbl" style="margin-bottom:6px">Як це рахується</div><ol class="howto">
+      <li>Індекс від 0 до 100 це середнє трьох компонентів: Культура, Система, Підзвітність.</li>
+      <li>Кожен компонент складається зі сприйняття (анкети) і фактів (чек-лист та дані обліку).</li>
+      <li>Сприйняття не може бути вищим за факти більш ніж на ${CAP} пунктів: у такому разі зараховується менше значення.</li>
+      <li>Рівень зрілості від 1 до 5 визначають межі шкали нижче.</li>
+      <li>Достовірність показує, наскільки результату можна довіряти. Вона залежить від прапорців.</li></ol>
+      <a class="link" href="#explain" onclick="closeDrawer()">Відкрити розклад індексу ${IC.arrowR}</a></div>
+    <div><div class="lbl" style="margin-bottom:4px">Шкала рівнів зрілості</div><div class="rows">${scale}</div></div>
+    <div id="why-flags"><div class="card-h" style="margin-bottom:6px"><h2>Варто перевірити додатково</h2><div class="sp"></div>${trustPill(m.trust)}</div>
+      <div class="lbl" style="margin-bottom:8px">${TRUST_HINT}</div>
+      ${m.raised.length ? `<div class="rows">${m.raised.map(f => `<div class="row" style="align-items:flex-start"><span class="flag-ic ${f.w}">${f.w === "major" ? IC.alert : IC.flag}</span><div class="grow"><div style="font-weight:600">${esc(f.t)} ${pill(f.w === "major" ? "Серйозний" : "Незначний", "p-mute nodot")}</div><div class="lbl">${f.ex}</div></div></div>`).join("")}</div>` : `<div>Жоден прапорець не спрацював.</div>`}
+      <div class="lbl" style="margin-top:10px">Напрям для додаткового аналізу. Це не висновок про людей чи підрозділи.</div></div>
+  `, b => { if (focusFlags) setTimeout(() => b.querySelector("#why-flags").scrollIntoView({ behavior: "smooth", block: "start" }), 300); });
+}
+function capBars(c) {
+  const bar = (n, v, col) => `<div class="cap-row"><span class="lbl">${n}</span><div class="dist-bar"><i style="width:${v}%;background:${col}"></i></div><b class="tnum">${fb(v)}</b></div>`;
+  return `<div class="cap">${bar("Сприйняття", c.P, "var(--blue)")}${bar("Факти", c.F, "var(--amber)")}${bar("Зараховано", c.cr.v, "var(--teal)")}</div>`;
+}
+
+/* Огляд */
+V.overview = () => {
+  const m = cur(), ms = measures(), od = ms.filter(x => overdueDays(x) > 0).length, prev = m.series[m.series.length - 2];
+  const tile = (ic, title, big, sub, act) => `<section class="card c3 rise kpi-tile" ${act ? `role="button" tabindex="0" onclick="${act}"` : ""}><div class="kt-h"><span class="kt-ic">${IC[ic]}</span><span class="lbl">${title}</span></div><div class="kt-b">${big}<div class="kt-s">${sub}</div></div></section>`;
+  return `${backToInst()}
+  ${tile("gauge", "Індекс доброчесності", `<span class="mid tnum">${numHTML(m.index)}</span>`, `Рівень ${m.level}: ${LSHORT[m.level - 1]}<br>${deltaHTML(m.delta)}`, "openWhy()")}
+  ${tile("shield", "Достовірність", `<span class="mid">${m.trust === "insufficient" ? "?" : m.trust}</span>`, `${TRUST[m.trust][1]}<br><span class="lbl">Прапорці: ${m.raised.length}</span>`, "openWhy(true)")}
+  ${tile("eye", "Напрями, що потребують уваги", `<span class="mid tnum">${m.attention.filter(a => a.v < 65).length}</span>`, `<span class="lbl">З трьох компонентів індексу</span>`, "document.getElementById('attn').scrollIntoView({behavior:'smooth',block:'center'})")}
+  ${S.role === "observer" ? tile("users", "Відповідей у циклі", `<span class="mid tnum">${m.responses}</span>`, `<span class="lbl">Мінімальна група k = ${S.k}</span>`) : tile("target", "Заходи в трекері", `<span class="mid tnum">${ms.length}</span>`, od ? `<span style="color:var(--red);font-weight:600">З них ${od} прострочено</span>` : `<span class="lbl">Прострочених немає</span>`, "location.hash='tracker'")}
+  <section class="card c8 rise">
+    <div class="hero">
+      <div class="hero-l">
+        <div class="card-h" style="margin:0"><span class="lbl">${esc(m.name)}</span></div>
+        <div class="big tnum">${numHTML(m.index)}<span class="of">з 100</span></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">${lvPill(m.level)}${trustPill(m.trust)}${deltaHTML(m.delta)}</div>
+        <div style="font-weight:500">${m.summary}</div>
+        ${levelBar(m.index)}
+      </div>
+      <div style="display:flex;flex-direction:column;gap:8px;min-width:0">
+        <div class="quick">${`<button class="btn btn-primary" onclick="openWhy()">${IC.help}Чому такий індекс</button>`}${can("recs") ? `<a class="btn btn-soft" href="#recs">${IC.bulb}Рекомендації</a>` : ""}${can("report") ? `<a class="btn btn-soft" href="#report">${IC.file}Звіт</a>` : ""}</div>
+        <div class="chart" id="cv" style="margin-top:auto"></div>
+        <div class="lbl" style="text-align:right">Дані станом на ${TODAY_UA} · цикл ${CYCLE}</div>
+      </div>
+    </div>
+  </section>
+  <section class="card c4 rise" id="attn">
+    <div class="card-h"><h2>Що потребує уваги</h2></div>
+    <div class="rows">${m.attention.map(a => `<a class="row click" href="#explain/${a.c === "culture" || a.c === "accountability" ? (a.t.startsWith("Підтвердити") || a.t.startsWith("Більше") ? a.c : a.c) : a.c}" data-tip="${esc(a.hint)}"><span class="dot" style="background:${SCOL[status(a.v)]}"></span><div class="grow"><div class="t">${a.t}</div></div>${pill(COMP[a.c].n, "p-mute nodot")}<b class="tnum">${fb(a.v)}</b></a>`).join("")}</div>
+    <div class="lbl" style="margin:16px 0 4px">Сильні сторони</div>
+    <div class="rows">${m.strengths.map(a => `<a class="row click" href="${a.c ? "#explain/" + a.c : "#trends"}" data-tip="${esc(a.hint)}"><span class="dot" style="background:var(--teal)"></span><div class="grow"><div class="t">${a.t}</div></div><b class="tnum">${a.unit ? "+" : ""}${fb(a.v)}</b></a>`).join("")}</div>
+  </section>
+  ${m.components.map((c, ci) => {
+    const C = COMP[c.id], pv = prev.cr[c.id], d = r1(c.cr.v - pv), lv = level(c.cr.v);
+    return `<a class="card c4 rise comp-card" href="#explain/${c.id}">
+      <div class="comp-top"><span class="comp-ic" style="background:${C.s};color:${C.c}">${IC[C.ic]}</span><b>${C.n}</b><div class="sp" style="flex:1"></div>${lvPill(lv)}</div>
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:14px">
+        <div><div class="mid tnum">${numHTML(c.cr.v)}</div><div style="margin-top:6px">${deltaHTML(d)}</div></div>
+        <div class="pf">${[["Сприйняття", c.P, "var(--blue)"], ["Факти", c.F, "var(--amber)"], ["Зараховано", c.cr.v, C.c]].map(([n, v, col], j) => `<div data-tip="${n}: ${fb(v)}"><i class="bar-a" style="height:${Math.max(4, v * .6)}px;background:${col};animation-delay:${300 + ci * 100 + j * 80}ms"></i><small>${n[0]}</small></div>`).join("")}</div>
+      </div>
+      <div style="margin-top:14px;min-height:26px">${c.cr.lim ? pill("Зараховано з обмеженням", "p-warn") : `<span class="lbl">Сприйняття ${fb(c.P)} · факти ${fb(c.F)}</span>`}</div>
+    </a>`;
+  }).join("")}
+  <section class="card c8 rise">
+    <div class="card-h"><h2>Динаміка індексу</h2><div class="sp"></div><a class="pill-btn" href="#trends">${IC.trend}Детальніше</a></div>
+    <div class="chart" id="ovTrend"></div>
+    <div class="lbl"><span class="ev-ic">${IC.diamond}</span>Виконані заходи між циклами: ${m.events.length}</div>
+  </section>
+  <section class="card c4 rise">
+    <div class="card-h"><h2>Радар компонентів</h2></div>
+    <div class="chart" id="radar"></div>
+    <div class="legend" style="justify-content:center"><span><i style="background:var(--teal)"></i>Цикл ${CYCLE}</span><span><i style="background:var(--faint)"></i>Цикл ${prev.cycle}</span></div>
+  </section>`;
+};
+V.overview.after = () => {
+  const m = cur(), prev = m.series[m.series.length - 2];
+  curveChart($("#cv"), m.series.map(r => r.index), m.series.map(r => r.cycle));
+  trendChart($("#ovTrend"), m.series, [], m.events);
+  radar($("#radar"), [{ cls: "r-st", v: COMPS.map(c => m.byId[c].cr.v), delay: 150 }, { cls: "r-prev", v: COMPS.map(c => prev.cr[c]), delay: 0 }]);
+};
+
+/* Розклад індексу */
+const MODES = { perception: "Сприйняття", facts: "Факти", credited: "Зараховано" };
+function tree(m, mode) {
+  return m.components.map(c => {
+    const val = mode === "perception" ? c.P : mode === "facts" ? c.F : c.cr.v, lim = mode === "credited" && c.cr.lim;
+    const k = mode === "credited" && c.P > 0 ? c.cr.v / c.P : 1;
+    const items = (mode === "facts" ? m.fItems : m.pItems).filter(x => x.c === c.id).map(x => { const v = x.v * k; return { ...x, vv: v, contrib: v / 3 * x.w / 100, lim }; });
+    return { ...c, val, lim, contrib: val / 3, items };
+  });
+}
+V.explain = () => {
+  const m = cur(), mode = S.mode, T = tree(m, mode), sum = r1(T.reduce((a, c) => a + c.contrib, 0)), hl = S.focus;
+  const maxC = Math.max(...T.flatMap(c => c.items.map(x => x.contrib)));
+  const row = x => `<div class="tree-row ${hl === x.id ? "hl" : ""}" id="n-${x.id}">
+      <span class="tn"><span>${esc(x.t)}</span><span class="tsub">${x.kind === "p" ? srcDot(x.src) + SRC[x.src][0] : srcDot("facts") + (x.kind === "pct" ? `${x.val[0]} з ${x.val[1]}` : `рівень ${x.val} з 5`)}${x.lim ? `<span class="lim-tag">Частка обмеження компонента</span>` : ""}</span></span>
+      <span class="tnum hm">${fb(x.w)} %</span><b class="tnum">${fb(x.vv)}</b>
+      <span><div class="contrib"><i style="width:${x.contrib / maxC * 100}%;background:${COMP[x.c].c}"></i></div><span class="lbl tnum">${f2(x.contrib)}</span></span></div>`;
+  const table = `<div class="tbl-wrap"><table><thead><tr><th>Вузол</th><th>Рівень</th><th>Вага, %</th><th>Значення</th><th>Внесок, пункти</th><th>Джерело</th></tr></thead><tbody>
+    <tr><td><b>Індекс доброчесності</b></td><td>1</td><td class="tnum">100</td><td class="tnum">${fb(sum)}</td><td class="tnum">${f2(T.reduce((a, c) => a + c.contrib, 0))}</td><td></td></tr>
+    ${T.map(c => `<tr><td><b>${COMP[c.id].n}</b>${c.lim ? " " + pill("Обмежувач", "p-warn nodot") : ""}</td><td>2</td><td class="tnum">33,3</td><td class="tnum">${fb(c.val)}</td><td class="tnum">${f2(c.contrib)}</td><td></td></tr>${c.items.map(x => `<tr><td style="padding-left:28px">${esc(x.t)}</td><td>3</td><td class="tnum">${x.w}</td><td class="tnum">${fb(x.vv)}</td><td class="tnum">${f2(x.contrib)}</td><td>${x.src ? SRC[x.src][0] : "Факти"}</td></tr>`).join("")}`).join("")}
+  </tbody></table></div>`;
+  return `${backToInst()}
+  <section class="c12 rise toolbar"><span class="lbl">Звідки взялося кожне число: індекс, компоненти, питання й показники.</span><div class="sp"></div>
+    <button class="btn btn-ghost" onclick="openWhy()">${IC.help}Як це рахується</button>
+    <div class="seg" role="group" aria-label="Що показувати">${Object.entries(MODES).map(([k, n]) => `<button class="${mode === k ? "on" : ""}" aria-pressed="${mode === k}" onclick="S.mode='${k}';persist();render(true)">${n}</button>`).join("")}</div>
+    <button class="btn btn-ghost" onclick="S.exTable=!S.exTable;render(true)">${S.exTable ? IC.tree + "Показати як дерево" : IC.table + "Показати як таблицю"}</button></section>
+  <section class="card c12 rise">
+    ${S.exTable ? table : `<div class="tree-root"><span><b>Індекс доброчесності</b></span><span class="lbl tnum hm">100 %</span><b class="tnum">${fb(sum)}</b><span class="lbl tnum">${f2(T.reduce((a, c) => a + c.contrib, 0))}</span></div>
+    ${T.map((c, ci) => `<div class="tree-c ${S.open[c.id] ? "open" : ""} ${hl === c.id ? "hl" : ""}" id="n-${c.id}">
+      <button class="tree-head" onclick="S.open['${c.id}']=!S.open['${c.id}'];this.parentNode.classList.toggle('open')" aria-expanded="${!!S.open[c.id]}">
+        <span style="display:flex;align-items:center;gap:10px;flex-wrap:wrap"><span class="comp-ic" style="background:${COMP[c.id].s};color:${COMP[c.id].c}">${IC[COMP[c.id].ic]}</span><b>${COMP[c.id].n}</b>${c.lim ? pill("Обмежувач", "p-warn") : ""}</span>
+        <span class="lbl tnum hm">33,3 %</span><b class="tnum">${fb(c.val)}</b>
+        <span class="hm"><div class="contrib"><i style="width:${c.contrib / 34 * 100}%;background:${COMP[c.id].c};animation-delay:${ci * 120}ms"></i></div><span class="lbl tnum">${f2(c.contrib)}</span></span>
+        <span class="chev">${IC.chev}</span></button>
+      ${c.lim ? `<div class="lim-note">${c.cr.reason}</div>` : ""}
+      <div class="tree-body"><div class="tree-row lbl hdr"><span>${mode === "facts" ? "Показник" : "Питання"}</span><span class="hm">Вага</span><span>Значення</span><span>Внесок</span></div>${c.items.map(row).join("")}</div>
+    </div>`).join("")}`}
+    <div class="sum-ok">${IC.ok}${mode === "credited" ? `Сума внесків = Індекс ${f1(sum)}` : `Сума внесків = ${f1(sum)}. Це середнє за режимом «${MODES[mode]}» без обмежувача. До індексу йдуть зараховані значення.`}</div>
+  </section>`;
+};
+V.explain.after = () => { if (S.focus) { const el = document.getElementById("n-" + S.focus); if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 200); S.focus = null; } };
+
+/* Динаміка */
+V.trends = () => {
+  const m = cur(), sr = m.series, t = S.trend, from = Math.min(t.from, t.to), to = Math.max(t.from, t.to), rows = sr.slice(from, to + 1);
+  const a = sr[Math.min(S.cmp.a, sr.length - 1)], b = sr[Math.min(S.cmp.b, sr.length - 1)];
+  const evs = m.events.filter(e => rows.slice(0, -1).some(r => r.cycle === e.after));
+  const d = r1(rows[rows.length - 1].index - rows[0].index);
+  const cmpRows = [["Індекс доброчесності", a.index, b.index], ...COMPS.map(c => [COMP[c].n, a.cr[c], b.cr[c]])];
+  const pos = COMPS.filter(c => b.cr[c] > a.cr[c]), neg = COMPS.filter(c => b.cr[c] < a.cr[c]);
+  const opt = (sel, lim) => sr.map((r, i) => `<option value="${i}" ${i === sel ? "selected" : ""} ${lim && !lim(i) ? "disabled" : ""}>${r.cycle}</option>`).join("");
+  return `${backToInst()}
+  <section class="c12 rise"><span class="lbl">Як змінювався індекс доброчесності від циклу до циклу. Показано лише цей заклад, без порівняння з іншими.</span></section>
+  <section class="card c12 rise">
+    <div class="card-h" style="flex-wrap:wrap"><h2>Динаміка індексу</h2><div class="sp"></div>
+      <label class="lbl">Від <select class="inp" onchange="S.trend.from=+this.value;persist();render(true)">${opt(from, i => i < to)}</select></label>
+      <label class="lbl">До <select class="inp" onchange="S.trend.to=+this.value;persist();render(true)">${opt(to, i => i > from)}</select></label>
+      <button class="btn btn-ghost" onclick="S.trTable=!S.trTable;render(true)">${S.trTable ? IC.trend + "Показати як діаграму" : IC.table + "Показати як таблицю"}</button></div>
+    <div class="chips-row"><span class="lbl">Додати лінію:</span>${COMPS.map(c => `<button class="chip ${t.lines.includes(c) ? "on" : ""}" style="--c:${COMP[c].c}" aria-pressed="${t.lines.includes(c)}" onclick="toggleLine('${c}')"><i></i>${COMP[c].n}</button>`).join("")}</div>
+    ${S.trTable ? `<div class="tbl-wrap"><table><thead><tr><th>Цикл</th><th>Індекс</th><th>Рівень</th>${COMPS.map(c => `<th>${COMP[c].n}</th>`).join("")}<th>Події після циклу</th></tr></thead><tbody>${rows.map(r => `<tr><td><b>${r.cycle}</b></td><td class="tnum"><b>${f1(r.index)}</b></td><td>${lvPill(level(r.index))}</td>${COMPS.map(c => `<td class="tnum">${fb(r.cr[c])}</td>`).join("")}<td class="lbl">${m.events.filter(e => e.after === r.cycle && r !== rows[rows.length - 1]).map(e => e.t).join("; ") || "—"}</td></tr>`).join("")}</tbody></table></div>` : `<div class="chart" id="trend"></div>`}
+    <div class="lbl" style="margin-top:8px"><span class="ev-ic">${IC.diamond}</span>Виконані заходи між циклами: ${evs.length}. ${d > 0 ? `За період індекс зріс на ${pts(d)}.` : d < 0 ? `За період індекс знизився на ${pts(d)}.` : "За період індекс не змінився."}</div>
+  </section>
+  <section class="card c7 rise">
+    <div class="card-h" style="flex-wrap:wrap"><h2>Порівняти два цикли</h2><div class="sp"></div>
+      <label class="lbl">Було <select class="inp" onchange="S.cmp.a=+this.value;persist();render(true)">${opt(S.cmp.a)}</select></label>
+      <label class="lbl">Стало <select class="inp" onchange="S.cmp.b=+this.value;persist();render(true)">${opt(S.cmp.b)}</select></label></div>
+    ${a === b ? `<div class="empty">Оберіть два різні цикли, щоб побачити, що змінилося.</div>` : `<div class="tbl-wrap"><table><thead><tr><th>Показник</th><th>Було</th><th>Стало</th><th>Зміна</th></tr></thead><tbody>${cmpRows.map(([n, x, y]) => `<tr><td><b>${n}</b></td><td class="tnum">${fb(x)}</td><td class="tnum">${fb(y)}</td><td>${deltaHTML(r1(y - x))}</td></tr>`).join("")}</tbody></table></div>
+    <div class="lbl" style="margin-top:8px">Було: значення в циклі ${a.cycle}. Стало: у циклі ${b.cycle}. Зміна в пунктах шкали 0-100.</div>`}
+  </section>
+  <section class="card c5 rise">
+    <div class="card-h"><h2>Висновок за весь період</h2></div>
+    ${(() => { const f = sr[0], l = sr[sr.length - 1], p = COMPS.filter(c => l.cr[c] > f.cr[c]), n = COMPS.filter(c => l.cr[c] < f.cr[c]); return `<div class="rows">
+      <div class="row" style="align-items:flex-start"><span class="comp-ic" style="background:var(--teal-soft);color:var(--teal-deep);width:28px;height:28px">${IC.up}</span><div class="grow">${p.length ? `Позитивна динаміка: ${p.map(c => `${COMP[c].n} (${pts(l.cr[c] - f.cr[c])})`).join(", ")}.` : "Позитивної динаміки за період немає."}</div></div>
+      <div class="row" style="align-items:flex-start"><span class="comp-ic" style="background:${n.length ? "var(--red-soft)" : "var(--soft)"};color:${n.length ? "var(--red)" : "var(--muted)"};width:28px;height:28px">${n.length ? IC.down : IC.flat}</span><div class="grow">${n.length ? `Потребує уваги: ${n.map(c => `${COMP[c].n} (−${pts(f.cr[c] - l.cr[c])})`).join(", ")}.` : "Негативної динаміки за компонентами немає."}</div></div>
+      ${m.events.map(e => `<div class="row"><span class="ev-ic">${IC.diamond}</span><div class="grow"><div class="t">${e.t}</div><div class="s">Після циклу ${e.after}</div></div></div>`).join("")}</div>`; })()}
+  </section>`;
+};
+V.trends.after = () => { const m = cur(), t = S.trend, from = Math.min(t.from, t.to), to = Math.max(t.from, t.to); trendChart($("#trend"), m.series.slice(from, to + 1), t.lines, m.events); };
+function toggleLine(c) { const l = S.trend.lines; S.trend.lines = l.includes(c) ? l.filter(x => x !== c) : [...l, c]; persist(); render(true); }
+
+/* Рекомендації */
+V.recs = () => {
+  const all = buildRecs(), f = S.recF, list = all.filter(r => (f.st === "all" || r.st === f.st) && (f.c === "all" || r.c === f.c));
+  return `
+  <section class="c12 rise toolbar"><span class="lbl">Рекомендація це пропозиція системи, рішення приймає керівник.</span><div class="sp"></div>
+    <select class="inp" aria-label="Статус" onchange="S.recF.st=this.value;persist();render(true)"><option value="all">Усі статуси</option>${Object.entries(REC_ST).map(([k, [n]]) => `<option value="${k}" ${f.st === k ? "selected" : ""}>${n}</option>`).join("")}</select>
+    <select class="inp" aria-label="Компонент" onchange="S.recF.c=this.value;persist();render(true)"><option value="all">Усі компоненти</option>${COMPS.map(c => `<option value="${c}" ${f.c === c ? "selected" : ""}>${COMP[c].n}</option>`).join("")}</select>
+    <span class="lbl tnum">Показано ${list.length} з ${all.length}</span></section>
+  <div class="c12 recs">${list.length ? list.map((r, i) => `<article class="rec card rise" style="animation-delay:${i * 60}ms" id="${r.id}">
+    <span class="pri" style="background:${PRI[r.pri][1]};color:${PRI[r.pri][2]}" data-tip="Пріоритет: ${PRI[r.pri][0].toLowerCase()}">${IC[r.pri === "high" ? "alert" : "flag"]}</span>
+    <div style="min-width:0">
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px">${pill("Пріоритет: " + PRI[r.pri][0].toLowerCase(), "nodot " + (r.pri === "high" ? "p-bad" : "p-mute"))}${pill(COMP[r.c].n, "p-mute nodot")}${pill(REC_ST[r.st][0], REC_ST[r.st][1])}</div>
+      <h3>${r.t}</h3>
+      <div class="lbl" style="margin:10px 0 4px">Чому система це пропонує</div><div>${r.why}</div>
+      <div class="lbl" style="margin:12px 0 4px">На підставі</div>
+      <div class="ev">${r.evidence.map(e => `<a href="#explain/${e.id}" class="ev-i">${e.item ? "" : `<span style="color:var(--red);display:inline-flex;width:14px">${IC.alert}</span>`}<span>${esc(e.t)}: <b>${e.v}</b></span><span class="lbl">Відкрити в розкладі ${IC.arrowR}</span></a>`).join("")}</div>
+      <details class="acts"><summary>Запропоновані дії (${r.acts.length})</summary><ol>${r.acts.map(a => `<li>${a}</li>`).join("")}</ol></details>
+      ${r.note.reason ? `<div class="note-box" style="margin-top:10px"><b>Причина відхилення</b><span>${esc(r.note.reason)}</span></div>` : ""}
+      ${r.note.comment ? `<div class="note-box" style="margin-top:10px"><b>Коментар до уточнення</b><span>${esc(r.note.comment)}</span></div>` : ""}
+    </div>
+    <div class="rec-actions">${r.st === "accepted" ? `<a class="btn btn-soft" href="#tracker">${IC.target}Подивитися захід у трекері</a>` : REC_NEXT[r.st].map(n => n === "accepted" ? `<button class="btn btn-primary" onclick="acceptRec('${r.id}')">${IC.ok}Прийняти</button>` : n === "clarified" ? `<button class="btn btn-soft" onclick="noteRec('${r.id}','clarified')">Уточнити</button>` : `<button class="btn btn-ghost" onclick="noteRec('${r.id}','rejected')">Відхилити</button>`).join("")}</div>
+  </article>`).join("") : `<section class="card"><div class="empty"><b>За цими фільтрами рекомендацій немає</b><br>Змініть статус або компонент. Нові рекомендації зʼявляються після кожного циклу оцінювання.</div></section>`}</div>`;
+};
+function acceptRec(id) {
+  const r = buildRecs().find(x => x.id === id); if (!r) return;
+  openDrawer("Прийняти рекомендацію", `
+    <div><div class="lbl">${COMP[r.c].n}</div><div style="font-size:16px;font-weight:600;margin-top:4px">${r.t}</div></div>
+    <div class="field"><label for="f-who">Відповідальна посада</label><select id="f-who" class="inp">${POSITIONS.map(w => `<option>${w}</option>`).join("")}</select></div>
+    <div class="field"><label for="f-due">Строк виконання</label><input class="inp" type="date" id="f-due" min="${TODAY}" value="2027-02-28"><span class="err lbl" id="f-err"></span></div>
+    <div class="note-box"><span class="lbl">Після прийняття в трекері зʼявиться захід із цією посадою й строком. Посаду і строк можна буде уточнити пізніше.</span></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-ghost" style="flex:1;justify-content:center" onclick="closeDrawer()">Скасувати</button><button class="btn btn-primary" id="f-ok" style="flex:2;justify-content:center">${IC.ok}Прийняти й створити захід</button></div>`, b => {
+    b.querySelector("#f-ok").onclick = () => {
+      const due = b.querySelector("#f-due").value;
+      if (!due || due < TODAY) { b.querySelector("#f-err").textContent = "Оберіть строк не раніше за сьогодні."; return; }
+      const mid = "m-" + (BASE_MEASURES.length + S.dec.added.length + 1);
+      S.dec.rec[id] = { status: "accepted" };
+      S.dec.added.push({ id: mid, recId: id, rec: r.t, t: r.t, who: b.querySelector("#f-who").value, due, st: "accepted", ind: r.items[0] });
+      addLog(me(), `Рекомендацію «${r.t}» прийнято, створено захід ${mid}`); persist(); closeDrawer(); render(true);
+      toast(`Рекомендацію прийнято. Захід «${r.t}» додано до трекера.`);
+    };
+  });
+}
+function noteRec(id, kind) {
+  const r = buildRecs().find(x => x.id === id); if (!r) return; const rej = kind === "rejected";
+  openDrawer(rej ? "Відхилити рекомендацію" : "Уточнити рекомендацію", `
+    <div style="font-weight:600">${r.t}</div>
+    <div class="field"><label for="f-why">${rej ? "Причина відхилення" : "Короткий коментар"}</label><textarea class="inp" id="f-why" rows="4" style="resize:vertical"></textarea><span class="lbl" id="f-err">${rej ? "Причина обов’язкова: вона допоможе наступним оцінюванням." : "Що потрібно уточнити, перш ніж ухвалити рішення."}</span></div>
+    <div style="display:flex;gap:8px"><button class="btn btn-ghost" style="flex:1;justify-content:center" onclick="closeDrawer()">Скасувати</button><button class="btn ${rej ? "btn-danger" : "btn-primary"}" id="f-ok" style="flex:2;justify-content:center">${rej ? "Відхилити" : "Надіслати уточнення"}</button></div>`, b => {
+    b.querySelector("#f-ok").onclick = () => {
+      const t = b.querySelector("#f-why").value.trim();
+      if (!t) { const e = b.querySelector("#f-err"); e.textContent = rej ? "Вкажіть причину відхилення." : "Напишіть, що саме потрібно уточнити."; e.style.color = "var(--red)"; b.querySelector("#f-why").focus(); return; }
+      S.dec.rec[id] = rej ? { status: "rejected", reason: t } : { status: "clarified", comment: t };
+      addLog(me(), `Рекомендацію «${r.t}» ${rej ? "відхилено" : "позначено «Уточнено»"}: ${t}`); persist(); closeDrawer(); render(true);
+      toast(rej ? "Рекомендацію відхилено. Причину збережено." : "Рекомендацію позначено як «Уточнено». Коментар збережено.");
+    };
+  });
+}
+
+/* Трекер */
+V.tracker = () => {
+  const all = measures(), f = S.trF, edit = S.role === "leader";
+  const list = all.filter(x => (f.st === "all" || dispSt(x) === f.st || (f.st === "overdue" && overdueDays(x) > 0)) && (f.who === "all" || x.who === f.who));
+  const od = all.filter(x => overdueDays(x) > 0).length;
+  const stCell = x => { const d = overdueDays(x); return d > 0 ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">${pill(`Прострочено на ${d} ${daysWord(d)}`, "p-bad")}<span class="lbl">Статус: ${M_ST[x.st][0]}</span></div>` : pill(M_ST[x.st][0], M_ST[x.st][1]); };
+  const actCell = x => x.st === "confirmed" ? `<span class="lbl">Змінює наступне оцінювання</span>` : edit ? `<div class="mv">${M_NEXT[x.st].map(s => `<button class="btn btn-ghost" onclick="setMSt('${x.id}','${s}')">${IC.arrowR}${M_ST[s][0]}</button>`).join("")}</div>` : `<span class="lbl">—</span>`;
+  const board = ["accepted", "inprogress", "done", "confirmed", "notconfirmed"].map(st => { const cards = list.filter(x => x.st === st); return `<div class="col-b"><div class="col-h">${pill(M_ST[st][0], M_ST[st][1])}<span class="lbl tnum">${cards.length}</span></div>${cards.map(x => `<div class="b-card"><b>${x.t}</b><span class="lbl">${x.who}</span><div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap"><span class="lbl tnum" ${overdueDays(x) ? 'style="color:var(--red);font-weight:600"' : ""}>Строк: ${ua(x.due)}</span>${overdueDays(x) ? pill(`+${overdueDays(x)} ${daysWord(overdueDays(x))}`, "p-bad nodot") : ""}</div>${edit && M_NEXT[x.st].length ? `<div class="seg sm">${M_NEXT[x.st].map(s => `<button onclick="setMSt('${x.id}','${s}')">${IC.arrowR}${M_ST[s][0]}</button>`).join("")}</div>` : ""}</div>`).join("") || `<div class="lbl" style="padding:8px">Порожньо</div>`}</div>`; }).join("");
+  const conf = all.filter(x => x.st === "confirmed").length, wait = all.filter(x => x.st === "done").length, rev = all.filter(x => x.st === "notconfirmed").length;
+  return `
+  <section class="c12 rise toolbar"><span class="lbl">${all.length} заходів${od ? `, з них ${od} прострочено` : ", прострочених немає"}. ${edit ? "Статуси змінює керівник." : "Режим читання: змінювати статуси може лише керівник."}</span><div class="sp"></div>
+    <div class="seg" role="group" aria-label="Вигляд">${[["table", "Таблиця", "table"], ["board", "Дошка", "board"]].map(([k, n, ic]) => `<button class="${S.trackView === k ? "on" : ""}" onclick="S.trackView='${k}';persist();render(true)">${n}</button>`).join("")}</div>
+    <select class="inp" aria-label="Статус" onchange="S.trF.st=this.value;persist();render(true)"><option value="all">Усі статуси</option>${Object.entries(M_ST).map(([k, [n]]) => `<option value="${k}" ${f.st === k ? "selected" : ""}>${n}</option>`).join("")}</select>
+    <select class="inp" aria-label="Відповідальна посада" onchange="S.trF.who=this.value;persist();render(true)"><option value="all">Усі посади</option>${[...new Set(all.map(x => x.who))].sort().map(w => `<option ${f.who === w ? "selected" : ""}>${w}</option>`).join("")}</select>
+    <span class="lbl tnum">Показано ${list.length} з ${all.length}</span></section>
+  ${!list.length ? `<section class="card c12"><div class="empty"><b>За цими фільтрами заходів немає</b><br>Змініть статус або посаду. Нові заходи зʼявляються, коли керівник приймає рекомендацію.<br><br>${can("recs") ? `<a class="btn btn-soft" href="#recs">Перейти до рекомендацій</a>` : ""}</div></section>` : S.trackView === "board" ? `<section class="c12 board rise">${board}</section>` : `
+  <section class="card c12 rise"><div class="tbl-wrap"><table><thead><tr><th>Захід</th><th>Відповідальна посада</th><th>Строк</th><th>Статус</th><th>Верифікація</th><th>Змінити статус</th></tr></thead><tbody>
+    ${list.map(x => `<tr><td style="min-width:220px"><b style="font-weight:600">${x.t}</b><div class="lbl">З рекомендації: ${x.rec}</div></td><td style="min-width:160px">${x.who}</td><td class="tnum" style="white-space:nowrap">${ua(x.due)}</td><td>${stCell(x)}</td><td>${pill(verif(x)[0], verif(x)[1] + " nodot")}</td><td>${actCell(x)}</td></tr>`).join("")}
+  </tbody></table></div></section>`}
+  <section class="card c12 rise">
+    <div class="card-h"><h2>Верифікація наступним оцінюванням</h2></div>
+    <div class="lbl" style="max-width:820px">Статус «Виконано» ще не означає, що захід спрацював. Після наступного циклу оцінювання система перевіряє, чи покращились показники, пов’язані із заходом. Результат може бути «Підтверджено наступним оцінюванням» або «Не підтверджено, потрібен перегляд».</div>
+    <div class="stat4 tnum" style="grid-template-columns:repeat(3,1fr);margin-top:14px"><div><small>Підтверджено</small><b>${conf}</b></div><div><small>Очікують наступного оцінювання</small><b>${wait}</b></div><div><small>Потребують перегляду</small><b>${rev}</b></div></div>
+  </section>`;
+};
+function setMSt(id, st) { const x = measures().find(m => m.id === id); if (!x || !M_NEXT[x.st].includes(st)) return; S.dec.mst[id] = st; addLog(me(), `Захід «${x.t}»: статус «${M_ST[st][0]}»`); persist(); render(true); toast(`Статус заходу змінено на «${M_ST[st][0]}».`); }
+
+/* Звідки беруться дані */
+const SOURCES = [
+  ["Результати анкет", "Модуль анонімних опитувань платформи", "auto", "Оновлюється після кожної відповіді", "Відповіді респондентів агрегуються автоматично. Окремі відповіді не показуються."],
+  ["Чек-лист", "Чек-лист закладу", "manual", "Внесено 10.11.2026", "Один працівник вносить дані, інший підтверджує їх. Кожен пункт має джерело й дату."],
+  ["Декларації подані вчасно", "Відкрита база декларацій", "planned", "Немає даних: інтеграцію ще не підключено", "Поки значення вносять вручну в чек-лист. Автоматичне отримання планується."],
+  ["Конфлікти інтересів", "Рішення з попереднього хакатону", "approval", "Немає даних: потрібне погодження власника рішення", "Рішення може підказувати випадки для перевірки. Використання потребує погодження."],
+  ["Закупівлі", "Інший проєкт команди з оцінки закупівель", "planned", "Немає даних: інтеграцію ще не підключено", "Результати оцінки закупівель можуть стати фактами для компонента Підзвітність."],
+  ["Скарги й звернення", "Журнал звернень закладу", "manual", "Внесено 12.11.2026", "Кількість звернень і розглянутих у строк вносить уповноважений."],
+  ["Звітування за заходами", "Система суміжної команди", "approval", "Немає даних: інтеграцію ще не погоджено", "Автоматичне оновлення статусів заходів планується. Поки статуси змінюють вручну в трекері."],
+];
+const MODE = { auto: ["Автоматично", "p-good"], manual: ["Ручний ввід", "p-info"], planned: ["Планується", "p-mute"], approval: ["Потребує погодження", "p-warn"] };
+const INTEG = [
+  ["Модуль опитувань", "auto", "Зібрати сприйняття працівників без ідентифікації", "Одноразові коди доступу, агрегація на сервері", "survey"],
+  ["Чек-лист закладу", "manual", "Підтвердити сприйняття фактами", "Ручний ввід і підтвердження другою особою", "check"],
+  ["Відкрита база декларацій", "planned", "Перевіряти вчасність подання декларацій", "Отримання відкритих даних за розкладом", "file"],
+  ["Рішення з попереднього хакатону", "approval", "Підказувати випадки конфліктів інтересів для перевірки", "Передача знеособлених результатів", "scale"],
+  ["Проєкт оцінки закупівель", "planned", "Додати факти про закупівлі до Підзвітності", "Обмін агрегованими показниками", "layers"],
+  ["Система суміжної команди", "approval", "Отримувати звіти про виконання заходів", "Обмін статусами заходів", "target"],
+];
+V.sources = () => `
+  <section class="c12 rise"><span class="lbl">Чесні статуси: що працює вже, що вносять вручну, а що лише планується.</span></section>
+  <section class="card c12 rise"><div class="card-h"><h2>Джерела даних за метриками</h2></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Метрика</th><th>Джерело</th><th>Режим</th><th>Вік даних</th><th>Пояснення</th></tr></thead><tbody>
+    ${SOURCES.map(([a, b, mo, age, ex]) => `<tr><td><b style="font-weight:600">${a}</b></td><td>${b}</td><td>${pill(MODE[mo][0], MODE[mo][1])}</td><td class="lbl" style="min-width:150px">${age}</td><td class="lbl" style="min-width:260px">${ex}</td></tr>`).join("")}
+    </tbody></table></div></section>
+  <section class="c12 rise"><div class="card-h" style="margin:6px 0 0"><h2>Карта інтеграцій</h2></div></section>
+  ${INTEG.map(([n, mo, why, how, ic], i) => `<section class="card c4 rise integ ${mo}"><div class="comp-top"><span class="comp-ic" style="background:var(--soft)">${IC[ic]}</span><b>${n}</b><div class="sp" style="flex:1"></div>${pill(MODE[mo][0], MODE[mo][1])}</div>
+    <div style="margin-top:12px"><span class="lbl">Навіщо</span><div>${why}</div></div><div style="margin-top:8px"><span class="lbl">Метод</span><div>${how}</div></div></section>`).join("")}`;
+
+/* Заклади (спостерігач) */
+V.institutions = () => `
+  <section class="c12 rise"><span class="lbl">Показано узагальнені дані. Заклади не порівнюються між собою й подані в алфавітному порядку за назвою.</span></section>
+  ${INSTITUTIONS().map((m, i) => `<a class="card c6 rise inst" href="#overview" onclick="S.inst='${m.id}';persist()">
+    <div class="comp-top"><span class="comp-ic" style="background:var(--lime-soft);color:var(--teal-deep)">${IC.building}</span><b>${esc(m.name)}</b></div>
+    <div style="display:flex;align-items:flex-end;gap:14px;margin-top:16px;flex-wrap:wrap"><div class="mid tnum">${numHTML(m.index)}<span class="of">індекс з 100</span></div><div style="display:flex;gap:6px;flex-wrap:wrap">${lvPill(m.level)}${trustPill(m.trust)}</div></div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-top:14px;gap:10px;flex-wrap:wrap">${deltaHTML(m.delta, "до попереднього циклу")}<span class="link">Відкрити огляд ${IC.arrowR}</span></div>
+  </a>`).join("")}`;
+
+/* Порівняння: сприйняття за групами проти фактів */
+V.compare = () => {
+  const m = cur(), srcAvg = (c, src) => { const a = m.pItems.filter(x => x.c === c && x.src === src); return a.length ? wmean(a) : null; };
+  const pctFacts = m.fItems.filter(x => x.kind === "pct");
+  const marks = [["wg", "Робоча група"], ["os", "Особовий склад"], ["experts", "Експерти"]];
+  return `${backToInst()}
+  <section class="c12 rise"><span class="lbl">Де самооцінка розходиться з документами і з думкою персоналу. Розрив понад ${CAP} пунктів між сприйняттям і фактами вмикає обмежувач.</span></section>
+  <section class="card c5 rise">
+    <div class="card-h"><h2>Профіль компонентів</h2></div>
+    <div class="chart" id="cmpRadar"></div>
+    <div class="legend" style="justify-content:center;margin-top:8px"><span><i style="background:var(--blue)"></i>Сприйняття</span><span><i style="background:var(--fg);border-radius:2px"></i>Факти</span><span><i style="background:var(--teal)"></i>Зараховано</span></div>
+  </section>
+  <section class="card c7 rise">
+    <div class="card-h"><h2>Сприйняття проти фактів</h2><div class="sp"></div><div class="legend">${marks.map(([s, n]) => `<span>${srcDot(s)}${n}</span>`).join("")}<span><i style="background:var(--fg);border-radius:2px;transform:rotate(45deg) scale(.85)"></i>Факти</span></div></div>
+    ${m.components.map((c, i) => { const vals = marks.map(([s]) => [s, srcAvg(c.id, s)]).filter(([, v]) => v != null); const all = [...vals.map(x => x[1]), c.F]; const lo = Math.min(...all), hi = Math.max(...all), gap = r1(c.P - c.F);
+      return `<div class="db" style="cursor:pointer" onclick="location.hash='explain/${c.id}'"><span class="t"><b>${COMP[c.id].n}</b><br><span class="lbl">Сприйняття ${fb(c.P)} · факти ${fb(c.F)}</span></span>
+        <div class="track"><div class="gap ${gap > CAP ? "bad" : ""}" style="left:${lo}%;width:${hi - lo}%;animation-delay:${i * 80}ms"></div>
+        ${vals.map(([s, v], j) => `<span class="m ${s === "wg" ? "wg" : s === "os" ? "st" : "ex"}" style="left:${v}%;animation-delay:${200 + i * 80 + j * 60}ms" data-tip="${SRC[s][0]}: ${fb(v)}"></span>`).join("")}
+        <span class="m f" style="left:${c.F}%;animation-delay:${400 + i * 80}ms" data-tip="Факти: ${fb(c.F)}"></span></div>
+        <b class="tnum" style="text-align:right;color:${gap > CAP ? "var(--red)" : "var(--fg)"}" data-tip="Сприйняття мінус факти">${gap > 0 ? "+" : ""}${fb(gap)}</b></div>`; }).join("")}
+    <div class="lbl" style="margin-top:10px">Праворуч різниця «сприйняття мінус факти». Червоним позначено розрив понад ${CAP} пунктів.</div>
+  </section>
+  <section class="card c8 rise">
+    <div class="card-h"><h2>Обʼєктивні показники</h2><div class="sp"></div><a class="pill-btn" href="#sources">${IC.plug}Джерела</a></div>
+    <div class="kpis">${pctFacts.map(f => { const r = 18, C = 2 * Math.PI * r; return `<a class="kpi" href="#explain/${f.id}" style="text-decoration:none;color:inherit"><div class="ring"><svg width="46" height="46" viewBox="0 0 46 46"><circle cx="23" cy="23" r="${r}" fill="none" stroke="var(--line)" stroke-width="5"/><circle cx="23" cy="23" r="${r}" fill="none" stroke="${SCOL[status(f.v)]}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${C}" style="stroke-dashoffset:${C * (1 - f.v / 100)};transform:rotate(-90deg);transform-origin:center;transition:stroke-dashoffset 1s" class="kring" data-off="${C * (1 - f.v / 100)}" data-c="${C}"/></svg><span class="mid tnum" style="font-size:24px">${numHTML(f.v, 0)}<span class="dec">%</span></span></div><span class="lbl">${f.t}</span><span class="lbl tnum">${f.val[0]} з ${f.val[1]} · ${COMP[f.c].n}</span></a>`; }).join("")}</div>
+  </section>
+  <section class="card c4 rise">
+    <div class="card-h"><h2>Достовірність</h2><div class="sp"></div>${trustPill(m.trust)}</div>
+    <div class="rows">${m.raised.map(f => `<div class="row" style="align-items:flex-start"><span class="flag-ic ${f.w}">${f.w === "major" ? IC.alert : IC.flag}</span><div class="grow" style="font-size:13px"><b style="font-weight:600">${esc(f.t)}</b><div class="lbl">${f.ex}</div></div></div>`).join("") || `<div class="lbl">Жоден прапорець не спрацював.</div>`}</div>
+  </section>
+  <section class="card c12 rise">
+    <div class="card-h"><h2>Питання анкет за групами</h2><div class="sp"></div><div class="legend"><span><i style="background:var(--teal)"></i>≥ 65</span><span><i style="background:var(--amber)"></i>40–65</span><span><i style="background:var(--red)"></i>&lt; 40</span></div></div>
+    <div class="ibars" style="grid-template-columns:repeat(${m.pItems.length},1fr)">${m.pItems.map((x, i) => { const col = SCOL[status(x.v)]; return `<a class="ibar" href="#explain/${x.id}" style="text-decoration:none;color:inherit" data-tip="${esc(x.t)}<small>${SRC[x.src][0]} · ${COMP[x.c].n}</small>"><div class="v tnum">${fb(x.v)}</div><div class="b" style="height:${Math.max(8, x.v * 1.5)}px;background:${col};opacity:${0.45 + x.v / 100 * 0.55};animation-delay:${i * 50}ms"></div><div class="n">${srcDot(x.src)}</div></a>`; }).join("")}</div>
+  </section>`;
+};
+V.compare.after = () => {
+  const m = cur();
+  radar($("#cmpRadar"), [{ cls: "r-wg", v: COMPS.map(c => m.byId[c].P), delay: 0 }, { cls: "r-f", v: COMPS.map(c => m.byId[c].F), delay: 150 }, { cls: "r-st", v: COMPS.map(c => m.byId[c].cr.v), delay: 300 }].map((s, i, a) => i === 0 ? { ...a[2], delay: 300 } : i === 2 ? { ...a[0], delay: 0 } : s));
+  document.querySelectorAll(".kring").forEach(c => { const o = c.dataset.off; c.style.strokeDashoffset = c.dataset.c; requestAnimationFrame(() => requestAnimationFrame(() => c.style.strokeDashoffset = o)); });
+};
+
+/* Звіт */
+V.report = () => {
+  const m = cur(), recs = m.id === ALPHA ? buildRecs(m) : [], ms = m.id === ALPHA ? measures() : [];
+  const itemRows = arr => arr.map(x => `<tr><td>${esc(x.t)}</td><td>${COMP[x.c].n}</td><td>${x.src ? SRC[x.src][0] : x.kind === "pct" ? `${x.val[0]} з ${x.val[1]}` : `рівень ${x.val} з 5`}</td><td class="tnum">${x.w}</td><td class="tnum"><b>${fb(x.v)}</b></td></tr>`).join("");
+  return `${backToInst()}
+  <div class="c12 rise toolbar"><div class="sp"></div>
+    ${S.aiOn && AI_ROLES.includes(S.role) ? `<button class="btn btn-soft" onclick="aiOpen('Підготуй чернетку опису результатів для звіту')">${IC.spark}Чернетка опису</button>` : ""}
+    <button class="btn btn-soft" onclick="copyOut('csv')">${IC.copy}Копіювати CSV</button>
+    <button class="btn btn-soft" onclick="copyOut('csv',true)">${IC.file}CSV</button>
+    <button class="btn btn-soft" onclick="copyOut('json',true)">${IC.file}JSON</button>
+    <button class="btn btn-soft" onclick="copyOut('html',true)">${IC.file}HTML</button>
+    <button class="btn btn-primary" onclick="window.print()">${IC.print}Друк / PDF</button>
+  </div>
+  <article class="paper c12 rise">
+    <div class="lbl">Звіт за результатами оцінювання · цикл ${CYCLE} · дані станом на ${TODAY_UA}</div>
+    <h2 style="margin-top:6px">${esc(m.name)}</h2>
+    <div style="display:flex;gap:20px;flex-wrap:wrap;margin:18px 0 6px;align-items:flex-end">
+      <div><div class="lbl">Індекс доброчесності</div><div class="big tnum" style="font-size:44px">${numHTML(m.index)}<span class="of">з 100</span></div></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">${lvPill(m.level)}${trustPill(m.trust)}${deltaHTML(m.delta)}</div>
+    </div>
+    <p style="line-height:1.6">${whyText(m)}</p>
+    <h3>Компоненти</h3>
+    <div class="tbl-wrap"><table><thead><tr><th>Компонент</th><th>Сприйняття</th><th>Факти</th><th>Зараховано</th><th>Рівень</th><th>Зміна</th></tr></thead><tbody>
+    ${m.components.map(c => `<tr><td><b>${COMP[c.id].n}</b>${c.cr.lim ? " " + pill("Обмежувач", "p-warn nodot") : ""}</td><td class="tnum">${fb(c.P)}</td><td class="tnum">${fb(c.F)}</td><td class="tnum"><b>${fb(c.cr.v)}</b></td><td>${lvPill(level(c.cr.v))}</td><td>${deltaHTML(r1(c.cr.v - m.series[m.series.length - 2].cr[c.id]))}</td></tr>`).join("")}
+    </tbody></table></div>
+    <h3>Сприйняття: питання анкет</h3>
+    <div class="tbl-wrap"><table><thead><tr><th>Питання</th><th>Компонент</th><th>Джерело</th><th>Вага, %</th><th>Значення</th></tr></thead><tbody>${itemRows(m.pItems)}</tbody></table></div>
+    <h3>Факти: чек-лист і дані обліку</h3>
+    <div class="tbl-wrap"><table><thead><tr><th>Показник</th><th>Компонент</th><th>Дані</th><th>Вага, %</th><th>Значення</th></tr></thead><tbody>${itemRows(m.fItems)}</tbody></table></div>
+    <h3>Достовірність ${m.trust === "insufficient" ? "" : m.trust}: ${TRUST[m.trust][1].toLowerCase()}</h3>
+    <div class="rows">${m.raised.map(f => `<div class="row"><span class="dot" style="background:${f.w === "major" ? "var(--red)" : "var(--amber)"}"></span><div class="grow">${esc(f.t)}<div class="s">${f.ex}</div></div></div>`).join("") || `<div class="lbl">Жоден прапорець не спрацював.</div>`}</div>
+    ${S.notes.length && m.id === ALPHA ? `<h3>Опис результатів</h3>${S.notes.map((n, i) => `<div class="note-ai"><div>${esc(n.t)}</div><div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">${pill("Чернетка ШІ · затверджено", "p-info nodot")}<span class="lbl">${n.who} · ${n.at}</span>${S.role === "leader" ? `<button class="btn btn-ghost noprint" style="padding:4px 10px;font-size:12px;margin-left:auto" onclick="S.notes.splice(${i},1);persist();render(true)">Прибрати</button>` : ""}</div></div>`).join("")}` : ""}
+    ${recs.length ? `<h3>Рекомендації та рішення</h3><div class="rows">${recs.map(r => `<div class="row"><div class="grow">${r.t}<div class="s">${COMP[r.c].n} · пріоритет ${PRI[r.pri][0].toLowerCase()}${r.note.reason ? " · причина: " + esc(r.note.reason) : ""}${r.note.comment ? " · коментар: " + esc(r.note.comment) : ""}</div></div>${pill(REC_ST[r.st][0], REC_ST[r.st][1])}</div>`).join("")}</div>` : ""}
+    ${ms.length ? `<h3>Заходи</h3><div class="rows">${ms.map(x => `<div class="row"><div class="grow">${x.t}<div class="s">${x.who} · до ${ua(x.due)}</div></div>${pill(M_ST[dispSt(x)][0], M_ST[dispSt(x)][1])}</div>`).join("")}</div>` : ""}
+    <p class="lbl" style="margin-top:24px">Усі оцінки, рівні й прапорці розраховано явними правилами методики. Окремих відповідей, імен і порівнянь підрозділів у звіті немає.</p>
+  </article>`;
+};
+function copyOut(kind, dl) {
+  const m = cur(); let txt;
+  if (kind === "html") { const doc = `<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>Звіт ${CYCLE}</title><style>body{font:14px/1.5 system-ui,sans-serif;max-width:900px;margin:40px auto;padding:0 20px;color:#111}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ddd;padding:4px 6px;font-size:12px;text-align:left}.dec{color:#999}svg,button{display:none}.pill{padding:2px 8px;border-radius:9px;background:#eee;font-size:12px;margin-right:4px}.row{display:flex;gap:8px;padding:4px 0;border-bottom:1px solid #eee}.s,.lbl{color:#666;font-size:12px}</style></head><body>${document.querySelector(".paper").innerHTML}</body></html>`; return download(`integrity-report-${m.id}-${CYCLE}.html`, doc, "text/html"); }
+  if (kind === "csv") txt = ["id;component;kind;label;source;weight;value", ...allItems(m).map(x => [x.id, x.c, x.src ? "perception" : "fact", `"${x.t.replace(/"/g, '""')}"`, x.src || x.kind, x.w, fb(x.v)].join(";")), ...m.components.map(c => [c.id, c.id, "component", COMP[c.id].n, "credited", "33.3", fb(c.cr.v)].join(";")), ["index", "", "index", "Індекс доброчесності", "", "100", fb(m.index)].join(";")].join("\n");
+  else txt = JSON.stringify({ institution: m.name, cycle: CYCLE, asOf: TODAY, index: m.index, level: m.level, trust: m.trust, delta: m.delta,
+    components: Object.fromEntries(m.components.map(c => [c.id, { perception: c.P, facts: c.F, credited: c.cr.v, limited: c.cr.lim }])),
+    flags: m.raised.map(f => ({ id: f.id, weight: f.w, title: f.t })), measures: m.id === ALPHA ? measures() : [] }, null, 2);
+  if (dl) return download(`integrity-${m.id}-${CYCLE}.${kind}`, (kind === "csv" ? "﻿" : "") + txt, kind === "csv" ? "text/csv" : "application/json");
+  const done = () => { toast(kind.toUpperCase() + " скопійовано"); addLog(me(), `Експорт звіту (${kind.toUpperCase()})`); };
+  try { navigator.clipboard.writeText(txt).then(done, () => fallbackCopy(txt, done)); } catch (e) { fallbackCopy(txt, done); }
+}
+function download(name, txt, type) { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([txt], { type: type + ";charset=utf-8" })); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); toast("Завантажено: " + name); addLog(me(), `Експорт звіту (${name})`); }
+function fallbackCopy(txt, done) { const ta = document.createElement("textarea"); ta.value = txt; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); done(); } catch (e) { toast("Не вдалося скопіювати"); } ta.remove(); }
+
+/* Керування циклом (уповноважений-адміністратор: лише кількості) */
+V.manage = () => {
+  const tot = GROUPS.reduce((a, g) => a + g.inv, 0), used = GROUPS.reduce((a, g) => a + g.resp, 0);
+  return `
+  <section class="card c8 rise">
+    <div class="card-h"><h2>Цикл ${CYCLE}</h2>${pill(S.cycleOpen ? "Триває" : "Завершено", S.cycleOpen ? "p-good" : "p-mute")}<div class="sp"></div><span class="lbl">01.11 – 20.11.2026</span></div>
+    <div class="lbl" style="margin-bottom:6px">Видані й використані жетони за групами</div>
+    <div class="rows">${GROUPS.map((g, i) => { const hidden = g.unit && g.resp < S.k; return `<div class="row"><div class="grow"><div class="t" style="display:flex;gap:8px;align-items:center">${g.n}${hidden ? `<span style="display:inline-flex;width:15px;color:var(--muted)" data-tip="Менше ${S.k} відповідей: результати групи приховано, показано рівень вище">${IC.lock}</span>` : ""}</div><div class="ticks" style="height:14px;margin-top:6px">${Array.from({ length: 30 }, (_, j) => `<span class="${j < Math.round(g.resp / g.inv * 30) ? (hidden ? "f3" : "f2") : ""} bar-a" style="animation-delay:${i * 60 + j * 10}ms"></span>`).join("")}</div></div><span class="tnum" style="min-width:70px;text-align:right"><b>${g.resp}</b><span class="lbl"> / ${g.inv}</span></span></div>`; }).join("")}</div>
+  </section>
+  <section class="card c4 rise">
+    <div class="card-h"><h2>Налаштування</h2></div>
+    <div style="display:flex;flex-direction:column;gap:16px">
+      <div class="field"><label for="kin">Мінімальна група k</label><div style="display:flex;gap:10px;align-items:center"><input type="range" min="5" max="20" id="kin" value="${S.k}" style="flex:1"><b class="tnum" id="kv" style="min-width:24px">${S.k}</b></div><span class="lbl">Групи з меншою кількістю відповідей приховано, показано рівень вище.</span></div>
+      <div class="stat4" style="grid-template-columns:1fr 1fr"><div><small>Жетонів видано</small><b class="tnum">${numHTML(tot, 0)}</b></div><div><small>Використано</small><b class="tnum">${numHTML(used, 0)}</b></div></div>
+      <div id="closeZone">${S.cycleOpen ? `<button class="btn btn-soft" style="width:100%;justify-content:center" onclick="askClose()">Завершити цикл</button>` : `<button class="btn btn-primary" style="width:100%;justify-content:center" onclick="S.cycleOpen=true;addLog(me(),'Цикл ${CYCLE} відновлено');persist();render(true)">Відновити цикл</button>`}</div>
+    </div>
+  </section>
+  <section class="card c12 rise"><div class="lock">${IC.lock}<div><b>Ця роль не має доступу до відповідей респондентів, навіть узагальнених.</b><div class="lbl">Результати бачать лише ті ролі, яким вони потрібні для рішень. Тут видно тільки кількість виданих і використаних жетонів.</div></div></div></section>
+  <section class="card c12 rise">
+    <div class="card-h"><h2>Цикли оцінювання</h2></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Цикл</th><th>Період</th><th>Мінімальна група k</th><th>Жетонів видано / використано</th><th>Статус</th></tr></thead><tbody>
+    ${[["2026-11", "01.11 – 20.11.2026", S.k, `${tot} / ${used}`, S.cycleOpen ? ["Триває", "p-good"] : ["Завершено", "p-mute"]], ["2026-06", "02.06 – 20.06.2026", 10, "82 / 71", ["Завершено", "p-mute"]], ["2025-12", "01.12 – 19.12.2025", 10, "80 / 66", ["Завершено", "p-mute"]], ["2025-06", "02.06 – 20.06.2025", 10, "78 / 59", ["Завершено", "p-mute"]]].map(([c, p, k, t, st]) => `<tr><td><b>${c}</b></td><td>${p}</td><td class="tnum">${k}</td><td class="tnum">${t}</td><td>${pill(st[0], st[1])}</td></tr>`).join("")}
+    </tbody></table></div>
+  </section>`;
+};
+V.manage.after = () => {
+  const k = $("#kin"); if (!k) return;
+  k.oninput = () => { $("#kv").textContent = k.value; };
+  k.onchange = () => { S.k = +k.value; addLog(me(), `Мінімальна група k = ${S.k}`); persist(); render(true); toast(`Мінімальна група k = ${S.k}`); };
+};
+function askClose() {
+  $("#closeZone").innerHTML = `<div class="lbl" style="margin-bottom:8px">Після завершення відповіді більше не прийматимуться, а жетони, що лишились, стануть недійсними.</div><div style="display:flex;gap:8px"><button class="btn btn-ghost" style="flex:1;justify-content:center" onclick="render(true)">Скасувати</button><button class="btn btn-danger" style="flex:1;justify-content:center" onclick="S.cycleOpen=false;addLog(me(),'Цикл ${CYCLE} завершено');persist();render(true)">Завершити</button></div>`;
+}
+
+/* Анкети (укладач) */
+V.surveys = () => `
+  <section class="card c12 rise"><div class="lock">${IC.lock}<div><b>Ця роль не має доступу до відповідей респондентів.</b><div class="lbl">Укладач не бачить, хто та скільки людей пройшли анкету. Опублікована версія не змінюється: правки йдуть у нову версію.</div></div></div></section>
+  ${S.qs.map((q, i) => `<section class="card c6 rise">
+    <div class="comp-top"><span class="comp-ic" style="background:var(--lime-soft);color:var(--teal-deep)">${IC.survey}</span><b>${q.t}</b><div class="sp" style="flex:1"></div>${pill(q.st === "published" ? "Опубліковано" : "Чернетка", q.st === "published" ? "p-good" : "p-warn")}</div>
+    <div class="stat4 tnum" style="grid-template-columns:repeat(3,1fr);margin-top:14px"><div><small>Група</small><b style="font-size:14px">${q.grp}</b></div><div><small>Версія</small><b>${q.ver}</b></div><div><small>Питань</small><b>${q.n}</b></div></div>
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center"><span class="lbl">Оновлено ${q.upd}</span><div class="sp" style="flex:1"></div>
+      <button class="btn btn-soft" onclick="openQ(${i})">${IC.eye}Переглянути</button>
+      ${q.st === "published" ? `<button class="btn btn-ghost" onclick="newVer(${i})">${IC.plus}Нова версія</button>` : `<button class="btn btn-primary" onclick="publishQ(${i})">${IC.ok}Опублікувати в цикл ${CYCLE}</button>`}</div>
+  </section>`).join("")}`;
+function openQ(i) {
+  const q = S.qs[i], body = q.id === "q-os" || q.id.startsWith("q-os") ? SURVEY.sections.map(s => `<div><div class="lbl" style="margin-bottom:6px">Розділ «${s.t}» · ${s.about}</div><div class="rows">${s.q.map(([id, t, o], j) => `<div class="row" style="align-items:flex-start"><span class="lbl tnum">${j + 1}</span><div class="grow">${t}<div class="s">${o.length} варіанти відповіді, рівні 1–5</div></div></div>`).join("")}</div></div>`).join("") : `<div class="lbl">Перелік питань цієї анкети підключається з Рекомендацій НУОУ (Додаток В). У прототипі показано повністю анкету особового складу.</div>`;
+  openDrawer(q.t, `<div style="display:flex;gap:6px;flex-wrap:wrap">${pill("Версія " + q.ver, "p-mute nodot")}${pill(q.grp, "p-mute nodot")}</div>${body}`);
+}
+function newVer(i) { const q = S.qs[i]; S.qs.splice(i + 1, 0, { ...q, id: q.id + "-v" + (q.ver + 1), ver: q.ver + 1, st: "draft", upd: TODAY_UA }); addLog(me(), `Створено чернетку «${q.t}», версія ${q.ver + 1}`); persist(); render(true); toast("Створено чернетку нової версії"); }
+function publishQ(i) { const q = S.qs[i]; S.qs.forEach(x => { if (x.t === q.t && x !== q && x.st === "published") x.st = "archived"; }); q.st = "published"; q.upd = TODAY_UA; S.qs = S.qs.filter(x => x.st !== "archived"); addLog(me(), `Опубліковано «${q.t}», версія ${q.ver}, у цикл ${CYCLE}`); persist(); render(true); toast("Анкету опубліковано в цикл"); }
+
+/* Чек-лист: чотири ока — один вносить, інший підтверджує */
+const valText = (f, val) => f.kind === "pct" ? `${val[0]} з ${val[1]}` : `Рівень ${val} з 5`;
+V.checklist = () => {
+  const ed = S.role === "checklist_editor", m = inst(ALPHA);
+  const pend = Object.keys(S.fpend).length, ret = FACTS.filter(f => S.fpend[f.id] && S.fpend[f.id].ret).length;
+  return `
+  <section class="card c4 rise kpi-tile"><div class="kt-h"><span class="kt-ic">${IC.ok}</span><span class="lbl">Підтверджено</span></div><div class="kt-b"><span class="mid tnum">${FACTS.length - pend}</span><div class="kt-s lbl">з ${FACTS.length} показників фактів</div></div></section>
+  <section class="card c4 rise kpi-tile"><div class="kt-h"><span class="kt-ic">${IC.history}</span><span class="lbl">Очікують підтвердження</span></div><div class="kt-b"><span class="mid tnum" style="color:${pend - ret ? "var(--amber)" : "inherit"}">${pend - ret}</span><div class="kt-s lbl">До індексу не потрапляють</div></div></section>
+  <section class="card c4 rise kpi-tile"><div class="kt-h"><span class="kt-ic">${IC.reset}</span><span class="lbl">Повернуто на уточнення</span></div><div class="kt-b"><span class="mid tnum" style="color:${ret ? "var(--red)" : "inherit"}">${ret}</span><div class="kt-s lbl">${ed ? "Виправте й внесіть знову" : "Чекають на виконавця"}</div></div></section>
+  <section class="card c12 rise">
+    <div class="card-h"><h2>Показники фактів</h2><div class="sp"></div><span class="lbl">${ed ? "Ви вносите дані. Підтверджує інший працівник." : "Ви підтверджуєте дані, які вніс інший працівник."}</span></div>
+    <div class="tbl-wrap"><table><thead><tr><th>Показник</th><th>Компонент</th><th>Підтверджене значення</th><th>Джерело і дата</th><th>Стан</th><th></th></tr></thead><tbody>
+    ${FACTS.map(f => { const conf = S.facts[f.id], p = S.fpend[f.id], val = conf ? conf.val : f.base, meta = conf ? [conf.at, conf.by] : FACT_META[f.id] || ["10.11.2026", "Вносить дані чек-листа"];
+      return `<tr><td style="min-width:240px"><b style="font-weight:600">${f.t}</b></td><td>${pill(COMP[f.c].n, "p-mute nodot")}</td>
+        <td class="tnum" style="white-space:nowrap">${valText(f, val)}<div class="lbl">${fb(factValue(f, val))} зі 100</div></td>
+        <td class="lbl" style="min-width:160px">${esc(conf && conf.src || f.from)}<br>${meta[0]} · ${meta[1]}</td>
+        <td style="min-width:170px">${p ? (p.ret ? `${pill("Повернуто", "p-bad")}<div class="lbl" style="margin-top:4px">${esc(p.ret)}</div>` : `${pill("Очікує підтвердження", "p-warn")}<div class="lbl tnum" style="margin-top:4px">Нове: ${valText(f, p.val)} (${fb(factValue(f, p.val))})</div>`) : pill("Підтверджено", "p-good")}</td>
+        <td style="white-space:nowrap">${ed ? `<button class="btn btn-soft" style="padding:6px 12px" onclick="editFact('${f.id}')">${IC.edit}Внести</button>` : p && !p.ret ? `<button class="btn btn-primary" style="padding:6px 12px" onclick="approveFact('${f.id}')">${IC.ok}Підтвердити</button> <button class="btn btn-ghost" style="padding:6px 12px" onclick="returnFact('${f.id}')">Повернути</button>` : ""}</td></tr>`; }).join("")}
+    </tbody></table></div>
+  </section>
+  <section class="card c12 rise"><div class="lock">${IC.shield}<div><b>До індексу потрапляють лише підтверджені значення.</b><div class="lbl">Поточний індекс закладу ${f1(m.index)}. Після підтвердження система одразу перераховує компонент, обмежувач і прапорці. Кожна дія записується в журнал.</div></div></div></section>`;
+};
+function editFact(id) {
+  const f = FACTS.find(x => x.id === id), p = S.fpend[id], conf = S.facts[id], val = p ? p.val : conf ? conf.val : f.base;
+  openDrawer("Внести дані чек-листа", `
+    <div><div class="lbl">${COMP[f.c].n}</div><div style="font-weight:600;margin-top:4px">${f.t}</div></div>
+    ${f.kind === "pct" ? `<div style="display:flex;gap:10px"><div class="field" style="flex:1"><label for="f-num">Кількість</label><input class="inp tnum" type="number" min="0" id="f-num" value="${val[0]}"></div><div class="field" style="flex:1"><label for="f-den">З них усього</label><input class="inp tnum" type="number" min="1" id="f-den" value="${val[1]}"></div></div>`
+      : `<div class="field"><label>Рівень за анкетою чек-листа</label><div class="seg" id="f-lvl">${[1, 2, 3, 4, 5].map(l => `<button type="button" class="${l === val ? "on" : ""}" data-l="${l}">${l}</button>`).join("")}</div><span class="lbl">Рівень переводиться у шкалу 0-100: рівень 1 це 0, рівень 5 це 100.</span></div>`}
+    <div class="field"><label for="f-src">Джерело (документ, реєстр)</label><input class="inp" id="f-src" value="${esc(conf && conf.src || f.from)}"></div>
+    <span class="lbl" id="f-err"></span>
+    <button class="btn btn-primary" id="f-ok" style="justify-content:center">${IC.send}Надіслати на підтвердження</button>`, b => {
+    let lvl = val; b.querySelectorAll("#f-lvl button").forEach(x => x.onclick = () => { lvl = +x.dataset.l; b.querySelectorAll("#f-lvl button").forEach(y => y.classList.toggle("on", y === x)); });
+    b.querySelector("#f-ok").onclick = () => {
+      let v = lvl;
+      if (f.kind === "pct") { const n = +b.querySelector("#f-num").value, d = +b.querySelector("#f-den").value; if (!(d > 0) || n < 0 || n > d || !Number.isInteger(n) || !Number.isInteger(d)) { const e = b.querySelector("#f-err"); e.textContent = "Кількість має бути цілим числом від 0 до загальної кількості."; e.style.color = "var(--red)"; return; } v = [n, d]; }
+      S.fpend[id] = { val: v, src: b.querySelector("#f-src").value.trim() || f.from, at: TODAY_UA, by: me() };
+      addLog(me(), `Чек-лист: внесено «${f.t}» = ${valText(f, v)}`); persist(); closeDrawer(); render(true); toast("Надіслано на підтвердження");
+    };
+  });
+}
+function approveFact(id) {
+  const f = FACTS.find(x => x.id === id), p = S.fpend[id], before = inst(ALPHA).index;
+  S.facts[id] = { val: p.val, src: p.src, at: TODAY_UA, by: p.by }; delete S.fpend[id];
+  const after = inst(ALPHA).index;
+  addLog(me(), `Чек-лист: підтверджено «${f.t}» = ${valText(f, p.val)}${after !== before ? `; індекс ${f1(before)} → ${f1(after)}` : ""}`); persist(); render(true);
+  toast(after !== before ? `Підтверджено. Індекс перераховано: ${f1(before)} → ${f1(after)}` : "Підтверджено. Індекс не змінився.");
+}
+function returnFact(id) {
+  const f = FACTS.find(x => x.id === id);
+  openDrawer("Повернути на уточнення", `<div style="font-weight:600">${f.t}</div><div class="field"><label for="f-why">Що потрібно виправити</label><textarea class="inp" id="f-why" rows="3"></textarea></div><button class="btn btn-danger" id="f-no" style="justify-content:center">Повернути</button>`, b => {
+    b.querySelector("#f-no").onclick = () => { const t = b.querySelector("#f-why").value.trim(); if (!t) { b.querySelector("#f-why").focus(); return; } S.fpend[id].ret = t; addLog(me(), `Чек-лист: «${f.t}» повернуто: ${t}`); persist(); closeDrawer(); render(true); toast("Повернуто виконавцю"); };
+  });
+}
+
+/* Журнал */
+V.audit = () => {
+  const items = logItems().reverse();
+  return `<section class="card c12 rise">
+    <div class="card-h"><h2>Журнал дій</h2><div class="sp"></div><span id="chainSt">${pill("Ланцюг цілісний", "p-good")}</span><button class="btn btn-soft" onclick="verifyChain()">${IC.shield}Перевірити цілісність</button></div>
+    <div class="lbl" style="margin-bottom:10px">Хто, коли й що змінив у налаштуваннях і даних. Кожен запис містить хеш попереднього, тож тиха правка ламає ланцюг. Відповідей респондентів у журналі немає.</div>
+    <div class="tl">${items.map((x, i) => `<div class="tl-i rise" style="animation-delay:${Math.min(i, 12) * 40}ms"><span class="nd"></span><div><div style="font-weight:500">${esc(x.a)}</div><div class="lbl">${x.who} · ${x.t}</div></div><span class="hash">${x.h}</span></div>`).join("")}</div>
+  </section>`;
+};
+function verifyChain() { let prev = "0", ok = true; logItems().forEach(x => { const h = fnv(prev + x.t + x.who + x.a); if (h !== x.h) ok = false; prev = h; }); $("#chainSt").innerHTML = pill(ok ? `Перевірено: ${logItems().length} записів, розривів немає` : "Ланцюг порушено", ok ? "p-good" : "p-bad"); addLog(me(), "Перевірка цілісності журналу"); }
+
+/* Опитування за жетоном */
+const answered = () => SURVEY_Q.filter(q => S.survey.a[q.id] != null).length;
+V.survey = () => {
+  const sv = S.survey, N = SURVEY_Q.length;
+  if (S.tokenUsed && sv.phase !== "done") return `<div class="survey c12"><section class="card rise" style="padding:32px;text-align:center"><div class="done-ic" style="background:var(--soft);color:var(--muted)">${IC.lock}</div>
+    <h2 style="margin:18px 0 6px;font-size:22px;font-weight:600">Цю анкету вже заповнено</h2><p class="lbl" style="max-width:480px;margin:0 auto 20px">Повторно відповісти за цим посиланням не можна: так ми захищаємо анонімність і не допускаємо подвоєних відповідей. Дякуємо за участь.</p>
+    <a class="btn btn-primary" href="#me">Мої результати ${IC.arrowR}</a></section></div>`;
+  if (sv.phase === "intro") return `<div class="survey c12"><section class="card rise" style="padding:28px">
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px"><span class="comp-ic" style="background:var(--lime-soft);color:var(--teal-deep)">${IC.shield}</span><span class="lbl">${SURVEY.cat} · жетон demo</span></div>
+      <h2 style="margin:6px 0 4px;font-size:24px;font-weight:600;letter-spacing:-.02em">${SURVEY.title}</h2>
+      <p class="lbl" style="margin:0 0 18px">Перш ніж почати: ${N} питань, анкета займе кілька хвилин. Ось що ми гарантуємо.</p>
+      <div class="guar">
+        <div>${IC.lock}<b>Без імен</b><span class="lbl">Ваші відповіді не повʼязані з вами і не містять імен.</span></div>
+        <div>${IC.eye}<b>Лише кількість</b><span class="lbl">Адміністратор бачить лише кількість відповідей, а не те, що ви відповіли.</span></div>
+        <div>${IC.users}<b>Від ${S.k} осіб</b><span class="lbl">Результати показують лише для груп не менше ${S.k} осіб.</span></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-top:24px;flex-wrap:wrap;gap:12px"><span class="lbl">${answered() ? `Збережені раніше відповіді на цьому пристрої буде підставлено (${answered()} з ${N}).` : "Відповіді зберігаються на цьому пристрої, поки ви заповнюєте."}</span><button class="btn btn-primary" onclick="S.survey.phase='form';render()">Розумію, почати ${IC.arrowR}</button></div>
+    </section></div>`;
+  if (sv.phase === "done") return `<div class="survey c12"><section class="card rise" style="padding:36px;text-align:center"><div class="done-ic">${IC.ok}</div>
+    <h2 style="margin:18px 0 6px;font-size:24px;font-weight:600">Дякуємо. Ваші відповіді збережено анонімно.</h2>
+    <p class="lbl" style="max-width:520px;margin:0 auto 20px">Що далі: коли відповість достатньо людей (не менше ${S.k}), ви зможете побачити узагальнені результати свого підрозділу. Окремих відповідей і імен там не буде.</p>
+    <a class="btn btn-primary" href="#me">Переглянути результати підрозділу ${IC.arrowR}</a></section></div>`;
+  const sec = SURVEY.sections[sv.sec], last = sv.sec === SURVEY.sections.length - 1, miss = SURVEY_Q.filter(q => sv.a[q.id] == null);
+  return `<div class="survey c12">
+    <div class="sv-top"><span class="lbl">Розділ ${sv.sec + 1} з ${SURVEY.sections.length}</span><div class="qprog" style="flex:1">${SURVEY_Q.map(q => `<span class="${q.si === sv.sec ? "cur" : ""} ${sv.a[q.id] != null ? "done" : ""}"></span>`).join("")}</div><span class="lbl tnum">Відповіли на ${answered()} з ${N}</span><button class="icon-btn" aria-label="Закрити" onclick="S.survey.phase='intro';render();toast('Відповіді лишаються на цьому пристрої. Їх ще не надіслано.')">${IC.x}</button></div>
+    <section class="card qcard" style="padding:24px" key="${sv.sec}">
+      <div class="comp-top" style="margin-bottom:4px"><span class="comp-ic" style="background:${COMP[sec.id].s};color:${COMP[sec.id].c}">${IC[COMP[sec.id].ic]}</span><b style="font-size:18px">${sec.t}</b><span class="lbl">${sec.about}</span></div>
+      ${sec.q.map(([id, t, o], qi) => `<fieldset class="qf" id="q-${id}"><legend>${qi + 1}. ${t}</legend><div class="opts">${o.map((x, i) => `<button type="button" class="opt ${sv.a[id] === i ? "on" : ""}" aria-pressed="${sv.a[id] === i}" onclick="pick('${id}',${i})"><span class="rb"></span><span>${x}</span></button>`).join("")}</div></fieldset>`).join("")}
+      ${sv.miss && last && miss.length ? `<div class="note-box" style="margin-top:12px"><b>Залишилось відповісти на ${miss.length} ${miss.length === 1 ? "питання" : miss.length < 5 ? "питання" : "питань"}</b><span class="lbl">Натисніть на питання, щоб перейти до нього.</span>${miss.map(q => `<a class="link" href="javascript:void 0" onclick="S.survey.sec=${q.si};S.survey.miss=false;render(true);setTimeout(()=>document.getElementById('q-${q.id}').scrollIntoView({behavior:'smooth',block:'center'}),60)">Розділ «${SURVEY.sections[q.si].t}», питання ${q.qi + 1}</a>`).join("")}</div>` : ""}
+      <div style="display:flex;justify-content:space-between;margin-top:20px;gap:10px">
+        <button class="btn btn-ghost" ${sv.sec === 0 ? "disabled" : ""} onclick="S.survey.sec--;S.survey.miss=false;render();window.scrollTo(0,0)">${IC.arrowL}Назад</button>
+        ${last ? `<button class="btn btn-primary" onclick="submitSurvey()">${IC.send}Надіслати</button>` : `<button class="btn btn-primary" onclick="S.survey.sec++;render();window.scrollTo(0,0)">Далі ${IC.arrowR}</button>`}
+      </div>
+    </section></div>`;
+};
+V.survey.after = () => { if (S.survey.phase === "done") S.survey.phase = "intro"; };
+function pick(id, i) { S.survey.a[id] = i; try { localStorage.setItem("ii-survey-draft", JSON.stringify(S.survey.a)); } catch (e) {} render(true); }
+function submitSurvey() {
+  if (answered() < SURVEY_Q.length) { S.survey.miss = true; render(true); return; }
+  S.survey = { phase: "done", sec: 0, a: {}, miss: false }; S.tokenUsed = true; UNIT_RESP[S.unit] = (UNIT_RESP[S.unit] || 0) + 1;
+  try { localStorage.removeItem("ii-survey-draft"); } catch (e) {}
+  addLog("Система", "Отримано анонімну відповідь, жетон погашено"); persist(); render();
+}
+
+/* Мої результати */
+V.me = () => {
+  const r = resolveUnit(S.unit), cr = UNIT_CR[r.unit.id] || Object.fromEntries(inst(ALPHA).components.map(c => [c.id, c.cr.v])), idx = indexOf(cr), lv = level(idx);
+  return `
+  <section class="c12 rise toolbar"><span class="lbl">Дякуємо, ось що ви допомогли побачити.</span><div class="sp"></div>
+    <label class="lbl">Мій підрозділ <select class="inp" onchange="S.unit=this.value;persist();render(true)">${UNITS.filter(u => u.parent && u.id !== "unit-v").map(u => `<option value="${u.id}" ${u.id === S.unit ? "selected" : ""}>${u.n}</option>`).join("")}</select></label></section>
+  ${r.hidden ? `<section class="card c12 rise"><div class="lock">${IC.lock}<div><b>${r.req.n}: результати приховано</b><div class="lbl">Недостатньо відповідей, щоб показати результати цієї групи (${UNIT_RESP[r.req.id]} з потрібних ${S.k}). Нижче дані підрозділу «${r.unit.n}». Це рівень вище, а не ваш підрозділ. Так захищено анонімність учасників.</div></div></div></section>` : ""}
+  <section class="card c5 rise">
+    <div class="lbl">${r.unit.n}: відповіли ${r.resp} осіб (потрібно не менше ${S.k})</div>
+    <div class="big tnum" style="margin-top:12px">${numHTML(idx)}<span class="of">з 100</span></div>
+    <div style="margin:10px 0 14px">${lvPill(lv)}</div>
+    ${levelBar(idx)}
+    <div class="lbl" style="margin-top:12px">Що це: індекс доброчесності від 0 до 100, середнє трьох компонентів. Шкала рівнів від 1 до 5.</div>
+  </section>
+  <section class="card c7 rise">
+    <div class="card-h"><h2>Три компоненти</h2></div>
+    <div style="display:flex;flex-direction:column;gap:18px">${COMPS.map((c, i) => `<div><div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><span style="display:flex;gap:10px;align-items:center"><span class="comp-ic" style="background:${COMP[c].s};color:${COMP[c].c}">${IC[COMP[c].ic]}</span><b>${COMP[c].n}</b></span><span style="display:flex;gap:8px;align-items:center"><b class="tnum">${fb(cr[c])} з 100</b>${lvPill(level(cr[c]))}</span></div>
+      <div class="ticks" style="height:18px;margin-top:10px">${Array.from({ length: 20 }, (_, j) => `<span class="${j < Math.round(cr[c] / 5) ? "f2" : ""} bar-a" style="animation-delay:${i * 120 + j * 20}ms;${j < Math.round(cr[c] / 5) ? `background:${COMP[c].c}` : ""}"></span>`).join("")}</div></div>`).join("")}</div>
+    <div class="lbl" style="margin-top:14px">Значення компонента від 0 до 100: чим більше, тим системніше працює напрям.</div>
+  </section>
+  <section class="card c6 rise"><div class="card-h"><h2>Що зроблено з минулого циклу</h2></div>
+    <div class="rows">${["Спростили процедуру звернень: тепер подати звернення можна за кілька хвилин.", "Провели два практичних заняття з прикладами з роботи закладу.", "Оприлюднили підсумки минулої перевірки разом із кроками, що робитимуть далі."].map(t => `<div class="row" style="align-items:flex-start"><span class="comp-ic" style="background:var(--teal-soft);color:var(--teal-deep);width:28px;height:28px">${IC.ok}</span><div class="grow">${t}</div></div>`).join("")}</div></section>
+  <section class="card c6 rise"><div class="card-h"><h2>Що буде далі</h2></div>
+    <div class="rows">${["Опублікуємо короткий посібник про те, куди й як повідомляти про проблеми.", "У наступному циклі окремо запитаємо, чи стало зрозуміліше, що відбувається після звернення."].map(t => `<div class="row" style="align-items:flex-start"><span class="comp-ic" style="background:var(--amber-soft);color:var(--amber);width:28px;height:28px">${IC.arrowR}</span><div class="grow">${t}</div></div>`).join("")}</div></section>
+  <section class="c12 rise"><div class="lbl" style="text-align:center">Тут лише узагальнені дані групи. Окремих відповідей, імен і порівнянь підрозділів немає.</div></section>`;
+};
+
+/* ---------- ШІ-асистент: лише пояснення та чернетки ---------- */
+const AI = { live: null, busy: false, model: "" };
+const modelName = m => (m || "LLM").split("/").pop();
+const SUGG = ["Поясни індекс", "Що робити в першу чергу?", "Чому спрацював обмежувач?", "Підготуй чернетку опису результатів для звіту"];
+const SUGG_COL = ["var(--teal-soft)", "var(--blue-soft)", "var(--lime-soft)", "var(--amber-soft)"];
+function aiCtx() {
+  const m = cur();
+  return {
+    institution: m.name, cycle: CYCLE, asOf: TODAY, index: m.index, previousIndex: m.prevIndex, delta: m.delta,
+    level: `${m.level} — ${LEVELS[m.level - 1]}`, trust: `${TRUST[m.trust][0]} — ${TRUST[m.trust][1]}`, summary: m.summary,
+    components: m.components.map(c => ({ name: COMP[c.id].n, perception: c.P, facts: c.F, credited: c.cr.v, limitedByFacts: c.cr.lim, rule: c.cr.lim ? c.cr.reason : null })),
+    perceptionItems: m.pItems.map(x => ({ name: x.t, component: COMP[x.c].n, source: SRC[x.src][0], weight: x.w, value: x.v })),
+    factItems: m.fItems.map(x => ({ name: x.t, component: COMP[x.c].n, data: x.kind === "pct" ? `${x.val[0]} з ${x.val[1]}` : `рівень ${x.val} з 5`, weight: x.w, value: x.v })),
+    flags: m.raised.map(f => ({ title: f.t, weight: f.w === "major" ? "серйозний" : "незначний", explanation: f.ex })),
+    recommendations: m.id === ALPHA ? buildRecs(m).map(r => ({ title: r.t, component: COMP[r.c].n, priority: PRI[r.pri][0], status: REC_ST[r.st][0], why: r.why, basedOn: r.evidence.map(e => `${e.t}: ${e.v}`) })) : [],
+    measures: m.id === ALPHA ? measures().map(x => ({ title: x.t, responsible: x.who, due: x.due, status: M_ST[dispSt(x)][0] })) : [],
+    anonymityThreshold: S.k, responses: m.responses,
+  };
+}
+function aiTemplate(q) {
+  const s = q.toLowerCase(), m = cur(), recs = m.id === ALPHA ? buildRecs(m) : [];
+  const comps = m.components.map(c => `${COMP[c.id].n} ${fb(c.cr.v)}`);
+  if (/звіт|чернетк|опис/.test(s)) {
+    const sorted = [...m.components].sort((a, b) => b.cr.v - a.cr.v), low = [...allItems(m)].sort((a, b) => a.v - b.v).slice(0, 3);
+    const t = `За результатами циклу ${CYCLE} ${m.name} перебуває на рівні зрілості ${m.level} «${LEVELS[m.level - 1]}»: індекс доброчесності ${f1(m.index)} з 100, ${m.delta >= 0 ? "на " + pts(m.delta) + " вище" : "на " + pts(m.delta) + " нижче"}, ніж у попередньому циклі.
+
+Найвищий результат має компонент «${COMP[sorted[0].id].n}» (${fb(sorted[0].cr.v)}), найнижчий — «${COMP[sorted[2].id].n}» (${fb(sorted[2].cr.v)}).${m.limited ? ` Для компонента «${COMP[m.limited.id].n}» самооцінку не підтверджують факти: сприйняття ${fb(m.limited.P)} проти фактів ${fb(m.limited.F)}, тому зараховано ${fb(m.limited.cr.v)}.` : ""}
+
+Першочергової уваги потребують: ${low.map(x => `«${x.t}» (${fb(x.v)})`).join(", ")}. Достовірність результату: ${TRUST[m.trust][0]}, ${TRUST[m.trust][1].toLowerCase()}${m.raised.length ? `; прапорці: ${m.raised.map(f => f.t.toLowerCase()).join("; ")}` : ""}.`;
+    return { t, draft: true, src: ["Методика v1.0", `Індекс ${f1(m.index)}`, ...low.map(x => `${x.id} ${fb(x.v)}`)] };
+  }
+  if (/перш|пріоритет|що робити|почати/.test(s)) {
+    const open = recs.filter(r => r.st === "proposed" || r.st === "clarified").slice(0, 3);
+    const t = open.length ? `Правила системи пропонують ${recs.length} рекомендацій. Без рішення зараз ${open.length}; першими варто розглянути:\n${open.map(r => `• ${r.t} (${COMP[r.c].n}, пріоритет ${PRI[r.pri][0].toLowerCase()}). Підстава: ${r.evidence.map(e => `${e.t.toLowerCase()} — ${e.v}`).join("; ")}.`).join("\n")}\n\nРішення про прийняття, строк і відповідальну посаду ухвалює керівник на екрані «Рекомендації».` : "Усі рекомендації вже мають рішення. Наступні зʼявляться після нового циклу оцінювання.";
+    return { t, src: open.map(r => `Правило: ${r.id}`) };
+  }
+  if (/анонім|аноним|поріг|\bk\b/.test(s)) return { t: `Результати групи показуються лише тоді, коли в ній щонайменше ${S.k} відповідей. Менші групи приховано, а учасник бачить дані рівня вище. Анкети проходять за одноразовими жетонами, не повʼязаними з відповідями; адміністратор бачить лише кількість. Асистент отримує тільки узагальнені показники після цього порогу.`, src: [`k = ${S.k}`, "Одноразові жетони"] };
+  if (/обмеж|\+ ?25|методик|ваг|формул|рахує/.test(s)) {
+    const l = m.limited;
+    return { t: `Індекс — середнє трьох компонентів з однаковою вагою (по 33,3 %). Кожен компонент має сприйняття (анкети РГ, ОС і експертів, зважене середнє питань) і факти (чек-лист і дані обліку).\nПравило обмежувача: зараховано = min(сприйняття; факти + ${CAP}).${l ? `\nЗараз воно спрацювало для «${COMP[l.id].n}»: ${l.cr.reason}` : "\nЗараз обмежувач не спрацював у жодному компоненті."}\nРівень зрілості визначають межі 12,5 / 37,5 / 62,5 / 87,5.`, src: ["Методика v1.0", "Розклад індексу"] };
+  }
+  const item = allItems(m).find(x => s.includes(x.t.toLowerCase().slice(0, 18)));
+  const comp = COMPS.find(c => s.includes(COMP[c].n.toLowerCase().slice(0, 6)));
+  if (item) return { t: `«${item.t}»: ${fb(item.v)} зі 100 (${ST[status(item.v)][0].toLowerCase()}). Це ${item.src ? SRC[item.src][0].toLowerCase() : "факт"} з вагою ${item.w} % у компоненті «${COMP[item.c].n}».${item.kind === "pct" ? ` Дані: ${item.val[0]} з ${item.val[1]}.` : item.kind === "lvl" ? ` Рівень ${item.val} з 5 за анкетою чек-листа.` : ""}`, src: [item.id, `${fb(item.v)} зі 100`] };
+  if (comp) { const c = m.byId[comp]; return { t: `«${COMP[comp].n}»: зараховано ${fb(c.cr.v)} (рівень ${level(c.cr.v)}). Сприйняття ${fb(c.P)}, факти ${fb(c.F)}.${c.cr.lim ? " " + c.cr.reason : " Обмежувач не спрацював: сприйняття не перевищує факти більш ніж на 25 пунктів."}`, src: [`${COMP[comp].n} ${fb(c.cr.v)}`, "Методика v1.0"] }; }
+  if (/індекс|загал|рівень|стан/.test(s)) return { t: whyText(m), src: ["Методика v1.0", ...comps] };
+  return { t: "Можу пояснити індекс, будь-який компонент чи показник, методику й обмежувач, захист анонімності, підказати, з чого почати, або підготувати чернетку опису для звіту. Рішення щодо оцінок і заходів ухвалюють правила системи та посадові особи.", src: [] };
+}
+function aiModeHTML() {
+  if (!S.aiOn) return `<i style="background:var(--faint)"></i>Вимкнено · розрахунки працюють без ШІ`;
+  if (AI.live) return `<i style="background:var(--teal)"></i>${esc(modelName(AI.model))} · відповіді є лише чернетками`;
+  return `<i style="background:var(--amber)"></i>Демо-режим · відповіді з шаблонів правил`;
+}
+function aiMsgHTML(m, i) {
+  if (m.r === "u") return `<div class="m u">${esc(m.t)}</div>`;
+  const canAccept = S.role === "leader" && m.draft;
+  return `<div class="m a"><div class="m-h">${pill("Чернетка ШІ", "p-info nodot")}<span class="lbl">${m.live ? esc(modelName(m.model)) : "Шаблон правил"}</span></div>
+    <div class="m-t" data-i="${i}">${esc(m.t)}</div>
+    ${m.src && m.src.length ? `<div class="src">${m.src.map(x => `<span>${esc(x)}</span>`).join("")}</div>` : ""}
+    <div class="m-act"><button type="button" onclick="aiCopy(${i})">${IC.copy}Копіювати</button>${canAccept ? (m.accepted ? `<button type="button" disabled>${IC.ok}Додано до звіту</button>` : `<button type="button" class="ok" onclick="aiAccept(${i})">${IC.ok}Затвердити у звіт</button>`) : ""}</div></div>`;
+}
+function aiRender(animateLast) {
+  $("#aiMode").innerHTML = aiModeHTML(); $("#aiOn").checked = S.aiOn;
+  $("#aiQ").disabled = !S.aiOn; $("#aiSend").disabled = !S.aiOn;
+  const log = $("#aiLog");
+  if (!S.aiOn) { log.innerHTML = `<div class="ai-off">${IC.lock}<b style="color:var(--fg)">Асистент вимкнено</b><span>Індекс, рекомендації та звіти працюють як і раніше: їх розраховують правила системи.</span></div>`; return; }
+  if (!S.chat.length) {
+    log.innerHTML = `<div class="ai-hello"><div class="ai-orb">${IC.spark}</div><b style="font-size:17px">Поясню результати й підготую чернетки</b><span class="lbl">Рішення ухвалюють правила та посадові особи</span>
+      <div class="chips">${SUGG.map((q, i) => `<button type="button" class="chip-q" style="background:${SUGG_COL[i]};animation-delay:${150 + i * 70}ms" onclick="aiAsk(this.textContent)">${q}</button>`).join("")}</div></div>`;
+    return;
+  }
+  log.innerHTML = S.chat.map(aiMsgHTML).join("") + (AI.busy ? `<div class="typing"><span></span><span></span><span></span></div>` : "");
+  if (animateLast) {
+    const el = log.querySelector(`.m-t[data-i="${S.chat.length - 1}"]`);
+    if (el && !matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      const words = S.chat[S.chat.length - 1].t.split(/(\s+)/); let n = 0; el.textContent = "";
+      const tick = () => { n += 3; el.textContent = words.slice(0, n).join(""); log.scrollTop = log.scrollHeight; if (n < words.length) setTimeout(tick, 28); };
+      tick();
+    }
+  }
+  log.scrollTop = log.scrollHeight;
+}
+function checkLive() {
+  if (AI.live !== null) return;
+  fetch("/api/assistant").then(r => r.ok ? r.json() : { live: false }).then(j => { AI.live = !!j.live; AI.model = j.model || ""; aiRender(); }).catch(() => { AI.live = false; aiRender(); });
+}
+async function aiAsk(q) {
+  q = (q || "").trim(); if (!q || AI.busy || !S.aiOn) return;
+  const history = S.chat.slice(-4).map(m => ({ role: m.r === "u" ? "user" : "assistant", content: m.t }));
+  S.chat.push({ r: "u", t: q }); AI.busy = true; aiRender();
+  const local = aiTemplate(q); let msg = null;
+  if (AI.live) {
+    try {
+      const r = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: q, context: aiCtx(), history }) });
+      const j = await r.json();
+      if (r.ok && j.text) msg = { r: "a", t: j.text, src: local.src, draft: local.draft || /звіт|чернетк|опис/i.test(q), live: true, model: j.model };
+    } catch (e) {}
+  } else await new Promise(res => setTimeout(res, 650));
+  if (!msg) msg = { r: "a", ...local, live: false };
+  S.chat.push(msg); AI.busy = false;
+  addLog(me(), `Запит до ШІ-асистента (${msg.live ? modelName(msg.model) : "шаблон"}, лише агреговані дані)`);
+  aiRender(true);
+}
+function aiCopy(i) { const t = S.chat[i].t; const done = () => toast("Скопійовано"); try { navigator.clipboard.writeText(t).then(done, () => fallbackCopy(t, done)); } catch (e) { fallbackCopy(t, done); } }
+function aiAccept(i) {
+  const m = S.chat[i]; m.accepted = true;
+  S.notes.push({ t: m.t, who: me(), at: new Date().toISOString().slice(0, 16).replace("T", " ") });
+  addLog(me(), "Чернетку ШІ затверджено й додано до звіту"); persist(); aiRender(); toast("Додано до звіту");
+  if (route().r === "report") render(true);
+}
+function aiOpen(q) {
+  if (!AI_ROLES.includes(S.role)) return;
+  $("#ai").classList.add("on"); $("#ai").setAttribute("aria-hidden", "false"); $("#scrim").classList.add("on");
+  aiRender(); checkLive();
+  if (q) aiAsk(q); else setTimeout(() => S.aiOn && $("#aiQ").focus(), 350);
+}
+function aiClose() { $("#ai").classList.remove("on"); $("#ai").setAttribute("aria-hidden", "true"); if (!$("#drawer").classList.contains("on")) $("#scrim").classList.remove("on"); }
+function aiBtn() { const b = $("#aiBtn"); b.innerHTML = `${IC.spark}<span class="hide-m">Асистент</span>`; b.classList.toggle("off", !S.aiOn); b.hidden = !AI_ROLES.includes(S.role); }
+
+/* ---------- Router ---------- */
+const allowed = r => NAV.some(n => n[0] === r && n[3].includes(S.role));
+function route() { const [r, p] = (location.hash || "").slice(1).split("/"); return allowed(r) ? { r, p } : { r: HOME[S.role], p: null }; }
+function updateBadges() {
+  const recs = pendingRecs(), ms = measures(), od = ms.filter(x => overdueDays(x) > 0).length, pend = Object.values(S.fpend).filter(p => !p.ret).length;
+  document.querySelectorAll("#nav a").forEach(a => {
+    const b = a.querySelector(".badge"); if (b) b.remove();
+    const r = a.dataset.r, n = r === "recs" ? recs : r === "tracker" ? (od ? `${ms.length} · ${od}!` : ms.length) : r === "checklist" && S.role === "checklist_approver" ? pend : 0;
+    if (n) a.insertAdjacentHTML("beforeend", `<span class="badge ${r === "tracker" && !od ? "mute" : ""}">${n}</span>`);
+  });
+}
+function renderNav(cur) {
+  $("#nav").innerHTML = NAV.filter(n => n[3].includes(S.role)).map(([r, n, ic]) => `<a href="#${r}" data-r="${r}" class="${r === cur ? "on" : ""}" ${r === cur ? 'aria-current="page"' : ""}>${IC[ic]}<span>${n}</span></a>`).join("");
+  updateBadges();
+}
+const TITLES = { overview: () => S.role === "observer" ? "Огляд закладу" : "Огляд закладу", explain: () => "Розклад індексу", trends: () => "Динаміка", compare: () => "Порівняння: сприйняття і факти", recs: () => "Рекомендації", tracker: () => "Трекер заходів", sources: () => "Звідки беруться дані", report: () => "Звіт", manage: () => "Керування циклом", surveys: () => "Анкети", checklist: () => "Чек-лист", audit: () => "Журнал", survey: () => "Анонімне опитування", me: () => "Мої результати", institutions: () => "Заклади" };
+let lastRoute = null;
+function render(soft) {
+  const { r, p } = route();
+  if (r === "explain" && p) { S.focus = p; const m = cur(); const it = allItems(m).find(x => x.id === p); if (it && it.kind !== "p" && S.mode !== "facts") S.mode = "facts"; if (it && it.kind === "p" && S.mode === "facts") S.mode = "credited"; const c = COMPS.includes(p) ? p : it && it.c; if (c) S.open[c] = true; }
+  const want = "#" + r + (p ? "/" + p : ""); if (location.hash !== want) history.replaceState(null, "", want);
+  renderNav(r);
+  $("#title").textContent = TITLES[r]();
+  const v = $("#view");
+  v.innerHTML = V[r]();
+  if (!soft) [...v.querySelectorAll(":scope > .rise, :scope > .survey > .rise, :scope > .recs > .rise")].forEach((el, i) => el.style.animationDelay = (Math.min(i, 10) * 60) + "ms");
+  else { v.querySelectorAll(".rise, .qcard, .bar-a, .pop, .draw, .reveal").forEach(el => el.style.animation = "none"); v.querySelectorAll(".cu").forEach(el => el.classList.remove("cu")); }
+  countUp(v);
+  V[r].after && V[r].after();
+  if (soft) v.querySelectorAll(".pop, .draw, .reveal, .bar-a").forEach(el => el.style.animation = "none");
+  if (r !== lastRoute) { if (!p) window.scrollTo(0, 0); lastRoute = r; }
+  $("#side").classList.remove("on");
+}
+window.addEventListener("hashchange", () => render());
+let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { const { r } = route(); V[r].after && V[r].after(); }, 150); });
+
+/* ---------- Chrome ---------- */
+$("#logo").innerHTML = IC.pulse.replace("<svg", '<svg width="20" height="20"');
+$("#ic-search").innerHTML = IC.search.replace("<svg", '<svg width="17" height="17"');
+$("#menuBtn").innerHTML = IC.menu; $("#menuBtn").onclick = () => { $("#side").classList.add("on"); $("#scrim").classList.add("on"); };
+$("#cycleBtn").innerHTML = `${IC.cal}Цикл ${CYCLE}`; $("#cycleBtn").dataset.tip = "Цикл оцінювання: один повний раунд опитування й збору фактів. Індекс порівнюється з попереднім циклом.";
+$("#dClose").innerHTML = IC.x; $("#dClose").onclick = closeDrawer;
+$("#scrim").onclick = () => { closeDrawer(); aiClose(); $("#side").classList.remove("on"); $("#scrim").classList.remove("on"); };
+document.addEventListener("keydown", e => { if (e.key === "Escape") { closeDrawer(); aiClose(); } });
+const role = $("#role");
+role.innerHTML = Object.entries(ROLE).map(([k, [n]]) => `<option value="${k}">${n}</option>`).join("");
+role.value = S.role;
+const setAvatar = () => { $("#avatar").textContent = ROLE[S.role][1]; $("#avatar").dataset.tip = ROLE[S.role][0]; };
+role.onchange = () => { S.role = role.value; persist(); setAvatar(); aiBtn(); aiClose(); closeDrawer(); location.hash = HOME[S.role]; render(); toast("Роль: " + ROLE[S.role][0]); };
+$("#resetBtn").innerHTML = `${IC.reset}Скинути демо-дані`; $("#resetBtn").onclick = resetDemo;
+setAvatar();
+function themeIcon() { const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches; $("#themeBtn").innerHTML = dark ? IC.sun : IC.moon; }
+$("#themeBtn").onclick = () => {
+  const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
+  document.documentElement.dataset.theme = dark ? "light" : "dark"; themeIcon();
+  try { localStorage.setItem("ii-theme", document.documentElement.dataset.theme); } catch (e) {}
+};
+try { const t = localStorage.getItem("ii-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+themeIcon();
+$("#q").addEventListener("keydown", e => {
+  if (e.key !== "Enter") return; const q = e.target.value.trim().toLowerCase(); if (!q) return;
+  if (allowed("explain")) { const hit = allItems(cur()).find(x => x.t.toLowerCase().includes(q)); if (hit) { location.hash = "explain/" + hit.id; return; } }
+  const nav = NAV.find(n => n[1].toLowerCase().includes(q) && n[3].includes(S.role)); if (nav) location.hash = nav[0]; else toast("Нічого не знайдено");
+});
+document.addEventListener("keydown", e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); $("#q").focus(); } });
+$("#aiLogo").innerHTML = IC.spark.replace("<svg", '<svg width="17" height="17"');
+$("#aiClose").innerHTML = IC.x; $("#aiClose").onclick = aiClose;
+$("#aiSend").innerHTML = IC.send;
+$("#aiBtn").onclick = () => aiOpen();
+$("#aiForm").addEventListener("submit", e => { e.preventDefault(); const q = $("#aiQ").value; $("#aiQ").value = ""; aiAsk(q); });
+$("#aiOn").addEventListener("change", e => { S.aiOn = e.target.checked; persist(); addLog(me(), S.aiOn ? "ШІ-асистента увімкнено" : "ШІ-асистента вимкнено"); aiBtn(); aiRender(); if (S.aiOn) checkLive(); });
+aiBtn();
+render();
+</script>
+</body>
+</html>
