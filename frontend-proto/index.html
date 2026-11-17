@@ -671,7 +671,6 @@ html.hc a, html.hc .link { text-decoration: underline; }
 .drawer-b table { min-width: 0; width: 100%; }
 .drawer-b th, .drawer-b td { padding: 8px 6px; font-size: 13px; white-space: normal; }
 .drawer-b td .pill { white-space: normal; }
-<<<<<<< HEAD
 
 /* ---- з бекендом: вхід і анонімне посилання (0-api.js) ---- */
 .app.login .side, .app.login .top, .app.anon .side { display: none; }
@@ -681,7 +680,6 @@ html.hc a, html.hc .link { text-decoration: underline; }
 .login-card { padding: 28px; }
 .role-card b { display: block; }
 @media (max-width: 900px) { .login-wrap { grid-template-columns: 1fr; padding: 16px 0; } }
-=======
 /* v4: трекер, журнал, показники */
 .tl-i .hash { align-self: center; }
 .tl-i.click { cursor: pointer; border-radius: 10px; }
@@ -745,7 +743,6 @@ html.hc a, html.hc .link { text-decoration: underline; }
 .cmp-stack { display: flex; flex-direction: column; gap: inherit; gap: 20px; min-width: 0; }
 .cmp-stack > .card { flex: 1; }
 @media (max-width: 1200px) { .cmp-stack { grid-column: span 12; } }
->>>>>>> origin/dev
 
 @media (max-width: 1180px) {
   .c3 { grid-column: span 6; } .c4 { grid-column: span 6; } .c5, .c7, .c8 { grid-column: span 12; } .c6 { grid-column: span 12; }
@@ -2295,9 +2292,6 @@ V.tracker = () => {
     <div class="vf-s tnum"><span><b>${conf}</b>Підтверджено</span><span><b>${wait}</b>Очікують оцінювання</span><span><b>${rev}</b>Потребують перегляду</span></div>
   </section>`;
 };
-<<<<<<< HEAD
-function setMSt(id, st) { if (API.on) return apiSetMSt(id, st); const x = measures().find(m => m.id === id); if (!x || !M_NEXT[x.st].includes(st)) return; S.dec.mst[id] = st; addLog(me(), `Захід «${x.t}»: статус «${M_ST[st][0]}»`); persist(); render(true); toast(`Статус заходу змінено на «${M_ST[st][0]}».`); }
-=======
 // Захід: подробиці й перехід у систему звітування суміжної команди
 const MEASURES_APP = { name: "Система звітування за заходами (суміжна команда)", url: "" };
 function openMeasure(id) {
@@ -2311,8 +2305,7 @@ function openMeasure(id) {
     <div class="note-box"><b>Звіт виконавця</b><span class="lbl">Документи й звіти про виконання ведуться в окремому застосунку суміжної команди.</span>
       ${MEASURES_APP.url ? `<a class="btn btn-soft" href="${MEASURES_APP.url}" target="_blank" rel="noopener" style="justify-content:center">${IC.arrowR}Відкрити в застосунку звітування</a>` : `<button class="btn btn-soft" disabled style="justify-content:center;opacity:.6">${IC.arrowR}Відкрити в застосунку звітування</button><span class="lbl" style="font-size:12px">Посилання зʼявиться після погодження інтеграції.</span>`}</div>`);
 }
-function setMSt(id, st) { const x = measures().find(m => m.id === id); if (!x || !M_NEXT[x.st].includes(st)) return; S.dec.mst[id] = st; addLog(me(), `Захід «${x.t}»: статус «${M_ST[st][0]}»`); persist(); render(true); toast(`Статус заходу змінено на «${M_ST[st][0]}».`); }
->>>>>>> origin/dev
+function setMSt(id, st) { if (API.on) return apiSetMSt(id, st); const x = measures().find(m => m.id === id); if (!x || !M_NEXT[x.st].includes(st)) return; S.dec.mst[id] = st; addLog(me(), `Захід «${x.t}»: статус «${M_ST[st][0]}»`); persist(); render(true); toast(`Статус заходу змінено на «${M_ST[st][0]}».`); }
 
 /* Джерела */
 const SOURCES = [
