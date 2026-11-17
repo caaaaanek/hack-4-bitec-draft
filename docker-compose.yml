@@ -40,6 +40,10 @@ services:
       PROXY_AUTH_HEADER: ${PROXY_AUTH_HEADER:-X-Remote-User}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
       PROXY_AUTH_SECRET: ${PROXY_AUTH_SECRET:-}
+      # Асистент фронтенду (/api/assistant): OpenAI-сумісна модель. Порожньо — відповіді шаблонами правил.
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gemma3:4b}
     volumes:
       - evidence:/data/evidence
     ports:
@@ -48,8 +52,9 @@ services:
       db:
         condition: service_healthy
 
+  # Фронтенд: frontend-proto (одна сторінка) через nginx; /api проксіюється на backend.
   frontend:
-    build: ./frontend
+    build: ./frontend-proto
     ports:
       - "8080:8080"
     depends_on:

@@ -119,3 +119,12 @@ a.pill-btn { color: inherit; text-decoration: none; }
 .db .m.ex { background: #8b6fd6; }
 .ibar .n { display: flex; justify-content: center; }
 .ibar .n .src-dot { margin: 0; }
+
+/* ---- з бекендом: вхід і анонімне посилання (0-api.js) ---- */
+.app.login .side, .app.login .top, .app.anon .side { display: none; }
+.app.login, .app.anon { grid-template-columns: 1fr; }
+.app.anon .top .ai-btn, .app.anon .top #cycleBtn, .app.anon .top .menu-btn, .app.anon .top #avatar { display: none; }
+.login-wrap { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 460px); gap: 20px; justify-content: center; align-items: start; padding: 6vh 0; }
+.login-card { padding: 28px; }
+.role-card b { display: block; }
+@media (max-width: 900px) { .login-wrap { grid-template-columns: 1fr; padding: 16px 0; } }

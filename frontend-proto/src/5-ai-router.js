@@ -91,7 +91,7 @@ async function aiAsk(q) {
   const local = aiTemplate(q); let msg = null;
   if (AI.live) {
     try {
-      const r = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: q, context: aiCtx(), history }) });
+      const r = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json", ...apiAuth() }, body: JSON.stringify({ question: q, context: aiCtx(), history }) });
       const j = await r.json();
       if (r.ok && j.text) msg = { r: "a", t: j.text, src: local.src, draft: local.draft || /звіт|чернетк|опис/i.test(q), live: true, model: j.model };
     } catch (e) {}
@@ -118,7 +118,7 @@ function aiClose() { $("#ai").classList.remove("on"); $("#ai").setAttribute("ari
 function aiBtn() { const b = $("#aiBtn"); b.innerHTML = `${IC.spark}<span class="hide-m">Асистент</span>`; b.classList.toggle("off", !S.aiOn); b.hidden = !AI_ROLES.includes(S.role); }
 
 /* ---------- Router ---------- */
-const allowed = r => NAV.some(n => n[0] === r && n[3].includes(S.role));
+const allowed = r => NAV.some(n => n[0] === r && n[3].includes(S.role)) && (!API.anon || r === "survey");
 function route() { const [r, p] = (location.hash || "").slice(1).split("/"); return allowed(r) ? { r, p } : { r: HOME[S.role], p: null }; }
 function updateBadges() {
   const recs = pendingRecs(), ms = measures(), od = ms.filter(x => overdueDays(x) > 0).length, pend = Object.values(S.fpend).filter(p => !p.ret).length;
@@ -133,25 +133,27 @@ function renderNav(cur) {
   updateBadges();
 }
 const TITLES = { overview: () => S.role === "observer" ? "Огляд закладу" : "Огляд закладу", explain: () => "Розклад індексу", trends: () => "Динаміка", compare: () => "Порівняння: сприйняття і факти", recs: () => "Рекомендації", tracker: () => "Трекер заходів", sources: () => "Звідки беруться дані", report: () => "Звіт", manage: () => "Керування циклом", surveys: () => "Анкети", checklist: () => "Чек-лист", audit: () => "Журнал", survey: () => "Анонімне опитування", me: () => "Мої результати", institutions: () => "Заклади" };
-let lastRoute = null;
+let lastRoute = null, lastApiView = false;
 function render(soft) {
+  if (API.on && !API.user && !API.anon) return showLogin();
   const { r, p } = route();
   if (r === "explain" && p) { S.focus = p; const m = cur(); const it = allItems(m).find(x => x.id === p); if (it && it.kind !== "p" && S.mode !== "facts") S.mode = "facts"; if (it && it.kind === "p" && S.mode === "facts") S.mode = "credited"; const c = COMPS.includes(p) ? p : it && it.c; if (c) S.open[c] = true; }
   const want = "#" + r + (p ? "/" + p : ""); if (location.hash !== want) history.replaceState(null, "", want);
   renderNav(r);
   $("#title").textContent = TITLES[r]();
   const v = $("#view");
-  v.innerHTML = V[r]();
+  const av = apiView(r); lastApiView = av != null;
+  v.innerHTML = av ?? V[r]();
   if (!soft) [...v.querySelectorAll(":scope > .rise, :scope > .survey > .rise, :scope > .recs > .rise")].forEach((el, i) => el.style.animationDelay = (Math.min(i, 10) * 60) + "ms");
   else { v.querySelectorAll(".rise, .qcard, .bar-a, .pop, .draw, .reveal").forEach(el => el.style.animation = "none"); v.querySelectorAll(".cu").forEach(el => el.classList.remove("cu")); }
   countUp(v);
-  V[r].after && V[r].after();
+  av == null && V[r].after && V[r].after();
   if (soft) v.querySelectorAll(".pop, .draw, .reveal, .bar-a").forEach(el => el.style.animation = "none");
   if (r !== lastRoute) { if (!p) window.scrollTo(0, 0); lastRoute = r; }
   $("#side").classList.remove("on");
 }
 window.addEventListener("hashchange", () => render());
-let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { const { r } = route(); V[r].after && V[r].after(); }, 150); });
+let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { const { r } = route(); !lastApiView && V[r].after && V[r].after(); }, 150); });
 
 /* ---------- Chrome ---------- */
 $("#logo").innerHTML = IC.pulse.replace("<svg", '<svg width="20" height="20"');
@@ -189,4 +191,4 @@ $("#aiBtn").onclick = () => aiOpen();
 $("#aiForm").addEventListener("submit", e => { e.preventDefault(); const q = $("#aiQ").value; $("#aiQ").value = ""; aiAsk(q); });
 $("#aiOn").addEventListener("change", e => { S.aiOn = e.target.checked; persist(); addLog(me(), S.aiOn ? "ШІ-асистента увімкнено" : "ШІ-асистента вимкнено"); aiBtn(); aiRender(); if (S.aiOn) checkLive(); });
 aiBtn();
-render();
+boot(); // з бекендом: вхід і дані сервера; без нього — демо (0-api.js)

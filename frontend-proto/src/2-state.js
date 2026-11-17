@@ -20,6 +20,9 @@ const SURVEY = {
   ],
 };
 const SURVEY_Q = SURVEY.sections.flatMap((s, si) => s.q.map(([id, t, o], qi) => ({ id, t, o, si, qi })));
+// Анкета, яку зараз проходять: з сервера (0-api.js) або демо.
+const SV = () => API.survey || SURVEY;
+const SQ = () => API.survey ? API.survey.sections.flatMap((s, si) => s.q.map(([id, t, o], qi) => ({ id, t, o, si, qi }))) : SURVEY_Q;
 
 /* ---------- Ролі ---------- */
 const ROLE = {

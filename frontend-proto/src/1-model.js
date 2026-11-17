@@ -62,7 +62,8 @@ const LEVELS = ["Початковий (хаотичний)", "Керований
 const LSHORT = ["Початковий", "Керований", "Визначений", "Вимірюваний", "Оптимізуючий"];
 const BOUNDS = [12.5, 37.5, 62.5, 87.5];
 const CAP = 25;
-const TODAY = "2026-11-16", TODAY_UA = "16.11.2026", CYCLE = "2026-11";
+// let: з бекендом дата й цикл беруться з останньої закритої хвилі (0-api.js).
+let TODAY = "2026-11-16", TODAY_UA = "16.11.2026", CYCLE = "2026-11";
 const r1 = v => Math.round(v * 10) / 10;
 const clamp = (v, a = 0, b = 100) => Math.max(a, Math.min(b, v));
 const level = v => { const i = BOUNDS.findIndex(b => v <= b); return i === -1 ? 5 : i + 1; };
@@ -220,6 +221,7 @@ function buildOther(o) {
 }
 const OTHER_MODELS = {};
 function inst(id) {
+  if (API.on) return API.model;
   if (!id || id === ALPHA) return buildAlpha();
   const o = OTHERS.find(x => x.id === id); if (!o) return buildAlpha();
   return OTHER_MODELS[id] || (OTHER_MODELS[id] = buildOther(o));
@@ -271,6 +273,7 @@ const REC_ST = { proposed: ["Запропоновано", "p-info"], accepted: [
 const REC_NEXT = { proposed: ["accepted", "clarified", "rejected"], clarified: ["accepted", "rejected"], accepted: [], rejected: [] };
 const priority = (vals, flag) => { const mn = vals.length ? Math.min(...vals) : 100; return mn < 40 || (flag && mn < 65) ? "high" : mn < 65 || flag ? "medium" : "low"; };
 function buildRecs(m = inst(ALPHA)) {
+  if (API.on) return API.recs;
   const all = [...m.pItems, ...m.fItems], out = [];
   for (const r of REC_RULES) {
     const items = all.filter(x => r.items.includes(x.id)), flags = m.flags.filter(f => r.flags.includes(f.id) && f.raised);
@@ -302,5 +305,5 @@ const dayMs = 864e5, utc = d => { const [y, m, dd] = d.split("-").map(Number); r
 const overdueDays = m => ["done", "confirmed", "notconfirmed"].includes(m.st) ? 0 : Math.max(0, Math.floor((utc(TODAY) - utc(m.due)) / dayMs));
 const dispSt = m => overdueDays(m) > 0 ? "overdue" : m.st;
 const daysWord = n => { const t = n % 100, u = n % 10; return t >= 11 && t <= 14 ? "днів" : u === 1 ? "день" : u >= 2 && u <= 4 ? "дні" : "днів"; };
-const measures = () => [...BASE_MEASURES, ...S.dec.added].map(m => S.dec.mst[m.id] ? { ...m, st: S.dec.mst[m.id] } : m);
+const measures = () => API.on ? API.ms : [...BASE_MEASURES, ...S.dec.added].map(m => S.dec.mst[m.id] ? { ...m, st: S.dec.mst[m.id] } : m);
 const verif = m => m.st === "confirmed" ? ["Підтверджено наступним оцінюванням", "p-good"] : m.st === "notconfirmed" ? ["Не підтверджено, потрібен перегляд", "p-bad"] : m.st === "done" ? ["Очікує наступного оцінювання", "p-info"] : ["Ще не настав час", "p-mute"];
