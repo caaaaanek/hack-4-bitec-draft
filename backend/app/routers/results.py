@@ -11,13 +11,13 @@ from app.db import get_db
 from app.models import Campaign, CampaignStatus, Role, Unit, User
 from app.schemas import UnitOut
 from app.schemas_results import CampaignResultsOut, CompareOut, HistoryOut, ParticipantResultOut
-from app.security import get_current_user, require_roles
+from app.security import RESULT_READERS, ensure_unit_access, get_current_user, require_roles
 from app.services import methodology, results
-from app.services.eligibility import is_eligible
+from app.services.eligibility import is_eligible, participants_of
 from app.services.units import subtree_ids
 
 router = APIRouter(tags=["results"])
-can_view = require_roles(Role.ADMIN, Role.COMMISSIONER)
+can_view = require_roles(*RESULT_READERS)
 
 
 @router.get("/methodology")
@@ -48,6 +48,7 @@ def campaign_results(
     За замовчуванням береться незмінний знімок, зроблений при закритті хвилі.
     """
     campaign = closed_campaign(db, campaign_id)
+    ensure_unit_access(db, user, unit_id or campaign.unit_id)
     try:
         data = results.results_for(db, campaign, unit_id, recalculate)
     except ValueError as e:
@@ -64,17 +65,19 @@ def list_units(db: Session = Depends(get_db), _: User = Depends(can_view)):
     return db.scalars(select(Unit).order_by(Unit.name)).all()
 
 
-def unit_or_404(db: Session, unit_id: uuid.UUID) -> Unit:
+def unit_or_404(db: Session, unit_id: uuid.UUID, user: User | None = None) -> Unit:
     unit = db.get(Unit, unit_id)
     if unit is None:
         raise HTTPException(status_code=404, detail="Підрозділ не знайдено")
+    if user is not None:
+        ensure_unit_access(db, user, unit_id)
     return unit
 
 
 @router.get("/units/{unit_id}/history", response_model=HistoryOut)
 def unit_history(unit_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(can_view)):
     """Динаміка підрозділу за всі хвилі: лише порівняння із самим собою."""
-    unit = unit_or_404(db, unit_id)
+    unit = unit_or_404(db, unit_id, user)
     points = []
     previous = None
     for campaign, snap in results.unit_snapshots(db, unit_id):
@@ -90,7 +93,8 @@ def unit_history(unit_id: uuid.UUID, db: Session = Depends(get_db), user: User =
             "index_self": snap.index_self,
             "reliability": snap.reliability,
             "components": {c["code"]: c["score"] for c in payload["components"]},
-            "measures_done": None,
+            "measures_done": results.measures_done_between(
+                db, unit_id, previous.closed_on if previous else None, snap.closed_on),
             "delta": d,
             "significance": sig,
         })
@@ -109,7 +113,7 @@ def compare_waves(
     user: User = Depends(can_view),
 ):
     """Порівняння двох будь-яких хвиль одного підрозділу (картки з дельтами і радар 'було / стало')."""
-    unit_or_404(db, unit_id)
+    unit_or_404(db, unit_id, user)
     before = results.get_snapshot(db, from_campaign, unit_id)
     after = results.get_snapshot(db, to_campaign, unit_id)
     if before is None or after is None:
@@ -146,7 +150,8 @@ def my_results(db: Session = Depends(get_db), user: User = Depends(require_roles
     closed = db.scalars(select(Campaign).where(Campaign.status == CampaignStatus.CLOSED).order_by(Campaign.created_at.desc()))
     for campaign in closed:
         units = subtree_ids(db, campaign.unit_id)
-        if not any(is_eligible(user, link.questionnaire, units) for link in campaign.questionnaire_links):
+        participants = participants_of(db, campaign)
+        if not any(is_eligible(user, link.questionnaire, units, participants) for link in campaign.questionnaire_links):
             continue
         whole = results.results_for(db, campaign, None)
         my_unit = None

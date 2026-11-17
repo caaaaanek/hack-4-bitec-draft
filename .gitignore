@@ -1,4 +1,5 @@
 # --- Secrets / credentials ---
+# --- Secrets / env ---
 .env
 .env.*
 !.env.example
@@ -25,6 +26,10 @@ service-account*.json
 Thumbs.db
 Desktop.ini
 desktop.ini
+secrets/
+credentials.json
+
+# --- IDE / editors ---
 .idea/
 .vscode/
 *.swp
@@ -34,6 +39,27 @@ desktop.ini
 # --- Local agent settings (skills are tracked) ---
 .claude/settings.local.json
 CLAUDE.local.md
+# --- Logs / temp ---
+*.log
+logs/
+tmp/
+temp/
+*.tmp
+*.bak
+
+# --- Caches ---
+.cache/
+*.cache
+
+# --- Dependencies / build ---
+node_modules/
+dist/
+build/
+out/
+coverage/
+.next/
+.nuxt/
+.turbo/
 
 # --- Python ---
 __pycache__/
@@ -63,15 +89,6 @@ coverage/
 *.log
 tmp/
 .tmp/
-logs/
-temp/
-*.tmp
-*.bak
-secrets/
-out/
-.next/
-.nuxt/
-.turbo/
 
 # --- Java / JVM ---
 target/
@@ -80,3 +97,6 @@ target/
 
 # --- Docker (локальні оверрайди) ---
 docker-compose.override.yml
+
+# Локальне сховище файлів-доказів
+backend/data/

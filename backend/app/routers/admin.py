@@ -1,19 +1,46 @@
 """Адмін-панель: користувачі, ролі, підрозділи, журнал дій."""
 
 import uuid
+from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import exists, select
 from sqlalchemy.orm import Session
 
-from app.audit import log_action
+from app.audit import log_action, verify_chain
 from app.db import get_db
-from app.models import AuditLog, Role, Unit, User
-from app.schemas import AuditLogOut, UnitIn, UnitOut, UserCreate, UserOut, UserUpdate
+from app.errors import ApiError
+from app.models import (
+    AccessToken,
+    AuditLog,
+    Campaign,
+    CampaignStatus,
+    IndexSnapshot,
+    Indicator,
+    Measure,
+    RecommendationDecision,
+    Response as SurveyResponse,
+    ResponsePool,
+    Role,
+    Unit,
+    User,
+)
+from app.schemas import (
+    AuditLogOut,
+    AuditVerifyOut,
+    UnitIn,
+    UnitOut,
+    UnitUpdate,
+    UserCreate,
+    UserOut,
+    UserUpdate,
+)
+from app.services.units import subtree_from, subtree_ids, unit_tree
 from app.security import hash_password, require_roles
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 admin_only = require_roles(Role.ADMIN)
+audit_readers = require_roles(Role.ADMIN, Role.AUDITOR)
 
 
 def check_respondent_fields(role: Role, category, unit_id, db: Session) -> None:
@@ -106,16 +133,110 @@ def create_unit(data: UnitIn, db: Session = Depends(get_db), admin: User = Depen
     return unit
 
 
+def open_campaigns_covering(db: Session, unit_ids: set[uuid.UUID]) -> list[Campaign]:
+    children, _ = unit_tree(db)
+    result = []
+    for campaign in db.scalars(select(Campaign).where(Campaign.status == CampaignStatus.OPEN)):
+        if subtree_from(children, campaign.unit_id) & unit_ids:
+            result.append(campaign)
+    return result
+
+
+@router.patch("/units/{unit_id}", response_model=UnitOut)
+def update_unit(unit_id: uuid.UUID, data: UnitUpdate, db: Session = Depends(get_db), admin: User = Depends(admin_only)):
+    """Перейменувати або перенести підрозділ (parent_id: null — зробити кореневим).
+
+    Переносити не можна в самого себе чи в свій дочірній підрозділ, а також поки відкрита хвиля,
+    що охоплює старе чи нове місце: інакше зміниться склад груп посеред збору відповідей.
+    Знімки закритих хвиль не змінюються.
+    """
+    unit = db.get(Unit, unit_id)
+    if unit is None:
+        raise HTTPException(status_code=404, detail="Підрозділ не знайдено")
+    changes = data.model_dump(exclude_unset=True)
+    logged = {}
+    if "name" in changes:
+        if changes["name"] is None:
+            raise HTTPException(status_code=422, detail="Назва не може бути порожньою")
+        logged["name"] = {"from": unit.name, "to": changes["name"]}
+        unit.name = changes["name"]
+    if "parent_id" in changes and changes["parent_id"] != unit.parent_id:
+        new_parent = changes["parent_id"]
+        moved = subtree_ids(db, unit.id)
+        if new_parent is not None:
+            if db.get(Unit, new_parent) is None:
+                raise HTTPException(status_code=422, detail="Батьківський підрозділ не знайдено")
+            if new_parent in moved:
+                raise ApiError(422, "Не можна перенести підрозділ у самого себе чи в дочірній", code="unit_cycle")
+        affected = moved | ({new_parent} if new_parent else set())
+        busy = open_campaigns_covering(db, affected)
+        if busy:
+            raise ApiError(409, "Підрозділ входить у відкриту хвилю: " + ", ".join(c.title for c in busy),
+                           code="campaign_open", hint="Перенесіть підрозділ після закриття хвилі.")
+        logged["parent_id"] = {"from": str(unit.parent_id) if unit.parent_id else None,
+                               "to": str(new_parent) if new_parent else None}
+        unit.parent_id = new_parent
+    if logged:
+        log_action(db, admin, "update", "unit", unit.id, logged)
+    db.commit()
+    return unit
+
+
+@router.delete("/units/{unit_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_unit(unit_id: uuid.UUID, db: Session = Depends(get_db), admin: User = Depends(admin_only)):
+    """Видалити підрозділ, лише якщо на нього ніщо не посилається (діти, люди, хвилі, відповіді, факти, заходи)."""
+    unit = db.get(Unit, unit_id)
+    if unit is None:
+        raise HTTPException(status_code=404, detail="Підрозділ не знайдено")
+    references = {
+        "дочірні підрозділи": Unit.parent_id, "користувачі": User.unit_id, "хвилі": Campaign.unit_id,
+        "відповіді": SurveyResponse.unit_id, "буфер відповідей": ResponsePool.unit_id, "факти": Indicator.unit_id,
+        "знімки": IndexSnapshot.unit_id, "рішення": RecommendationDecision.unit_id, "заходи": Measure.unit_id,
+        "посилання": AccessToken.unit_id,
+    }
+    used = [name for name, column in references.items() if db.scalar(select(exists().where(column == unit.id)))]
+    if used:
+        raise ApiError(409, "Підрозділ використовується: " + ", ".join(used), code="unit_in_use",
+                       hint="Перейменуйте або перенесіть його замість видалення.")
+    log_action(db, admin, "delete", "unit", unit.id, {"name": unit.name})
+    db.delete(unit)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 # ---------- Журнал дій ----------
 
 @router.get("/audit-log", response_model=list[AuditLogOut])
 def audit_log(
     entity: str | None = None,
+    action: str | None = None,
+    actor_id: uuid.UUID | None = None,
+    date_from: datetime | None = Query(default=None, description="Від (включно), ISO 8601"),
+    date_to: datetime | None = Query(default=None, description="До (не включно), ISO 8601"),
     limit: int = Query(default=100, ge=1, le=1000),
+    offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-    _: User = Depends(admin_only),
+    _: User = Depends(audit_readers),
 ):
-    query = select(AuditLog).order_by(AuditLog.at.desc()).limit(limit)
+    """Журнал дій, найновіші першими. Для сторінок: offset і limit."""
+    query = select(AuditLog).order_by(AuditLog.seq.desc())
     if entity:
         query = query.where(AuditLog.entity == entity)
-    return db.scalars(query).all()
+    if action:
+        query = query.where(AuditLog.action == action)
+    if actor_id:
+        query = query.where(AuditLog.actor_id == actor_id)
+    if date_from:
+        query = query.where(AuditLog.at >= date_from)
+    if date_to:
+        query = query.where(AuditLog.at < date_to)
+    return db.scalars(query.offset(offset).limit(limit)).all()
+
+
+@router.post("/audit-log/verify", response_model=AuditVerifyOut)
+def audit_verify(db: Session = Depends(get_db), user: User = Depends(audit_readers)):
+    """Перевірка цілісності журналу: перераховує ланцюжок хешів від першого запису."""
+    result = verify_chain(db)
+    log_action(db, user, "verify", "audit_log", None, {"ok": result["ok"], "checked": result["checked"]})
+    db.commit()
+    return result

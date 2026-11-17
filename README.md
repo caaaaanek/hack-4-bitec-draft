@@ -28,9 +28,11 @@ hack-4-bitec-draft/
 │   ├── backend.md           ролі, модель даних, API
 │   ├── integrity-index.md   методика Integrity Index v2
 │   ├── run.md               запуск і перевірки
+│   ├── anonymity.md         як забезпечено анонімність, модель загроз, залишкові ризики
+│   ├── abuse-analysis.md    зловживання й протидія
 │   ├── api/openapi.json     контракт бекенду
 │   └── raw/ md/ tools/      джерела хакатону: оригінали, Markdown, конвертери
-├── docker-compose.yml       db + backend (frontend — окремий профіль, див. run.md)
+├── docker-compose.yml       db + backend + frontend (nginx) одним docker compose up
 ├── AGENTS.md                правила роботи з репозиторієм для людей і агентів
 └── .claude/                 налаштування Claude Code і скіл ingest-docs
 ```
@@ -48,7 +50,8 @@ flowchart LR
   Integrity Index і зберігає незмінний знімок на кожен підрозділ. Кожне число має поле `rule` з поясненням.
 - **Frontend** — дашборд керівника, розклад індексу, порівняння, рекомендації, трекер заходів, звіт і кабінет учасника.
   Поки що працює на власних синтетичних даних (`frontend/src/demo`) і має свою пропозицію контракту (`frontend/docs/api/openapi.yaml`).
-  Її ще треба звести з бекендовим `docs/api/openapi.json` і підключити фронтенд до API.
+  Її ще треба звести з бекендовим `docs/api/openapi.json` і підключити фронтенд до API: відповідність операцій і відповіді на питання фронтенду —
+  [`docs/api/frontend-mapping.md`](docs/api/frontend-mapping.md).
 
 ## Модулі
 
@@ -56,25 +59,26 @@ flowchart LR
 
 | Модуль | Backend | Frontend |
 |---|---|---|
-| Assessment Manager — хвилі, учасники, підрозділи | `routers/campaigns.py`, `routers/admin.py` | `/manage` (заглушка) |
-| Digital Questionnaire — анкети 1–3, конструктор, версії | `routers/questionnaires.py`, `routers/respond.py` | `/s/:token` опитування, `/surveys` (заглушка) |
-| Evidence Repository — чек-лист, підтвердження за доказом | `routers/checklist.py` | `/checklist` (заглушка) |
+| Assessment Manager — хвилі, учасники, підрозділи | `routers/campaigns.py` (зміна чернетки, явні учасники, імпорт CSV псевдонімів, одноразові посилання), `routers/admin.py` | `/manage` (заглушка) |
+| Digital Questionnaire — анкети 1–3, конструктор, версії | `routers/questionnaires.py`, `routers/respond.py` (вхід або анонімно за посиланням) | `/s/:token` опитування, `/surveys` (заглушка) |
+| Evidence Repository — чек-лист, файли-докази з sha256 | `routers/checklist.py`, `services/evidence.py` | `/checklist` (заглушка) |
 | Integrity Index Engine — детермінований розрахунок | `services/scoring.py`, `services/methodology.py`, `routers/results.py` | `/explain` розклад індексу, `lib/scoring/` |
-| Executive Dashboard — один екран | — | `/` |
+| Executive Dashboard — один екран | `GET /dashboard` | `/` |
 | Comparative Analytics — РГ / ОС / експерти / факти, динаміка | `routers/results.py` (history, compare), `routers/indicators.py` (факти, сигнали ризику) | `/compare`, `/trends`, `/institutions` |
-| Recommendations Engine — явні правила | — | `/recommendations`, `lib/recommendations.ts` |
-| Recommendations Tracker — відповідальний, строк, статус | — | `/tracker`, `lib/measures.ts` |
-| Audit Trail — журнал дій | `audit.py`, `GET /admin/audit-log` | `/audit` (заглушка) |
-| Reporting Module | `GET /campaigns/{id}/results` | `/reports` |
+| Recommendations Engine — явні правила | `services/recommendations.py`, `routers/recommendations.py`, каталог з Додатку Д | `/recommendations`, `lib/recommendations.ts` |
+| Recommendations Tracker — відповідальний, строк, статус | `routers/measures.py`, синхронізація з темою 2 (`routers/integrations.py`) | `/tracker`, `lib/measures.ts` |
+| Audit Trail — журнал дій | `audit.py` (ланцюжок хешів), `GET /admin/audit-log`, `POST /admin/audit-log/verify` | `/audit` (заглушка) |
+| Reporting Module | `GET /campaigns/{id}/report?format=json\|csv` | `/reports` |
 | Кабінет учасника — узагальнені результати свого підрозділу | `GET /me/results` | `/me` |
-| Інтеграція з іншими системами | `POST /indicators` (ключ `X-Integration-Key`) | `/integrations` карта інтеграції |
+| Інтеграція з іншими системами | `POST /indicators` (ключ на джерело), тема 2: `/integrations/theme2/*`, вхід через проксі організації (`POST /auth/proxy`), `ROOT_PATH` | `/integrations` карта інтеграції |
+| Асистент (опційно, вимкнено) | `POST /assistant/ask` | — |
 
 Методика індексу — [`docs/integrity-index.md`](docs/integrity-index.md), ролі й API — [`docs/backend.md`](docs/backend.md).
 
 ## Запуск
 
 ```bash
-cp .env.example .env && docker compose up --build   # PostgreSQL + API → http://localhost:8000/docs
+cp .env.example .env && docker compose up --build   # PostgreSQL + API + UI → http://localhost:8080 (API: :8000/docs)
 cd frontend && npm ci && npm run dev                  # UI на демо-даних → http://localhost:5173
 ```
 

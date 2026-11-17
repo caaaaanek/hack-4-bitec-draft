@@ -98,6 +98,7 @@ class GroupOut(BaseModel):
     declared_level: int | None
     computed_level: int | None
     flags: list[str]
+    suppressed: bool = False  # приховано вторинним приховуванням (див. docs/backend.md)
 
 
 class ChecklistComponent(BaseModel):
@@ -107,12 +108,23 @@ class ChecklistComponent(BaseModel):
     confirmed: int
 
 
+class ChecklistItemSummary(BaseModel):
+    code: str
+    number: str
+    component: str | None
+    text: str = ""
+    status: str | None
+    score: float | None
+    confirmed: bool
+
+
 class ChecklistSummary(BaseModel):
     total: int
     filled: int
     confirmed: int
     confirmed_share: float
     by_component: dict[str, ChecklistComponent]
+    items: list[ChecklistItemSummary] = []
 
 
 class DistributionItem(BaseModel):
@@ -226,7 +238,7 @@ class HistoryPoint(BaseModel):
     index_self: float | None
     reliability: str
     components: dict[str, float | None]
-    measures_done: int | None  # заходи, виконані між хвилями (з'явиться разом із трекером)
+    measures_done: int | None  # заходи підрозділу (з дочірніми), виконані між попередньою і цією хвилею
     delta: float | None
     significance: Significance | None
 

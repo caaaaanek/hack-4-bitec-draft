@@ -1,37 +1,65 @@
-"""Хвилі оцінювання: створення, відкриття, закриття, контроль проходження."""
+"""Хвилі оцінювання (Assessment Manager): створення, зміна чернетки, учасники, одноразові посилання,
+відкриття, закриття, контроль проходження."""
 
+import csv
+import io
+import secrets
 import uuid
-from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import func, select
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import PlainTextResponse
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.audit import log_action
+from app.clock import today
 from app.config import get_settings
 from app.db import get_db
+from app.errors import ApiError
 from app.models import (
+    AccessMode,
+    AccessToken,
     Campaign,
+    CampaignParticipant,
     CampaignQuestionnaire,
     CampaignStatus,
     Participation,
     Questionnaire,
     QuestionnaireKind,
     QuestionnaireStatus,
+    RespondentCategory,
     Role,
     Unit,
     User,
 )
-from app.schemas import CampaignCreate, CampaignOut, CampaignProgress, ProgressItem
-from app.security import require_roles
-from app.services.eligibility import is_eligible
+from app.schemas import (
+    CampaignCreate,
+    CampaignOut,
+    CampaignProgress,
+    CampaignUpdate,
+    ImportedCredential,
+    ImportOut,
+    IssuedToken,
+    ParticipantOut,
+    ParticipantsIn,
+    ParticipantsOut,
+    ProgressItem,
+    TokensIn,
+    TokensOut,
+    TokensRevokeIn,
+    TokensRevokeOut,
+)
+from app.security import hash_password, require_roles
+from app.services import tokens as token_service
+from app.services.anonymity import flush_all
+from app.services.eligibility import is_eligible, participants_of
 from app.services.results import create_snapshots
 from app.services.units import subtree_ids
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 admin_only = require_roles(Role.ADMIN)
-# commissioner бачить список хвиль (для дашборда), але не прогрес проходження.
-can_read = require_roles(Role.ADMIN, Role.COMMISSIONER)
+# commissioner, керівник і аудитор бачать список хвиль (для дашборда), але не прогрес проходження.
+can_read = require_roles(Role.ADMIN, Role.COMMISSIONER, Role.LEADER, Role.AUDITOR)
 
 
 def to_out(campaign: Campaign) -> CampaignOut:
@@ -44,6 +72,8 @@ def to_out(campaign: Campaign) -> CampaignOut:
         opened_on=campaign.opened_on,
         closed_on=campaign.closed_on,
         questionnaire_ids=[link.questionnaire_id for link in campaign.questionnaire_links],
+        access_mode=campaign.access_mode,
+        explicit_participants=campaign.explicit_participants,
     )
 
 
@@ -67,18 +97,64 @@ def create_campaign(data: CampaignCreate, db: Session = Depends(get_db), admin: 
     campaign = Campaign(
         title=data.title,
         unit_id=data.unit_id,
-        min_group_size=data.min_group_size or get_settings().default_min_group_size,
+        min_group_size=data.min_group_size or get_settings().min_group_size,
+        access_mode=data.access_mode,
+        explicit_participants=False,
         created_by_id=admin.id,
     )
-    for q_id in dict.fromkeys(data.questionnaire_ids):
-        questionnaire = db.get(Questionnaire, q_id)
-        if questionnaire is None or questionnaire.status != QuestionnaireStatus.PUBLISHED:
-            raise HTTPException(status_code=422, detail=f"Анкета {q_id} не знайдена або не опублікована")
-        campaign.questionnaire_links.append(CampaignQuestionnaire(questionnaire_id=q_id))
+    set_questionnaires(db, campaign, data.questionnaire_ids)
 
     db.add(campaign)
     db.flush()
-    log_action(db, admin, "create", "campaign", campaign.id, {"title": campaign.title})
+    log_action(db, admin, "create", "campaign", campaign.id,
+               {"title": campaign.title, "access_mode": campaign.access_mode.value})
+    db.commit()
+    return to_out(campaign)
+
+
+def set_questionnaires(db: Session, campaign: Campaign, questionnaire_ids: list[uuid.UUID]) -> None:
+    links = []
+    for q_id in dict.fromkeys(questionnaire_ids):
+        questionnaire = db.get(Questionnaire, q_id)
+        if questionnaire is None or questionnaire.status != QuestionnaireStatus.PUBLISHED:
+            raise HTTPException(status_code=422, detail=f"Анкета {q_id} не знайдена або не опублікована")
+        links.append(CampaignQuestionnaire(questionnaire_id=q_id))
+    campaign.questionnaire_links = links
+
+
+def active_tokens(db: Session, campaign_id: uuid.UUID) -> int:
+    return db.scalar(select(func.count()).select_from(AccessToken).where(
+        AccessToken.campaign_id == campaign_id, AccessToken.revoked.is_(False))) or 0
+
+
+@router.patch("/{campaign_id}", response_model=CampaignOut)
+def update_campaign(campaign_id: uuid.UUID, data: CampaignUpdate, db: Session = Depends(get_db),
+                    admin: User = Depends(admin_only)):
+    """Змінити хвилю. Лише чернетку: після відкриття склад анкет і область не змінюються."""
+    campaign = get_or_404(db, campaign_id)
+    if campaign.status != CampaignStatus.DRAFT:
+        raise ApiError(409, "Змінювати можна лише хвилю в статусі чернетки", code="not_draft",
+                       hint="Створіть нову хвилю.")
+    changes = data.model_dump(exclude_unset=True)
+    for key in ("unit_id", "questionnaire_ids", "access_mode", "title", "min_group_size"):
+        if key in changes and changes[key] is None:
+            raise HTTPException(status_code=422, detail=f"Поле {key} не може бути порожнім")
+    structural = {"unit_id", "questionnaire_ids", "access_mode"} & changes.keys()
+    if structural and active_tokens(db, campaign.id):
+        raise ApiError(409, "Для хвилі вже видано посилання", code="tokens_issued",
+                       hint="Відкличте посилання (POST /campaigns/{id}/tokens/revoke), потім змінюйте область чи анкети.")
+    if "unit_id" in changes:
+        if db.get(Unit, changes["unit_id"]) is None:
+            raise HTTPException(status_code=422, detail="Підрозділ не знайдено")
+        campaign.unit_id = changes["unit_id"]
+    if "questionnaire_ids" in changes:
+        set_questionnaires(db, campaign, changes["questionnaire_ids"])
+    for key in ("title", "min_group_size", "access_mode"):
+        if key in changes:
+            setattr(campaign, key, changes[key])
+    log_action(db, admin, "update", "campaign", campaign.id,
+               {k: (v.value if hasattr(v, "value") else [str(x) for x in v] if isinstance(v, list) else str(v))
+                for k, v in changes.items()})
     db.commit()
     return to_out(campaign)
 
@@ -93,8 +169,11 @@ def open_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db), admin: 
     campaign = get_or_404(db, campaign_id)
     if campaign.status != CampaignStatus.DRAFT:
         raise HTTPException(status_code=409, detail="Відкрити можна лише хвилю в статусі чернетки")
+    if campaign.explicit_participants and not participants_of(db, campaign):
+        raise ApiError(409, "У хвилі явний склад учасників, але він порожній", code="no_participants",
+                       hint="Додайте учасників або поверніться до складу за категорією й підрозділом.")
     campaign.status = CampaignStatus.OPEN
-    campaign.opened_on = date.today()
+    campaign.opened_on = today()
     log_action(db, admin, "open", "campaign", campaign.id)
     db.commit()
     return to_out(campaign)
@@ -106,11 +185,13 @@ def close_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db), admin:
     if campaign.status != CampaignStatus.OPEN:
         raise HTTPException(status_code=409, detail="Закрити можна лише відкриту хвилю")
     campaign.status = CampaignStatus.CLOSED
-    campaign.closed_on = date.today()
+    campaign.closed_on = today()
+    # Залишок буфера відповідей переноситься в Response до розрахунку знімків.
+    moved = flush_all(db, campaign)
     db.flush()
     # Знімок результатів фіксується в момент закриття і більше не змінюється.
     snapshots = create_snapshots(db, campaign)
-    log_action(db, admin, "close", "campaign", campaign.id, {"snapshots": snapshots})
+    log_action(db, admin, "close", "campaign", campaign.id, {"snapshots": snapshots, "responses_moved": moved})
     db.commit()
     return to_out(campaign)
 
@@ -119,24 +200,33 @@ def close_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db), admin:
 def progress(campaign_id: uuid.UUID, db: Session = Depends(get_db), _: User = Depends(admin_only)):
     """Скільки людей пройшли анкети. Лише кількість, без імен.
 
-    Для груп, менших за поріг хвилі, кількості не показуються.
+    Для хвилі за посиланнями: «видано» і «використано» посилань. Для груп, менших за поріг хвилі,
+    кількості не показуються.
     """
     campaign = get_or_404(db, campaign_id)
     units = subtree_ids(db, campaign.unit_id)
-    users = db.scalars(select(User).where(User.role == Role.RESPONDENT, User.is_active.is_(True))).all()
+    token_rows = token_service.load(db, campaign.id) if campaign.access_mode == AccessMode.TOKEN else []
+    users = []
+    participants = None
+    if campaign.access_mode == AccessMode.LOGIN:
+        users = db.scalars(select(User).where(User.role == Role.RESPONDENT, User.is_active.is_(True))).all()
+        participants = participants_of(db, campaign)
 
     items = []
     for link in campaign.questionnaire_links:
         questionnaire = link.questionnaire
         if questionnaire.kind == QuestionnaireKind.CHECKLIST:
             continue  # стан чек-листа: GET /campaigns/{id}/checklist
-        eligible = sum(1 for u in users if is_eligible(u, questionnaire, units))
-        submitted = db.scalar(
-            select(func.count()).select_from(Participation).where(
-                Participation.campaign_id == campaign.id,
-                Participation.questionnaire_id == questionnaire.id,
+        if campaign.access_mode == AccessMode.TOKEN:
+            eligible, submitted = token_service.counts(token_rows, questionnaire.id)
+        else:
+            eligible = sum(1 for u in users if is_eligible(u, questionnaire, units, participants))
+            submitted = db.scalar(
+                select(func.count()).select_from(Participation).where(
+                    Participation.campaign_id == campaign.id,
+                    Participation.questionnaire_id == questionnaire.id,
+                )
             )
-        )
         visible = eligible >= campaign.min_group_size
         items.append(
             ProgressItem(
@@ -150,3 +240,350 @@ def progress(campaign_id: uuid.UUID, db: Session = Depends(get_db), _: User = De
             )
         )
     return CampaignProgress(campaign_id=campaign.id, status=campaign.status, items=items)
+
+
+# ---------- Явний склад учасників ----------
+
+def participant_out(user: User, campaign: Campaign, units: set[uuid.UUID]) -> ParticipantOut:
+    return ParticipantOut(
+        id=user.id, login=user.login, display_name=user.display_name, category=user.category, unit_id=user.unit_id,
+        eligible=any(is_eligible(user, link.questionnaire, units)
+                     for link in campaign.questionnaire_links if link.questionnaire.kind != QuestionnaireKind.CHECKLIST),
+    )
+
+
+def participants_response(db: Session, campaign: Campaign) -> ParticipantsOut:
+    ids = participants_of(db, campaign) or set()
+    users = db.scalars(select(User).where(User.id.in_(ids)).order_by(User.login)).all() if ids else []
+    units = subtree_ids(db, campaign.unit_id)
+    return ParticipantsOut(campaign_id=campaign.id, explicit=campaign.explicit_participants,
+                           participants=[participant_out(u, campaign, units) for u in users])
+
+
+@router.get("/{campaign_id}/participants", response_model=ParticipantsOut)
+def get_participants(campaign_id: uuid.UUID, db: Session = Depends(get_db), _: User = Depends(admin_only)):
+    """Кого запрошено. Хто вже пройшов, не показується нікому."""
+    return participants_response(db, get_or_404(db, campaign_id))
+
+
+def login_campaign_for_participants(db: Session, campaign_id: uuid.UUID, allow_open: bool) -> Campaign:
+    campaign = get_or_404(db, campaign_id)
+    if campaign.access_mode != AccessMode.LOGIN:
+        raise ApiError(409, "У хвилі за посиланнями учасників не ведуть", code="token_mode",
+                       hint="Видайте посилання: POST /campaigns/{id}/tokens або імпорт CSV.")
+    allowed = (CampaignStatus.DRAFT, CampaignStatus.OPEN) if allow_open else (CampaignStatus.DRAFT,)
+    if campaign.status not in allowed:
+        raise ApiError(409, "Склад учасників цієї хвилі вже не змінюється", code="not_editable")
+    return campaign
+
+
+@router.put("/{campaign_id}/participants", response_model=ParticipantsOut)
+def set_participants(campaign_id: uuid.UUID, data: ParticipantsIn, db: Session = Depends(get_db),
+                     admin: User = Depends(admin_only)):
+    """Задати явний склад учасників (лише чернетка). Після цього проходять тільки вони."""
+    campaign = login_campaign_for_participants(db, campaign_id, allow_open=False)
+    ids = set(data.user_ids)
+    found = set(db.scalars(select(User.id).where(User.id.in_(ids), User.role == Role.RESPONDENT))) if ids else set()
+    missing = ids - found
+    if missing:
+        raise ApiError(422, [{"path": str(i), "message": "Не респондент або не існує"} for i in sorted(missing, key=str)])
+    db.execute(delete(CampaignParticipant).where(CampaignParticipant.campaign_id == campaign.id))
+    db.add_all(CampaignParticipant(campaign_id=campaign.id, user_id=i) for i in ids)
+    campaign.explicit_participants = True
+    log_action(db, admin, "set_participants", "campaign", campaign.id, {"count": len(ids)})
+    db.commit()
+    return participants_response(db, campaign)
+
+
+@router.delete("/{campaign_id}/participants", response_model=ParticipantsOut)
+def clear_participants(campaign_id: uuid.UUID, db: Session = Depends(get_db), admin: User = Depends(admin_only)):
+    """Повернутися до складу «усі респонденти потрібної категорії в підрозділі хвилі» (лише чернетка)."""
+    campaign = login_campaign_for_participants(db, campaign_id, allow_open=False)
+    db.execute(delete(CampaignParticipant).where(CampaignParticipant.campaign_id == campaign.id))
+    campaign.explicit_participants = False
+    log_action(db, admin, "clear_participants", "campaign", campaign.id, {})
+    db.commit()
+    return participants_response(db, campaign)
+
+
+# ---------- Імпорт CSV псевдонімів ----------
+
+IMPORT_MAX_ROWS = 2000
+IMPORT_MAX_BYTES = 1024 * 1024
+# Стовпці, яких у файлі бути не повинно: система працює лише з псевдонімами.
+PERSONAL_COLUMNS = {"email", "e-mail", "mail", "phone", "телефон", "піб", "фио", "full_name", "fullname", "surname",
+                    "last_name", "first_name", "прізвище", "ім'я", "імя", "ipn", "інн", "рнокпп", "passport", "паспорт"}
+LOGIN_CHARS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_.-")
+
+
+def read_csv(raw: bytes) -> list[dict[str, str]]:
+    if len(raw) > IMPORT_MAX_BYTES:
+        raise ApiError(413, "Файл завеликий", hint="Максимум 1 МБ і 2000 рядків.")
+    try:
+        text = raw.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        raise ApiError(422, "Файл має бути в кодуванні UTF-8", code="bad_encoding",
+                       hint="Збережіть CSV як «CSV UTF-8».")
+    try:
+        dialect = csv.Sniffer().sniff(text[:2048], delimiters=",;\t")
+    except csv.Error:
+        dialect = csv.excel
+    reader = csv.DictReader(io.StringIO(text), dialect=dialect)
+    header = [(h or "").strip().lower() for h in (reader.fieldnames or [])]
+    personal = sorted(PERSONAL_COLUMNS & set(header))
+    if personal:
+        raise ApiError(422, "Файл містить стовпці з персональними даними: " + ", ".join(personal),
+                       code="personal_data", hint="Залиште лише псевдонім, категорію й підрозділ.")
+    if "login" not in header and "pseudonym" not in header:
+        raise ApiError(422, "Немає стовпця login (або pseudonym)", code="bad_header",
+                       hint="Перший рядок: login,category,unit[,display_name].")
+    rows = []
+    for row in reader:
+        rows.append({(k or "").strip().lower(): (v or "").strip() for k, v in row.items() if k})
+        if len(rows) > IMPORT_MAX_ROWS:
+            raise ApiError(413, f"Більше {IMPORT_MAX_ROWS} рядків", hint="Розбийте файл на частини.")
+    return rows
+
+
+def resolve_unit(value: str, units_by_name: dict[str, Unit], units_by_id: dict[str, Unit]) -> Unit | None:
+    return units_by_id.get(value) or units_by_name.get(value)
+
+
+@router.post("/{campaign_id}/participants/import", response_model=ImportOut,
+             responses={200: {"content": {"text/csv": {}}}})
+async def import_participants(
+    campaign_id: uuid.UUID,
+    file: UploadFile = File(..., description="CSV UTF-8: login,category,unit[,display_name]"),
+    format: str = Query(default="json", pattern="^(json|csv)$",
+                        description="csv: для хвилі за посиланнями віддати таблицю псевдонім → посилання"),
+    db: Session = Depends(get_db),
+    admin: User = Depends(admin_only),
+):
+    """Імпорт псевдонімів з CSV (`login,category,unit[,display_name]`; роздільник «,» або «;»).
+
+    - Хвиля за обліковими записами: створює відсутніх респондентів (пароль показується один раз),
+      додає всіх до явного складу учасників. Можна в чернетці й у відкритій хвилі (лише додавання).
+    - Хвиля за посиланнями: видає кожному рядку по посиланню на кожну анкету його категорії.
+      Псевдоніми не зберігаються: зв'язок «псевдонім → посилання» є лише у файлі, який отримує адміністратор.
+
+    Усе або нічого: якщо хоч один рядок з помилкою, нічого не змінюється (422 з номерами рядків).
+    """
+    campaign = get_or_404(db, campaign_id)
+    if campaign.status not in (CampaignStatus.DRAFT, CampaignStatus.OPEN):
+        raise ApiError(409, "Хвилю закрито", code="not_editable")
+    rows = read_csv(await file.read(IMPORT_MAX_BYTES + 1))
+    if not rows:
+        raise ApiError(422, "У файлі немає рядків", code="empty_file")
+
+    all_units = db.scalars(select(Unit)).all()
+    units_by_name = {u.name: u for u in all_units}
+    units_by_id = {str(u.id): u for u in all_units}
+    campaign_units = subtree_ids(db, campaign.unit_id)
+    surveys = [link.questionnaire for link in campaign.questionnaire_links
+               if link.questionnaire.kind != QuestionnaireKind.CHECKLIST]
+
+    issues: list[dict] = []
+    parsed = []
+    seen = set()
+    for n, row in enumerate(rows, start=2):  # рядок 1 — заголовок
+        login = row.get("login") or row.get("pseudonym") or ""
+        if not (3 <= len(login) <= 64) or not set(login) <= LOGIN_CHARS:
+            issues.append({"path": f"line {n}", "message": "login: 3–64 символи, латиниця, цифри, _ . -"})
+            continue
+        if login.lower() in seen:
+            issues.append({"path": f"line {n}", "message": f"{login}: повторюється у файлі"})
+            continue
+        seen.add(login.lower())
+        category = None
+        if row.get("category"):
+            try:
+                category = RespondentCategory(row["category"])
+            except ValueError:
+                issues.append({"path": f"line {n}", "message": "category: working_group, staff або expert"})
+                continue
+        unit = resolve_unit(row.get("unit", ""), units_by_name, units_by_id) if row.get("unit") else None
+        if row.get("unit") and unit is None:
+            issues.append({"path": f"line {n}", "message": f"Підрозділ «{row['unit']}» не знайдено"})
+            continue
+        if unit is not None and unit.id not in campaign_units:
+            issues.append({"path": f"line {n}", "message": f"Підрозділ «{unit.name}» не входить у хвилю"})
+            continue
+        parsed.append((n, login, category, unit, (row.get("display_name") or login)[:100]))
+
+    if campaign.access_mode == AccessMode.TOKEN:
+        return import_as_tokens(db, campaign, admin, parsed, issues, surveys, format)
+
+    created, credentials, added = 0, [], 0
+    existing_ids = participants_of(db, campaign) or set()
+    to_add: list[uuid.UUID] = []
+    new_users: list[tuple[User, str]] = []
+    for n, login, category, unit, display_name in parsed:
+        user = db.scalar(select(User).where(User.login == login))
+        if user is not None:
+            if user.role != Role.RESPONDENT:
+                issues.append({"path": f"line {n}", "message": f"{login}: обліковий запис не респондента"})
+            elif category and user.category != category:
+                issues.append({"path": f"line {n}", "message": f"{login}: у системі інша категорія ({user.category})"})
+            elif unit and user.unit_id != unit.id:
+                issues.append({"path": f"line {n}", "message": f"{login}: у системі інший підрозділ"})
+            elif user.id not in existing_ids:
+                to_add.append(user.id)
+            continue
+        if category is None:
+            issues.append({"path": f"line {n}", "message": f"{login}: для нового облікового запису потрібна category"})
+            continue
+        if category != RespondentCategory.EXPERT and unit is None:
+            issues.append({"path": f"line {n}", "message": f"{login}: для нового облікового запису потрібен unit"})
+            continue
+        password = secrets.token_urlsafe(9)
+        new_users.append((User(login=login, display_name=display_name, password_hash="", role=Role.RESPONDENT,
+                               category=category, unit_id=unit.id if unit else None), password))
+    if issues:
+        raise ApiError(422, issues, code="import_failed", hint="Виправте рядки й завантажте файл ще раз. Нічого не змінено.")
+
+    for user, password in new_users:
+        user.password_hash = hash_password(password)
+        db.add(user)
+        db.flush()
+        to_add.append(user.id)
+        credentials.append(ImportedCredential(login=user.login, password=password))
+        created += 1
+    if campaign.status == CampaignStatus.DRAFT or campaign.explicit_participants:
+        # У відкритій хвилі зі складом «за правилом» нові облікові записи й так підпадають під правило.
+        db.add_all(CampaignParticipant(campaign_id=campaign.id, user_id=i) for i in dict.fromkeys(to_add))
+        added = len(set(to_add))
+        campaign.explicit_participants = True
+    log_action(db, admin, "import_participants", "campaign", campaign.id,
+               {"rows": len(rows), "created_users": created, "added": added})
+    db.commit()
+    result = ImportOut(campaign_id=campaign.id, rows=len(rows), created_users=created, added_participants=added,
+                       credentials=credentials)
+    if format == "csv":
+        out = io.StringIO()
+        w = csv.writer(out)
+        w.writerow(["login", "password"])
+        for c in credentials:
+            w.writerow([c.login, c.password])
+        return csv_attachment(out.getvalue(), f"credentials-{campaign.id}.csv")
+    return result
+
+
+def csv_attachment(text: str, filename: str) -> PlainTextResponse:
+    return PlainTextResponse(
+        "\ufeff" + text, media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"', "Cache-Control": "no-store"},
+    )
+
+
+def import_as_tokens(db: Session, campaign: Campaign, admin: User, parsed, issues, surveys, format):
+    plan: list[tuple[str, Questionnaire, Unit | None]] = []
+    for n, login, category, unit, _ in parsed:
+        if category is None:
+            issues.append({"path": f"line {n}", "message": f"{login}: потрібна category"})
+            continue
+        targets = [q for q in surveys if q.target_category == category]
+        if not targets:
+            issues.append({"path": f"line {n}", "message": f"{login}: у хвилі немає анкети для категорії {category.value}"})
+            continue
+        if category != RespondentCategory.EXPERT and unit is None:
+            issues.append({"path": f"line {n}", "message": f"{login}: потрібен unit"})
+            continue
+        for q in targets:
+            plan.append((login, q, None if category == RespondentCategory.EXPERT else unit))
+    if issues:
+        raise ApiError(422, issues, code="import_failed", hint="Виправте рядки й завантажте файл ще раз. Нічого не змінено.")
+
+    issued = []
+    for login, q, unit in plan:
+        token = token_service.issue(db, campaign, q.id, unit.id if unit else None, 1)[0]
+        issued.append((login, q.title, unit.name if unit else "", token_link(token)))
+    log_action(db, admin, "import_tokens", "campaign", campaign.id, {"rows": len(parsed), "tokens": len(issued)})
+    db.commit()
+    if format == "csv":
+        out = io.StringIO()
+        w = csv.writer(out)
+        w.writerow(["login", "questionnaire", "unit", "link"])
+        w.writerows(issued)
+        return csv_attachment(out.getvalue(), f"links-{campaign.id}.csv")
+    return ImportOut(campaign_id=campaign.id, rows=len(parsed), created_users=0, added_participants=0,
+                     issued_tokens=len(issued))
+
+
+# ---------- Одноразові посилання ----------
+
+def token_link(token: str) -> str:
+    return f"{get_settings().public_url.rstrip('/')}/s/{token}"
+
+
+@router.post("/{campaign_id}/tokens", response_model=TokensOut, status_code=status.HTTP_201_CREATED,
+             responses={201: {"content": {"text/csv": {}}}})
+def issue_tokens(campaign_id: uuid.UUID, data: TokensIn,
+                 format: str = Query(default="json", pattern="^(json|csv)$"),
+                 db: Session = Depends(get_db), admin: User = Depends(admin_only)):
+    """Видати одноразові посилання на анкету для групи (підрозділ + категорія анкети).
+
+    Токени показуються лише у цій відповіді; у БД — тільки їхні sha256. Кому яке посилання дісталося,
+    система не знає. Посилання відкриває анкету без входу; токен фронтенд передає в X-Response-Token.
+    """
+    campaign = get_or_404(db, campaign_id)
+    if campaign.access_mode != AccessMode.TOKEN:
+        raise ApiError(409, "Хвиля проходиться за обліковими записами", code="login_mode",
+                       hint="Створіть хвилю з access_mode = token або змініть чернетку.")
+    if campaign.status not in (CampaignStatus.DRAFT, CampaignStatus.OPEN):
+        raise ApiError(409, "Хвилю закрито", code="not_editable")
+    link = db.get(CampaignQuestionnaire, (campaign.id, data.questionnaire_id))
+    if link is None or link.questionnaire.kind == QuestionnaireKind.CHECKLIST:
+        raise HTTPException(status_code=422, detail="Анкета не входить у хвилю або це чек-лист")
+    questionnaire = link.questionnaire
+    unit_id = data.unit_id
+    if questionnaire.target_category == RespondentCategory.EXPERT:
+        unit_id = None  # експерти зовнішні: їхні відповіді рахуються лише на рівні всієї хвилі
+    else:
+        if unit_id is None:
+            raise HTTPException(status_code=422, detail="Для цієї анкети потрібен підрозділ (unit_id)")
+        if unit_id not in subtree_ids(db, campaign.unit_id):
+            raise HTTPException(status_code=422, detail="Підрозділ не входить у хвилю")
+    if data.count > get_settings().token_batch_max:
+        raise HTTPException(status_code=422, detail=f"Не більше {get_settings().token_batch_max} за раз")
+
+    plain = token_service.issue(db, campaign, questionnaire.id, unit_id, data.count)
+    db.flush()
+    rows = token_service.load(db, campaign.id)
+    total, _ = token_service.counts(rows, questionnaire.id, lambda u: u == unit_id)
+    warning = None
+    if total < campaign.min_group_size:
+        warning = (f"У групі {total} посилань, менше за k = {campaign.min_group_size}: "
+                   "результати цього підрозділу будуть приховані й увійдуть лише в батьківський.")
+    log_action(db, admin, "issue_tokens", "campaign", campaign.id,
+               {"questionnaire_id": str(questionnaire.id), "unit_id": str(unit_id) if unit_id else None,
+                "count": data.count})
+    db.commit()
+    if format == "csv":
+        out = io.StringIO()
+        w = csv.writer(out)
+        w.writerow(["link"])
+        w.writerows([token_link(t)] for t in plain)
+        return csv_attachment(out.getvalue(), f"links-{campaign.id}.csv")
+    return TokensOut(campaign_id=campaign.id, questionnaire_id=questionnaire.id, unit_id=unit_id,
+                     tokens=[IssuedToken(token=t, link=token_link(t)) for t in plain], group_total=total,
+                     warning=warning)
+
+
+@router.post("/{campaign_id}/tokens/revoke", response_model=TokensRevokeOut)
+def revoke_tokens(campaign_id: uuid.UUID, data: TokensRevokeIn, db: Session = Depends(get_db),
+                  admin: User = Depends(admin_only)):
+    """Відкликати невикористані посилання (усі, анкети або анкети + підрозділу), наприклад якщо список злили."""
+    campaign = get_or_404(db, campaign_id)
+    revoked = 0
+    questionnaire_ids = [data.questionnaire_id] if data.questionnaire_id else [
+        link.questionnaire_id for link in campaign.questionnaire_links]
+    for q_id in questionnaire_ids:
+        if "unit_id" in data.model_fields_set:  # unit_id: null — посилання експертів
+            revoked += token_service.revoke_unused(db, campaign.id, q_id, data.unit_id)
+        else:
+            revoked += token_service.revoke_unused_all_units(db, campaign.id, q_id)
+    log_action(db, admin, "revoke_tokens", "campaign", campaign.id,
+               {"questionnaire_id": str(data.questionnaire_id) if data.questionnaire_id else None,
+                "unit_id": str(data.unit_id) if data.unit_id else None, "revoked": revoked})
+    db.commit()
+    return TokensRevokeOut(revoked=revoked)

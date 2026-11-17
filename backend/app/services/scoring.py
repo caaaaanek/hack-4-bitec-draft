@@ -30,6 +30,9 @@ class GroupInput:
     responses: list[ResponseData]
     eligible: int
     submitted: int
+    # Групу приховано вторинним приховуванням: сама вона не менша за k,
+    # але її показ дозволив би обчислити меншу сусідню групу.
+    suppressed: bool = False
 
 
 @dataclass
@@ -39,6 +42,8 @@ class ChecklistItem:
     component: str | None
     score: float | None  # None — пункт не заповнено
     confirmed: bool
+    text: str = ""
+    status: str | None = None  # full / partial / none
 
 
 def r1(x: float | None) -> float | None:
@@ -101,7 +106,7 @@ def score_group(group: GroupInput, k: int) -> dict:
     questions = [(s, question) for s in q.sections for question in s.questions]
     n = len(group.responses)
     sufficient = n >= k
-    population_ok = group.eligible >= k
+    population_ok = group.eligible >= k and not group.suppressed
     participation = round(100 * group.submitted / group.eligible, 1) if group.eligible else 0.0
 
     result = {
@@ -119,9 +124,13 @@ def score_group(group: GroupInput, k: int) -> dict:
         "declared_level": None,
         "computed_level": None,
         "flags": [],
+        "suppressed": group.suppressed,
         "components": {},
         "questions": [],
     }
+    if group.suppressed:
+        result["flags"].append("suppressed")
+        return result
     if participation < m.PARTICIPATION_MIN_PERCENT:
         result["flags"].append("low_participation")
     if not sufficient:
@@ -359,7 +368,10 @@ def compute(groups: list[GroupInput], checklist: list[ChecklistItem] | None, fac
                                    "filled": len(scores), "total": len(items),
                                    "confirmed": sum(1 for i in items if i.confirmed)}
         checklist_summary = {"total": len(checklist), "filled": len(filled), "confirmed": confirmed,
-                             "confirmed_share": round(share, 2), "by_component": per_component}
+                             "confirmed_share": round(share, 2), "by_component": per_component,
+                             "items": [{"code": i.code, "number": i.number, "component": i.component, "text": i.text,
+                                        "status": i.status, "score": i.score, "confirmed": i.confirmed}
+                                       for i in checklist]}
 
     # Спільні питання РГ і ОС для category_gap.
     def common_scores(component: str) -> dict | None:

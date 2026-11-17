@@ -106,10 +106,10 @@ def test_campaign_requires_published_questionnaire(client):
 
 
 def test_storage_keeps_answers_anonymous(client):
-    """Таблиця відповідей не містить ні користувача, ні часу."""
-    columns = {c["name"] for c in inspect(engine).get_columns("responses")}
-    assert not columns & {"user_id", "created_at", "submitted_at", "login"}
-    assert "submitted_on" in columns
+    """Таблиці відповідей і буфера не містять ні користувача, ні часу, ні дати."""
+    for table in ("responses", "response_pool"):
+        columns = {c["name"] for c in inspect(engine).get_columns(table)}
+        assert not columns & {"user_id", "created_at", "submitted_at", "submitted_on", "login"}
 
     campaign_id, questionnaires = open_campaign(client)
     staff = auth(client, "staff03")
