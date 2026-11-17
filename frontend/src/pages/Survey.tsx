@@ -110,7 +110,7 @@ function Frame({
   )
 }
 
-function TokenState({ state }: { state: 'used' | 'invalid' }) {
+export function TokenState({ state }: { state: 'used' | 'invalid' | 'closed' }) {
   const { role } = useDemo()
   return (
     <Frame>
@@ -120,6 +120,17 @@ function TokenState({ state }: { state: 'used' | 'invalid' }) {
           icon={<CheckCircle2 className="size-8" />}
           title="Цю анкету вже заповнено"
           description="Повторно відповісти за цим посиланням не можна: так ми захищаємо анонімність і не допускаємо подвоєних відповідей. Дякуємо за участь."
+          action={
+            <Link to={defaultRoute(role)} className="text-accent underline underline-offset-4">
+              Закрити
+            </Link>
+          }
+        />
+      ) : state === 'closed' ? (
+        <EmptyState
+          icon={<LinkIcon className="size-8" />}
+          title="Опитування зараз не приймає відповіді"
+          description="Хвилю оцінювання ще не відкрито або вже закрито. Перевірте строки опитування в того, хто надіслав вам посилання."
           action={
             <Link to={defaultRoute(role)} className="text-accent underline underline-offset-4">
               Закрити
@@ -149,8 +160,27 @@ export function Survey() {
   return <SurveyFlow survey={DEMO_SURVEY} token={token!} />
 }
 
-export function SurveyFlow({ survey, token }: { survey: SurveyModel; token: string }) {
+export interface SurveyFlowProps {
+  survey: SurveyModel
+  token: string
+  /** Надіслати відповіді на сервер. Без нього (демо) відповіді лише перевіряються локально. */
+  onSubmit?: (answers: Answers) => Promise<void>
+  /** Поріг k хвилі (з бекенду), за замовчуванням K_MIN_GROUP. */
+  minGroup?: number
+  /** Куди веде «Переглянути результати»; null — кнопки немає (анонімне посилання без облікового запису). */
+  resultsHref?: string | null
+}
+
+export function SurveyFlow({
+  survey,
+  token,
+  onSubmit,
+  minGroup = K_MIN_GROUP,
+  resultsHref,
+}: SurveyFlowProps) {
   const { role, setRole } = useDemo()
+  const [sending, setSending] = useState(false)
+  const [sendError, setSendError] = useState('')
   const navigate = useNavigate()
   const [confirmClose, setConfirmClose] = useState(false)
   const [phase, setPhase] = useState<Phase>('guarantees')
@@ -197,11 +227,27 @@ export function SurveyFlow({ survey, token }: { survey: SurveyModel; token: stri
     }
   }
 
-  const submit = () => {
+  const submit = async () => {
     const m = missingQuestions(survey, answers)
     if (m.length > 0) {
       setMissing(m)
       return
+    }
+    if (onSubmit) {
+      setSending(true)
+      setSendError('')
+      try {
+        await onSubmit(answers)
+      } catch (err) {
+        setSendError(
+          err instanceof Error && 'hint' in err
+            ? `${err.message}. ${(err as { hint: string }).hint}`
+            : 'Не вдалося надіслати відповіді. Перевірте звʼязок і спробуйте ще раз.',
+        )
+        return
+      } finally {
+        setSending(false)
+      }
     }
     clearDraft(token)
     setMissing(null)
@@ -258,13 +304,19 @@ export function SurveyFlow({ survey, token }: { survey: SurveyModel; token: stri
             Дякуємо. Ваші відповіді збережено анонімно.
           </h1>
           <p className="mt-3 text-body-lg text-text-muted">
-            Що далі: коли відповість достатньо людей (не менше {K_MIN_GROUP}), ви зможете побачити
-            узагальнені результати свого підрозділу. Окремих відповідей і імен там не буде.
+            Що далі: коли відповість достатньо людей (не менше {minGroup}), узагальнені результати
+            підрозділу стануть доступні. Окремих відповідей і імен там не буде.
           </p>
         </div>
-        <Button size="lg" className="mt-5 w-full" onClick={() => setRole('respondent')}>
-          Переглянути результати підрозділу
-        </Button>
+        {resultsHref === undefined ? (
+          <Button size="lg" className="mt-5 w-full" onClick={() => setRole('respondent')}>
+            Переглянути результати підрозділу
+          </Button>
+        ) : resultsHref ? (
+          <Button size="lg" className="mt-5 w-full" onClick={() => navigate(resultsHref)}>
+            Переглянути результати підрозділу
+          </Button>
+        ) : null}
       </Frame>
     )
   }
@@ -285,7 +337,7 @@ export function SurveyFlow({ survey, token }: { survey: SurveyModel; token: stri
           Назад
         </Button>
         {last ? (
-          <Button size="lg" className="flex-1" onClick={submit}>
+          <Button size="lg" className="flex-1" loading={sending} onClick={() => void submit()}>
             Надіслати
           </Button>
         ) : (
@@ -367,6 +419,14 @@ export function SurveyFlow({ survey, token }: { survey: SurveyModel; token: stri
       </div>
 
       <div aria-live="polite" className="mt-6">
+        {sendError && (
+          <p
+            role="alert"
+            className="m-0 mb-3 rounded-lg border border-critical-solid bg-surface p-4 text-body-lg text-critical-text"
+          >
+            {sendError}
+          </p>
+        )}
         {missing && missing.length > 0 && (
           <div className="rounded-lg border border-attention-solid bg-attention-bg p-4 text-attention-text">
             <p className="m-0 text-card">

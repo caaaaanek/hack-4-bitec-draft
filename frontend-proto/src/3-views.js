@@ -87,22 +87,27 @@ const LIST_MAX = 3; // скільки пунктів показувати в «�
 /* Огляд */
 V.overview = () => {
   const m = cur(), ms = measures(), od = ms.filter(x => overdueDays(x) > 0).length, prev = m.series[m.series.length - 2];
-  const tile = (ic, title, big, sub, act, info) => `<section class="card c4 rise kpi-tile" ${act ? `role="button" tabindex="0" onclick="${act}"` : ""}><div class="kt-h"><span class="kt-ic">${IC[ic]}</span><span class="lbl">${title}</span>${info ? `<button type="button" class="kt-info" aria-label="Підказка: як рахується" data-tip="Як рахується і шкала рівнів" onclick="event.stopPropagation();${info}">${IC.info}</button>` : ""}</div><div class="kt-b">${big}<div class="kt-s">${sub}</div></div></section>`;
+  const tile = (ic, title, big, sub, act, info) => `<section class="card rise kpi-tile" ${act ? `role="button" tabindex="0" onclick="${act}"` : ""}><div class="kt-h"><span class="kt-ic">${IC[ic]}</span><span class="lbl">${title}</span>${info ? `<button type="button" class="kt-info" aria-label="Підказка: як рахується" data-tip="Як рахується і шкала рівнів" onclick="event.stopPropagation();${info}">${IC.info}</button>` : ""}</div><div class="kt-b">${big}<div class="kt-s">${sub}</div></div></section>`;
   return `${backToInst()}
+  <div class="c12 kpi-row">
   ${tile("gauge", "Індекс доброчесності", `<span class="mid tnum">${numHTML(m.index)}</span>`, `<span data-tip="Рівень зрілості визначається за індексом<small>${LDESC[m.level - 1]}</small>">Рівень зрілості ${m.level} з 5: ${LSHORT[m.level - 1]}</span><br>${deltaHTML(m.delta)}`, "openWhy()", "openHow()")}
   ${tile("shield", "Достовірність", `<span class="mid">${m.trust === "insufficient" ? "?" : m.trust}</span>`, `${TRUST[m.trust][1]}<br><span class="lbl">Прапорці: ${m.raised.length}</span>`, "openTrust()")}
   ${S.role === "observer" ? tile("users", "Відповідей у циклі", `<span class="mid tnum">${m.responses}</span>`, `<span class="lbl">Мінімальна група k = ${S.k}</span>`, "openResp()") : tile("target", "Заходи в трекері", `<span class="mid tnum">${ms.length}</span>`, od ? `<span style="color:var(--red);font-weight:600">З них ${od} прострочено</span>` : `<span class="lbl">Прострочених немає</span>`, "location.hash='tracker'")}
-  <section class="card c8 rise">${trendCard(m, "ovTrend")}</section>
-  <section class="card c4 rise" id="attn">
+  </div>
+  <section class="card c12 rise">${trendCard(m, "ovTrend")}</section>
+  <section class="card c12 rise" id="attn">
+    <div class="attn-cols"><div>
     <div class="card-h"><h2>Що потребує уваги</h2></div>
-    <div class="rows">${(S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX)).map(a => `<a class="row click" href="#explain/${a.c === "culture" || a.c === "accountability" ? (a.t.startsWith("Підтвердити") || a.t.startsWith("Більше") ? a.c : a.c) : a.c}" data-tip="${esc(a.hint)}"><span class="dot" style="background:${SCOL[status(a.v)]}"></span><div class="grow"><div class="t">${a.t}</div></div>${pill(COMP[a.c].n, "p-mute nodot")}<b class="tnum">${fb(a.v)}</b></a>`).join("")}</div>
-    <div class="card-h" style="margin:20px 0 6px"><h2>Сильні сторони</h2></div>
+    <div class="rows">${(S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX)).map(a => `<a class="row click" href="#explain/${a.c}"${a.q ? ` onclick="event.preventDefault();openApiQ('${a.q}')"` : ""} data-tip="${esc(a.hint)}"><span class="dot" style="background:${SCOL[status(a.v)]}"></span><div class="grow"><div class="t">${esc(a.t)}</div></div>${pill(COMP[a.c].n, "p-mute nodot")}<b class="tnum">${fb(a.v)}</b></a>`).join("")}</div>
+    </div><div>
+    <div class="card-h"><h2>Сильні сторони</h2></div>
     <div class="rows">${(S.attnAll ? m.strengths : m.strengths.slice(0, LIST_MAX)).map(a => `<a class="row click" href="${a.c ? "#explain/" + a.c : "#trends"}" data-tip="${esc(a.hint)}"><span class="dot" style="background:var(--teal)"></span><div class="grow"><div class="t">${a.t}</div></div><b class="tnum">${a.unit ? "+" : ""}${fb(a.v)}</b></a>`).join("")}</div>
+    </div></div>
   ${m.attention.length > LIST_MAX || m.strengths.length > LIST_MAX ? `<button class="link-btn" style="margin-top:8px" onclick="S.attnAll=!S.attnAll;render(true)">${S.attnAll ? "Згорнути" : `Показати всі (${m.attention.length + m.strengths.length})`}</button>` : ""}
   </section>
-  ${m.components.map((c, ci) => {
+  <div class="c12 comp-row">${m.components.map((c, ci) => {
     const C = COMP[c.id], pv = prev.cr[c.id], d = r1(c.cr.v - pv), lv = level(c.cr.v);
-    return `<a class="card c4 rise comp-card" href="#explain/${c.id}">
+    return `<a class="card rise comp-card" href="#explain/${c.id}">
       <div class="comp-top"><span class="comp-ic" style="background:${C.s};color:${C.c}">${IC[C.ic]}</span><b>${C.n}</b><div class="sp" style="flex:1"></div>${lvPill(lv)}</div>
       <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:14px">
         <div><div class="mid tnum">${numHTML(c.cr.v)}</div><div style="margin-top:6px">${deltaHTML(d)}</div></div>
@@ -110,8 +115,8 @@ V.overview = () => {
       </div>
       ${c.cr.lim ? `<div style="margin-top:14px">${pill("Зараховано з обмеженням", "p-warn")}</div>` : ""}
     </a>`;
-  }).join("")}
-  <section class="card c8 rise">
+  }).join("")}</div>
+  <section class="card c8 rise lv-card">
     <div class="card-h"><h2>Рівень зрілості</h2><div class="sp"></div><button type="button" class="pill-btn" onclick="openHow()">${IC.help}Як рахується</button></div>
     <div class="lbl" style="margin-bottom:14px">Індекс ${f1(m.index)} з 100 відповідає рівню ${m.level} «${LEVELS[m.level - 1]}» за Моделлю зрілості НАЗК.</div>
     ${levelBar(m.index)}
@@ -119,11 +124,12 @@ V.overview = () => {
     <div class="lbl" style="margin:20px 0 8px">Компоненти на тій самій шкалі</div>
     <div class="lv-comps">${m.components.map(c => { const v = c.cr.v, l = level(v); return `<a class="lv-comp" href="#explain/${c.id}"><b>${COMP[c.id].n}</b><div class="lvc-track">${[12.5, 25, 25, 25, 12.5].map((w, i) => `<span class="lv-b${i + 1} ${i + 1 === l ? "here" : ""}" style="flex:${w}"></span>`).join("")}<i style="left:${v}%" data-tip="${COMP[c.id].n}: ${fb(v)}"></i></div><span class="tnum">${fb(v)}</span>${lvPill(l)}</a>`; }).join("")}</div>
   </section>
-  <section class="card c4 rise">
+  <section class="card c4 rise radar-card">
     <div class="card-h"><h2>Радар компонентів</h2></div>
-    <div class="chart" id="radar"></div>
+    <div class="radar-body"><div class="radar-main"><div class="chart" id="radar"></div>
     <div class="legend lg-lines" style="justify-content:center"><span><i class="ar" style="background:color-mix(in srgb,var(--teal) 30%,transparent);border-color:var(--teal)"></i>Цикл ${CYCLE}</span><span><i class="ln dash" style="border-color:var(--faint)"></i>Цикл ${prev.cycle}</span></div>
-    <div class="lbl" style="text-align:center;margin-top:6px">Зараховані значення компонентів, 0–100.</div>
+    <div class="lbl" style="text-align:center;margin-top:6px">Зараховані значення компонентів, 0–100.</div></div>
+    <div class="radar-side"><table><thead><tr><th>Компонент</th><th>Сприйняття</th><th>Факти</th><th>Зараховано</th></tr></thead><tbody>${m.components.map(c => `<tr><td><b>${COMP[c.id].n}</b></td><td class="tnum">${fb(c.P)}</td><td class="tnum">${fb(c.F)}</td><td class="tnum"><b>${fb(c.cr.v)}</b></td></tr>`).join("")}</tbody></table><div class="lbl" style="margin-top:8px">Зараховано це сприйняття, обмежене фактами: не більше ніж «факти + ${CAP}».</div></div></div>
   </section>
   ${readGuide("Як читати цей екран")}`;
 };
@@ -176,7 +182,7 @@ function pickCycle(k) {
   if (a === b) { toast("Оберіть два різні цикли"); return drawPeriod(); }
   S.trend.from = a; S.trend.to = b; persist(); closePop(); render(true);
 }
-function closePop() { $("#pop").classList.remove("on"); pickA = null; }
+function closePop() { const p = $("#pop"); p.classList.remove("on"); p.style.width = ""; pickA = null; }
 document.addEventListener("click", e => { const p = $("#pop"); if (p.classList.contains("on") && !p.contains(e.target) && !(p._btn && p._btn.contains(e.target)) && !e.target.closest("#pop")) closePop(); }, true);
 
 /* Розклад індексу */
@@ -201,13 +207,14 @@ V.explain = () => {
     ${T.map(c => `<tr><td><b>${COMP[c.id].n}</b>${c.lim ? " " + pill("Обмежувач", "p-warn nodot") : ""}</td><td>2</td><td class="tnum">33,3</td><td class="tnum">${fb(c.val)}</td><td class="tnum">${f2(c.contrib)}</td><td></td></tr>${c.items.map(x => `<tr><td style="padding-left:28px">${esc(x.t)}</td><td>3</td><td class="tnum">${x.w}</td><td class="tnum">${fb(x.vv)}</td><td class="tnum">${f2(x.contrib)}</td><td>${x.src ? SRC[x.src][0] : "Факти"}</td></tr>`).join("")}`).join("")}
   </tbody></table></div>`;
   return `${backToInst()}
-  <section class="c12 rise toolbar"><span class="lbl">Звідки взялося кожне число. Клацніть на питання, щоб побачити подробиці.</span><div class="sp"></div>
+  <section class="c12 rise toolbar"><div class="sp"></div>
     <button class="btn btn-ghost" onclick="openHow()">${IC.help}Як це рахується</button>
     <div class="seg" role="group" aria-label="Що показувати">${Object.entries(MODES).map(([k, n]) => `<button class="${mode === k ? "on" : ""}" aria-pressed="${mode === k}" onclick="S.mode='${k}';persist();render(true)">${n}</button>`).join("")}</div>
     <button class="btn btn-ghost" onclick="S.exTable=!S.exTable;render(true)">${S.exTable ? IC.tree + "Показати як дерево" : IC.table + "Показати як таблицю"}</button></section>
   ${mode !== "credited" ? `<div class="c12 note-box rise" style="flex-direction:row;align-items:center;gap:10px">${IC.info}<span>Режим «${MODES[mode]}»: значення без обмежувача, тому верхній рядок (${f1(sum)}) не дорівнює індексу ${f1(m.index)}. До індексу йдуть зараховані значення.</span></div>` : ""}
   <section class="card c12 rise">
-    ${S.exTable ? table : `<div class="tree-cols lbl"><span>Складова</span><span class="hm">Вага</span><span>Значення</span><span class="hm">Внесок в індекс, пункти</span><span></span></div>
+    ${S.exTable ? table : `<div class="tree-cols lbl"><span>Складова</span><span class="hm"></span><span>Значення</span><span class="hm">Внесок в індекс, пункти</span><span></span></div>
+    ${mode === "credited" && T.some(c => c.lim) ? `<div class="lim-callout" role="note"><span class="lim-ic">${IC.alert}</span><div><b>Результат знижено обмежувачем</b>${T.filter(c => c.lim).map(c => `<div><b>${COMP[c.id].n}:</b> ${c.cr.reason}</div>`).join("")}</div></div>` : ""}
     <div class="tree-root"><span><b>Індекс доброчесності</b><span class="lbl" style="display:block;font-size:12.5px">Середнє трьох компонентів: кожен дає третину індексу</span></span><span class="hm"></span><b class="tnum">${fb(sum)}</b><span class="lbl tnum hm">${f2(T.reduce((a, c) => a + c.contrib, 0))}</span><span></span></div>
     ${T.map((c, ci) => `<div class="tree-c ${S.open[c.id] ? "open" : ""} ${hl === c.id ? "hl" : ""}" id="n-${c.id}">
       <button class="tree-head" onclick="S.open['${c.id}']=!S.open['${c.id}'];this.parentNode.classList.toggle('open')" aria-expanded="${!!S.open[c.id]}">
@@ -215,7 +222,6 @@ V.explain = () => {
         <span class="hm"></span><b class="tnum">${fb(c.val)}</b>
         <span class="hm"><div class="contrib"><i style="width:${c.contrib / 34 * 100}%;background:${COMP[c.id].c};animation-delay:${ci * 120}ms"></i></div><span class="lbl tnum">${f2(c.contrib)}</span></span>
         <span class="chev">${IC.chev}</span></button>
-      ${c.lim ? `<div class="lim-note">${c.cr.reason}</div>` : ""}
       <div class="tree-body"><div class="tree-row lbl hdr"><span>${mode === "facts" ? "Показник" : "Питання"}</span><span class="hm">Вага</span><span>Значення</span><span class="hm">Внесок</span><span></span></div>${c.items.map(row).join("")}</div>
     </div>`).join("")}`}
   </section>`;
@@ -253,8 +259,8 @@ V.trends = () => {
   <section class="card c5 rise">
     <div class="card-h"><h2>Висновок за весь період</h2></div>
     ${(() => { const f = sr[0], l = sr[sr.length - 1], p = COMPS.filter(c => l.cr[c] > f.cr[c]), n = COMPS.filter(c => l.cr[c] < f.cr[c]); return `<div class="rows">
-      <div class="row" style="align-items:flex-start"><span class="comp-ic" style="background:var(--teal-soft);color:var(--teal-deep);width:28px;height:28px">${IC.up}</span><div class="grow">${p.length ? `Позитивна динаміка: ${p.map(c => `${COMP[c].n} (${pts(l.cr[c] - f.cr[c])})`).join(", ")}.` : "Позитивної динаміки за період немає."}</div></div>
-      <div class="row" style="align-items:flex-start"><span class="comp-ic" style="background:${n.length ? "var(--red-soft)" : "var(--soft)"};color:${n.length ? "var(--red)" : "var(--muted)"};width:28px;height:28px">${n.length ? IC.down : IC.flat}</span><div class="grow">${n.length ? `Потребує уваги: ${n.map(c => `${COMP[c].n} (−${pts(f.cr[c] - l.cr[c])})`).join(", ")}.` : "Негативної динаміки за компонентами немає."}</div></div>
+      <div class="row" style="align-items:center"><span class="comp-ic" style="background:var(--teal-soft);color:var(--teal-deep);width:28px;height:28px">${IC.up}</span><div class="grow">${p.length ? `Позитивна динаміка: ${p.map(c => `${COMP[c].n} (${pts(l.cr[c] - f.cr[c])})`).join(", ")}.` : "Позитивної динаміки за період немає."}</div></div>
+      <div class="row" style="align-items:center"><span class="comp-ic" style="background:${n.length ? "var(--red-soft)" : "var(--soft)"};color:${n.length ? "var(--red)" : "var(--muted)"};width:28px;height:28px">${n.length ? IC.down : IC.flat}</span><div class="grow">${n.length ? `Потребує уваги: ${n.map(c => `${COMP[c].n} (−${pts(f.cr[c] - l.cr[c])})`).join(", ")}.` : "Негативної динаміки за компонентами немає."}</div></div>
       ${m.events.map(e => `<div class="row"><span class="ev-ic ev-c">${IC.diamond}</span><div class="grow"><div class="t">${e.t}</div><div class="s">Після циклу ${e.after}</div></div></div>`).join("")}</div>`; })()}
   </section>`;
 };
@@ -275,7 +281,7 @@ V.recs = () => {
       <h3>${r.t}</h3>
       <div class="lbl" style="margin:10px 0 4px">Чому система це пропонує</div><div>${r.why}</div>
       <div class="lbl" style="margin:12px 0 4px">На підставі</div>
-      <div class="ev">${r.evidence.map(e => `<a href="#explain/${e.id}" class="ev-i">${e.item ? "" : `<span style="color:var(--red);display:inline-flex;width:14px">${IC.alert}</span>`}<span>${esc(e.t)}: <b>${e.v}</b></span><span class="lbl">Відкрити в розкладі ${IC.arrowR}</span></a>`).join("")}</div>
+      <div class="ev">${r.evidence.map(e => `<a href="#explain/${e.id}" class="ev-i"${e.q ? ` onclick="event.preventDefault();openApiQ('${e.q}')"` : ""}>${e.item ? "" : `<span style="color:var(--red);display:inline-flex;width:14px">${IC.alert}</span>`}<span>${esc(e.t)}: <b>${e.v}</b></span><span class="lbl">${e.q ? "Відкрити питання" : "Відкрити в розкладі"} ${IC.arrowR}</span></a>`).join("")}</div>
       <details class="acts"><summary>Запропоновані дії (${r.acts.length})</summary><ol>${r.acts.map(a => `<li>${a}</li>`).join("")}</ol></details>
       ${r.note.reason ? `<div class="note-box" style="margin-top:10px"><b>Причина відхилення</b><span>${esc(r.note.reason)}</span></div>` : ""}
       ${r.note.comment ? `<div class="note-box" style="margin-top:10px"><b>Коментар до уточнення</b><span>${esc(r.note.comment)}</span></div>` : ""}
@@ -294,6 +300,7 @@ function acceptRec(id) {
     b.querySelector("#f-ok").onclick = () => {
       const due = b.querySelector("#f-due").value;
       if (!due || due < TODAY) { b.querySelector("#f-err").textContent = "Оберіть строк не раніше за сьогодні."; return; }
+      if (API.on) { b.querySelector("#f-ok").disabled = true; apiDecide(id, "accepted", "", { owner: b.querySelector("#f-who").value, due_date: due }).then(() => { closeDrawer(); toast(`Рекомендацію прийнято. Захід «${r.t}» додано до трекера.`); }, e => { b.querySelector("#f-err").textContent = apiErrText(e); b.querySelector("#f-ok").disabled = false; }); return; }
       const mid = "m-" + (BASE_MEASURES.length + S.dec.added.length + 1);
       S.dec.rec[id] = { status: "accepted" };
       S.dec.added.push({ id: mid, recId: id, rec: r.t, t: r.t, who: b.querySelector("#f-who").value, due, st: "accepted", ind: r.items[0] });
@@ -311,6 +318,7 @@ function noteRec(id, kind) {
     b.querySelector("#f-ok").onclick = () => {
       const t = b.querySelector("#f-why").value.trim();
       if (!t) { const e = b.querySelector("#f-err"); e.textContent = rej ? "Вкажіть причину відхилення." : "Напишіть, що саме потрібно уточнити."; e.style.color = "var(--red)"; b.querySelector("#f-why").focus(); return; }
+      if (API.on) { apiDecide(id, rej ? "rejected" : "clarify", t).then(() => { closeDrawer(); toast(rej ? "Рекомендацію відхилено. Причину збережено." : "Рекомендацію позначено як «Уточнено». Коментар збережено."); }, e => { const er = b.querySelector("#f-err"); er.textContent = apiErrText(e); er.style.color = "var(--red)"; }); return; }
       S.dec.rec[id] = rej ? { status: "rejected", reason: t } : { status: "clarified", comment: t };
       addLog(me(), `Рекомендацію «${r.t}» ${rej ? "відхилено" : "позначено «Уточнено»"}: ${t}`); persist(); closeDrawer(); render(true);
       toast(rej ? "Рекомендацію відхилено. Причину збережено." : "Рекомендацію позначено як «Уточнено». Коментар збережено.");
@@ -325,7 +333,7 @@ V.tracker = () => {
   const od = all.filter(x => overdueDays(x) > 0).length;
   const stCell = x => pill(M_ST[x.st][0], M_ST[x.st][1]);
   const actCell = x => x.st === "confirmed" ? `<span class="lbl">Змінює наступне оцінювання</span>` : edit ? `<div class="mv">${M_NEXT[x.st].map(s => `<button class="btn btn-ghost" onclick="setMSt('${x.id}','${s}')">${IC.arrowR}${M_ST[s][0]}</button>`).join("")}</div>` : `<span class="lbl">—</span>`;
-  const board = ["accepted", "inprogress", "done", "confirmed", "notconfirmed"].map(st => { const cards = list.filter(x => x.st === st); return `<div class="col-b"><div class="col-h">${pill(M_ST[st][0], M_ST[st][1])}<span class="lbl tnum">${cards.length}</span></div>${cards.map(x => `<div class="b-card tr-click" tabindex="0" onclick="if(!event.target.closest('button'))openMeasure('${x.id}')"><b>${x.t}</b><span class="lbl">${x.who}</span><div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap"><span class="lbl tnum" ${overdueDays(x) ? 'style="color:var(--red);font-weight:600"' : ""}>Строк: ${ua(x.due)}</span>${overdueDays(x) ? pill(`+${overdueDays(x)} ${daysWord(overdueDays(x))}`, "p-bad nodot") : ""}</div>${edit && M_NEXT[x.st].length ? `<div class="seg sm">${M_NEXT[x.st].map(s => `<button onclick="setMSt('${x.id}','${s}')">${IC.arrowR}${M_ST[s][0]}</button>`).join("")}</div>` : ""}</div>`).join("") || `<div class="lbl" style="padding:8px">Порожньо</div>`}</div>`; }).join("");
+  const board = ["accepted", "inprogress", "done", "confirmed", "notconfirmed", ...(list.some(x => x.st === "cancelled") ? ["cancelled"] : [])].map(st => { const cards = list.filter(x => x.st === st); return `<div class="col-b" data-st="${st}"><div class="col-h">${pill(M_ST[st][0], M_ST[st][1])}<span class="lbl tnum">${cards.length}</span></div>${cards.map(x => `<div class="b-card tr-click" tabindex="0" ${edit && M_NEXT[x.st].length ? `draggable="true" data-id="${x.id}" data-st="${x.st}"` : ""} onclick="if(!event.target.closest('button'))openMeasure('${x.id}')"><b>${x.t}</b><span class="lbl">${x.who}</span><div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap"><span class="lbl tnum" ${overdueDays(x) ? 'style="color:var(--red);font-weight:600"' : ""}>Строк: ${ua(x.due)}</span>${overdueDays(x) ? pill(`+${overdueDays(x)} ${daysWord(overdueDays(x))}`, "p-bad nodot") : ""}</div>${edit && M_NEXT[x.st].length ? `<div class="seg sm">${M_NEXT[x.st].map(s => `<button onclick="setMSt('${x.id}','${s}')">${IC.arrowR}${M_ST[s][0]}</button>`).join("")}</div>` : ""}</div>`).join("") || `<div class="lbl" style="padding:8px">Порожньо</div>`}</div>`; }).join("");
   const conf = all.filter(x => x.st === "confirmed").length, wait = all.filter(x => x.st === "done").length, rev = all.filter(x => x.st === "notconfirmed").length;
   return `
   <section class="c12 rise toolbar"><div class="sp"></div>
@@ -356,7 +364,7 @@ function openMeasure(id) {
     <div class="note-box"><b>Звіт виконавця</b><span class="lbl">Документи й звіти про виконання ведуться в окремому застосунку суміжної команди.</span>
       ${MEASURES_APP.url ? `<a class="btn btn-soft" href="${MEASURES_APP.url}" target="_blank" rel="noopener" style="justify-content:center">${IC.arrowR}Відкрити в застосунку звітування</a>` : `<button class="btn btn-soft" disabled style="justify-content:center;opacity:.6">${IC.arrowR}Відкрити в застосунку звітування</button><span class="lbl" style="font-size:12px">Посилання зʼявиться після погодження інтеграції.</span>`}</div>`);
 }
-function setMSt(id, st) { const x = measures().find(m => m.id === id); if (!x || !M_NEXT[x.st].includes(st)) return; S.dec.mst[id] = st; addLog(me(), `Захід «${x.t}»: статус «${M_ST[st][0]}»`); persist(); render(true); toast(`Статус заходу змінено на «${M_ST[st][0]}».`); }
+function setMSt(id, st) { if (API.on) return apiSetMSt(id, st); const x = measures().find(m => m.id === id); if (!x || !M_NEXT[x.st].includes(st)) return; S.dec.mst[id] = st; addLog(me(), `Захід «${x.t}»: статус «${M_ST[st][0]}»`); persist(); render(true); toast(`Статус заходу змінено на «${M_ST[st][0]}».`); }
 
 /* Джерела */
 const SOURCES = [
@@ -377,6 +385,26 @@ const INTEG = [
   ["Проєкт оцінки закупівель", "planned", "Додати факти про закупівлі до Підзвітності", "Обмін агрегованими показниками", "layers"],
   ["Система суміжної команди", "approval", "Отримувати звіти про виконання заходів", "Обмін статусами заходів", "target"],
 ];
+// Дошка: перетягування картки в дозволений стовпець (ті самі переходи, що й кнопки на картці)
+V.tracker.after = () => {
+  const board = document.querySelector(".board"); if (!board) return;
+  let drag = null;
+  const clear = () => { drag = null; board.classList.remove("dnd"); board.querySelectorAll(".dragging,.can-drop,.drop-over").forEach(x => x.classList.remove("dragging", "can-drop", "drop-over")); };
+  board.ondragstart = e => {
+    const c = e.target.closest(".b-card[draggable]"); if (!c) return;
+    drag = { id: c.dataset.id, st: c.dataset.st }; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", drag.id);
+    c.classList.add("dragging"); board.classList.add("dnd");
+    board.querySelectorAll(".col-b").forEach(col => col.classList.toggle("can-drop", (M_NEXT[drag.st] || []).includes(col.dataset.st)));
+  };
+  board.ondragend = clear;
+  board.ondragover = e => {
+    const col = e.target.closest(".col-b"); if (!drag || !col || !col.classList.contains("can-drop")) return;
+    e.preventDefault(); e.dataTransfer.dropEffect = "move";
+    board.querySelectorAll(".drop-over").forEach(x => x !== col && x.classList.remove("drop-over")); col.classList.add("drop-over");
+  };
+  board.ondrop = e => { const col = e.target.closest(".col-b"); if (!drag || !col || !col.classList.contains("can-drop")) return; e.preventDefault(); const id = drag.id; clear(); setMSt(id, col.dataset.st); };
+};
+
 V.sources = () => `
   <section class="card c12 rise"><div class="card-h"><h2>Джерела даних за метриками</h2><div class="sp"></div><span class="lbl">Клацніть на рядок, щоб переглянути дані</span></div>
     <div class="tbl-wrap"><table><thead><tr><th>Метрика</th><th>Джерело</th><th>Режим</th><th>Вік даних</th><th>Пояснення</th></tr></thead><tbody>
@@ -482,7 +510,7 @@ V.compare = () => {
   <section class="card c12 rise">
     <div class="card-h" style="flex-wrap:wrap"><h2>Сприйняття проти фактів</h2><button type="button" class="kt-info" aria-label="Як читати" data-tip="Точки показують середню оцінку кожної групи, риска це факти. Праворуч різниця «сприйняття мінус факти». Червоним позначено розрив понад ${CAP} пунктів: тоді вмикається обмежувач.">${IC.info}</button><div class="sp"></div><div class="legend">${marks.map(([s, n]) => `<span><i class="mk ${s}"></i>${n}</span>`).join("")}<span><i class="mk f"></i>Факти</span></div></div>
     ${m.components.map((c, i) => { const vals = marks.map(([s]) => [s, srcAvg(c.id, s)]).filter(([, v]) => v != null); const all = [...vals.map(x => x[1]), c.F]; const lo = Math.min(...all), hi = Math.max(...all), gap = r1(c.P - c.F);
-      return `<div class="db" style="cursor:pointer" onclick="location.hash='explain/${c.id}'"><span class="t"><b>${COMP[c.id].n}</b><br><span class="lbl">Сприйняття ${fb(c.P)} · факти ${fb(c.F)}</span></span>
+      return `<div class="db" style="cursor:pointer" role="link" tabindex="0" aria-label="${COMP[c.id].n}: розклад індексу" onclick="location.hash='explain/${c.id}'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.hash='explain/${c.id}'}"><span class="t"><b>${COMP[c.id].n}</b><br><span class="lbl">Сприйняття ${fb(c.P)} · факти ${fb(c.F)}</span></span>
         <div class="track"><div class="gap ${gap > CAP ? "bad" : ""}" style="left:${lo}%;width:${hi - lo}%;animation-delay:${i * 80}ms"></div>
         ${vals.map(([s, v], j) => `<span class="m mk ${s}" style="left:${v}%;animation-delay:${200 + i * 80 + j * 60}ms" data-tip="${SRC[s][0]}: ${fb(v)}"></span>`).join("")}
         <span class="m mk f" style="left:${c.F}%;animation-delay:${400 + i * 80}ms" data-tip="Факти: ${fb(c.F)}"></span></div>

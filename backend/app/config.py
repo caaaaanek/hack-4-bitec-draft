@@ -53,6 +53,14 @@ class Settings(BaseSettings):
     assistant_model: str = "llama3.1:8b"
     assistant_timeout_seconds: float = 30.0
 
+    # Асистент фронтенду (frontend-proto, /api/assistant): будь-який OpenAI-сумісний /chat/completions.
+    # Порожній LLM_BASE_URL і LLM_API_KEY — асистент вимкнено, фронтенд відповідає шаблонами правил.
+    # Закритий контур: LLM_BASE_URL=http://host.docker.internal:11434/v1 (Ollama), LLM_MODEL=gemma3:4b.
+    llm_base_url: str = ""
+    llm_api_key: str = ""
+    llm_model: str = "gemma3:4b"
+    llm_timeout_seconds: float = 60.0
+
     # Пароль для синтетичних демо-користувачів, яких створює seed.
     demo_password: str = ""
 

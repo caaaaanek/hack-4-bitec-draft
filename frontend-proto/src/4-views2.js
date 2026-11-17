@@ -221,15 +221,15 @@ function openLog(n, n2) {
 function verifyChain() { let prev = "0", ok = true; logItems().forEach(x => { const h = fnv(prev + x.t + x.who + x.a); if (h !== x.h) ok = false; prev = h; }); addLog(me(), "Перевірка цілісності журналу"); const n = logItems().length; render(true); $("#chainSt").innerHTML = pill(ok ? `Перевірено ${n} записів, розривів немає` : "Ланцюг порушено", ok ? "p-good" : "p-bad"); toast(ok ? "Ланцюг цілісний. Сама перевірка теж записана в журнал." : "Ланцюг порушено"); }
 
 /* Опитування за жетоном */
-const answered = () => SURVEY_Q.filter(q => S.survey.a[q.id] != null).length;
+const answered = () => SQ().filter(q => S.survey.a[q.id] != null).length;
 V.survey = () => {
-  const sv = S.survey, N = SURVEY_Q.length;
-  if (S.tokenUsed && sv.phase !== "done") return `<div class="survey c12"><section class="card rise" style="padding:32px;text-align:center"><div class="done-ic" style="background:var(--soft);color:var(--muted)">${IC.lock}</div>
+  const sv = S.survey, N = SQ().length;
+  if ((API.on ? API.surveyUsed : S.tokenUsed) && sv.phase !== "done") return `<div class="survey c12"><section class="card rise" style="padding:32px;text-align:center"><div class="done-ic" style="background:var(--soft);color:var(--muted)">${IC.lock}</div>
     <h2 style="margin:18px 0 6px;font-size:22px;font-weight:600">Цю анкету вже заповнено</h2><p class="lbl" style="max-width:480px;margin:0 auto 20px">Повторно відповісти за цим посиланням не можна: так ми захищаємо анонімність і не допускаємо подвоєних відповідей. Дякуємо за участь.</p>
-    <a class="btn btn-primary" href="#me">Мої результати ${IC.arrowR}</a></section></div>`;
+    ${API.anon ? "" : `<a class="btn btn-primary" href="#me">Мої результати ${IC.arrowR}</a>`}</section></div>`;
   if (sv.phase === "intro") return `<div class="survey c12"><section class="card rise" style="padding:28px">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px"><span class="comp-ic" style="background:var(--lime-soft);color:var(--teal-deep)">${IC.shield}</span><span class="lbl">${SURVEY.cat} · жетон demo</span></div>
-      <h2 style="margin:6px 0 4px;font-size:24px;font-weight:600;letter-spacing:-.02em">${SURVEY.title}</h2>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px"><span class="comp-ic" style="background:var(--lime-soft);color:var(--teal-deep)">${IC.shield}</span><span class="lbl">${SV().cat} · ${API.on ? (API.anon ? "одноразове посилання" : "за обліковим записом") : "жетон demo"}</span></div>
+      <h2 style="margin:6px 0 4px;font-size:24px;font-weight:600;letter-spacing:-.02em">${SV().title}</h2>
       <p class="lbl" style="margin:0 0 18px">Перш ніж почати: ${N} питань, анкета займе кілька хвилин. Ось що ми гарантуємо.</p>
       <div class="guar">
         <div>${IC.lock}<b>Без імен</b><span class="lbl">Ваші відповіді не повʼязані з вами і не містять імен.</span></div>
@@ -240,15 +240,15 @@ V.survey = () => {
     </section></div>`;
   if (sv.phase === "done") return `<div class="survey c12"><section class="card rise" style="padding:36px;text-align:center"><div class="done-ic">${IC.ok}</div>
     <h2 style="margin:18px 0 6px;font-size:24px;font-weight:600">Дякуємо. Ваші відповіді збережено анонімно.</h2>
-    <p class="lbl" style="max-width:520px;margin:0 auto 20px">Що далі: коли відповість достатньо людей (не менше ${S.k}), ви зможете побачити узагальнені результати свого підрозділу. Окремих відповідей і імен там не буде.</p>
-    <a class="btn btn-primary" href="#me">Переглянути результати підрозділу ${IC.arrowR}</a></section></div>`;
-  const sec = SURVEY.sections[sv.sec], last = sv.sec === SURVEY.sections.length - 1, miss = SURVEY_Q.filter(q => sv.a[q.id] == null);
+    <p class="lbl" style="max-width:520px;margin:0 auto 20px">Що далі: коли відповість достатньо людей (не менше ${S.k}), ${API.anon ? "узагальнені результати підрозділу стануть доступні керівництву й учасникам" : "ви зможете побачити узагальнені результати свого підрозділу"}. Окремих відповідей і імен там не буде.</p>
+    ${API.anon ? "" : `<a class="btn btn-primary" href="#me">Переглянути результати підрозділу ${IC.arrowR}</a>`}</section></div>`;
+  const sec = SV().sections[sv.sec], SC = COMP[sec.id] || { s: "var(--soft)", c: "var(--muted)", ic: "survey" }, last = sv.sec === SV().sections.length - 1, miss = SQ().filter(q => sv.a[q.id] == null);
   return `<div class="survey c12">
-    <div class="sv-top"><span class="lbl">Розділ ${sv.sec + 1} з ${SURVEY.sections.length}</span><div class="qprog" style="flex:1">${SURVEY_Q.map(q => `<span class="${q.si === sv.sec ? "cur" : ""} ${sv.a[q.id] != null ? "done" : ""}"></span>`).join("")}</div><span class="lbl tnum">Відповіли на ${answered()} з ${N}</span><button class="icon-btn" aria-label="Закрити" onclick="S.survey.phase='intro';render();toast('Відповіді лишаються на цьому пристрої. Їх ще не надіслано.')">${IC.x}</button></div>
+    <div class="sv-top"><span class="lbl">Розділ ${sv.sec + 1} з ${SV().sections.length}</span><div class="qprog" style="flex:1">${SQ().map(q => `<span class="${q.si === sv.sec ? "cur" : ""} ${sv.a[q.id] != null ? "done" : ""}"></span>`).join("")}</div><span class="lbl tnum">Відповіли на ${answered()} з ${N}</span><button class="icon-btn" aria-label="Закрити" onclick="S.survey.phase='intro';render();toast('Відповіді лишаються на цьому пристрої. Їх ще не надіслано.')">${IC.x}</button></div>
     <section class="card qcard" style="padding:24px" key="${sv.sec}">
-      <div class="comp-top" style="margin-bottom:4px"><span class="comp-ic" style="background:${COMP[sec.id].s};color:${COMP[sec.id].c}">${IC[COMP[sec.id].ic]}</span><b style="font-size:18px">${sec.t}</b><span class="lbl">${sec.about}</span></div>
+      <div class="comp-top" style="margin-bottom:4px"><span class="comp-ic" style="background:${SC.s};color:${SC.c}">${IC[SC.ic]}</span><b style="font-size:18px">${sec.t}</b><span class="lbl">${sec.about}</span></div>
       ${sec.q.map(([id, t, o], qi) => `<fieldset class="qf" id="q-${id}"><legend>${qi + 1}. ${t}</legend><div class="opts">${o.map((x, i) => `<button type="button" class="opt ${sv.a[id] === i ? "on" : ""}" aria-pressed="${sv.a[id] === i}" onclick="pick('${id}',${i})"><span class="rb"></span><span>${x}</span></button>`).join("")}</div></fieldset>`).join("")}
-      ${sv.miss && last && miss.length ? `<div class="note-box" style="margin-top:12px"><b>Залишилось відповісти на ${miss.length} ${miss.length === 1 ? "питання" : miss.length < 5 ? "питання" : "питань"}</b><span class="lbl">Натисніть на питання, щоб перейти до нього.</span>${miss.map(q => `<a class="link" href="javascript:void 0" onclick="S.survey.sec=${q.si};S.survey.miss=false;render(true);setTimeout(()=>document.getElementById('q-${q.id}').scrollIntoView({behavior:'smooth',block:'center'}),60)">Розділ «${SURVEY.sections[q.si].t}», питання ${q.qi + 1}</a>`).join("")}</div>` : ""}
+      ${sv.miss && last && miss.length ? `<div class="note-box" style="margin-top:12px"><b>Залишилось відповісти на ${miss.length} ${miss.length === 1 ? "питання" : miss.length < 5 ? "питання" : "питань"}</b><span class="lbl">Натисніть на питання, щоб перейти до нього.</span>${miss.map(q => `<a class="link" href="javascript:void 0" onclick="S.survey.sec=${q.si};S.survey.miss=false;render(true);setTimeout(()=>document.getElementById('q-${q.id}').scrollIntoView({behavior:'smooth',block:'center'}),60)">Розділ «${SV().sections[q.si].t}», питання ${q.qi + 1}</a>`).join("")}</div>` : ""}
       <div style="display:flex;justify-content:space-between;margin-top:20px;gap:10px">
         <button class="btn btn-ghost" ${sv.sec === 0 ? "disabled" : ""} onclick="S.survey.sec--;S.survey.miss=false;render();window.scrollTo(0,0)">${IC.arrowL}Назад</button>
         ${last ? `<button class="btn btn-primary" onclick="submitSurvey()">${IC.send}Надіслати</button>` : `<button class="btn btn-primary" onclick="S.survey.sec++;render();window.scrollTo(0,0)">Далі ${IC.arrowR}</button>`}
@@ -258,7 +258,8 @@ V.survey = () => {
 V.survey.after = () => { if (S.survey.phase === "done") S.survey.phase = "intro"; };
 function pick(id, i) { S.survey.a[id] = i; try { localStorage.setItem("ii-survey-draft", JSON.stringify(S.survey.a)); } catch (e) {} render(true); }
 function submitSurvey() {
-  if (answered() < SURVEY_Q.length) { S.survey.miss = true; render(true); return; }
+  if (answered() < SQ().length) { S.survey.miss = true; render(true); return; }
+  if (API.on) return apiSubmitSurvey();
   S.survey = { phase: "done", sec: 0, a: {}, miss: false }; S.tokenUsed = true; UNIT_RESP[S.unit] = (UNIT_RESP[S.unit] || 0) + 1;
   try { localStorage.removeItem("ii-survey-draft"); } catch (e) {}
   addLog("Система", "Отримано анонімну відповідь, жетон погашено"); persist(); render();

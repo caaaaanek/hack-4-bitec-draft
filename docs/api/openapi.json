@@ -4955,6 +4955,105 @@
         }
       }
     },
+    "/api/v1/indicators/units": {
+      "get": {
+        "tags": [
+          "indicators"
+        ],
+        "summary": "Integration Units",
+        "description": "Довідник підрозділів для адаптерів джерел: зіставити свої коди з unit_id. Лише id, назва, батько.",
+        "operationId": "integration_units_api_v1_indicators_units_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "x-integration-key",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Integration-Key"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/IntegrationUnitOut"
+                  },
+                  "title": "Response Integration Units Api V1 Indicators Units Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
     "/api/v1/units/{unit_id}/indicators": {
       "get": {
         "tags": [
@@ -6598,7 +6697,7 @@
           "reports"
         ],
         "summary": "Campaign Report",
-        "description": "Звіт хвилі (структура Додатку Г): індекс, компоненти, факти, питання, розбіжності,\nдинаміка, рекомендації з рішеннями, заходи. PDF друкує фронтенд (print.css).",
+        "description": "Звіт хвилі (структура Додатку Г): індекс, компоненти, факти, питання, розбіжності,\nдинаміка, рекомендації з рішеннями, заходи з перевіркою наступною хвилею.\nРозділ `appendix_g`: крос-таблиці РГ / ОС / експерти, збіги й розбіжності, висновок, пропозиції.\nPDF друкує фронтенд (print.css).",
         "operationId": "campaign_report_api_v1_campaigns__campaign_id__report_get",
         "security": [
           {
@@ -6639,10 +6738,12 @@
             "required": false,
             "schema": {
               "type": "string",
-              "pattern": "^(json|csv)$",
+              "pattern": "^(json|csv|xlsx|docx)$",
+              "description": "json для сторінки; csv, xlsx (Excel) або docx (Word) для завантаження",
               "default": "json",
               "title": "Format"
-            }
+            },
+            "description": "json для сторінки; csv, xlsx (Excel) або docx (Word) для завантаження"
           }
         ],
         "responses": {
@@ -6983,6 +7084,162 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AskOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/assistant": {
+      "get": {
+        "tags": [
+          "assistant"
+        ],
+        "summary": "Status",
+        "description": "Чи доступна модель. Без секретів і без входу (фронтенд показує перемикач режиму).",
+        "operationId": "status_api_assistant_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LlmStatus"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "assistant"
+        ],
+        "summary": "Ask",
+        "operationId": "ask_api_assistant_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LlmIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LlmOut"
                 }
               }
             }
@@ -9569,6 +9826,10 @@
             "type": "string",
             "title": "Title"
           },
+          "component": {
+            "type": "string",
+            "title": "Component"
+          },
           "questions": {
             "items": {
               "$ref": "#/components/schemas/FormQuestion"
@@ -9581,6 +9842,7 @@
         "required": [
           "id",
           "title",
+          "component",
           "questions"
         ],
         "title": "FormSection"
@@ -10224,6 +10486,38 @@
         ],
         "title": "IntegrationStatus"
       },
+      "IntegrationUnitOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "parent_id"
+        ],
+        "title": "IntegrationUnitOut"
+      },
       "IssuedToken": {
         "properties": {
           "token": {
@@ -10259,6 +10553,110 @@
           "title"
         ],
         "title": "Level"
+      },
+      "LlmIn": {
+        "properties": {
+          "question": {
+            "type": "string",
+            "maxLength": 1000,
+            "minLength": 1,
+            "title": "Question"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "items": {},
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Context"
+          },
+          "history": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "History"
+          },
+          "unit_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Id",
+            "description": "Підрозділ, відкритий на екрані (підказка моделі)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question"
+        ],
+        "title": "LlmIn"
+      },
+      "LlmOut": {
+        "properties": {
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "tools": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tools",
+            "description": "Які інструменти викликано (для прозорості відповіді)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "text",
+          "model"
+        ],
+        "title": "LlmOut"
+      },
+      "LlmStatus": {
+        "properties": {
+          "live": {
+            "type": "boolean",
+            "title": "Live"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          }
+        },
+        "type": "object",
+        "required": [
+          "live",
+          "model"
+        ],
+        "title": "LlmStatus"
       },
       "LoginIn": {
         "properties": {
@@ -10621,6 +11019,16 @@
             "type": "string",
             "format": "date-time",
             "title": "Updated At"
+          },
+          "verification": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeasureVerification"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -10773,6 +11181,117 @@
         "additionalProperties": false,
         "type": "object",
         "title": "MeasureUpdate"
+      },
+      "MeasureVerification": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "not_done | awaiting_wave | no_data | improved | worsened | within_error | check_data"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "component": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Component"
+          },
+          "previous": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous"
+          },
+          "current": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current"
+          },
+          "delta": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delta"
+          },
+          "baseline_campaign_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Baseline Campaign Id"
+          },
+          "next_campaign_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Campaign Id"
+          },
+          "next_campaign_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Campaign Title"
+          },
+          "rule": {
+            "type": "string",
+            "title": "Rule"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "title",
+          "component",
+          "previous",
+          "current",
+          "delta",
+          "baseline_campaign_id",
+          "next_campaign_id",
+          "next_campaign_title",
+          "rule"
+        ],
+        "title": "MeasureVerification",
+        "description": "Перевірка наступним оцінюванням: як змінився компонент заходу після його виконання."
       },
       "OptionIn": {
         "properties": {

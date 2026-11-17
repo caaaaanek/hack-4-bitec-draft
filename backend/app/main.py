@@ -23,6 +23,7 @@ from app.routers import (
     results,
 )
 from app.routers import config as config_router
+from app.routers import llm as llm_router
 
 API_PREFIX = "/api/v1"
 API_VERSION = "0.3.0"
@@ -65,6 +66,9 @@ app.add_middleware(
 for module in (config_router, auth, admin, questionnaires, campaigns, respond, checklist, indicators, results,
                dashboard, recommendations, measures, reports, integrations, assistant):
     app.include_router(module.router, prefix=API_PREFIX, responses=ERROR_RESPONSES)
+
+# /api/assistant — асистент frontend-proto (шлях без /api/v1, як очікує фронтенд).
+app.include_router(llm_router.router, responses=ERROR_RESPONSES)
 
 # /health і /api/v1/health: перевірка процесу й БД (див. routers/config.py).
 app.include_router(config_router.health_router)

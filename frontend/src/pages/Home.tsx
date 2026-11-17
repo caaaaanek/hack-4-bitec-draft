@@ -4,9 +4,7 @@ import { fmt } from '@/lib/scoring/methodology'
 import { COMPONENT_IDS } from '@/lib/scoring/methodology'
 import { canAccess } from '@/lib/access'
 import { measureSummary } from '@/lib/measures'
-import { allMeasures } from '@/lib/decisions'
-import { DEMO_MEASURES, TODAY } from '@/demo/measures'
-import { useDecisions } from '@/demo/decisionsStore'
+import { useMeasuresModel } from '@/api/models'
 import { useDemoOptional } from '@/demo/demoContext'
 import { useInstitution } from '@/demo/useInstitution'
 import { DynamicsPanel } from '@/components/dashboard/DynamicsChart'
@@ -20,7 +18,7 @@ import { WhyPanel, type WhySection } from '@/components/dashboard/WhyPanel'
 export function Home() {
   const inst = useInstitution()
   const { role } = useDemoOptional()
-  const decisions = useDecisions()
+  const measuresModel = useMeasuresModel()
   const [why, setWhy] = useState<{ open: boolean; section: WhySection }>({
     open: false,
     section: 'top',
@@ -28,9 +26,9 @@ export function Home() {
   const openWhy = (section: WhySection = 'top') => setWhy({ open: true, section })
 
   const { components, series } = inst
-  const prev = series[series.length - 2]!
+  const prev = series[series.length - 2] ?? series[series.length - 1]!
   const measures = canAccess(role, '/tracker')
-    ? measureSummary(allMeasures(DEMO_MEASURES, decisions), TODAY)
+    ? measureSummary(measuresModel.measures, measuresModel.today)
     : null
 
   return (

@@ -10,7 +10,8 @@ services:
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U imd -d imd"]
+      # По TCP: під час першої ініціалізації тимчасовий сервер слухає лише сокет, і pg_isready без -h відповідав би «готово» зарано
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U imd -d imd"]
       interval: 3s
       retries: 20
 
@@ -40,6 +41,10 @@ services:
       PROXY_AUTH_HEADER: ${PROXY_AUTH_HEADER:-X-Remote-User}
       TRUSTED_PROXIES: ${TRUSTED_PROXIES:-}
       PROXY_AUTH_SECRET: ${PROXY_AUTH_SECRET:-}
+      # Асистент фронтенду (/api/assistant): OpenAI-сумісна модель. Порожньо — відповіді шаблонами правил.
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_MODEL: ${LLM_MODEL:-gemma3:4b}
     volumes:
       - evidence:/data/evidence
     ports:
@@ -48,8 +53,23 @@ services:
       db:
         condition: service_healthy
 
+  # Фронтенд: frontend-proto (одна сторінка) через nginx; /api проксіюється на backend.
+  # Моки 5 джерел фактів (ARTEMIDA, атестація, навчання, закупівлі, повідомлення): шлють факти за 12 місяців
+  # у POST /indicators, кожне своїм ключем з INTEGRATION_KEYS. Лише на вимогу:
+  #   docker compose --profile mocks run --rm mocks
+  mocks:
+    profiles: ["mocks"]
+    build: ./backend
+    command: ["python", "scripts/mock_sources.py", "--url", "http://backend:8000"]
+    environment:
+      # Порожньо — скрипт сам скаже, якого ключа бракує (тут не :?, бо compose перевіряє весь файл навіть без профілю)
+      INTEGRATION_KEYS: ${INTEGRATION_KEYS:-}
+    depends_on:
+      backend:
+        condition: service_healthy
+
   frontend:
-    build: ./frontend
+    build: ./frontend-proto
     ports:
       - "8080:8080"
     depends_on:

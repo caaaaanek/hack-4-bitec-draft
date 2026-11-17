@@ -10,6 +10,11 @@ npx openapi-typescript ../docs/api/openapi.json -o src/api/schema.d.ts
 
 База: `/api/v1`. Вхід: `POST /auth/session` (JSON), далі `Authorization: Bearer <token>`.
 
+**Стан (17.11): фронтенд підключено.** Екрани беруть дані з API через `src/api/AppData.tsx` (остання закрита хвиля,
+знімок, історія, рекомендації, заходи) і адаптери `src/api/adapters.ts` (моделі бекенду → моделі екранів, тести на справжніх
+відповідях у `adapters.test.ts`). Вхід — `src/pages/Login.tsx`, сесія — `src/api/session.tsx`, ролі бекенду → ролі інтерфейсу —
+`frontRole` + `API_ROLE_ROUTES` у `src/lib/access.ts`. Демо-режим без бекенду: `VITE_DEMO=true` (`npm run dev:demo`).
+
 **Готово для підключення (v0.3):**
 - Клієнт `frontend/src/api/client.ts` (fetch, токен у sessionStorage, `ApiError`), типи `frontend/src/api/backend.d.ts`
   (`npm run api:types:backend`), тести `client.test.ts`.
@@ -55,9 +60,9 @@ npx openapi-typescript ../docs/api/openapi.json -o src/api/schema.d.ts
 | `GET /checklist`, `PUT .../entry`, `POST .../confirmation` | `GET /campaigns/{id}/checklist`, `PUT .../checklist/{question_id}`, `POST .../confirm` | відкликати: `DELETE .../confirm`; файли: `.../checklist/{question_id}/files` (multipart `file`) |
 | `GET /recommendations` | `GET /campaigns/{id}/recommendations` | |
 | `POST /recommendations/{id}/decision` | `POST /campaigns/{id}/recommendations/{code}/decision` | |
-| `GET /measures`, `PATCH /measures/{id}` | ті самі | + `POST /measures`, `GET /measures/stats`; `overdue_days` є |
+| `GET /measures`, `PATCH /measures/{id}` | ті самі | + `POST /measures`, `GET /measures/stats`; `overdue_days` є; `verification` — перевірка наступною хвилею |
 | `GET /me` | `GET /me/results` | |
-| `POST /reports`, `GET /reports/{id}`, `.../export` | `GET /campaigns/{id}/report?format=json\|csv` | звіт будується на льоту зі знімка; PDF — print.css |
+| `POST /reports`, `GET /reports/{id}`, `.../export` | `GET /campaigns/{id}/report?format=json\|csv\|xlsx\|docx` | звіт будується на льоту зі знімка; `appendix_g` — крос-таблиці, збіги/розбіжності, висновок, пропозиції за Додатком Г; Word/Excel — посилання на завантаження; PDF — print.css |
 | `GET /audit` | `GET /admin/audit-log` | фільтри й `offset` |
 | `POST /audit/verify` | `POST /admin/audit-log/verify` | |
 | `GET /methodology` | `GET /methodology` | |

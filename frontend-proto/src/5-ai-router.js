@@ -93,7 +93,7 @@ async function aiAsk(q) {
   const local = aiTemplate(q); let msg = null;
   if (AI.live && !local.fixed) {
     try {
-      const r = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: q, context: aiCtx(), history }) });
+      const r = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json", ...apiAuth() }, body: JSON.stringify({ question: q, context: aiCtx(), history }) });
       const j = await r.json();
       if (r.ok && j.text) msg = { r: "a", t: j.text, src: local.src, draft: local.draft || /звіт|чернетк|опис/i.test(q), live: true, model: j.model };
     } catch (e) {}
@@ -120,7 +120,7 @@ function aiClose() { $("#ai").classList.remove("on"); $("#ai").setAttribute("ari
 function aiBtn() { const b = $("#aiBtn"); b.innerHTML = `${IC.spark}<span class="hide-m">Асистент</span>`; b.classList.toggle("off", !S.aiOn); b.hidden = !AI_ROLES.includes(S.role); }
 
 /* ---------- Router ---------- */
-const allowed = r => NAV.some(n => n[0] === r && n[3].includes(S.role));
+const allowed = r => NAV.some(n => n[0] === r && n[3].includes(S.role)) && (!API.anon || r === "survey");
 function route() { const [r, p] = (location.hash || "").slice(1).split("/"); return allowed(r) ? { r, p } : { r: HOME[S.role], p: null }; }
 function updateBadges() {
   const recs = pendingRecs(), ms = measures(), od = ms.filter(x => overdueDays(x) > 0).length, pend = Object.values(S.fpend).filter(p => !p.ret).length;
@@ -134,26 +134,32 @@ function renderNav(cur) {
   $("#nav").innerHTML = NAV.filter(n => n[3].includes(S.role)).map(([r, n, ic]) => `<a href="#${r}" data-r="${r}" class="${r === cur ? "on" : ""}" ${r === cur ? 'aria-current="page"' : ""} aria-label="${n}"${document.documentElement.classList.contains("side-mini") ? ` data-tip="${n}"` : ""}>${IC[ic]}<span>${n}</span></a>`).join("");
   updateBadges();
 }
-const TITLES = { overview: () => S.role === "observer" ? "Огляд закладу" : "Огляд закладу", explain: () => "Розклад індексу", trends: () => "Динаміка", compare: () => "Порівняння: сприйняття і факти", recs: () => "Рекомендації", tracker: () => "Трекер заходів", sources: () => "Джерела", report: () => "Звіт", manage: () => "Керування циклом", surveys: () => "Анкети", checklist: () => "Чек-лист", audit: () => "Журнал", survey: () => "Анонімне опитування", me: () => "Мої результати", institutions: () => "Заклади" };
-let lastRoute = null;
+const TITLES = { overview: () => "Огляд закладу", explain: () => "Розклад індексу", trends: () => "Динаміка", compare: () => "Порівняння: сприйняття і факти", recs: () => "Рекомендації", tracker: () => "Трекер заходів", sources: () => "Джерела", report: () => "Звіт", manage: () => "Керування циклом", surveys: () => "Анкети", checklist: () => "Чек-лист", audit: () => "Журнал", survey: () => "Анонімне опитування", me: () => "Мої результати", institutions: () => "Заклади" };
+let lastRoute = null, lastApiView = false;
 function render(soft) {
+  if (API.on && !API.user && !API.anon) return showLogin();
   const { r, p } = route();
   if (r === "explain" && p) { S.focus = p; const m = cur(); const it = allItems(m).find(x => x.id === p); if (it && it.kind !== "p" && S.mode !== "facts") S.mode = "facts"; if (it && it.kind === "p" && S.mode === "facts") S.mode = "credited"; const c = COMPS.includes(p) ? p : it && it.c; if (c) S.open[c] = true; }
   const want = "#" + r + (p ? "/" + p : ""); if (location.hash !== want) history.replaceState(null, "", want);
   renderNav(r); hideTip(); if (r !== lastRoute) closePop();
   $("#title").textContent = TITLES[r]();
   const v = $("#view");
-  v.innerHTML = V[r]();
+  const av = apiView(r); lastApiView = av != null;
+  v.innerHTML = av ?? V[r]();
   if (!soft) [...v.querySelectorAll(":scope > .rise, :scope > .survey > .rise, :scope > .recs > .rise")].forEach((el, i) => el.style.animationDelay = (Math.min(i, 10) * 60) + "ms");
   else { v.querySelectorAll(".rise, .qcard, .bar-a, .pop, .draw, .reveal").forEach(el => el.style.animation = "none"); v.querySelectorAll(".cu").forEach(el => el.classList.remove("cu")); }
   countUp(v);
-  V[r].after && V[r].after();
+  av == null && V[r].after && V[r].after();
   if (soft) v.querySelectorAll(".pop, .draw, .reveal, .bar-a").forEach(el => el.style.animation = "none");
   if (r !== lastRoute) { if (!p) window.scrollTo(0, 0); lastRoute = r; }
   $("#side").classList.remove("on");
 }
 window.addEventListener("hashchange", () => render());
-let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { const { r } = route(); V[r].after && V[r].after(); }, 150); });
+// Клік по пункту меню поточного екрана теж оновлює екран (напр., «Пройти опитування» одразу після надсилання)
+$("#nav").addEventListener("click", e => { const a = e.target.closest("a[data-r]"); if (a && "#" + a.dataset.r === location.hash.split("/")[0]) { e.preventDefault(); render(); } });
+let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(redrawAfter, 150); });
+// Перемалювати графіки поточного екрана (не на екранах сервера й не до завантаження даних)
+function redrawAfter() { const { r } = route(); if (!lastApiView && (!API.on || API.model) && $("#view").children.length && V[r] && V[r].after) V[r].after(); }
 
 /* ---------- Chrome ---------- */
 $("#logo").innerHTML = IC.pulse.replace("<svg", '<svg width="20" height="20"');
@@ -166,7 +172,17 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") { closeDrawe
 const role = $("#role");
 role.innerHTML = Object.entries(ROLE).map(([k, [n]]) => `<option value="${k}">${n}</option>`).join("");
 role.value = S.role;
-const setAvatar = () => { $("#avatar").textContent = ROLE[S.role][1]; $("#avatar").dataset.tip = ROLE[S.role][0]; };
+const setAvatar = () => { const av = $("#avatar"); av.textContent = ROLE[S.role][1]; av.dataset.tip = ROLE[S.role][0]; av.setAttribute("role", "button"); av.tabIndex = 0; av.setAttribute("aria-label", "Профіль і вихід"); };
+// Клік по аватару: хто ви й кнопка «Вийти» (меню ліворуч на вузьких екранах приховане)
+function openProfile(btn) {
+  const p = $("#pop"); if (p.classList.contains("on") && p._btn === btn) return closePop();
+  const u = API.user;
+  p._btn = btn; pickA = null;
+  p.innerHTML = `<div style="font-weight:600">${esc(u ? u.display_name : ROLE[S.role][0])}</div><div class="lbl" style="margin:2px 0 12px">${ROLE[S.role][0]}${u ? ` · ${esc(u.login)}` : ""}</div>${u ? `<button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="closePop();document.getElementById('logoutBtn').click()">${IC.arrowL}Вийти</button>` : `<div class="lbl">Демо-режим: вихід не потрібен.</div>`}`;
+  p.classList.add("on"); placePop(btn);
+}
+$("#avatar").onclick = e => openProfile(e.currentTarget);
+$("#avatar").onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProfile(e.currentTarget); } };
 role.onchange = () => { S.role = role.value; addLog(ROLE[S.role][0], "Вхід у систему"); persist(); setAvatar(); aiBtn(); aiClose(); closeDrawer(); location.hash = HOME[S.role]; render(); toast("Роль: " + ROLE[S.role][0]); };
 $("#resetBtn").innerHTML = `${IC.reset}Скинути демо-дані`; $("#resetBtn").onclick = resetDemo;
 setAvatar();
@@ -178,10 +194,35 @@ $("#themeBtn").onclick = () => {
 };
 try { const t = localStorage.getItem("ii-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
 themeIcon();
+/* Пошук: підказки під час введення (екрани, компоненти, питання й показники, заклади) */
+function searchHits(q) {
+  q = q.trim().toLowerCase(); if (!q) return [];
+  const has = t => t.toLowerCase().includes(q), out = [];
+  NAV.filter(n => n[3].includes(S.role) && allowed(n[0]) && has(n[1])).forEach(n => out.push({ k: "Екран", t: n[1], go: () => location.hash = n[0] }));
+  if (allowed("explain")) {
+    COMPS.filter(c => has(COMP[c].n)).forEach(c => out.push({ k: "Компонент", t: COMP[c].n, go: () => location.hash = "explain/" + c }));
+    try { allItems(cur()).filter(x => has(x.t)).forEach(x => out.push({ k: x.kind === "p" ? "Питання" : "Показник", t: x.t, go: () => location.hash = "explain/" + x.id })); } catch (e) {}
+  }
+  if (allowed("institutions") && !API.on) INSTITUTIONS().filter(m => !(S.insts.archived || []).includes(m.id) && (has(m.name) || (m.edrpou || "").includes(q))).forEach(m => out.push({ k: "Заклад", t: m.name, go: () => { S.inst = m.id; persist(); location.hash = "overview"; render(); } }));
+  return out.slice(0, 8);
+}
+let qHits = [], qSel = 0;
+function drawSearch() {
+  const p = $("#pop"), box = document.querySelector(".side .search"), q = $("#q").value;
+  qHits = searchHits(q); if (!q.trim()) return closePop();
+  const hl = t => { const i = t.toLowerCase().indexOf(q.trim().toLowerCase()); return i < 0 ? esc(t) : esc(t.slice(0, i)) + "<mark>" + esc(t.slice(i, i + q.trim().length)) + "</mark>" + esc(t.slice(i + q.trim().length)); };
+  p.innerHTML = qHits.length ? `<div class="qs" role="listbox" aria-label="Результати пошуку">${qHits.map((h, i) => `<button type="button" role="option" aria-selected="${i === qSel}" class="qs-i ${i === qSel ? "on" : ""}" onmousedown="event.preventDefault();pickSearch(${i})"><span class="qs-t">${hl(h.t)}</span><span class="lbl">${h.k}</span></button>`).join("")}</div>` : `<div class="lbl" style="padding:6px 4px">Нічого не знайдено</div>`;
+  p._btn = box; p.classList.add("on");
+  const r = zr(box.getBoundingClientRect()), w = Math.max(r.width, 320); p.style.width = w + "px"; p.style.left = Math.max(8, Math.min(r.left, innerWidth / Z() - w - 8)) + "px"; p.style.top = (r.bottom + 6) + "px";
+}
+function pickSearch(i) { const h = qHits[i]; if (!h) return; $("#q").value = ""; $("#q").blur(); closePop(); $("#pop").style.width = ""; h.go(); }
+$("#q").addEventListener("input", () => { qSel = 0; drawSearch(); });
+$("#q").addEventListener("focus", () => { if ($("#q").value.trim()) drawSearch(); });
 $("#q").addEventListener("keydown", e => {
-  if (e.key !== "Enter") return; const q = e.target.value.trim().toLowerCase(); if (!q) return;
-  if (allowed("explain")) { const hit = allItems(cur()).find(x => x.t.toLowerCase().includes(q)); if (hit) { location.hash = "explain/" + hit.id; return; } }
-  const nav = NAV.find(n => n[1].toLowerCase().includes(q) && n[3].includes(S.role)); if (nav) location.hash = nav[0]; else toast("Нічого не знайдено");
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") { if (!qHits.length) return; e.preventDefault(); qSel = (qSel + (e.key === "ArrowDown" ? 1 : qHits.length - 1)) % qHits.length; drawSearch(); return; }
+  if (e.key === "Escape") { $("#q").value = ""; closePop(); $("#q").blur(); return; }
+  if (e.key !== "Enter") return; e.preventDefault();
+  if (qHits.length) pickSearch(qSel); else if ($("#q").value.trim()) toast("Нічого не знайдено");
 });
 // Пошук: Ctrl+K (на Mac ⌘K) і «/». Ctrl+F лишаємо браузеру: це пошук по тексту сторінки
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -192,28 +233,41 @@ document.addEventListener("keydown", e => {
   if (e.key === "Escape") closePop();
 });
 /* Доступність: розмір тексту й підвищений контраст (як на сайтах держорганів) */
-function applyA11y() { const a = S.a11y || { z: 1, hc: false }; document.documentElement.style.zoom = a.z === 1 ? "" : a.z; document.documentElement.classList.toggle("hc", !!a.hc); }
+function applyA11y() { const a = S.a11y || { z: 1, hc: false }; document.documentElement.style.zoom = a.z === 1 ? "" : a.z; document.documentElement.classList.toggle("hc", !!a.hc); scaleMedia(a.z); }
+// CSS zoom не змінює ширину, яку бачать медіазапити. Тому межі (max-width/min-width) множимо на масштаб:
+// при 150 % на екрані 1280 px сторінка верстається як для 853 px, без горизонтального скролу (WCAG 1.4.10).
+function scaleMedia(z) {
+  for (const sh of document.styleSheets) { let rules; try { rules = sh.cssRules; } catch (e) { continue; }
+    for (const r of rules) { if (!(r instanceof CSSMediaRule) || !/width/.test(r.media.mediaText + (r._mq || ""))) continue;
+      r._mq = r._mq || r.media.mediaText;
+      const t = r._mq.replace(/(min|max)-width:\s*([\d.]+)px/g, (_, k, n) => `${k}-width: ${Math.round(+n * z * 10) / 10}px`);
+      if (r.media.mediaText !== t) { while (r.media.length) r.media.deleteMedium(r.media.item(0)); t.split(",").forEach(m => r.media.appendMedium(m.trim())); } } }
+}
 function drawA11y() {
   const a = S.a11y;
   $("#pop").innerHTML = `<div class="lbl" style="text-transform:uppercase;letter-spacing:.06em;font-size:11px;margin-bottom:8px">Розмір тексту</div>
     <div style="display:flex;align-items:center;gap:10px"><button class="icon-btn" aria-label="Зменшити текст" onclick="setZoom(-1)" ${a.z <= 1 ? "disabled" : ""}>−</button><b class="tnum" style="min-width:48px;text-align:center">${Math.round(a.z * 100)} %</b><button class="icon-btn" aria-label="Збільшити текст" onclick="setZoom(1)" ${a.z >= 1.5 ? "disabled" : ""}>+</button></div>
     <label class="a11y-row"><span>Підвищений контраст</span><span class="sw"><input type="checkbox" ${a.hc ? "checked" : ""} onchange="S.a11y.hc=this.checked;persist();applyA11y()"><span></span></span></label>
-    <button class="link-btn" onclick="S.a11y={z:1,hc:false};persist();applyA11y();drawA11y();render(true)">Скинути</button>`;
+    <button class="link-btn" onclick="S.a11y={z:1,hc:false};persist();applyA11y();autoSide();drawA11y();render(true)">Скинути</button>`;
 }
-function setZoom(d) { S.a11y.z = Math.round(clamp(S.a11y.z + d * .125, 1, 1.5) * 1000) / 1000; persist(); applyA11y(); drawA11y(); render(true); placePop($("#a11yBtn")); }
+function setZoom(d) { S.a11y.z = Math.round(clamp(S.a11y.z + d * .125, 1, 1.5) * 1000) / 1000; persist(); applyA11y(); autoSide(); drawA11y(); render(true); placePop($("#a11yBtn")); }
 $("#a11yBtn").innerHTML = IC.a11y;
 $("#a11yBtn").onclick = e => { const p = $("#pop"), b = e.currentTarget; if (p.classList.contains("on") && p._btn === b) return closePop(); p._btn = b; drawA11y(); p.classList.add("on"); placePop(b); };
 applyA11y();
 /* Згортання бічного меню (на широких екранах): лишаються лише іконки */
-function setSide(mini) {
+function setSide(mini, auto) {
   document.documentElement.classList.toggle("side-mini", mini);
   const b = $("#sideBtn"); b.innerHTML = mini ? IC.chevR : IC.chevL; b.setAttribute("aria-label", mini ? "Розгорнути меню" : "Згорнути меню"); b.setAttribute("aria-expanded", String(!mini)); b.dataset.tip = mini ? "Розгорнути меню" : "Згорнути меню";
-  try { localStorage.setItem("ii-side", mini ? "mini" : ""); } catch (e) {}
-  const { r } = route(); renderNav(r); setTimeout(() => V[r] && V[r].after && V[r].after(), 260);
+  if (!auto) try { localStorage.setItem("ii-side2", mini ? "mini" : ""); } catch (e) {}
+  const { r } = route(); renderNav(r); setTimeout(redrawAfter, 260);
 }
 $("#sideBtn").onclick = () => setSide(!document.documentElement.classList.contains("side-mini"));
 document.querySelector(".side .search").addEventListener("click", () => { if (document.documentElement.classList.contains("side-mini")) { setSide(false); setTimeout(() => $("#q").focus(), 50); } });
-try { setSide(localStorage.getItem("ii-side") === "mini"); } catch (e) { setSide(false); }
+// Меню: збережений вибір користувача, а без нього на вузьких екранах (до 1100 px) воно згорнуте, щоб не стискати вміст
+const sidePref = () => { try { return localStorage.getItem("ii-side2"); } catch (e) { return null; } };
+const autoSide = () => { const w = innerWidth / Z(); if (sidePref() === null && w > 900) { document.documentElement.classList.toggle("side-mini", w < 1100); const { r } = route(); renderNav(r); } };
+try { const sp = sidePref(); if (sp === null) { document.documentElement.classList.toggle("side-mini", innerWidth / Z() > 900 && innerWidth / Z() < 1100); setSide(document.documentElement.classList.contains("side-mini"), true); } else setSide(sp === "mini"); } catch (e) { setSide(false); }
+addEventListener("resize", autoSide);
 $("#aiLogo").innerHTML = IC.spark.replace("<svg", '<svg width="17" height="17"');
 $("#aiClose").innerHTML = IC.x; $("#aiClose").onclick = aiClose;
 $("#aiSend").innerHTML = IC.send;
@@ -221,4 +275,4 @@ $("#aiBtn").onclick = () => aiOpen();
 $("#aiForm").addEventListener("submit", e => { e.preventDefault(); const q = $("#aiQ").value; $("#aiQ").value = ""; aiAsk(q); });
 $("#aiOn").addEventListener("change", e => { S.aiOn = e.target.checked; persist(); addLog(me(), S.aiOn ? "ШІ-асистента увімкнено" : "ШІ-асистента вимкнено"); aiBtn(); aiRender(); if (S.aiOn) checkLive(); });
 aiBtn();
-render();
+boot(); // з бекендом: вхід і дані сервера; без нього — демо (0-api.js)

@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 from app.clock import today, utcnow
 from app.config import get_settings
 from app.models import Measure, MeasureStatus, OutboxMessage
+from app.services import methodology as m
 from app.services.units import subtree_from, unit_tree
 
 OPEN_STATUSES = (MeasureStatus.PLANNED, MeasureStatus.IN_PROGRESS)
@@ -27,7 +28,7 @@ def overdue_days(measure: Measure, on: date | None = None) -> int | None:
     return None
 
 
-def to_dict(measure: Measure) -> dict:
+def to_dict(measure: Measure, verification: dict | None = None) -> dict:
     days = overdue_days(measure)
     return {
         "id": measure.id,
@@ -49,7 +50,69 @@ def to_dict(measure: Measure) -> dict:
         "external_source": measure.external_source,
         "created_at": measure.created_at,
         "updated_at": measure.updated_at,
+        "verification": verification,
     }
+
+
+# ---------- Перевірка наступним оцінюванням ----------
+
+VERIFY_RULE = (
+    "Порівнюється бал компонента заходу у знімку підрозділу: хвиля, з якої взято захід, і перша хвиля, "
+    "закрита після його виконання. Правило значущості методики: зміна менша за {delta:g} балів в межах похибки, "
+    "достовірність C в одній із хвиль означає «перевірити дані». Захід лише один із чинників зміни."
+)
+
+
+def _component(snapshot, code: str) -> tuple[float | None, str | None]:
+    for c in (snapshot.payload or {}).get("components", []):
+        if c.get("code") == code:
+            return c.get("score"), c.get("reliability")
+    return None, None
+
+
+def verify(db: Session, measure: Measure, cache: dict | None = None) -> dict:
+    """Чи змінився компонент заходу в наступній хвилі після виконання. Нічого не рахує заново, лише знімки."""
+    from app.services.results import unit_snapshots  # уникаємо циклічного імпорту
+
+    rule = VERIFY_RULE.format(delta=m.SIGNIFICANT_DELTA)
+    base = {"status": "no_data", "title": "немає даних", "component": measure.component, "previous": None,
+            "current": None, "delta": None, "baseline_campaign_id": None, "next_campaign_id": None,
+            "next_campaign_title": None, "rule": rule}
+    if measure.status != MeasureStatus.DONE or measure.done_on is None:
+        return {**base, "status": "not_done", "title": "перевіримо після виконання"}
+    if measure.component not in m.COMPONENTS:
+        return {**base, "title": "захід не прив'язаний до компонента"}
+    cache = cache if cache is not None else {}
+    if measure.unit_id not in cache:
+        cache[measure.unit_id] = unit_snapshots(db, measure.unit_id)
+    history = cache[measure.unit_id]
+
+    baseline = None
+    if measure.campaign_id is not None:
+        baseline = next(((c, s) for c, s in history if c.id == measure.campaign_id), None)
+    if baseline is None:  # захід без хвилі: остання хвиля, закрита до його створення
+        created = measure.created_at.date()
+        earlier = [(c, s) for c, s in history if s.closed_on <= created]
+        baseline = earlier[-1] if earlier else None
+    if baseline is None:
+        return {**base, "title": "немає знімка хвилі, з якої взято захід"}
+
+    after = next(((c, s) for c, s in history if s.closed_on >= measure.done_on and s.closed_on > baseline[1].closed_on), None)
+    if after is None:
+        return {**base, "status": "awaiting_wave", "title": "чекає наступної хвилі", "baseline_campaign_id": baseline[0].id}
+
+    prev, prev_rel = _component(baseline[1], measure.component)
+    cur, cur_rel = _component(after[1], measure.component)
+    d = None if prev is None or cur is None else round(cur - prev, 1)
+    sig = m.significance(d, [prev_rel, cur_rel])
+    return {**base, "status": sig["code"], "title": sig["title"], "previous": prev, "current": cur, "delta": d,
+            "baseline_campaign_id": baseline[0].id, "next_campaign_id": after[0].id, "next_campaign_title": after[0].title}
+
+
+def to_dicts(db: Session, measures: list[Measure]) -> list[dict]:
+    """Заходи з перевіркою наступним оцінюванням (знімки підрозділу читаються один раз)."""
+    cache: dict = {}
+    return [to_dict(x, verify(db, x, cache)) for x in measures]
 
 
 def stats(db: Session, unit_id: uuid.UUID) -> dict:

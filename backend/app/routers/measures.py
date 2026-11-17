@@ -54,6 +54,21 @@ class MeasureUpdate(BaseModel):
     evidence: str | None = Field(default=None, max_length=2000)
 
 
+class MeasureVerification(BaseModel):
+    """Перевірка наступним оцінюванням: як змінився компонент заходу після його виконання."""
+
+    status: str = Field(description="not_done | awaiting_wave | no_data | improved | worsened | within_error | check_data")
+    title: str
+    component: str | None
+    previous: float | None
+    current: float | None
+    delta: float | None
+    baseline_campaign_id: uuid.UUID | None
+    next_campaign_id: uuid.UUID | None
+    next_campaign_title: str | None
+    rule: str
+
+
 class MeasureOut(BaseModel):
     id: uuid.UUID
     unit_id: uuid.UUID
@@ -74,6 +89,7 @@ class MeasureOut(BaseModel):
     external_source: str | None
     created_at: datetime
     updated_at: datetime
+    verification: MeasureVerification | None = None
 
 
 class MeasureStats(BaseModel):
@@ -123,7 +139,7 @@ def list_measures(
         query = query.where(Measure.status == status_)
     if campaign_id is not None:
         query = query.where(Measure.campaign_id == campaign_id)
-    items = [service.to_dict(x) for x in db.scalars(query)]
+    items = service.to_dicts(db, db.scalars(query).all())
     if overdue is not None:
         items = [i for i in items if i["overdue"] == overdue]
     return items
@@ -137,14 +153,14 @@ def measure_stats(unit_id: uuid.UUID, db: Session = Depends(get_db), user: User 
 
 @router.get("/{measure_id}", response_model=MeasureOut)
 def get_measure(measure_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(readers)):
-    return service.to_dict(get_or_404(db, measure_id, user))
+    return service.to_dicts(db, [get_or_404(db, measure_id, user)])[0]
 
 
 @router.post("", response_model=MeasureOut, status_code=status.HTTP_201_CREATED)
 def post_measure(data: MeasureIn, db: Session = Depends(get_db), user: User = Depends(leader_only)):
     measure = create_measure(db, user, data)
     db.commit()
-    return service.to_dict(measure)
+    return service.to_dicts(db, [measure])[0]
 
 
 @router.patch("/{measure_id}", response_model=MeasureOut)
@@ -173,4 +189,4 @@ def patch_measure(measure_id: uuid.UUID, data: MeasureUpdate, db: Session = Depe
     log_action(db, user, "update", "measure", measure.id,
                {k: (v.value if hasattr(v, "value") else str(v)) for k, v in changes.items() if k != "description"})
     db.commit()
-    return service.to_dict(measure)
+    return service.to_dicts(db, [measure])[0]

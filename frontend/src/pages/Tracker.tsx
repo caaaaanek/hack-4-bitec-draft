@@ -1,11 +1,15 @@
 import { PageTitle } from '@/components/layout/PageTitle'
-import { useMemo, useState } from 'react'
+import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { AlarmClock, Columns3, ListChecks, ShieldCheck, Table2 } from 'lucide-react'
 import {
   Badge,
+  Button,
   Card,
+  Dialog,
   EmptyState,
+  FormField,
+  Textarea,
   Select,
   SegmentedControl,
   StatusBadge,
@@ -24,10 +28,9 @@ import {
   type MeasureStatus,
 } from '@/lib/measures'
 import { cn } from '@/lib/cn'
-import { allMeasures, setMeasureStatus } from '@/lib/decisions'
-import { DEMO_MEASURES, PAST_RECOMMENDATIONS, TODAY } from '@/demo/measures'
-import { getDecisions, setDecisions, useDecisions } from '@/demo/decisionsStore'
 import { useDemoOptional } from '@/demo/demoContext'
+import { useMeasuresModel } from '@/api/models'
+import { ApiError } from '@/api/client'
 
 type View = 'table' | 'board'
 
@@ -118,16 +121,82 @@ function VerificationCell({ m }: { m: Measure }) {
   return <span className="text-text-muted">Ще не настав час</span>
 }
 
+/** Доказ виконання: бекенд не дає позначити захід виконаним без нього. */
+function EvidenceDialog({
+  title,
+  onClose,
+  onSubmit,
+}: {
+  title: string
+  onClose: () => void
+  onSubmit: (evidence: string) => Promise<void>
+}) {
+  const [text, setText] = useState('')
+  const [error, setError] = useState('')
+  const [busy, setBusy] = useState(false)
+  const submit = async (e: FormEvent) => {
+    e.preventDefault()
+    if (text.trim().length < 3) {
+      setError('Опишіть доказ: документ, наказ, звіт або посилання на нього.')
+      return
+    }
+    setBusy(true)
+    try {
+      await onSubmit(text.trim())
+    } catch (err) {
+      setError(err instanceof ApiError ? `${err.message}. ${err.hint}` : 'Не вдалося зберегти.')
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      title="Позначити захід виконаним"
+      description={title}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose}>
+            Скасувати
+          </Button>
+          <Button type="submit" form="evidence-form" loading={busy}>
+            Зберегти
+          </Button>
+        </>
+      }
+    >
+      <form id="evidence-form" onSubmit={(e) => void submit(e)} noValidate className="pb-4">
+        <FormField label="Доказ виконання" required error={error}>
+          {({ id, describedBy, invalid }) => (
+            <Textarea
+              id={id}
+              value={text}
+              aria-describedby={describedBy}
+              invalid={invalid}
+              onChange={(e) => {
+                setText(e.target.value)
+                setError('')
+              }}
+            />
+          )}
+        </FormField>
+      </form>
+    </Dialog>
+  )
+}
+
 export function Tracker() {
   const { role } = useDemoOptional()
-  const decisions = useDecisions()
+  const model = useMeasuresModel()
   const toast = useToast()
   const canEdit = role === 'leader'
   const [view, setView] = useState<View>('table')
   const [status, setStatus] = useState<'all' | StatusId>('all')
   const [position, setPosition] = useState('all')
+  const [pendingDone, setPendingDone] = useState<Measure | null>(null)
 
-  const measures = useMemo(() => allMeasures(DEMO_MEASURES, decisions), [decisions])
+  const { measures, today: TODAY } = model
   const rows: Row[] = measures.map((m, i) => ({
     id: m.id,
     code: `Т-${String(i + 1).padStart(2, '0')}`,
@@ -152,14 +221,24 @@ export function Tracker() {
   const waiting = rows.filter((r) => r.measure.status === 'done').length
   const notConfirmed = rows.filter((r) => r.measure.status === 'notconfirmed').length
 
-  const change = (id: string, to: MeasureStatus) => {
-    const next = setMeasureStatus(getDecisions(), measures, id, to)
-    if (next === getDecisions()) return
-    setDecisions(next)
+  const applyChange = async (id: string, to: MeasureStatus, evidence?: string) => {
+    if (!(await model.change(id, to, evidence))) return
     toast.push({
       title: `Статус заходу змінено на «${STATUSES[to].label}».`,
       tone: 'success',
     })
+  }
+  const change = (id: string, to: MeasureStatus) => {
+    if (to === 'done' && model.doneNeedsEvidence) {
+      setPendingDone(measures.find((m) => m.id === id) ?? null)
+      return
+    }
+    applyChange(id, to).catch((err: unknown) =>
+      toast.push({
+        title: err instanceof ApiError ? err.message : 'Не вдалося змінити статус.',
+        tone: 'error',
+      }),
+    )
   }
 
   const STATS: [string, number, string][] = [
@@ -190,9 +269,9 @@ export function Tracker() {
       render: (r) => (
         <div>
           <p className="m-0 font-semibold">{r.title}</p>
-          {PAST_RECOMMENDATIONS[r.measure.recommendationId] && (
+          {model.sourceOf(r.measure) && (
             <p className="m-0 text-caption text-text-muted">
-              З рекомендації: {PAST_RECOMMENDATIONS[r.measure.recommendationId]}
+              З рекомендації: {model.sourceOf(r.measure)}
             </p>
           )}
         </div>
@@ -378,6 +457,16 @@ export function Tracker() {
           </li>
         </ul>
       </Card>
+      {pendingDone && (
+        <EvidenceDialog
+          title={pendingDone.title}
+          onClose={() => setPendingDone(null)}
+          onSubmit={async (evidence) => {
+            await applyChange(pendingDone.id, 'done', evidence)
+            setPendingDone(null)
+          }}
+        />
+      )}
     </div>
   )
 }

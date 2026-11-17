@@ -452,7 +452,7 @@ td select, .inp { border: 1px solid var(--line); border-radius: 10px; padding: 7
 .pf { display: flex; gap: 8px; align-items: flex-end; height: 70px; }
 .pf div { display: flex; flex-direction: column; align-items: center; gap: 4px; justify-content: flex-end; height: 100%; }
 .pf i { width: 14px; border-radius: 4px; display: block; transform-origin: bottom; }
-.pf small { font-size: 10px; color: var(--muted); }
+.pf small { font-size: 12px; color: var(--muted); }
 .ev-ic { display: inline-flex; width: 13px; height: 13px; vertical-align: -2px; margin-right: 6px; color: var(--fg); }
 .ev-ic svg { width: 13px; height: 13px; }
 .note-box { background: var(--soft); border-radius: 12px; padding: 12px 14px; display: flex; flex-direction: column; gap: 6px; }
@@ -671,6 +671,15 @@ html.hc a, html.hc .link { text-decoration: underline; }
 .drawer-b table { min-width: 0; width: 100%; }
 .drawer-b th, .drawer-b td { padding: 8px 6px; font-size: 13px; white-space: normal; }
 .drawer-b td .pill { white-space: normal; }
+
+/* ---- з бекендом: вхід і анонімне посилання (0-api.js) ---- */
+.app.login .side, .app.login .top, .app.anon .side { display: none; }
+.app.login, .app.anon { grid-template-columns: 1fr; }
+.app.anon .top .ai-btn, .app.anon .top #cycleBtn, .app.anon .top .menu-btn, .app.anon .top #avatar { display: none; }
+.login-wrap { display: grid; grid-template-columns: minmax(0, 420px) minmax(0, 460px); gap: 20px; justify-content: center; align-items: start; padding: 6vh 0; }
+.login-card { padding: 28px; }
+.role-card b { display: block; }
+@media (max-width: 900px) { .login-wrap { grid-template-columns: 1fr; padding: 16px 0; } }
 /* v4: трекер, журнал, показники */
 .tl-i .hash { align-self: center; }
 .tl-i.click { cursor: pointer; border-radius: 10px; }
@@ -734,6 +743,75 @@ html.hc a, html.hc .link { text-decoration: underline; }
 .cmp-stack { display: flex; flex-direction: column; gap: inherit; gap: 20px; min-width: 0; }
 .cmp-stack > .card { flex: 1; }
 @media (max-width: 1200px) { .cmp-stack { grid-column: span 12; } }
+
+/* ---- правки за відгуками: адаптив, огляд, рекомендації ---- */
+.top h1 { white-space: nowrap; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.top .synthetic { white-space: nowrap; }
+.drawer:not(.on) { box-shadow: none; }
+.kpi-row, .comp-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; }
+@media (max-width: 900px) { .kpi-row, .comp-row { gap: 14px; } }
+@media (max-width: 640px) { .kpi-row, .comp-row { grid-template-columns: minmax(0, 1fr); } }
+.attn-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 32px; }
+@media (max-width: 760px) { .attn-cols { grid-template-columns: minmax(0, 1fr); } }
+.kt-h .lbl { line-height: 26px; }
+.kt-b .mid { display: inline-grid; place-items: center; min-width: 30px; line-height: 1; }
+.kt-s { line-height: 1.4; }
+.radar-body { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; justify-content: center; }
+.radar-main { flex: 1 1 300px; min-width: 0; max-width: 460px; }
+.radar-side { display: none; flex: 1 1 280px; min-width: 0; overflow-x: auto; }
+.radar-side table { width: 100%; }
+@media (max-width: 1180px) {
+  .view > .radar-card.c4, .view > .lv-card.c8 { grid-column: span 12; }
+  .radar-side { display: block; }
+}
+.legend3 { grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); }
+.lim-callout { display: flex; gap: 12px; align-items: flex-start; margin: 4px 0 12px; padding: 14px 16px; border-radius: 12px; background: var(--amber-soft); color: var(--fg); border: 1px solid color-mix(in srgb, var(--amber) 35%, transparent); line-height: 1.5; }
+.lim-callout .lim-ic { color: var(--amber); display: inline-flex; flex: none; margin-top: 1px; }
+.lim-callout .lim-ic svg { width: 20px; height: 20px; }
+.lim-callout b { font-weight: 600; }
+.lim-callout > div > div { margin-top: 4px; }
+.ev { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px; }
+@media (max-width: 1180px) {
+  .view .rec { grid-template-columns: auto minmax(0, 1fr); }
+  .view .rec .rec-actions { grid-column: 1 / -1; justify-content: flex-start; }
+}
+@media (max-width: 640px) {
+  .view .rec { grid-template-columns: minmax(0, 1fr); padding: 14px; }
+  .view .rec .pri { display: none; }
+  .view .rec .rec-actions .btn { flex: 1 1 auto; justify-content: center; }
+}
+.b-card[draggable="true"] { cursor: grab; }
+.b-card.dragging { opacity: .45; }
+.board.dnd .col-b:not(.can-drop) { opacity: .55; }
+.board.dnd .col-b.can-drop { outline: 2px dashed var(--teal-pale); outline-offset: -2px; border-radius: 12px; }
+.board.dnd .col-b.drop-over { outline-color: var(--teal); background: var(--teal-soft); }
+.combo { position: relative; }
+.combo .inp { width: 100%; }
+.combo-list { position: absolute; left: 0; right: 0; top: 100%; margin: 4px 0 0; padding: 4px; list-style: none; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; box-shadow: var(--shadow); max-height: 240px; overflow: auto; z-index: 90; font-family: inherit; }
+.combo-list[hidden] { display: none; }
+.combo-list li { padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 14px; display: flex; align-items: center; gap: 8px; }
+.combo-list li:hover, .combo-list li.act { background: var(--soft); }
+.combo-list li.sel { font-weight: 600; color: var(--teal-deep); }
+.combo-list li.add { color: var(--teal-deep); font-weight: 600; }
+.combo-list li.add svg { width: 15px; height: 15px; flex: none; }
+.combo-list li.none { color: var(--muted); cursor: default; }
+.chk-row { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; font-weight: 500; color: var(--fg); padding: 4px 0; cursor: pointer; }
+.chk-row input { margin-top: 3px; flex: none; }
+@media (max-width: 1180px) { .view > .waves-card.c4 { grid-column: span 12; } }
+.field:has(.combo) { position: relative; z-index: 20; }
+.field .chk-row { font-size: 14px; font-weight: 500; color: var(--fg); }
+.combo-list { background: var(--panel); }
+.kt-b { flex-wrap: wrap; }
+/* вхід і анонімна анкета: меню немає, тож «згорнуте меню» не повинно лишати вузьку колонку */
+@media (min-width: 901px) { html.side-mini .app.login, html.side-mini .app.anon { grid-template-columns: minmax(0, 1fr); } }
+/* v8: підказки пошуку */
+.qs { display: flex; flex-direction: column; gap: 2px; max-height: 60vh; overflow-y: auto; }
+.qs-i { display: flex; align-items: center; justify-content: space-between; gap: 12px; text-align: left; border: 0; background: none; padding: 8px 10px; border-radius: 8px; cursor: pointer; color: var(--fg); font: inherit; font-size: 13.5px; }
+.qs-i:hover, .qs-i.on { background: var(--soft); }
+.qs-t { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.qs-i .lbl { flex: none; font-size: 12px; }
+.qs mark { background: var(--lime-soft, #e6f7c8); color: inherit; border-radius: 3px; padding: 0 1px; }
+@media (max-width: 640px) { .radar-side th, .radar-side td { padding-left: 6px; padding-right: 6px; } }
 
 @media (max-width: 1180px) {
   .c3 { grid-column: span 6; } .c4 { grid-column: span 6; } .c5, .c7, .c8 { grid-column: span 12; } .c6 { grid-column: span 12; }
@@ -816,6 +894,683 @@ html.hc a, html.hc .link { text-decoration: underline; }
 <div class="toast" id="toast"></div>
 
 <script>
+/* ---------- Підключення до бекенду ----------
+ * Якщо поруч є API (GET /api/v1/config відповідає), сторінка працює з даними сервера: вхід, результати,
+ * рекомендації й рішення, заходи, анкети (за обліковим записом і анонімно за посиланням /s/<токен>),
+ * чек-лист із файлами-доказами, хвилі й посилання, журнал. Без API (відкрито з файлу, Vercel) — демо-дані
+ * в браузері, як раніше. Решта коду бере дані через гачки: inst(), buildRecs(), measures(), SV()/SQ(), apiView().
+ */
+const API = {
+  on: false, base: "/api/v1", cfg: null, user: null, anon: false, token: null,
+  model: null, empty: false, recs: [], ms: [], campaignId: null, unitId: null,
+  survey: null, surveyUsed: false, surveyMsg: null, surveyTarget: null,
+  my: null, assignments: null, adm: null, qs: null, ck: null, log: null, loading: {},
+};
+const SESSION_KEY = "ii-session";
+
+/* --- Запити --- */
+function apiToken() { try { return sessionStorage.getItem(SESSION_KEY); } catch (e) { return null; } }
+function apiSetToken(t) { try { t ? sessionStorage.setItem(SESSION_KEY, t) : sessionStorage.removeItem(SESSION_KEY); } catch (e) {} }
+const apiAuth = () => { const t = apiToken(); return t ? { Authorization: "Bearer " + t } : {}; };
+class ApiErr extends Error { constructor(status, body) { super((body && body.message) || "Сервер не відповів"); this.status = status; this.code = body && body.code; this.hint = (body && body.hint) || ""; } }
+async function api(path, { method = "GET", body, headers = {}, auth = true, raw = false } = {}) {
+  const h = { Accept: "application/json", ...(auth ? apiAuth() : {}), ...headers };
+  let b;
+  if (body instanceof FormData) b = body; else if (body !== undefined) { h["Content-Type"] = "application/json"; b = JSON.stringify(body); }
+  let r;
+  try { r = await fetch(path.startsWith("/api/") ? path : API.base + path, { method, headers: h, body: b }); }
+  catch (e) { throw new ApiErr(0, { message: "Немає зв’язку із сервером", hint: "Перевірте мережу." }); }
+  if (!r.ok) {
+    const j = await r.json().catch(() => null);
+    if (r.status === 401 && auth && apiToken() && API.user) { apiSetToken(null); API.user = null; showLogin("Сесія завершилась. Увійдіть знову."); }
+    throw new ApiErr(r.status, j);
+  }
+  if (raw) return r;
+  if (r.status === 204) return null;
+  return (r.headers.get("content-type") || "").includes("json") ? r.json() : r.text();
+}
+const apiErrText = e => e instanceof ApiErr ? `${e.message}${e.hint ? ". " + e.hint : ""}` : "Не вдалося виконати дію";
+const apiFail = e => toast(apiErrText(e));
+
+/* --- Ролі: обліковий запис → роль інтерфейсу --- */
+function frontRole(u) {
+  if (!u) return "respondent";
+  if (["admin", "commissioner", "leader", "auditor"].includes(u.role)) return u.role;
+  return u.category === "working_group" ? "checklist_editor" : "respondent";
+}
+const RESULT_ROLES = ["leader", "auditor", "admin", "commissioner"];
+
+/* --- Старт --- */
+async function boot() {
+  let cfg = null;
+  try {
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 4000);
+    const r = await fetch("/api/v1/config", { signal: ctl.signal }); clearTimeout(t);
+    if (r.ok && (r.headers.get("content-type") || "").includes("json")) cfg = await r.json();
+  } catch (e) {}
+  if (!cfg) { render(); return; } // демо-режим
+  API.on = true; API.cfg = cfg; S.k = cfg.min_group_size;
+  // Розподіл прав як на бекенді: укладач підтверджує чек-лист, робоча група ще й проходить анкету.
+  NAV.find(n => n[0] === "checklist")[3].push("commissioner", "auditor");
+  for (const r of ["survey", "me"]) NAV.find(n => n[0] === r)[3].push("checklist_editor");
+  NAV.find(n => n[0] === "survey")[1] = "Пройти анкету";
+  const tm = location.pathname.match(/^\/s\/([^/?#]+)/);
+  if (tm) return bootToken(decodeURIComponent(tm[1]));
+  if (apiToken()) {
+    try { const me = await api("/auth/session"); return afterLogin(me); } catch (e) { apiSetToken(null); }
+  }
+  if (cfg.auth.proxy && !cfg.auth.password) {
+    try { const s = await api("/auth/proxy", { method: "POST", auth: false }); apiSetToken(s.access_token); return afterLogin(s.user); } catch (e) {}
+  }
+  showLogin();
+}
+
+function shellMode(mode) {
+  const app = document.querySelector(".app");
+  app.classList.toggle("login", mode === "login");
+  app.classList.toggle("anon", mode === "anon");
+}
+
+function showLogin(msg) {
+  shellMode("login");
+  closeDrawer(); aiClose();
+  $("#title").textContent = "Вхід";
+  const demo = [["leader", "Керівник: огляд, рекомендації, заходи"], ["admin", "Уповноважений: хвилі, посилання, журнал"], ["commissioner", "Укладач: анкети, підтвердження чек-листа"], ["auditor", "Аудитор: перегляд і журнал"], ["wg1", "Робоча група: анкета й чек-лист"], ["staff01", "Особовий склад: анкета й результати"], ["expert1", "Експерт: анкета"]];
+  $("#view").innerHTML = `<div class="login-wrap c12">
+    <section class="card rise login-card">
+      <div class="brand" style="padding:0 0 6px"><span class="logo">${IC.pulse.replace("<svg", '<svg width="20" height="20"')}</span>Integrity<span style="color:var(--muted);font-weight:500">Index</span></div>
+      <h2 style="margin:6px 0 2px;font-size:22px">Вхід</h2>
+      ${msg ? `<div class="note-box" style="margin:8px 0"><span>${esc(msg)}</span></div>` : ""}
+      ${API.cfg.auth.password ? `<form id="lf" style="display:flex;flex-direction:column;gap:12px;margin-top:10px">
+        <div class="field"><label for="lu">Логін</label><input class="inp" id="lu" autocomplete="username" required></div>
+        <div class="field"><label for="lp">Пароль</label><input class="inp" id="lp" type="password" autocomplete="current-password" required></div>
+        <span class="lbl" id="lerr" style="color:var(--red)"></span>
+        <button class="btn btn-primary" type="submit" style="justify-content:center">Увійти ${IC.arrowR}</button>
+      </form>` : ""}
+      ${API.cfg.auth.proxy ? `<button class="btn btn-soft" id="lproxy" style="justify-content:center;margin-top:10px">Увійти через систему організації</button>` : ""}
+      <div class="lbl" style="margin-top:12px;display:flex;gap:8px;align-items:center"><span style="display:inline-flex;width:16px">${IC.shield}</span>Анонімна анкета за одноразовим посиланням відкривається без входу.</div>
+    </section>
+    ${API.cfg.auth.password ? `<section class="card rise login-card">
+      <h2 style="margin:0 0 4px;font-size:16px">Демо-облікові записи</h2>
+      <div class="lbl" style="margin-bottom:10px">Пароль у всіх однаковий: DEMO_PASSWORD з файлу .env. Дані синтетичні.</div>
+      <div class="rows">${demo.map(([l, t]) => `<a class="row click" href="javascript:void 0" onclick="document.getElementById('lu').value='${l}';document.getElementById('lp').focus()"><b class="tnum" style="min-width:110px;color:var(--teal-deep)">${l}</b><div class="grow lbl">${t}</div></a>`).join("")}</div>
+    </section>` : ""}
+  </div>`;
+  const f = $("#lf");
+  if (f) {
+    f.onsubmit = async e => {
+      e.preventDefault();
+      const b = f.querySelector("button"); b.disabled = true; $("#lerr").textContent = "";
+      try {
+        const s = await api("/auth/session", { method: "POST", auth: false, body: { login: $("#lu").value.trim(), password: $("#lp").value } });
+        apiSetToken(s.access_token); await afterLogin(s.user);
+      } catch (err) { $("#lerr").textContent = apiErrText(err); b.disabled = false; }
+    };
+    setTimeout(() => $("#lu") && $("#lu").focus(), 50);
+  }
+  const p = $("#lproxy");
+  if (p) p.onclick = async () => { try { const s = await api("/auth/proxy", { method: "POST", auth: false }); apiSetToken(s.access_token); await afterLogin(s.user); } catch (err) { toast(apiErrText(err)); } };
+}
+
+async function afterLogin(user) {
+  API.user = user; S.role = frontRole(user); API.my = API.assignments = API.adm = API.qs = API.ck = API.log = API.logF = API.chain = null; API.survey = null;
+  shellMode("app");
+  const rc = document.querySelector(".role-card");
+  rc.innerHTML = `<small>Ви увійшли як</small><b style="font-size:14px">${esc(user.display_name)}</b><small>${ROLE[S.role][0]} · ${esc(user.login)}</small>
+    <button class="btn btn-ghost" id="logoutBtn" type="button">${IC.arrowL}Вийти</button>`;
+  $("#logoutBtn").onclick = async () => { try { await api("/auth/session", { method: "DELETE" }); } catch (e) {} apiSetToken(null); API.user = null; API.model = null; history.replaceState(null, "", "/"); showLogin(); };
+  setAvatar(); aiBtn();
+  if (RESULT_ROLES.includes(S.role)) await apiLoadResults();
+  if (!allowed((location.hash || "").slice(1).split("/")[0])) location.hash = HOME[S.role];
+  render();
+}
+
+/* --- Анонімне проходження за посиланням /s/<токен> --- */
+async function bootToken(token) {
+  API.anon = true; API.token = token; S.role = "respondent"; shellMode("anon");
+  API.surveyTarget = { kind: "token", token };
+  location.hash = "survey";
+  S.survey = { phase: "intro", sec: 0, a: {}, miss: false };
+  try { API.survey = apiSurveyModel(await api("/respond/form", { auth: false, headers: { "X-Response-Token": token } }), "token"); }
+  catch (e) { API.survey = null; API.surveyMsg = e.code === "token_used" ? "used" : e.code === "campaign_not_open" ? "closed" : "invalid"; }
+  render();
+}
+
+/* --- Результати: остання закрита хвиля --- */
+const CATEGORY_SRC = { staff: ["os", "Особовий склад (анкета 2)"], working_group: ["wg", "Робоча група (анкета 1)"], expert: ["experts", "Зовнішні експерти (анкета 3)"], checklist: ["wg", "Контрольний чек-лист (робоча група)"] };
+const GROUP_FLAG = { low_participation: ["minor", "Низька участь", "Відповіла менша частка запрошених."], suspiciously_perfect: ["major", "Підозріло однакові «ідеальні» відповіді", "Значна частка анкет з однаковими найвищими відповідями."], insufficient_data: ["minor", "Недостатньо відповідей", "У групі замало відповідей для висновку."] };
+const GRADE = { A: "A", B: "B", C: "C", insufficient_data: "insufficient" };
+function cycleLabels(points) { const used = {}; return points.map(p => { const b = p.closed_on ? p.closed_on.slice(0, 7) : p.campaign_title; used[b] = (used[b] || 0) + 1; return used[b] === 1 ? b : `${b} (${used[b]})`; }); }
+
+function apiModel(r, h) {
+  const comps = COMPS.map(id => {
+    const c = r.components.find(x => x.code === id) || {};
+    const v = c.score ?? c.self_score ?? 0, P = c.self_score ?? v, F = c.facts_score ?? P;
+    return { id, P, F, cr: { v, lim: !!c.cut_by_facts, reason: c.cut_by_facts ? c.rule : undefined } };
+  });
+  const pItems = r.components.filter(c => COMPS.includes(c.code)).flatMap(c => {
+    const src = (c.sources || []).filter(s => s.score != null && s.effective_weight > 0), tot = src.reduce((a, s) => a + s.effective_weight, 0) || 1;
+    return src.map(s => { const [k, t] = CATEGORY_SRC[s.source] || ["wg", s.title]; return { id: `${c.code}-${s.source}`, c: c.code, t, w: r1(s.effective_weight / tot * 100), v: s.score, src: k, kind: "p" }; });
+  });
+  const fItems = r.components.filter(c => COMPS.includes(c.code)).flatMap(c => {
+    const fs = (c.facts || []).filter(f => f.score != null);
+    return fs.map(f => ({ id: `${c.code}-f-${f.indicator}`, c: c.code, t: f.title, w: r1(100 / fs.length), v: f.score,
+      kind: f.numerator != null && f.denominator ? "pct" : "lvl", val: f.numerator != null && f.denominator ? [f.numerator, f.denominator] : (f.level || 1),
+      from: (f.sources || []).join(", ") || "Дані обліку", rule: f.rule }));
+  });
+  const pts = (h && h.points) || [], labels = cycleLabels(pts);
+  let series = pts.map((p, i) => ({ cycle: labels[i], index: p.index ?? 0, cr: Object.fromEntries(COMPS.map(c => [c, (p.components || {})[c] ?? 0])) }));
+  const at = pts.findIndex(p => p.campaign_id === r.campaign_id);
+  if (at >= 0) series = series.slice(0, at + 1);
+  else series.push({ cycle: r.closed_on ? r.closed_on.slice(0, 7) : r.campaign_title, index: r.index.score ?? 0, cr: Object.fromEntries(comps.map(c => [c.id, c.cr.v])) });
+  if (series.length === 1) series = [series[0], series[0]];
+  const events = pts.flatMap((p, i) => i > 0 && p.measures_done > 0 ? [{ after: labels[i - 1], t: `Виконано заходів між хвилями: ${p.measures_done}` }] : []);
+  const flags = [];
+  for (const c of r.components) for (const f of c.flags || []) flags.push({ id: `${f.code}:${c.code}`, w: f.severity === "serious" ? "major" : "minor", t: `${c.title}: ${f.title}`, ex: c.rule || f.title, raised: true });
+  for (const g of r.groups) for (const code of g.flags || []) if (GROUP_FLAG[code]) flags.push({ id: `${code}:${g.category}`, w: GROUP_FLAG[code][0], t: `${g.title}: ${GROUP_FLAG[code][1]}`, ex: GROUP_FLAG[code][2], raised: true });
+  const responses = r.groups.reduce((a, g) => a + (g.submitted || 0), 0);
+  const m = finish({ id: ALPHA, name: r.unit_name, components: comps, pItems, fItems, series, events, flags, responses });
+  m.trust = GRADE[r.index.reliability] || "insufficient";
+  m.index = r.index.score ?? m.index; m.level = (r.index.level && r.index.level.level) || m.level; m.delta = r1(m.index - m.prevIndex);
+  if (r.index.reliability_reasons && r.index.reliability_reasons[0]) m.summary = r.index.reliability_reasons[0];
+  m.groups = r.groups; m.rule = r.index.rule;
+  const sorted = [...comps].sort((a, b) => a.cr.v - b.cr.v), top = sorted[sorted.length - 1];
+  // «Що потребує уваги» і «Сильні сторони» — з сервера (problems, weakest_questions, strengths за зонами методики)
+  const byCode = Object.fromEntries(comps.map(c => [c.id, c])), qComp = code => (code || "").split(".")[0];
+  m.attention = [
+    ...(r.problems || []).filter(p => byCode[p.code]).map(p => ({ t: byCode[p.code].cr.lim ? `${COMP[p.code].n}: підтвердити фактами` : `${COMP[p.code].n}: підсилити напрям`, c: p.code, v: p.score ?? byCode[p.code].cr.v, hint: `Зараховане значення компонента ${COMP[p.code].n}, 0-100.` })),
+    ...(r.weakest_questions || []).filter(q => q.score != null && q.score < 62.5 && COMPS.includes(qComp(q.code))).slice(0, 3).map(q => ({ t: q.text, c: qComp(q.code), v: q.score, q: q.code, hint: `Середній бал питання ${q.code}, 0-100.` })),
+  ];
+  m.strengths = (r.strengths || []).filter(s => byCode[s.code]).map(s => ({ t: `Сильний компонент: ${COMP[s.code].n}`, c: s.code, v: s.score ?? byCode[s.code].cr.v, hint: `Зараховане значення компонента ${COMP[s.code].n}, 0-100.` }));
+  if (!m.strengths.length) m.strengths = [{ t: `Найвищий результат у компоненті ${COMP[top.id].n}`, c: top.id, v: top.cr.v, hint: `Зараховане значення компонента ${COMP[top.id].n}, 0-100.` }];
+  if (series[0].index !== m.index) m.strengths.push({ t: m.index > series[0].index ? "Зростання індексу з першої хвилі" : "Зміна індексу з першої хвилі", v: r1(m.index - series[0].index), hint: "Сумарна зміна індексу з першої закритої хвилі, у пунктах.", unit: "пт" });
+  return m;
+}
+
+const CK_ST = { full: "впроваджено повністю", partial: "частково", none: "не впроваджено" };
+const DEC_ST = { accepted: "accepted", clarify: "clarified", rejected: "rejected" };
+const BASIS = { self_score: "Самооцінка", facts_score: "Факти", score: "Зараховано", percent: "Відсоток", confirmed: "Підтверджено пунктів", total: "Усього", found: "Знайдено", pending: "Не розглянуто", change: "Зміна", level: "Рівень" };
+function apiRec(x, m, res) {
+  const c = COMPS.includes(x.component) ? x.component : "system", st = x.decision ? DEC_ST[x.decision.decision] || "proposed" : "proposed", cm = x.decision && x.decision.comment || "";
+  // Звʼязок рекомендації з питанням чи показником, з якого вона виникла (код правила: fact:<показник>, question:<питання>)
+  const [kind, ref] = x.code.split(":"), links = [];
+  if (kind === "fact" && m) { const f = m.fItems.find(i => i.id.endsWith("-f-" + ref)); if (f) links.push({ id: f.id, t: f.t, v: fb(f.v), item: true }); }
+  const qLink = q => ({ id: COMPS.includes(q.component) ? q.component : c, q: q.code, t: `Питання «${q.text}»`, v: q.score != null ? fb(q.score) : "—", item: true });
+  if (kind === "checklist" && res && res.checklist) { const i = (res.checklist.items || []).find(i => i.number === ref); if (i) links.push({ id: COMPS.includes(i.component) ? i.component : c, ck: i.number, t: `Пункт чек-листа ${i.number}${i.text ? ` «${i.text.replace(/^[\d.]+\s*/, "")}»` : ""}`, v: CK_ST[i.status] || "не заповнено", item: true }); }
+  if (kind === "question" && res) { const q = (res.questions || []).find(i => i.code === ref); if (q) links.push(qLink(q)); }
+  if (kind === "cut" && m) m.fItems.filter(i => i.c === x.component && i.v < 62.5).slice(0, 2).forEach(f => links.push({ id: f.id, t: f.t, v: fb(f.v), item: true }));
+  if (kind === "weakest" && res) (res.questions || []).filter(q => q.component === x.component && q.score != null).sort((a, b) => a.score - b.score).slice(0, 2).forEach(q => links.push(qLink(q)));
+  return { id: x.code, t: x.title, c, pri: ["high", "medium", "low"].includes(x.priority) ? x.priority : "medium", items: links.filter(l => !l.q).map(l => l.id), links,
+    why: `${x.description} Правило: ${x.rule}`, acts: (x.suggested_measures || []).slice(0, 4).map(s => s.catalog_number ? `${s.catalog_number}. ${s.title}` : s.title),
+    evidence: [...links, ...Object.entries(x.basis || {}).filter(([k, v]) => typeof v === "number" && BASIS[k] && !(links.length && k === "score")).slice(0, 4 - links.length).map(([k, v]) => ({ id: COMPS.includes(x.component) ? x.component : "", t: BASIS[k], v: fb(v), item: true }))],
+    st, note: st === "rejected" ? { reason: cm } : st === "clarified" ? { comment: cm } : {} };
+}
+// Питання анкети з результатів хвилі: бал, бал за групами й розподіл відповідей
+function openApiQ(code) {
+  const q = API.res && (API.res.questions || []).find(i => i.code === code); if (!q) return toast("Питання не знайдено в результатах хвилі");
+  const grp = k => (CATEGORY_SRC[k] || [null, k])[1];
+  openDrawer("Питання анкети", `<div style="font-weight:600;font-size:16px">${esc(q.text)}</div>
+    <div class="lbl" style="margin:4px 0 14px">${[q.section, COMP[q.component] ? COMP[q.component].n : q.component].filter((v, i, a) => v && a.indexOf(v) === i).map(esc).join(" · ")} · код ${esc(q.code)}</div>
+    <div class="stat4 tnum" style="grid-template-columns:1fr 1fr"><div><small>Середній бал</small><b>${q.score != null ? fb(q.score) : "—"}</b></div><div><small>Рівень</small><b>${q.score != null ? LSHORT[level(q.score) - 1] : "—"}</b></div></div>
+    ${q.by_category.map(g => `<div style="margin-top:16px"><div style="display:flex;justify-content:space-between;gap:8px"><b>${esc(grp(g.category))}</b><span class="lbl tnum">${g.n} відп. · бал ${g.score != null ? fb(g.score) : "—"}</span></div>
+      ${g.distribution.map(d => `<div style="display:grid;grid-template-columns:minmax(0,1fr) 90px 44px;gap:8px;align-items:center;margin-top:6px;font-size:13px"><span>${esc(d.option_text)}</span><div class="contrib"><i style="width:${d.percent}%;background:var(--teal)"></i></div><span class="lbl tnum" style="text-align:right">${fb(d.percent)}%</span></div>`).join("")}</div>`).join("")}
+    <a class="btn btn-soft" href="#explain/${q.component}" onclick="closeDrawer()" style="justify-content:center;margin-top:18px">${IC.arrowR}Компонент у розкладі індексу</a>`);
+}
+const MEAS_ST = { planned: "accepted", in_progress: "inprogress", done: "done", cancelled: "cancelled" };
+// Перевірка наступною хвилею (бекенд, services/measures.verify): зріс компонент заходу — підтверджено; не зріс — потрібен перегляд
+const VERIFY_ST = { improved: "confirmed", worsened: "notconfirmed", within_error: "notconfirmed" };
+function apiMeasure(x, titles) {
+  const v = x.verification || {}, st = x.status === "done" && VERIFY_ST[v.status] ? VERIFY_ST[v.status] : MEAS_ST[x.status] || "accepted";
+  const d = v.delta != null ? ` (${v.delta > 0 ? "+" : ""}${fb(v.delta)})` : "";
+  const vf = x.status === "done" ? (st === "confirmed" ? [`Підтверджено: компонент зріс${d}`, "p-good"] : st === "notconfirmed" ? [`Не підтверджено: ${v.title || "без змін"}${d}`, "p-bad"] : v.status === "check_data" ? ["Перевірити дані: достовірність C", "p-warn"] : ["Очікує наступного оцінювання", "p-info"]) : null;
+  return { id: x.id, rec: titles[x.recommendation_code] || (x.recommendation_code ? "попередньої хвилі" : "окремий захід"), t: x.title, who: x.owner, due: x.due_date, st, ind: x.component, vf, vrule: v.rule };
+}
+const MEAS_BACK = { accepted: "planned", inprogress: "in_progress", done: "done" };
+
+async function apiLoadResults() {
+  API.model = null; API.empty = false; API.recs = []; API.ms = [];
+  let d;
+  try { d = await api("/dashboard"); }
+  catch (e) { if (e.status === 404 || e.status === 409) { API.empty = true; return; } throw e; }
+  API.campaignId = d.campaign_id; API.unitId = d.unit_id;
+  const q = d.unit_id ? `?unit_id=${d.unit_id}` : "";
+  const [r, h, recs, ms] = await Promise.all([
+    api(`/campaigns/${d.campaign_id}/results${q}`), api(`/units/${d.unit_id}/history`).catch(() => null),
+    api(`/campaigns/${d.campaign_id}/recommendations${q}`).catch(() => ({ items: [] })), api(`/measures${q}`).catch(() => []),
+  ]);
+  API.model = apiModel(r, h);
+  API.res = r; API.recs = recs.items.map(x => apiRec(x, API.model, r));
+  const titles = Object.fromEntries(recs.items.map(x => [x.code, x.title]));
+  API.ms = ms.map(x => apiMeasure(x, titles));
+  TODAY = new Date().toISOString().slice(0, 10); TODAY_UA = ua(TODAY);
+  CYCLE = API.model.series[API.model.series.length - 1].cycle;
+  $("#cycleBtn").innerHTML = `${IC.cal}Цикл ${CYCLE}`;
+  const n = API.model.series.length;
+  S.trend = { from: 0, to: n - 1, lines: [] }; S.cmp = { a: Math.max(0, n - 2), b: n - 1 };
+}
+async function apiReloadResults() { try { await apiLoadResults(); } catch (e) { apiFail(e); } render(true); }
+
+async function apiDecide(code, decision, comment, measure) {
+  await api(`/campaigns/${API.campaignId}/recommendations/${encodeURIComponent(code)}/decision`, { method: "POST", body: { unit_id: API.unitId, decision, comment, ...(measure ? { measure: { ...measure, description: "" } } : {}) } });
+  await apiReloadResults();
+}
+function apiSetMSt(id, st) {
+  const x = measures().find(m => m.id === id); if (!x || !M_NEXT[x.st].includes(st)) return;
+  const send = async evidence => {
+    await api(`/measures/${id}`, { method: "PATCH", body: { status: MEAS_BACK[st] || "in_progress", ...(st === "done" ? { evidence, done_on: TODAY } : {}) } });
+    toast(`Статус заходу змінено на «${M_ST[st][0]}».`); await apiReloadResults();
+  };
+  if (st !== "done") return send().catch(apiFail);
+  openDrawer("Позначити захід виконаним", `<div style="font-weight:600">${esc(x.t)}</div>
+    <div class="field"><label for="f-ev">Доказ виконання</label><textarea class="inp" id="f-ev" rows="4"></textarea><span class="lbl" id="f-err">Документ, наказ, звіт або посилання на нього. Без доказу захід не позначити виконаним.</span></div>
+    <button class="btn btn-primary" id="f-ok" style="justify-content:center">${IC.ok}Зберегти</button>`, b => {
+    b.querySelector("#f-ok").onclick = () => { const t = b.querySelector("#f-ev").value.trim(); if (t.length < 3) { const e = b.querySelector("#f-err"); e.textContent = "Опишіть доказ."; e.style.color = "var(--red)"; return; } send(t).then(closeDrawer, apiFail); };
+  });
+}
+
+/* --- Анкета: форма сервера → модель proto --- */
+function apiSurveyModel(form, kind, category) {
+  const CAT = { working_group: "Робоча група", staff: "Особовий склад", expert: "Зовнішні експерти" };
+  const guess = t => /культур/i.test(t) ? "culture" : /систем/i.test(t) ? "system" : /підзвітн/i.test(t) ? "accountability" : null;
+  const opt = {};
+  const sections = form.sections.map((s, si) => {
+    const id = s.component || guess(s.title) || "overall"; // компонент з сервера (culture/system/accountability/overall); за назвою лише для старих відповідей
+    return { id, t: s.title, about: COMPS.includes(id) ? { culture: "про ставлення до доброчесності", system: "про процедури й канали звернень", accountability: "про прозорість рішень і виконання заходів" }[id] : id === "overall" ? "" : "за темою розділу",
+      q: s.questions.map(q => {
+        if (q.type === "scale" && !q.options.length) { const vals = []; for (let v = q.scale_min; v <= q.scale_max; v++) vals.push(v); opt[q.id] = vals.map(v => ({ value: v })); return [q.id, q.text, vals.map(String)]; }
+        opt[q.id] = q.options.map(o => ({ id: o.id })); return [q.id, q.text, q.options.map(o => o.text)];
+      }) };
+  });
+  return { title: form.title, cat: CAT[category] || form.title, sections, opt, kind, campaignId: form.campaign_id, questionnaireId: form.questionnaire_id, k: form.min_group_size };
+}
+async function apiSubmitSurvey() {
+  const sv = API.survey, answers = Object.entries(S.survey.a).filter(([qid]) => sv.opt[qid]).map(([qid, i]) => { const o = sv.opt[qid][i]; return o.id ? { question_id: qid, option_ids: [o.id] } : { question_id: qid, option_ids: [], value: o.value }; });
+  try {
+    if (sv.kind === "token") await api("/respond/responses", { method: "POST", auth: false, headers: { "X-Response-Token": API.token }, body: { answers } });
+    else await api(`/campaigns/${sv.campaignId}/questionnaires/${sv.questionnaireId}/responses`, { method: "POST", body: { answers } });
+  } catch (e) {
+    if (e.code === "token_used" || e.status === 409) { API.surveyUsed = true; API.surveyMsg = "used"; render(); return; }
+    toast(apiErrText(e)); return;
+  }
+  S.survey = { phase: "done", sec: 0, a: {}, miss: false }; API.surveyUsed = sv.kind === "token";
+  try { localStorage.removeItem("ii-survey-draft"); } catch (e) {}
+  if (sv.kind !== "token") { sv.submitted = true; API.assignments = null; API.my = null; }
+  render();
+}
+
+/* --- Підвантаження даних екрана: true, якщо дані є --- */
+function apiEnsure(key, loader) {
+  if (API[key] !== null && API[key] !== undefined) return true;
+  if (!API.loading[key]) {
+    API.loading[key] = true;
+    loader().then(v => { API[key] = v; }, e => { API[key] = { error: apiErrText(e) }; }).finally(() => { API.loading[key] = false; render(true); });
+  }
+  return false;
+}
+const apiLoadingHTML = t => `<section class="card c12 rise"><div class="empty"><b>${t}</b><br>Завантажуємо дані з сервера…</div></section>`;
+const apiErrorHTML = e => `<section class="card c12 rise"><div class="empty"><b>Не вдалося завантажити дані</b><br>${esc(e)}<br><br><button class="btn btn-soft" onclick="API.adm=API.qs=API.ck=API.log=API.my=API.assignments=null;render()">Спробувати ще раз</button></div></section>`;
+const RESULT_VIEWS = ["overview", "explain", "trends", "compare", "recs", "tracker", "report", "sources"];
+
+/* --- Екрани з даними сервера (null — показати звичайний екран proto) --- */
+function apiView(r) {
+  if (!API.on) return null;
+  if (RESULT_VIEWS.includes(r) && r !== "sources" && !API.model)
+    return API.empty ? `<section class="card c12 rise"><div class="empty"><b>Ще немає закритої хвилі оцінювання</b><br>Результати зʼявляться, коли уповноважений закриє хвилю: система порахує індекс і збереже незмінний знімок.</div></section>` : apiLoadingHTML("Результати");
+  if (r === "survey") return apiSurveyView();
+  if (r === "me") return apiMeView();
+  if (r === "manage") return apiManageView();
+  if (r === "surveys") return apiSurveysView();
+  if (r === "checklist") return apiChecklistView();
+  if (r === "audit") return apiAuditView();
+  return null;
+}
+
+function apiSurveyView() {
+  if (API.anon) {
+    if (API.surveyMsg && !API.survey) {
+      const [t, d] = API.surveyMsg === "used" ? ["Цю анкету вже заповнено", "Повторно відповісти за цим посиланням не можна: так ми захищаємо анонімність і не допускаємо подвоєних відповідей. Дякуємо за участь."]
+        : API.surveyMsg === "closed" ? ["Опитування зараз не приймає відповіді", "Хвилю оцінювання ще не відкрито або вже закрито. Перевірте строки в того, хто надіслав вам посилання."]
+        : ["Посилання недійсне або застаріле", "Перевірте, чи адресу скопійовано повністю. Якщо не допомогло, попросіть нове посилання в того, хто надіслав вам анкету."];
+      return `<div class="survey c12"><section class="card rise" style="padding:32px;text-align:center"><div class="done-ic" style="background:var(--soft);color:var(--muted)">${IC.lock}</div><h2 style="margin:18px 0 6px;font-size:22px;font-weight:600">${t}</h2><p class="lbl" style="max-width:480px;margin:0 auto">${d}</p></section></div>`;
+    }
+    return null;
+  }
+  // Після подання показуємо подяку; наступний захід на екран бере наступну анкету.
+  if (API.survey && API.survey.submitted && S.survey.phase !== "done") API.survey = null;
+  if (API.survey) return null;
+  if (!apiEnsure("assignments", () => api("/me/assignments"))) return apiLoadingHTML("Анкети");
+  if (API.assignments.error) return apiErrorHTML(API.assignments.error);
+  const todo = API.assignments.filter(a => a.kind !== "checklist");
+  const next = todo.find(a => !a.submitted);
+  if (next && !API.loading.form) {
+    API.loading.form = true;
+    api(`/campaigns/${next.campaign_id}/questionnaires/${next.questionnaire_id}/form`).then(f => { API.survey = apiSurveyModel(f, "account", API.user.category); S.survey = { phase: "intro", sec: 0, a: {}, miss: false }; }, apiFail).finally(() => { API.loading.form = false; render(true); });
+    return apiLoadingHTML(next.questionnaire_title);
+  }
+  if (next) return apiLoadingHTML(next.questionnaire_title);
+  return `<section class="card c12 rise"><div class="empty"><b>Зараз немає анкет до проходження</b><br>${todo.length ? `Ви вже пройшли: ${todo.map(a => esc(a.questionnaire_title)).join(", ")}.` : "Анкети зʼявляться, коли уповноважений відкриє хвилю оцінювання."}<br><br><a class="btn btn-soft" href="#me">Мої результати ${IC.arrowR}</a></div></section>`;
+}
+
+function apiScopeHTML(sc, title) {
+  if (!sc.sufficient) return `<section class="card c12 rise"><div class="lock">${IC.lock}<div><b>${esc(title)}: результати приховано</b><div class="lbl">Відповіло менше ${S.k} осіб. Так ми не дозволяємо обчислити відповіді окремих людей.</div></div></div></section>`;
+  const idx = sc.index.score ?? 0, lv = (sc.index.level && sc.index.level.level) || level(idx);
+  return `<section class="card c5 rise"><div class="lbl">${esc(title)}</div>
+    <div class="big tnum" style="margin-top:12px">${numHTML(idx)}<span class="of">з 100</span></div>
+    <div style="margin:10px 0 14px">${lvPill(lv)}</div>${levelBar(idx)}</section>
+  <section class="card c7 rise"><div class="card-h"><h2>Три компоненти</h2></div>
+    <div style="display:flex;flex-direction:column;gap:18px">${sc.components.filter(c => COMPS.includes(c.code)).map((c, i) => { const v = c.score ?? 0; return `<div><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><span style="display:flex;gap:10px;align-items:center"><span class="comp-ic" style="background:${COMP[c.code].s};color:${COMP[c.code].c}">${IC[COMP[c.code].ic]}</span><b>${COMP[c.code].n}</b></span><span style="display:flex;gap:8px;align-items:center"><b class="tnum">${c.score == null ? "н/д" : fb(v)}</b>${lvPill((c.level && c.level.level) || level(v))}</span></div>
+      <div class="ticks" style="height:18px;margin-top:10px">${Array.from({ length: 20 }, (_, j) => `<span class="${j < Math.round(v / 5) ? "f2" : ""} bar-a" style="animation-delay:${i * 120 + j * 20}ms;${j < Math.round(v / 5) ? `background:${COMP[c.code].c}` : ""}"></span>`).join("")}</div></div>`; }).join("")}</div></section>`;
+}
+function apiMeView() {
+  const okA = apiEnsure("assignments", () => api("/me/assignments")), okM = apiEnsure("my", () => api("/me/results").catch(e => e.status === 404 ? [] : Promise.reject(e)));
+  if (!okA || !okM) return apiLoadingHTML("Мої результати");
+  if (API.my.error) return apiErrorHTML(API.my.error);
+  const todo = Array.isArray(API.assignments) ? API.assignments.filter(a => a.kind !== "checklist") : [];
+  const latest = Array.isArray(API.my) ? API.my[0] : API.my;
+  return `<section class="c12 rise toolbar"><span class="lbl">Відповіді анонімні: вони не повʼязані з вашим обліковим записом.</span></section>
+  <section class="card c12 rise"><div class="card-h"><h2>Анкети відкритих хвиль</h2></div>
+    <div class="rows">${todo.length ? todo.map(a => `<div class="row"><div class="grow"><div class="t">${esc(a.questionnaire_title)}</div><div class="s">${esc(a.campaign_title)}</div></div>${a.submitted ? pill("Пройдено", "p-good") : `<a class="btn btn-primary" href="#survey">Пройти анкету ${IC.arrowR}</a>`}</div>`).join("") : `<div class="lbl">Зараз немає відкритих анкет для вас.</div>`}</div>
+    ${S.role === "checklist_editor" ? `<div class="lbl" style="margin-top:10px">Ви в робочій групі: <a class="link" href="#checklist">заповнити чек-лист</a>.</div>` : ""}</section>
+  ${latest ? `<section class="c12 rise toolbar"><span class="lbl">${esc(latest.campaign_title)}${latest.closed_on ? `, закрито ${ua(latest.closed_on)}` : ""}</span></section>
+    ${latest.my_unit ? apiScopeHTML(latest.my_unit, "Мій підрозділ: " + latest.my_unit.unit_name) : ""}
+    ${apiScopeHTML(latest.institution, "Заклад: " + latest.institution.unit_name)}
+    ${latest.summary && latest.summary.length ? `<section class="card c12 rise"><div class="card-h"><h2>Коротко</h2></div><div class="rows">${latest.summary.map(t => `<div class="row"><span class="dot" style="background:var(--teal)"></span><div class="grow">${esc(t)}</div></div>`).join("")}</div></section>` : ""}`
+    : `<section class="card c12 rise"><div class="empty"><b>Результатів ще немає</b><br>Вони зʼявляться після закриття хвилі.</div></section>`}
+  <section class="c12 rise"><div class="lbl" style="text-align:center">Тут лише узагальнені дані груп не менше k осіб. Окремих відповідей, імен і порівнянь підрозділів немає.</div></section>`;
+}
+
+/* --- Керування циклом (уповноважений) --- */
+const CST = { draft: ["Чернетка", "p-mute"], open: ["Триває", "p-good"], closed: ["Завершено", "p-info"] };
+async function apiLoadAdm(sel) {
+  const [campaigns, units, qs] = await Promise.all([api("/campaigns"), api("/admin/units"), api("/questionnaires?status=published")]);
+  const cur = sel || (API.adm && API.adm.sel) || (campaigns.find(c => c.status !== "closed") || campaigns[0] || {}).id;
+  const progress = cur ? await api(`/campaigns/${cur}/progress`).catch(() => null) : null;
+  return { campaigns, units, qs, sel: cur, progress, links: API.adm && API.adm.sel === cur ? API.adm.links : null };
+}
+function apiAdmReload(sel) { API.adm = null; API.loading.adm = true; apiLoadAdm(sel).then(v => { API.adm = v; }, e => { API.adm = { error: apiErrText(e) }; }).finally(() => { API.loading.adm = false; render(true); }); }
+const dn = t => String(t || "").replace(/\s*\(демо\)/gi, "");
+/* --- Вибір підрозділу: пошук по назві й (для уповноваженого) створення нового прямо зі списку --- */
+function unitCombo(id, units, sel, canCreate) {
+  const cur = units.find(u => u.id === sel) || units.find(u => !u.parent_id) || units[0];
+  return `<div class="combo" id="${id}" data-val="${cur ? cur.id : ""}" data-create="${canCreate ? 1 : 0}"><input class="inp" role="combobox" aria-expanded="false" aria-autocomplete="list" autocomplete="off" placeholder="Почніть вводити назву підрозділу" value="${esc(dn(cur ? cur.name : ""))}"><ul class="combo-list" role="listbox" hidden></ul></div>`;
+}
+function comboDraw(box, all) {
+  const inp = box.querySelector("input"), ul = box.querySelector("ul"), units = API.adm.units, q = inp.value.trim().toLowerCase();
+  const curName = (units.find(u => u.id === box.dataset.val) || {}).name;
+  const show = all || !q || dn(curName).toLowerCase() === q ? units : units.filter(u => dn(u.name).toLowerCase().includes(q));
+  const exact = units.some(u => dn(u.name).toLowerCase() === q);
+  const parent = units.find(u => u.id === box.dataset.val);
+  const items = show.slice(0, 50).map((u, i) => `<li role="option" data-id="${u.id}" class="${u.id === box.dataset.val ? "sel" : ""}">${u.parent_id ? "└ " : ""}${esc(dn(u.name))}</li>`);
+  if (box.dataset.create === "1" && q && !exact) items.unshift(`<li role="option" class="add" data-new="${esc(inp.value.trim())}">${IC.plus}Створити «${esc(inp.value.trim())}»${parent ? ` всередині «${esc(dn(parent.name))}»` : ""}</li>`);
+  ul.innerHTML = items.join("") || `<li class="none">Нічого не знайдено</li>`;
+  ul.hidden = false; inp.setAttribute("aria-expanded", "true");
+}
+function comboClose(box) { box.querySelector("ul").hidden = true; box.querySelector("input").setAttribute("aria-expanded", "false"); const u = API.adm.units.find(x => x.id === box.dataset.val); if (u) box.querySelector("input").value = dn(u.name); }
+async function comboPick(box, li) {
+  if (li.dataset.new) {
+    try { const u = await api("/admin/units", { method: "POST", body: { name: li.dataset.new, parent_id: box.dataset.val || null } }); API.adm.units.push(u); box.dataset.val = u.id; toast(`Підрозділ «${u.name}» створено`); }
+    catch (e) { return toast(apiErrText(e)); }
+  } else if (li.dataset.id) box.dataset.val = li.dataset.id; else return;
+  comboClose(box);
+}
+document.addEventListener("input", e => { const box = e.target.closest && e.target.closest(".combo"); if (box && e.target.tagName === "INPUT") comboDraw(box); });
+document.addEventListener("focusin", e => { const box = e.target.closest && e.target.closest(".combo"); if (box && e.target.tagName === "INPUT") { e.target.select(); comboDraw(box, true); } });
+document.addEventListener("mousedown", e => {
+  const li = e.target.closest && e.target.closest(".combo li"); if (li) { e.preventDefault(); comboPick(li.closest(".combo"), li); return; }
+  document.querySelectorAll(".combo").forEach(b => { if (!b.contains(e.target) && !b.querySelector("ul").hidden) comboClose(b); });
+});
+document.addEventListener("keydown", e => {
+  const box = e.target.closest && e.target.closest(".combo"); if (!box || e.target.tagName !== "INPUT") return;
+  const ul = box.querySelector("ul"), items = [...ul.querySelectorAll("li[data-id],li[data-new]")], cur = ul.querySelector("li.act"); let i = items.indexOf(cur);
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") { e.preventDefault(); if (ul.hidden) comboDraw(box, true); i = e.key === "ArrowDown" ? Math.min(items.length - 1, i + 1) : Math.max(0, i - 1); items.forEach(x => x.classList.remove("act")); if (items[i]) { items[i].classList.add("act"); items[i].scrollIntoView({ block: "nearest" }); } }
+  else if (e.key === "Enter") { e.preventDefault(); const t = cur || (items.length === 1 ? items[0] : null); if (t) comboPick(box, t); }
+  else if (e.key === "Escape") comboClose(box);
+});
+
+function apiManageView() {
+  if (!apiEnsure("adm", () => apiLoadAdm())) return apiLoadingHTML("Керування циклом");
+  const A = API.adm; if (A.error) return apiErrorHTML(A.error);
+  const c = A.campaigns.find(x => x.id === A.sel), unitName = id => dn((A.units.find(u => u.id === id) || {}).name);
+  const surveys = c ? A.qs.filter(q => c.questionnaire_ids.includes(q.id) && q.kind !== "checklist") : [];
+  return `
+  <section class="card c8 rise">
+    ${c ? `<div class="card-h"><h2>${esc(dn(c.title))}</h2>${pill(CST[c.status][0], CST[c.status][1])}<div class="sp"></div><span class="lbl">${c.opened_on ? ua(c.opened_on) : "ще не відкрито"} – ${c.closed_on ? ua(c.closed_on) : "триває"}</span></div>
+    <div class="rows">${(A.progress ? A.progress.items : []).map(i => `<div class="row"><div class="grow"><div class="t" style="display:flex;gap:8px;align-items:center">${esc(i.questionnaire_title)}${i.too_few_people ? `<span style="display:inline-flex;width:15px;color:var(--muted)" data-tip="Менше ${c.min_group_size} осіб: кількості приховано">${IC.lock}</span>` : ""}</div>
+      <div class="ticks" style="height:14px;margin-top:6px">${Array.from({ length: 30 }, (_, j) => `<span class="${!i.too_few_people && j < Math.round((i.percent || 0) / 100 * 30) ? "f2" : ""}" ${!i.too_few_people && j < Math.round((i.percent || 0) / 100 * 30) ? 'style="background:var(--teal)"' : ""}></span>`).join("")}</div></div>
+      <b class="tnum">${i.too_few_people ? "приховано" : `${i.submitted} з ${i.eligible}`}</b></div>`).join("") || `<div class="lbl">Анкет у хвилі немає.</div>`}</div>
+    <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap" id="cActs">
+      ${c.status === "draft" ? `<button class="btn btn-primary" onclick="apiCampaignAct('${c.id}','open')">${IC.ok}Відкрити хвилю</button>` : ""}
+      ${c.status === "open" ? `<button class="btn btn-soft" onclick="apiAskClose('${c.id}')">${IC.lock}Завершити й порахувати індекс</button>` : ""}
+    </div>` : `<div class="empty"><b>Хвиль ще немає</b><br>Створіть першу хвилю оцінювання.</div>`}
+  </section>
+  <section class="card c4 rise waves-card">
+    <div class="card-h"><h2>Хвилі</h2><div class="sp"></div><button class="btn btn-soft" style="padding:6px 12px" onclick="apiNewCampaign()">${IC.plus}Нова</button></div>
+    <div class="rows">${A.campaigns.map(x => `<a class="row click" href="javascript:void 0" onclick="apiAdmReload('${x.id}')" ${x.id === A.sel ? 'style="background:var(--soft)"' : ""}><div class="grow"><div class="t">${esc(dn(x.title))}</div><div class="s">${x.access_mode === "token" ? "анонімно за посиланнями" : "за обліковими записами"}</div></div>${pill(CST[x.status][0], CST[x.status][1])}</a>`).join("")}</div>
+  </section>
+  ${c && c.access_mode === "token" && c.status !== "closed" ? `<section class="card c12 rise">
+    <div class="card-h"><h2>Одноразові посилання</h2></div>
+    <div class="lbl" style="margin-bottom:12px">Кожне посилання відкриває анкету один раз і без входу. Система зберігає лише хеш і не знає, кому ви його дали. Посилання показуються тільки зараз: збережіть їх.</div>
+    <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end">
+      <div class="field" style="flex:2;min-width:220px"><label for="t-q">Анкета</label><select class="inp" id="t-q">${surveys.map(q => `<option value="${q.id}" data-cat="${q.target_category}">${esc(q.title)}</option>`).join("")}</select></div>
+      <div class="field" style="flex:1;min-width:180px"><label for="t-u">Підрозділ</label>${unitCombo("t-u", A.units, c.unit_id, false)}</div>
+      <div class="field" style="width:110px"><label for="t-n">Кількість</label><input class="inp tnum" id="t-n" type="number" min="1" max="1000" value="10"></div>
+      <button class="btn btn-primary" onclick="apiIssueTokens('${c.id}')">Видати</button>
+    </div>
+    ${A.links ? `<div class="note-box" style="margin-top:14px">${A.links.warning ? `<b style="color:var(--amber)">${esc(A.links.warning)}</b>` : `<b>Видано посилань: ${A.links.urls.length}</b>`}
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0"><button class="btn btn-soft" onclick="apiCopyLinks()">${IC.copy}Копіювати всі</button><button class="btn btn-soft" onclick="download('links.csv','\\ufefflink\\n'+API.adm.links.urls.join('\\n'),'text/csv')">${IC.file}CSV</button></div>
+      <div class="lbl tnum" style="max-height:200px;overflow:auto;word-break:break-all">${A.links.urls.map(u => `<div><a class="link" href="${esc(u)}" target="_blank" rel="noreferrer">${esc(u)}</a></div>`).join("")}</div></div>` : ""}
+    <div style="margin-top:12px"><button class="btn btn-ghost" onclick="apiRevoke('${c.id}')">Відкликати всі невикористані</button></div>
+  </section>` : ""}
+  <section class="card c12 rise"><div class="lock">${IC.lock}<div><b>Ця роль не має доступу до відповідей респондентів, навіть узагальнених.</b><div class="lbl">Тут видно лише скільки людей мали пройти анкету і скільки пройшли. Якщо в групі менше людей, ніж мінімальна група k, замість цифр буде «приховано».</div></div></div></section>`;
+}
+function apiNewCampaign() {
+  const A = API.adm;
+  openDrawer("Нова хвиля оцінювання", `
+    <div class="note-box"><span class="lbl">Хвиля це один раунд оцінювання: ви обираєте підрозділ та анкети, відкриваєте хвилю, люди відповідають, потім ви її завершуєте і система рахує індекс.</span></div>
+    <div class="field"><label for="n-t">Назва</label><input class="inp" id="n-t" placeholder="Хвиля 3 (весна)"></div>
+    <div class="field"><label for="n-u">Підрозділ</label>${unitCombo("n-u", A.units, null, true)}<span class="lbl">Оцінювання охопить цей підрозділ і всі його дочірні. Немає потрібного? Введіть назву й оберіть «Створити».</span></div>
+    <div class="field"><label>Анкети</label>${A.qs.map(q => `<label class="chk-row"><input type="checkbox" class="n-q" value="${q.id}" checked><span>${esc(q.title)} <span class="lbl">v${q.version}</span></span></label>`).join("")}</div>
+    <div class="field"><label>Як проходять</label><div class="seg" id="n-m"><button type="button" class="on" data-m="login">За обліковими записами</button><button type="button" data-m="token">Анонімно за посиланнями</button></div><span class="lbl" id="n-mh">Люди входять у систему під своїм логіном. Система знає, хто вже пройшов (щоб не пустити вдруге), але не показує нікому, що саме він відповів.</span></div>
+    <div class="field"><label for="n-k">Мінімальна група k</label><input class="inp tnum" id="n-k" type="number" min="5" value="${S.k}"><span class="lbl">Якщо відповіли менше цієї кількості людей, результати групи не показуються, щоб нікого не можна було впізнати. Не менше 5.</span></div>
+    <span class="lbl" id="n-err" style="color:var(--red)"></span>
+    <button class="btn btn-primary" id="n-ok" style="justify-content:center">${IC.plus}Створити чернетку</button>`, b => {
+    let mode = "login"; b.querySelectorAll("#n-m button").forEach(x => x.onclick = () => { mode = x.dataset.m; b.querySelectorAll("#n-m button").forEach(y => y.classList.toggle("on", y === x)); b.querySelector("#n-mh").textContent = mode === "token" ? "Кожному видається одноразове посилання без входу в систему. Система не знає навіть, хто пройшов: лише скільки посилань використано." : "Люди входять у систему під своїм логіном. Система знає, хто вже пройшов (щоб не пустити вдруге), але не показує нікому, що саме він відповів."; });
+    b.querySelector("#n-ok").onclick = async () => {
+      const ids = [...b.querySelectorAll(".n-q:checked")].map(x => x.value), title = b.querySelector("#n-t").value.trim();
+      if (!title) return void (b.querySelector("#n-err").textContent = "Вкажіть назву.");
+      if (!ids.length) return void (b.querySelector("#n-err").textContent = "Оберіть хоча б одну анкету.");
+      try { const c = await api("/campaigns", { method: "POST", body: { title, unit_id: b.querySelector("#n-u").dataset.val, questionnaire_ids: ids, min_group_size: +b.querySelector("#n-k").value, access_mode: mode } }); closeDrawer(); toast(`Хвилю «${c.title}» створено як чернетку`); apiAdmReload(c.id); }
+      catch (e) { b.querySelector("#n-err").textContent = apiErrText(e); }
+    };
+  });
+}
+async function apiCampaignAct(id, act) {
+  try { await api(`/campaigns/${id}/${act}`, { method: "POST" }); toast(act === "open" ? "Хвилю відкрито: респонденти бачать анкети" : "Хвилю закрито: знімок результатів збережено"); if (act === "close") API.model = null; apiAdmReload(id); }
+  catch (e) { apiFail(e); }
+}
+function apiAskClose(id) {
+  $("#cActs").innerHTML = `<div class="lbl" style="width:100%">Прийом відповідей зупиниться, система порахує індекс і збереже незмінний знімок. Невикористані посилання стануть недійсними. Скасувати не можна.</div><button class="btn btn-ghost" onclick="render(true)">Скасувати</button><button class="btn btn-danger" onclick="apiCampaignAct('${id}','close')">Завершити</button>`;
+}
+async function apiIssueTokens(id) {
+  const sel = $("#t-q"), cat = sel.selectedOptions[0] && sel.selectedOptions[0].dataset.cat;
+  try {
+    const r = await api(`/campaigns/${id}/tokens`, { method: "POST", body: { questionnaire_id: sel.value, unit_id: cat === "expert" ? null : $("#t-u").dataset.val, count: +$("#t-n").value } });
+    API.adm.links = { urls: r.tokens.map(t => t.link.startsWith("/") ? location.origin + t.link : t.link), warning: r.warning };
+    toast(`Видано посилань: ${r.tokens.length}`); render(true);
+  } catch (e) { apiFail(e); }
+}
+function apiCopyLinks() { const t = API.adm.links.urls.join("\n"); try { navigator.clipboard.writeText(t).then(() => toast("Посилання скопійовано"), () => fallbackCopy(t, () => toast("Скопійовано"))); } catch (e) { fallbackCopy(t, () => toast("Скопійовано")); } }
+async function apiRevoke(id) { try { const r = await api(`/campaigns/${id}/tokens/revoke`, { method: "POST", body: {} }); toast(`Відкликано невикористаних посилань: ${r.revoked}`); } catch (e) { apiFail(e); } }
+
+/* --- Анкети (укладач) --- */
+const QST = { draft: ["Чернетка", "p-warn"], published: ["Опубліковано", "p-good"], archived: ["В архіві", "p-mute"] };
+const QCAT = { working_group: "Робоча група", staff: "Особовий склад", expert: "Зовнішні експерти" };
+function apiSurveysView() {
+  if (!apiEnsure("qs", () => api("/questionnaires"))) return apiLoadingHTML("Анкети");
+  if (API.qs.error) return apiErrorHTML(API.qs.error);
+  const list = [...API.qs].sort((a, b) => a.code.localeCompare(b.code) || b.version - a.version);
+  return `<section class="card c12 rise"><div class="lock">${IC.lock}<div><b>Ця роль не має доступу до відповідей респондентів.</b><div class="lbl">Укладач не бачить, хто та скільки людей пройшли анкету. Опублікована версія не змінюється: правки йдуть у нову версію.</div></div></div></section>
+  ${list.map(q => `<section class="card c6 rise">
+    <div class="comp-top"><span class="comp-ic" style="background:var(--lime-soft);color:var(--teal-deep)">${q.kind === "checklist" ? IC.check : IC.survey}</span><b>${esc(q.title)}</b><div class="sp" style="flex:1"></div>${pill(QST[q.status][0], QST[q.status][1])}</div>
+    <div class="stat4 tnum" style="grid-template-columns:repeat(3,1fr);margin-top:14px"><div><small>Група</small><b style="font-size:14px">${q.kind === "checklist" ? "Чек-лист" : QCAT[q.target_category]}</b></div><div><small>Версія</small><b>${q.version}</b></div><div><small>Код</small><b style="font-size:12px">${esc(q.code)}</b></div></div>
+    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center"><span class="lbl">Оновлено ${ua(q.updated_at.slice(0, 10))}</span><div class="sp" style="flex:1"></div>
+      <button class="btn btn-soft" onclick="apiOpenQ('${q.id}')">${IC.eye}Переглянути</button>
+      ${q.status === "draft" ? `<button class="btn btn-primary" onclick="apiQAct('${q.id}','publish')">${IC.ok}Опублікувати</button>` : q.status === "published" ? `<button class="btn btn-ghost" onclick="apiQAct('${q.id}','new-version')">${IC.plus}Нова версія</button><button class="btn btn-ghost" onclick="apiQAct('${q.id}','archive')">В архів</button>` : ""}</div>
+  </section>`).join("")}`;
+}
+async function apiOpenQ(id) {
+  try {
+    const q = await api(`/questionnaires/${id}`);
+    openDrawer(q.title, `<div style="display:flex;gap:6px;flex-wrap:wrap">${pill("Версія " + q.version, "p-mute nodot")}${pill(q.kind === "checklist" ? "Чек-лист" : QCAT[q.target_category], "p-mute nodot")}</div>
+      ${q.sections.map(s => `<div><div class="lbl" style="margin-bottom:6px">Розділ «${esc(s.title)}»</div><div class="rows">${s.questions.map((x, j) => `<div class="row" style="align-items:flex-start"><span class="lbl tnum">${j + 1}</span><div class="grow">${esc(x.text)}<div class="s">${x.options.map(o => `${fb(o.score)} · ${esc(o.text)}`).join("<br>")}</div></div></div>`).join("")}</div></div>`).join("")}`);
+  } catch (e) { apiFail(e); }
+}
+async function apiQAct(id, act) {
+  try {
+    if (act === "publish") { const issues = await api(`/questionnaires/${id}/validate`); if (issues.length) { toast("Не можна опублікувати: " + issues.map(i => i.message).join("; ")); return; } }
+    const q = await api(`/questionnaires/${id}/${act}`, { method: "POST" });
+    toast(act === "publish" ? `Опубліковано: ${q.title}` : act === "new-version" ? `Створено чернетку версії ${q.version}` : `В архіві: ${q.title}`);
+    API.qs = null; render(true);
+  } catch (e) { apiFail(e); }
+}
+
+/* --- Чек-лист: вносить робоча група, підтверджує укладач --- */
+const CKS = { full: ["Впроваджено повністю", "p-good"], partial: ["Частково", "p-warn"], none: ["Не впроваджено", "p-bad"] };
+async function apiLoadCk(sel) {
+  let camps;
+  if (S.role === "checklist_editor") camps = (await api("/me/assignments")).filter(a => a.kind === "checklist").map(a => ({ id: a.campaign_id, title: a.campaign_title, status: "open" }));
+  else camps = (await api("/campaigns")).filter(c => c.status !== "draft").map(c => ({ id: c.id, title: c.title, status: c.status }));
+  const cur = sel || (camps.find(c => c.status === "open") || camps[0] || {}).id;
+  let data = null, err = null;
+  if (cur) { try { data = await api(`/campaigns/${cur}/checklist`); } catch (e) { err = apiErrText(e); } }
+  return { camps, sel: cur, data, err };
+}
+function apiCkReload(sel) { API.ck = null; API.loading.ck = true; apiLoadCk(sel).then(v => { API.ck = v; }, e => { API.ck = { error: apiErrText(e) }; }).finally(() => { API.loading.ck = false; render(true); }); }
+function apiChecklistView() {
+  if (!apiEnsure("ck", () => apiLoadCk())) return apiLoadingHTML("Чек-лист");
+  const K = API.ck; if (K.error) return apiErrorHTML(K.error);
+  if (!K.camps.length) return `<section class="card c12 rise"><div class="empty"><b>Немає хвилі з чек-листом</b><br>Чек-лист зʼявиться, коли уповноважений відкриє хвилю з ним.</div></section>`;
+  const camp = K.camps.find(c => c.id === K.sel), open = camp && camp.status === "open";
+  const ed = S.role === "checklist_editor" && open, ap = S.role === "commissioner" && open, D = K.data;
+  const head = `<section class="c12 rise toolbar"><span class="lbl">${ed ? "Ви вносите статус і докази. Підтверджує інша людина (укладач). Будь-яка зміна знімає підтвердження." : ap ? "Ви підтверджуєте пункти за доказами робочої групи. Без доказу підтвердити не можна." : "Режим перегляду."}</span><div class="sp"></div>
+    ${K.camps.length > 1 ? `<select class="inp" aria-label="Хвиля" onchange="apiCkReload(this.value)">${K.camps.map(c => `<option value="${c.id}" ${c.id === K.sel ? "selected" : ""}>${esc(c.title)}</option>`).join("")}</select>` : `<span class="lbl">${esc(camp ? camp.title : "")}</span>`}</section>`;
+  if (!D) return head + `<section class="card c12 rise"><div class="empty"><b>Чек-лист недоступний</b><br>${esc(K.err || "")}</div></section>`;
+  return head + `
+  <section class="card c4 rise kpi-tile"><div class="kt-h"><span class="kt-ic">${IC.check}</span><span class="lbl">Пунктів</span></div><div class="kt-b"><span class="mid tnum">${D.total}</span></div></section>
+  <section class="card c4 rise kpi-tile"><div class="kt-h"><span class="kt-ic">${IC.edit}</span><span class="lbl">Внесено</span></div><div class="kt-b"><span class="mid tnum">${D.filled}</span></div></section>
+  <section class="card c4 rise kpi-tile"><div class="kt-h"><span class="kt-ic">${IC.ok}</span><span class="lbl">Підтверджено</span></div><div class="kt-b"><span class="mid tnum">${D.confirmed}</span></div></section>
+  <section class="card c12 rise"><div class="tbl-wrap"><table><thead><tr><th>Пункт</th><th>Компонент</th><th>Стан і доказ</th><th>Файли</th><th></th></tr></thead><tbody>
+  ${D.items.map(it => `<tr id="ck-${it.question_id}"><td style="min-width:260px"><b style="font-weight:600">${esc(it.number)}.</b> ${esc(it.text.replace(/^\d+(\.\d+)*\.\s*/, ""))}</td>
+    <td>${COMPS.includes(it.component) ? pill(COMP[it.component].n, "p-mute nodot") : ""}</td>
+    <td style="min-width:200px">${it.status ? pill(CKS[it.status][0], CKS[it.status][1]) : pill("Не внесено", "p-mute")} ${it.confirmed ? pill("Підтверджено", "p-good nodot") : it.status ? pill("Не підтверджено", "p-mute nodot") : ""}${it.evidence ? `<div class="lbl" style="margin-top:4px">${esc(it.evidence)}</div>` : ""}</td>
+    <td class="lbl" style="min-width:160px">${it.files.map(f => `<div><a class="link" href="javascript:void 0" onclick="apiDownload('${K.sel}','${it.question_id}','${f.id}','${esc(f.filename).replace(/'/g, "")}')">${esc(f.filename)}</a> <span class="hash" title="sha256 ${f.sha256}">${f.sha256.slice(0, 10)}</span>${ed ? ` <a class="link" href="javascript:void 0" aria-label="Прибрати файл" onclick="apiDelFile('${K.sel}','${it.question_id}','${f.id}')">×</a>` : ""}</div>`).join("") || "—"}</td>
+    <td style="white-space:nowrap">${ed ? `<button class="btn btn-soft" style="padding:6px 12px" onclick="apiEditItem('${it.question_id}')">${IC.edit}Внести</button>` : ""}${ap && it.status ? (it.confirmed ? `<button class="btn btn-ghost" style="padding:6px 12px" onclick="apiConfirm('${it.question_id}',false)">Відкликати</button>` : `<button class="btn btn-primary" style="padding:6px 12px" onclick="apiConfirm('${it.question_id}',true)">${IC.ok}Підтвердити</button>`) : ""}</td></tr>`).join("")}
+  </tbody></table></div></section>
+  <section class="card c12 rise"><div class="lock">${IC.shield}<div><b>Файли-докази зберігаються з sha256.</b><div class="lbl">Під час завантаження вміст звіряється з хешем: якщо файл змінили поза системою, це буде видно. Кожна дія потрапляє в журнал.</div></div></div></section>`;
+}
+function apiEditItem(qid) {
+  const it = API.ck.data.items.find(x => x.question_id === qid), camp = API.ck.sel;
+  openDrawer("Внести пункт чек-листа", `<div><div class="lbl">Пункт ${esc(it.number)}</div><div style="font-weight:600;margin-top:4px">${esc(it.text)}</div></div>
+    ${it.indicator ? `<div class="lbl">${esc(it.indicator)}</div>` : ""}
+    <div class="field"><label>Статус</label><div class="seg" id="e-st">${Object.entries(CKS).map(([k, [n]]) => `<button type="button" data-s="${k}" class="${it.status === k ? "on" : ""}">${n}</button>`).join("")}</div></div>
+    <div class="field"><label for="e-ev">Доказ (документ, наказ, посилання)</label><textarea class="inp" id="e-ev" rows="3">${esc(it.evidence)}</textarea></div>
+    <div class="field"><label for="e-cm">Коментар</label><input class="inp" id="e-cm" value="${esc(it.comment)}"></div>
+    <div class="field"><label for="e-f">Файл-доказ (PDF, зображення, документ; до ${Math.round(API.cfg.evidence.max_bytes / 1048576)} МБ)</label><input class="inp" id="e-f" type="file" accept="${API.cfg.evidence.allowed_extensions.map(x => "." + x).join(",")}"></div>
+    <span class="lbl" id="e-err" style="color:var(--red)"></span>
+    <button class="btn btn-primary" id="e-ok" style="justify-content:center">${IC.send}Зберегти</button>`, b => {
+    let st = it.status; b.querySelectorAll("#e-st button").forEach(x => x.onclick = () => { st = x.dataset.s; b.querySelectorAll("#e-st button").forEach(y => y.classList.toggle("on", y === x)); });
+    b.querySelector("#e-ok").onclick = async () => {
+      if (!st) return void (b.querySelector("#e-err").textContent = "Оберіть статус.");
+      try {
+        await api(`/campaigns/${camp}/checklist/${qid}`, { method: "PUT", body: { status: st, evidence: b.querySelector("#e-ev").value.trim(), comment: b.querySelector("#e-cm").value.trim() } });
+        const f = b.querySelector("#e-f").files[0];
+        if (f) { const fd = new FormData(); fd.append("file", f); const r = await api(`/campaigns/${camp}/checklist/${qid}/files`, { method: "POST", body: fd }); toast(`Файл «${r.filename}» додано, sha256 ${r.sha256.slice(0, 12)}…`); }
+        else toast(`Пункт ${it.number} збережено`);
+        closeDrawer(); apiCkReload(camp);
+      } catch (e) { b.querySelector("#e-err").textContent = apiErrText(e); }
+    };
+  });
+}
+async function apiConfirm(qid, yes) {
+  const camp = API.ck.sel;
+  try { await api(`/campaigns/${camp}/checklist/${qid}/confirm`, { method: yes ? "POST" : "DELETE" }); toast(yes ? "Пункт підтверджено" : "Підтвердження відкликано"); apiCkReload(camp); }
+  catch (e) { apiFail(e); }
+}
+async function apiDelFile(camp, qid, fid) { try { await api(`/campaigns/${camp}/checklist/${qid}/files/${fid}`, { method: "DELETE" }); toast("Файл прибрано з пункту (лишається в журналі)"); apiCkReload(camp); } catch (e) { apiFail(e); } }
+async function apiDownload(camp, qid, fid, name) {
+  try { const r = await api(`/campaigns/${camp}/checklist/${qid}/files/${fid}`, { raw: true }); const blob = await r.blob(); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
+  catch (e) { apiFail(e); }
+}
+
+/* --- Журнал --- */
+const AUDIT_ENT = { campaign: "Хвиля", questionnaire: "Анкета", user: "Користувач", unit: "Підрозділ", checklist_entry: "Чек-лист", evidence_file: "Файл-доказ", measure: "Захід", recommendation: "Рекомендація", results: "Результати", indicator: "Факт", report: "Звіт", assistant: "Асистент", audit_log: "Журнал" };
+// Людські назви дій бекенду: «сутність:дія» → текст
+const AUDIT_ACT = {
+  "assistant:ask": "Запит до асистента", "audit_log:verify": "Перевірено цілісність журналу",
+  "campaign:create": "Створено хвилю", "campaign:update": "Змінено хвилю", "campaign:open": "Відкрито хвилю", "campaign:close": "Закрито хвилю, збережено знімок результатів",
+  "campaign:set_participants": "Змінено учасників хвилі", "campaign:clear_participants": "Очищено учасників хвилі", "campaign:import_participants": "Імпортовано учасників",
+  "campaign:issue_tokens": "Видано одноразові посилання", "campaign:import_tokens": "Імпортовано посилання", "campaign:revoke_tokens": "Відкликано посилання",
+  "campaign:export_report": "Експортовано звіт", "campaign:view_dashboard": "Переглянуто огляд закладу", "campaign:view_recommendations": "Переглянуто рекомендації", "campaign:view_results": "Переглянуто результати",
+  "checklist_entry:set": "Внесено пункт чек-листа", "checklist_entry:confirm": "Підтверджено пункт чек-листа", "checklist_entry:revoke_confirm": "Відкликано підтвердження пункту чек-листа",
+  "evidence_file:upload": "Додано файл-доказ", "evidence_file:download": "Завантажено файл-доказ", "evidence_file:delete": "Видалено файл-доказ", "evidence_file:integrity_fail": "Файл-доказ не пройшов перевірку цілісності",
+  "indicator:upsert": "Передано факт із зовнішньої системи",
+  "measure:create": "Створено захід", "measure:update": "Змінено захід", "measure:external_status": "Статус заходу оновлено із зовнішньої системи",
+  "questionnaire:create": "Створено анкету", "questionnaire:update_meta": "Змінено анкету", "questionnaire:publish": "Опубліковано анкету", "questionnaire:new_version": "Створено нову версію анкети", "questionnaire:archive": "Анкету архівовано", "questionnaire:delete": "Видалено анкету",
+  "recommendation:decide": "Ухвалено рішення щодо рекомендації",
+  "unit:create": "Створено підрозділ", "unit:update": "Змінено підрозділ", "unit:delete": "Видалено підрозділ", "unit:compare": "Порівняно хвилі підрозділу", "unit:view_history": "Переглянуто історію підрозділу",
+  "user:create": "Створено користувача", "user:update": "Змінено користувача", "user:login_proxy": "Вхід через проксі",
+};
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function apiLoadLog() {
+  return Promise.all([
+    api("/admin/audit-log?limit=500"),
+    api("/admin/units").catch(() => []), // лише для адміністратора; аудитору покажемо скорочений код
+    api("/admin/users").catch(() => []),
+  ]).then(([rows, units, users]) => ({ rows, units, users }));
+}
+// Читабельний рядок із деталей запису: назви підрозділів замість UUID, без службових полів
+function auditDetails(x, units) {
+  const unit = id => { const u = units.find(u => u.id === id); return u ? dn(u.name) : "підрозділ …" + String(id).slice(-4); };
+  const d = x.details || {}, out = [];
+  if (d.unit_id) out.push(unit(d.unit_id));
+  if (d.unit_name) out.push(dn(d.unit_name));
+  if (d.title) out.push(`«${dn(d.title)}»`);
+  if (d.recalculate === true) out.push("з перерахунком");
+  if (d.access_mode) out.push(d.access_mode === "token" ? "анонімно за посиланнями" : "за обліковими записами");
+  if (d.count != null) out.push(`кількість: ${d.count}`);
+  if (d.ok != null) out.push(d.ok ? "ланцюг цілий" : "ланцюг порушено");
+  if (d.checked != null) out.push(`перевірено записів: ${d.checked}`);
+  return out.join(" · ");
+}
+function auditSet(k, v) { API.logF = { ...(API.logF || {}), [k]: v }; render(true); const i = $("#logQ"); if (k === "q" && i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
+function apiAuditView() {
+  if (!apiEnsure("log", apiLoadLog)) return apiLoadingHTML("Журнал");
+  if (API.log.error) return apiErrorHTML(API.log.error);
+  const { rows, units, users } = API.log, F = { q: "", ent: "all", who: "all", ...API.logF };
+  const who = id => { const u = users.find(u => u.id === id); return u ? u.display_name : id ? "Користувач …" + String(id).slice(-4) : "Система"; };
+  const act = x => AUDIT_ACT[`${x.entity}:${x.action}`] || `${AUDIT_ENT[x.entity] || x.entity}: ${x.action}`;
+  const fmt = at => new Date(at).toLocaleString("uk-UA", { dateStyle: "short", timeStyle: "short" });
+  const items = rows.map(x => ({ x, a: act(x), w: who(x.actor_id), d: auditDetails(x, units), t: fmt(x.at) }));
+  const q = (F.q || "").trim().toLowerCase();
+  const shown = items.filter(i => (F.ent === "all" || i.x.entity === F.ent) && (F.who === "all" || i.x.actor_id === F.who) && (!q || `${i.a} ${i.w} ${i.d} ${i.t} ${i.x.seq} ${i.x.hash}`.toLowerCase().includes(q)));
+  const groups = []; shown.forEach(i => { const g = groups[groups.length - 1]; if (g && g[0].a === i.a && g[0].w === i.w && g[0].d === i.d) g.push(i); else groups.push([i]); });
+  const ents = [...new Set(rows.map(x => x.entity))].sort((a, b) => (AUDIT_ENT[a] || a).localeCompare(AUDIT_ENT[b] || b, "uk"));
+  const actors = [...new Set(rows.map(x => x.actor_id).filter(Boolean))].map(id => [id, who(id)]).sort((a, b) => a[1].localeCompare(b[1], "uk"));
+  return `<section class="card c12 rise">
+    <div class="card-h" style="flex-wrap:wrap"><h2>Журнал дій</h2><div class="sp"></div><span id="chainSt">${API.chain ? pill(API.chain.ok ? `Ланцюг цілісний: перевірено ${API.chain.checked} записів` : `Ланцюг порушено на записі № ${API.chain.broken_seq}`, API.chain.ok ? "p-good" : "p-bad") : ""}</span><button class="btn btn-soft" onclick="apiVerify()">${IC.shield}Перевірити цілісність</button></div>
+    <div class="lbl" style="margin-bottom:10px">Хто, коли й що змінив. Кожен запис містить хеш попереднього (sha256), тож тиха правка чи видалення ламає ланцюг. Подань анкет у журналі немає.</div>
+    <div class="toolbar" style="margin-bottom:8px"><label class="search inst-search"><span>${IC.search}</span><input id="logQ" placeholder="Дія, хто, підрозділ, дата або хеш" value="${esc(F.q || "")}" oninput="auditSet('q',this.value)"></label>
+      <select class="inp" aria-label="Тип дії" onchange="auditSet('ent',this.value)"><option value="all">Усі дії</option>${ents.map(e => `<option value="${e}" ${F.ent === e ? "selected" : ""}>${esc(AUDIT_ENT[e] || e)}</option>`).join("")}</select>
+      ${actors.length ? `<select class="inp" aria-label="Хто" onchange="auditSet('who',this.value)"><option value="all">Усі користувачі</option>${actors.map(([id, n]) => `<option value="${id}" ${F.who === id ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>` : ""}
+      <span class="lbl tnum">Показано ${shown.length} з ${rows.length}</span></div>
+    ${groups.length ? `<div class="tl">${groups.map((g, i) => { const f = g[0], l = g[g.length - 1]; return `<div class="tl-i rise" style="animation-delay:${Math.min(i, 12) * 40}ms"><span class="nd"></span><div><div style="font-weight:500">${esc(f.a)}${g.length > 1 ? ` <span class="pill p-mute nodot">×${g.length}</span>` : ""}</div><div class="lbl">${esc(f.w)} · ${g.length > 1 ? `${l.t} – ${f.t}` : f.t}${f.d ? " · " + esc(f.d) : ""}</div></div><span class="hash" data-tip="Запис № ${f.x.seq}">${f.x.hash.slice(0, 10)}</span></div>`; }).join("")}</div>` : `<div class="empty">Записів за цим запитом немає.</div>`}
+  </section>`;
+}
+async function apiVerify() {
+  try { API.chain = await api("/admin/audit-log/verify", { method: "POST" }); API.log = null; render(true); }
+  catch (e) { apiFail(e); }
+}
+
 /* ---------- Icons ---------- */
 const I = (d, w = 1.8) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
 const IC = {
@@ -894,7 +1649,8 @@ const LDESC = [
   "Система постійно вдосконалюється на основі даних, доброчесність стала частиною культури, є зовнішній аудит.",
 ];
 const CAP = 25;
-const TODAY = "2026-11-16", TODAY_UA = "16.11.2026", CYCLE = "2026-11";
+// let: з бекендом дата й цикл беруться з останньої закритої хвилі (0-api.js).
+let TODAY = "2026-11-16", TODAY_UA = "16.11.2026", CYCLE = "2026-11";
 const r1 = v => Math.round(v * 10) / 10;
 const clamp = (v, a = 0, b = 100) => Math.max(a, Math.min(b, v));
 const level = v => { const i = BOUNDS.findIndex(b => v <= b); return i === -1 ? 5 : i + 1; };
@@ -1059,6 +1815,7 @@ function buildOther(o) {
 }
 const OTHER_MODELS = {};
 function inst(id) {
+  if (API.on) return API.model;
   const o = OTHERS.find(x => x.id === id);
   const m = !o ? buildAlpha() : OTHER_MODELS[id] || (OTHER_MODELS[id] = buildOther(o));
   const ren = S.insts && S.insts.renamed[m.id]; if (ren) m.name = ren; else if (o) m.name = o.name;
@@ -1118,6 +1875,7 @@ const REC_ST = { proposed: ["Запропоновано", "p-info"], accepted: [
 const REC_NEXT = { proposed: ["accepted", "clarified", "rejected"], clarified: ["accepted", "rejected"], accepted: [], rejected: [] };
 const priority = (vals, flag) => { const mn = vals.length ? Math.min(...vals) : 100; return mn < 40 || (flag && mn < 65) ? "high" : mn < 65 || flag ? "medium" : "low"; };
 function buildRecs(m = inst(ALPHA)) {
+  if (API.on) return API.recs;
   const all = [...m.pItems, ...m.fItems], out = [];
   for (const r of REC_RULES) {
     const items = all.filter(x => r.items.includes(x.id)), flags = m.flags.filter(f => r.flags.includes(f.id) && f.raised);
@@ -1142,15 +1900,15 @@ const BASE_MEASURES = [
 ];
 const M_ST = {
   accepted: ["Прийнято", "p-info"], inprogress: ["В роботі", "p-warn"], done: ["Виконано", "p-done"],
-  confirmed: ["Підтверджено", "p-good"], notconfirmed: ["Не підтверджено", "p-bad"], overdue: ["Прострочено", "p-bad"],
+  confirmed: ["Підтверджено", "p-good"], notconfirmed: ["Не підтверджено", "p-bad"], overdue: ["Прострочено", "p-bad"], cancelled: ["Скасовано", "p-mute"],
 };
-const M_NEXT = { accepted: ["inprogress"], inprogress: ["done", "accepted"], done: ["inprogress"], confirmed: [], notconfirmed: ["inprogress"] };
+const M_NEXT = { accepted: ["inprogress"], inprogress: ["done", "accepted"], done: ["inprogress"], confirmed: [], notconfirmed: ["inprogress"], cancelled: [] };
 const dayMs = 864e5, utc = d => { const [y, m, dd] = d.split("-").map(Number); return Date.UTC(y, m - 1, dd); };
-const overdueDays = m => ["done", "confirmed", "notconfirmed"].includes(m.st) ? 0 : Math.max(0, Math.floor((utc(TODAY) - utc(m.due)) / dayMs));
+const overdueDays = m => ["done", "confirmed", "notconfirmed", "cancelled"].includes(m.st) ? 0 : Math.max(0, Math.floor((utc(TODAY) - utc(m.due)) / dayMs));
 const dispSt = m => overdueDays(m) > 0 ? "overdue" : m.st;
 const daysWord = n => { const t = n % 100, u = n % 10; return t >= 11 && t <= 14 ? "днів" : u === 1 ? "день" : u >= 2 && u <= 4 ? "дні" : "днів"; };
-const measures = () => [...BASE_MEASURES, ...S.dec.added].map(m => S.dec.mst[m.id] ? { ...m, st: S.dec.mst[m.id] } : m);
-const verif = m => m.st === "confirmed" ? ["Підтверджено наступним оцінюванням", "p-good"] : m.st === "notconfirmed" ? ["Не підтверджено, потрібен перегляд", "p-bad"] : m.st === "done" ? ["Очікує наступного оцінювання", "p-info"] : ["Ще не настав час", "p-mute"];
+const measures = () => API.on ? API.ms : [...BASE_MEASURES, ...S.dec.added].map(m => S.dec.mst[m.id] ? { ...m, st: S.dec.mst[m.id] } : m);
+const verif = m => m.vf ? m.vf : m.st === "cancelled" ? ["Захід скасовано", "p-mute"] : m.st === "confirmed" ? ["Підтверджено наступним оцінюванням", "p-good"] : m.st === "notconfirmed" ? ["Не підтверджено, потрібен перегляд", "p-bad"] : m.st === "done" ? ["Очікує наступного оцінювання", "p-info"] : ["Ще не настав час", "p-mute"];
 
 /* ---------- Анкета особового складу (токен demo) ---------- */
 const SURVEY = {
@@ -1174,6 +1932,9 @@ const SURVEY = {
   ],
 };
 const SURVEY_Q = SURVEY.sections.flatMap((s, si) => s.q.map(([id, t, o], qi) => ({ id, t, o, si, qi })));
+// Анкета, яку зараз проходять: з сервера (0-api.js) або демо.
+const SV = () => API.survey || SURVEY;
+const SQ = () => API.survey ? API.survey.sections.flatMap((s, si) => s.q.map(([id, t, o], qi) => ({ id, t, o, si, qi }))) : SURVEY_Q;
 
 /* ---------- Ролі ---------- */
 const ROLE = {
@@ -1278,7 +2039,7 @@ const tip = $("#tip");
 // Масштаб тексту (zoom на <html>): координати getBoundingClientRect екранні, а left/top задаються в CSS-пікселях
 const Z = () => parseFloat(document.documentElement.style.zoom) || 1;
 const zr = r => { const z = Z(); return { left: r.left / z, right: (r.right ?? r.left + r.width) / z, top: r.top / z, bottom: r.bottom / z, width: r.width / z }; };
-function placePop(btn) { const p = $("#pop"), r = zr(btn.getBoundingClientRect()), w = p.offsetWidth, vw = innerWidth / Z(); p.style.left = Math.max(8, Math.min(r.right - w, vw - w - 8)) + "px"; p.style.top = (r.bottom + 6) + "px"; }
+function placePop(btn) { $("#pop").style.width = ""; const p = $("#pop"), r = zr(btn.getBoundingClientRect()), w = p.offsetWidth, vw = innerWidth / Z(); p.style.left = Math.max(8, Math.min(r.right - w, vw - w - 8)) + "px"; p.style.top = (r.bottom + 6) + "px"; }
 function showTip(r, html) {
   r = zr(r); const innerWidth = window.innerWidth / Z(), innerHeight = window.innerHeight / Z();
   tip.innerHTML = html; tip.style.left = "0px"; tip.style.top = "0px";
@@ -1466,22 +2227,27 @@ const LIST_MAX = 3; // скільки пунктів показувати в «�
 /* Огляд */
 V.overview = () => {
   const m = cur(), ms = measures(), od = ms.filter(x => overdueDays(x) > 0).length, prev = m.series[m.series.length - 2];
-  const tile = (ic, title, big, sub, act, info) => `<section class="card c4 rise kpi-tile" ${act ? `role="button" tabindex="0" onclick="${act}"` : ""}><div class="kt-h"><span class="kt-ic">${IC[ic]}</span><span class="lbl">${title}</span>${info ? `<button type="button" class="kt-info" aria-label="Підказка: як рахується" data-tip="Як рахується і шкала рівнів" onclick="event.stopPropagation();${info}">${IC.info}</button>` : ""}</div><div class="kt-b">${big}<div class="kt-s">${sub}</div></div></section>`;
+  const tile = (ic, title, big, sub, act, info) => `<section class="card rise kpi-tile" ${act ? `role="button" tabindex="0" onclick="${act}"` : ""}><div class="kt-h"><span class="kt-ic">${IC[ic]}</span><span class="lbl">${title}</span>${info ? `<button type="button" class="kt-info" aria-label="Підказка: як рахується" data-tip="Як рахується і шкала рівнів" onclick="event.stopPropagation();${info}">${IC.info}</button>` : ""}</div><div class="kt-b">${big}<div class="kt-s">${sub}</div></div></section>`;
   return `${backToInst()}
+  <div class="c12 kpi-row">
   ${tile("gauge", "Індекс доброчесності", `<span class="mid tnum">${numHTML(m.index)}</span>`, `<span data-tip="Рівень зрілості визначається за індексом<small>${LDESC[m.level - 1]}</small>">Рівень зрілості ${m.level} з 5: ${LSHORT[m.level - 1]}</span><br>${deltaHTML(m.delta)}`, "openWhy()", "openHow()")}
   ${tile("shield", "Достовірність", `<span class="mid">${m.trust === "insufficient" ? "?" : m.trust}</span>`, `${TRUST[m.trust][1]}<br><span class="lbl">Прапорці: ${m.raised.length}</span>`, "openTrust()")}
   ${S.role === "observer" ? tile("users", "Відповідей у циклі", `<span class="mid tnum">${m.responses}</span>`, `<span class="lbl">Мінімальна група k = ${S.k}</span>`, "openResp()") : tile("target", "Заходи в трекері", `<span class="mid tnum">${ms.length}</span>`, od ? `<span style="color:var(--red);font-weight:600">З них ${od} прострочено</span>` : `<span class="lbl">Прострочених немає</span>`, "location.hash='tracker'")}
-  <section class="card c8 rise">${trendCard(m, "ovTrend")}</section>
-  <section class="card c4 rise" id="attn">
+  </div>
+  <section class="card c12 rise">${trendCard(m, "ovTrend")}</section>
+  <section class="card c12 rise" id="attn">
+    <div class="attn-cols"><div>
     <div class="card-h"><h2>Що потребує уваги</h2></div>
-    <div class="rows">${(S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX)).map(a => `<a class="row click" href="#explain/${a.c === "culture" || a.c === "accountability" ? (a.t.startsWith("Підтвердити") || a.t.startsWith("Більше") ? a.c : a.c) : a.c}" data-tip="${esc(a.hint)}"><span class="dot" style="background:${SCOL[status(a.v)]}"></span><div class="grow"><div class="t">${a.t}</div></div>${pill(COMP[a.c].n, "p-mute nodot")}<b class="tnum">${fb(a.v)}</b></a>`).join("")}</div>
-    <div class="card-h" style="margin:20px 0 6px"><h2>Сильні сторони</h2></div>
+    <div class="rows">${(S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX)).map(a => `<a class="row click" href="#explain/${a.c}"${a.q ? ` onclick="event.preventDefault();openApiQ('${a.q}')"` : ""} data-tip="${esc(a.hint)}"><span class="dot" style="background:${SCOL[status(a.v)]}"></span><div class="grow"><div class="t">${esc(a.t)}</div></div>${pill(COMP[a.c].n, "p-mute nodot")}<b class="tnum">${fb(a.v)}</b></a>`).join("")}</div>
+    </div><div>
+    <div class="card-h"><h2>Сильні сторони</h2></div>
     <div class="rows">${(S.attnAll ? m.strengths : m.strengths.slice(0, LIST_MAX)).map(a => `<a class="row click" href="${a.c ? "#explain/" + a.c : "#trends"}" data-tip="${esc(a.hint)}"><span class="dot" style="background:var(--teal)"></span><div class="grow"><div class="t">${a.t}</div></div><b class="tnum">${a.unit ? "+" : ""}${fb(a.v)}</b></a>`).join("")}</div>
+    </div></div>
   ${m.attention.length > LIST_MAX || m.strengths.length > LIST_MAX ? `<button class="link-btn" style="margin-top:8px" onclick="S.attnAll=!S.attnAll;render(true)">${S.attnAll ? "Згорнути" : `Показати всі (${m.attention.length + m.strengths.length})`}</button>` : ""}
   </section>
-  ${m.components.map((c, ci) => {
+  <div class="c12 comp-row">${m.components.map((c, ci) => {
     const C = COMP[c.id], pv = prev.cr[c.id], d = r1(c.cr.v - pv), lv = level(c.cr.v);
-    return `<a class="card c4 rise comp-card" href="#explain/${c.id}">
+    return `<a class="card rise comp-card" href="#explain/${c.id}">
       <div class="comp-top"><span class="comp-ic" style="background:${C.s};color:${C.c}">${IC[C.ic]}</span><b>${C.n}</b><div class="sp" style="flex:1"></div>${lvPill(lv)}</div>
       <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:10px;margin-top:14px">
         <div><div class="mid tnum">${numHTML(c.cr.v)}</div><div style="margin-top:6px">${deltaHTML(d)}</div></div>
@@ -1489,8 +2255,8 @@ V.overview = () => {
       </div>
       ${c.cr.lim ? `<div style="margin-top:14px">${pill("Зараховано з обмеженням", "p-warn")}</div>` : ""}
     </a>`;
-  }).join("")}
-  <section class="card c8 rise">
+  }).join("")}</div>
+  <section class="card c8 rise lv-card">
     <div class="card-h"><h2>Рівень зрілості</h2><div class="sp"></div><button type="button" class="pill-btn" onclick="openHow()">${IC.help}Як рахується</button></div>
     <div class="lbl" style="margin-bottom:14px">Індекс ${f1(m.index)} з 100 відповідає рівню ${m.level} «${LEVELS[m.level - 1]}» за Моделлю зрілості НАЗК.</div>
     ${levelBar(m.index)}
@@ -1498,11 +2264,12 @@ V.overview = () => {
     <div class="lbl" style="margin:20px 0 8px">Компоненти на тій самій шкалі</div>
     <div class="lv-comps">${m.components.map(c => { const v = c.cr.v, l = level(v); return `<a class="lv-comp" href="#explain/${c.id}"><b>${COMP[c.id].n}</b><div class="lvc-track">${[12.5, 25, 25, 25, 12.5].map((w, i) => `<span class="lv-b${i + 1} ${i + 1 === l ? "here" : ""}" style="flex:${w}"></span>`).join("")}<i style="left:${v}%" data-tip="${COMP[c.id].n}: ${fb(v)}"></i></div><span class="tnum">${fb(v)}</span>${lvPill(l)}</a>`; }).join("")}</div>
   </section>
-  <section class="card c4 rise">
+  <section class="card c4 rise radar-card">
     <div class="card-h"><h2>Радар компонентів</h2></div>
-    <div class="chart" id="radar"></div>
+    <div class="radar-body"><div class="radar-main"><div class="chart" id="radar"></div>
     <div class="legend lg-lines" style="justify-content:center"><span><i class="ar" style="background:color-mix(in srgb,var(--teal) 30%,transparent);border-color:var(--teal)"></i>Цикл ${CYCLE}</span><span><i class="ln dash" style="border-color:var(--faint)"></i>Цикл ${prev.cycle}</span></div>
-    <div class="lbl" style="text-align:center;margin-top:6px">Зараховані значення компонентів, 0–100.</div>
+    <div class="lbl" style="text-align:center;margin-top:6px">Зараховані значення компонентів, 0–100.</div></div>
+    <div class="radar-side"><table><thead><tr><th>Компонент</th><th>Сприйняття</th><th>Факти</th><th>Зараховано</th></tr></thead><tbody>${m.components.map(c => `<tr><td><b>${COMP[c.id].n}</b></td><td class="tnum">${fb(c.P)}</td><td class="tnum">${fb(c.F)}</td><td class="tnum"><b>${fb(c.cr.v)}</b></td></tr>`).join("")}</tbody></table><div class="lbl" style="margin-top:8px">Зараховано це сприйняття, обмежене фактами: не більше ніж «факти + ${CAP}».</div></div></div>
   </section>
   ${readGuide("Як читати цей екран")}`;
 };
@@ -1555,7 +2322,7 @@ function pickCycle(k) {
   if (a === b) { toast("Оберіть два різні цикли"); return drawPeriod(); }
   S.trend.from = a; S.trend.to = b; persist(); closePop(); render(true);
 }
-function closePop() { $("#pop").classList.remove("on"); pickA = null; }
+function closePop() { const p = $("#pop"); p.classList.remove("on"); p.style.width = ""; pickA = null; }
 document.addEventListener("click", e => { const p = $("#pop"); if (p.classList.contains("on") && !p.contains(e.target) && !(p._btn && p._btn.contains(e.target)) && !e.target.closest("#pop")) closePop(); }, true);
 
 /* Розклад індексу */
@@ -1580,13 +2347,14 @@ V.explain = () => {
     ${T.map(c => `<tr><td><b>${COMP[c.id].n}</b>${c.lim ? " " + pill("Обмежувач", "p-warn nodot") : ""}</td><td>2</td><td class="tnum">33,3</td><td class="tnum">${fb(c.val)}</td><td class="tnum">${f2(c.contrib)}</td><td></td></tr>${c.items.map(x => `<tr><td style="padding-left:28px">${esc(x.t)}</td><td>3</td><td class="tnum">${x.w}</td><td class="tnum">${fb(x.vv)}</td><td class="tnum">${f2(x.contrib)}</td><td>${x.src ? SRC[x.src][0] : "Факти"}</td></tr>`).join("")}`).join("")}
   </tbody></table></div>`;
   return `${backToInst()}
-  <section class="c12 rise toolbar"><span class="lbl">Звідки взялося кожне число. Клацніть на питання, щоб побачити подробиці.</span><div class="sp"></div>
+  <section class="c12 rise toolbar"><div class="sp"></div>
     <button class="btn btn-ghost" onclick="openHow()">${IC.help}Як це рахується</button>
     <div class="seg" role="group" aria-label="Що показувати">${Object.entries(MODES).map(([k, n]) => `<button class="${mode === k ? "on" : ""}" aria-pressed="${mode === k}" onclick="S.mode='${k}';persist();render(true)">${n}</button>`).join("")}</div>
     <button class="btn btn-ghost" onclick="S.exTable=!S.exTable;render(true)">${S.exTable ? IC.tree + "Показати як дерево" : IC.table + "Показати як таблицю"}</button></section>
   ${mode !== "credited" ? `<div class="c12 note-box rise" style="flex-direction:row;align-items:center;gap:10px">${IC.info}<span>Режим «${MODES[mode]}»: значення без обмежувача, тому верхній рядок (${f1(sum)}) не дорівнює індексу ${f1(m.index)}. До індексу йдуть зараховані значення.</span></div>` : ""}
   <section class="card c12 rise">
-    ${S.exTable ? table : `<div class="tree-cols lbl"><span>Складова</span><span class="hm">Вага</span><span>Значення</span><span class="hm">Внесок в індекс, пункти</span><span></span></div>
+    ${S.exTable ? table : `<div class="tree-cols lbl"><span>Складова</span><span class="hm"></span><span>Значення</span><span class="hm">Внесок в індекс, пункти</span><span></span></div>
+    ${mode === "credited" && T.some(c => c.lim) ? `<div class="lim-callout" role="note"><span class="lim-ic">${IC.alert}</span><div><b>Результат знижено обмежувачем</b>${T.filter(c => c.lim).map(c => `<div><b>${COMP[c.id].n}:</b> ${c.cr.reason}</div>`).join("")}</div></div>` : ""}
     <div class="tree-root"><span><b>Індекс доброчесності</b><span class="lbl" style="display:block;font-size:12.5px">Середнє трьох компонентів: кожен дає третину індексу</span></span><span class="hm"></span><b class="tnum">${fb(sum)}</b><span class="lbl tnum hm">${f2(T.reduce((a, c) => a + c.contrib, 0))}</span><span></span></div>
     ${T.map((c, ci) => `<div class="tree-c ${S.open[c.id] ? "open" : ""} ${hl === c.id ? "hl" : ""}" id="n-${c.id}">
       <button class="tree-head" onclick="S.open['${c.id}']=!S.open['${c.id}'];this.parentNode.classList.toggle('open')" aria-expanded="${!!S.open[c.id]}">
@@ -1594,7 +2362,6 @@ V.explain = () => {
         <span class="hm"></span><b class="tnum">${fb(c.val)}</b>
         <span class="hm"><div class="contrib"><i style="width:${c.contrib / 34 * 100}%;background:${COMP[c.id].c};animation-delay:${ci * 120}ms"></i></div><span class="lbl tnum">${f2(c.contrib)}</span></span>
         <span class="chev">${IC.chev}</span></button>
-      ${c.lim ? `<div class="lim-note">${c.cr.reason}</div>` : ""}
       <div class="tree-body"><div class="tree-row lbl hdr"><span>${mode === "facts" ? "Показник" : "Питання"}</span><span class="hm">Вага</span><span>Значення</span><span class="hm">Внесок</span><span></span></div>${c.items.map(row).join("")}</div>
     </div>`).join("")}`}
   </section>`;
@@ -1632,8 +2399,8 @@ V.trends = () => {
   <section class="card c5 rise">
     <div class="card-h"><h2>Висновок за весь період</h2></div>
     ${(() => { const f = sr[0], l = sr[sr.length - 1], p = COMPS.filter(c => l.cr[c] > f.cr[c]), n = COMPS.filter(c => l.cr[c] < f.cr[c]); return `<div class="rows">
-      <div class="row" style="align-items:flex-start"><span class="comp-ic" style="background:var(--teal-soft);color:var(--teal-deep);width:28px;height:28px">${IC.up}</span><div class="grow">${p.length ? `Позитивна динаміка: ${p.map(c => `${COMP[c].n} (${pts(l.cr[c] - f.cr[c])})`).join(", ")}.` : "Позитивної динаміки за період немає."}</div></div>
-      <div class="row" style="align-items:flex-start"><span class="comp-ic" style="background:${n.length ? "var(--red-soft)" : "var(--soft)"};color:${n.length ? "var(--red)" : "var(--muted)"};width:28px;height:28px">${n.length ? IC.down : IC.flat}</span><div class="grow">${n.length ? `Потребує уваги: ${n.map(c => `${COMP[c].n} (−${pts(f.cr[c] - l.cr[c])})`).join(", ")}.` : "Негативної динаміки за компонентами немає."}</div></div>
+      <div class="row" style="align-items:center"><span class="comp-ic" style="background:var(--teal-soft);color:var(--teal-deep);width:28px;height:28px">${IC.up}</span><div class="grow">${p.length ? `Позитивна динаміка: ${p.map(c => `${COMP[c].n} (${pts(l.cr[c] - f.cr[c])})`).join(", ")}.` : "Позитивної динаміки за період немає."}</div></div>
+      <div class="row" style="align-items:center"><span class="comp-ic" style="background:${n.length ? "var(--red-soft)" : "var(--soft)"};color:${n.length ? "var(--red)" : "var(--muted)"};width:28px;height:28px">${n.length ? IC.down : IC.flat}</span><div class="grow">${n.length ? `Потребує уваги: ${n.map(c => `${COMP[c].n} (−${pts(f.cr[c] - l.cr[c])})`).join(", ")}.` : "Негативної динаміки за компонентами немає."}</div></div>
       ${m.events.map(e => `<div class="row"><span class="ev-ic ev-c">${IC.diamond}</span><div class="grow"><div class="t">${e.t}</div><div class="s">Після циклу ${e.after}</div></div></div>`).join("")}</div>`; })()}
   </section>`;
 };
@@ -1654,7 +2421,7 @@ V.recs = () => {
       <h3>${r.t}</h3>
       <div class="lbl" style="margin:10px 0 4px">Чому система це пропонує</div><div>${r.why}</div>
       <div class="lbl" style="margin:12px 0 4px">На підставі</div>
-      <div class="ev">${r.evidence.map(e => `<a href="#explain/${e.id}" class="ev-i">${e.item ? "" : `<span style="color:var(--red);display:inline-flex;width:14px">${IC.alert}</span>`}<span>${esc(e.t)}: <b>${e.v}</b></span><span class="lbl">Відкрити в розкладі ${IC.arrowR}</span></a>`).join("")}</div>
+      <div class="ev">${r.evidence.map(e => `<a href="#explain/${e.id}" class="ev-i"${e.q ? ` onclick="event.preventDefault();openApiQ('${e.q}')"` : ""}>${e.item ? "" : `<span style="color:var(--red);display:inline-flex;width:14px">${IC.alert}</span>`}<span>${esc(e.t)}: <b>${e.v}</b></span><span class="lbl">${e.q ? "Відкрити питання" : "Відкрити в розкладі"} ${IC.arrowR}</span></a>`).join("")}</div>
       <details class="acts"><summary>Запропоновані дії (${r.acts.length})</summary><ol>${r.acts.map(a => `<li>${a}</li>`).join("")}</ol></details>
       ${r.note.reason ? `<div class="note-box" style="margin-top:10px"><b>Причина відхилення</b><span>${esc(r.note.reason)}</span></div>` : ""}
       ${r.note.comment ? `<div class="note-box" style="margin-top:10px"><b>Коментар до уточнення</b><span>${esc(r.note.comment)}</span></div>` : ""}
@@ -1673,6 +2440,7 @@ function acceptRec(id) {
     b.querySelector("#f-ok").onclick = () => {
       const due = b.querySelector("#f-due").value;
       if (!due || due < TODAY) { b.querySelector("#f-err").textContent = "Оберіть строк не раніше за сьогодні."; return; }
+      if (API.on) { b.querySelector("#f-ok").disabled = true; apiDecide(id, "accepted", "", { owner: b.querySelector("#f-who").value, due_date: due }).then(() => { closeDrawer(); toast(`Рекомендацію прийнято. Захід «${r.t}» додано до трекера.`); }, e => { b.querySelector("#f-err").textContent = apiErrText(e); b.querySelector("#f-ok").disabled = false; }); return; }
       const mid = "m-" + (BASE_MEASURES.length + S.dec.added.length + 1);
       S.dec.rec[id] = { status: "accepted" };
       S.dec.added.push({ id: mid, recId: id, rec: r.t, t: r.t, who: b.querySelector("#f-who").value, due, st: "accepted", ind: r.items[0] });
@@ -1690,6 +2458,7 @@ function noteRec(id, kind) {
     b.querySelector("#f-ok").onclick = () => {
       const t = b.querySelector("#f-why").value.trim();
       if (!t) { const e = b.querySelector("#f-err"); e.textContent = rej ? "Вкажіть причину відхилення." : "Напишіть, що саме потрібно уточнити."; e.style.color = "var(--red)"; b.querySelector("#f-why").focus(); return; }
+      if (API.on) { apiDecide(id, rej ? "rejected" : "clarify", t).then(() => { closeDrawer(); toast(rej ? "Рекомендацію відхилено. Причину збережено." : "Рекомендацію позначено як «Уточнено». Коментар збережено."); }, e => { const er = b.querySelector("#f-err"); er.textContent = apiErrText(e); er.style.color = "var(--red)"; }); return; }
       S.dec.rec[id] = rej ? { status: "rejected", reason: t } : { status: "clarified", comment: t };
       addLog(me(), `Рекомендацію «${r.t}» ${rej ? "відхилено" : "позначено «Уточнено»"}: ${t}`); persist(); closeDrawer(); render(true);
       toast(rej ? "Рекомендацію відхилено. Причину збережено." : "Рекомендацію позначено як «Уточнено». Коментар збережено.");
@@ -1704,7 +2473,7 @@ V.tracker = () => {
   const od = all.filter(x => overdueDays(x) > 0).length;
   const stCell = x => pill(M_ST[x.st][0], M_ST[x.st][1]);
   const actCell = x => x.st === "confirmed" ? `<span class="lbl">Змінює наступне оцінювання</span>` : edit ? `<div class="mv">${M_NEXT[x.st].map(s => `<button class="btn btn-ghost" onclick="setMSt('${x.id}','${s}')">${IC.arrowR}${M_ST[s][0]}</button>`).join("")}</div>` : `<span class="lbl">—</span>`;
-  const board = ["accepted", "inprogress", "done", "confirmed", "notconfirmed"].map(st => { const cards = list.filter(x => x.st === st); return `<div class="col-b"><div class="col-h">${pill(M_ST[st][0], M_ST[st][1])}<span class="lbl tnum">${cards.length}</span></div>${cards.map(x => `<div class="b-card tr-click" tabindex="0" onclick="if(!event.target.closest('button'))openMeasure('${x.id}')"><b>${x.t}</b><span class="lbl">${x.who}</span><div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap"><span class="lbl tnum" ${overdueDays(x) ? 'style="color:var(--red);font-weight:600"' : ""}>Строк: ${ua(x.due)}</span>${overdueDays(x) ? pill(`+${overdueDays(x)} ${daysWord(overdueDays(x))}`, "p-bad nodot") : ""}</div>${edit && M_NEXT[x.st].length ? `<div class="seg sm">${M_NEXT[x.st].map(s => `<button onclick="setMSt('${x.id}','${s}')">${IC.arrowR}${M_ST[s][0]}</button>`).join("")}</div>` : ""}</div>`).join("") || `<div class="lbl" style="padding:8px">Порожньо</div>`}</div>`; }).join("");
+  const board = ["accepted", "inprogress", "done", "confirmed", "notconfirmed", ...(list.some(x => x.st === "cancelled") ? ["cancelled"] : [])].map(st => { const cards = list.filter(x => x.st === st); return `<div class="col-b" data-st="${st}"><div class="col-h">${pill(M_ST[st][0], M_ST[st][1])}<span class="lbl tnum">${cards.length}</span></div>${cards.map(x => `<div class="b-card tr-click" tabindex="0" ${edit && M_NEXT[x.st].length ? `draggable="true" data-id="${x.id}" data-st="${x.st}"` : ""} onclick="if(!event.target.closest('button'))openMeasure('${x.id}')"><b>${x.t}</b><span class="lbl">${x.who}</span><div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap"><span class="lbl tnum" ${overdueDays(x) ? 'style="color:var(--red);font-weight:600"' : ""}>Строк: ${ua(x.due)}</span>${overdueDays(x) ? pill(`+${overdueDays(x)} ${daysWord(overdueDays(x))}`, "p-bad nodot") : ""}</div>${edit && M_NEXT[x.st].length ? `<div class="seg sm">${M_NEXT[x.st].map(s => `<button onclick="setMSt('${x.id}','${s}')">${IC.arrowR}${M_ST[s][0]}</button>`).join("")}</div>` : ""}</div>`).join("") || `<div class="lbl" style="padding:8px">Порожньо</div>`}</div>`; }).join("");
   const conf = all.filter(x => x.st === "confirmed").length, wait = all.filter(x => x.st === "done").length, rev = all.filter(x => x.st === "notconfirmed").length;
   return `
   <section class="c12 rise toolbar"><div class="sp"></div>
@@ -1735,7 +2504,7 @@ function openMeasure(id) {
     <div class="note-box"><b>Звіт виконавця</b><span class="lbl">Документи й звіти про виконання ведуться в окремому застосунку суміжної команди.</span>
       ${MEASURES_APP.url ? `<a class="btn btn-soft" href="${MEASURES_APP.url}" target="_blank" rel="noopener" style="justify-content:center">${IC.arrowR}Відкрити в застосунку звітування</a>` : `<button class="btn btn-soft" disabled style="justify-content:center;opacity:.6">${IC.arrowR}Відкрити в застосунку звітування</button><span class="lbl" style="font-size:12px">Посилання зʼявиться після погодження інтеграції.</span>`}</div>`);
 }
-function setMSt(id, st) { const x = measures().find(m => m.id === id); if (!x || !M_NEXT[x.st].includes(st)) return; S.dec.mst[id] = st; addLog(me(), `Захід «${x.t}»: статус «${M_ST[st][0]}»`); persist(); render(true); toast(`Статус заходу змінено на «${M_ST[st][0]}».`); }
+function setMSt(id, st) { if (API.on) return apiSetMSt(id, st); const x = measures().find(m => m.id === id); if (!x || !M_NEXT[x.st].includes(st)) return; S.dec.mst[id] = st; addLog(me(), `Захід «${x.t}»: статус «${M_ST[st][0]}»`); persist(); render(true); toast(`Статус заходу змінено на «${M_ST[st][0]}».`); }
 
 /* Джерела */
 const SOURCES = [
@@ -1756,6 +2525,26 @@ const INTEG = [
   ["Проєкт оцінки закупівель", "planned", "Додати факти про закупівлі до Підзвітності", "Обмін агрегованими показниками", "layers"],
   ["Система суміжної команди", "approval", "Отримувати звіти про виконання заходів", "Обмін статусами заходів", "target"],
 ];
+// Дошка: перетягування картки в дозволений стовпець (ті самі переходи, що й кнопки на картці)
+V.tracker.after = () => {
+  const board = document.querySelector(".board"); if (!board) return;
+  let drag = null;
+  const clear = () => { drag = null; board.classList.remove("dnd"); board.querySelectorAll(".dragging,.can-drop,.drop-over").forEach(x => x.classList.remove("dragging", "can-drop", "drop-over")); };
+  board.ondragstart = e => {
+    const c = e.target.closest(".b-card[draggable]"); if (!c) return;
+    drag = { id: c.dataset.id, st: c.dataset.st }; e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", drag.id);
+    c.classList.add("dragging"); board.classList.add("dnd");
+    board.querySelectorAll(".col-b").forEach(col => col.classList.toggle("can-drop", (M_NEXT[drag.st] || []).includes(col.dataset.st)));
+  };
+  board.ondragend = clear;
+  board.ondragover = e => {
+    const col = e.target.closest(".col-b"); if (!drag || !col || !col.classList.contains("can-drop")) return;
+    e.preventDefault(); e.dataTransfer.dropEffect = "move";
+    board.querySelectorAll(".drop-over").forEach(x => x !== col && x.classList.remove("drop-over")); col.classList.add("drop-over");
+  };
+  board.ondrop = e => { const col = e.target.closest(".col-b"); if (!drag || !col || !col.classList.contains("can-drop")) return; e.preventDefault(); const id = drag.id; clear(); setMSt(id, col.dataset.st); };
+};
+
 V.sources = () => `
   <section class="card c12 rise"><div class="card-h"><h2>Джерела даних за метриками</h2><div class="sp"></div><span class="lbl">Клацніть на рядок, щоб переглянути дані</span></div>
     <div class="tbl-wrap"><table><thead><tr><th>Метрика</th><th>Джерело</th><th>Режим</th><th>Вік даних</th><th>Пояснення</th></tr></thead><tbody>
@@ -1861,7 +2650,7 @@ V.compare = () => {
   <section class="card c12 rise">
     <div class="card-h" style="flex-wrap:wrap"><h2>Сприйняття проти фактів</h2><button type="button" class="kt-info" aria-label="Як читати" data-tip="Точки показують середню оцінку кожної групи, риска це факти. Праворуч різниця «сприйняття мінус факти». Червоним позначено розрив понад ${CAP} пунктів: тоді вмикається обмежувач.">${IC.info}</button><div class="sp"></div><div class="legend">${marks.map(([s, n]) => `<span><i class="mk ${s}"></i>${n}</span>`).join("")}<span><i class="mk f"></i>Факти</span></div></div>
     ${m.components.map((c, i) => { const vals = marks.map(([s]) => [s, srcAvg(c.id, s)]).filter(([, v]) => v != null); const all = [...vals.map(x => x[1]), c.F]; const lo = Math.min(...all), hi = Math.max(...all), gap = r1(c.P - c.F);
-      return `<div class="db" style="cursor:pointer" onclick="location.hash='explain/${c.id}'"><span class="t"><b>${COMP[c.id].n}</b><br><span class="lbl">Сприйняття ${fb(c.P)} · факти ${fb(c.F)}</span></span>
+      return `<div class="db" style="cursor:pointer" role="link" tabindex="0" aria-label="${COMP[c.id].n}: розклад індексу" onclick="location.hash='explain/${c.id}'" onkeydown="if(event.key==='Enter'||event.key===' '){event.preventDefault();location.hash='explain/${c.id}'}"><span class="t"><b>${COMP[c.id].n}</b><br><span class="lbl">Сприйняття ${fb(c.P)} · факти ${fb(c.F)}</span></span>
         <div class="track"><div class="gap ${gap > CAP ? "bad" : ""}" style="left:${lo}%;width:${hi - lo}%;animation-delay:${i * 80}ms"></div>
         ${vals.map(([s, v], j) => `<span class="m mk ${s}" style="left:${v}%;animation-delay:${200 + i * 80 + j * 60}ms" data-tip="${SRC[s][0]}: ${fb(v)}"></span>`).join("")}
         <span class="m mk f" style="left:${c.F}%;animation-delay:${400 + i * 80}ms" data-tip="Факти: ${fb(c.F)}"></span></div>
@@ -2120,15 +2909,15 @@ function openLog(n, n2) {
 function verifyChain() { let prev = "0", ok = true; logItems().forEach(x => { const h = fnv(prev + x.t + x.who + x.a); if (h !== x.h) ok = false; prev = h; }); addLog(me(), "Перевірка цілісності журналу"); const n = logItems().length; render(true); $("#chainSt").innerHTML = pill(ok ? `Перевірено ${n} записів, розривів немає` : "Ланцюг порушено", ok ? "p-good" : "p-bad"); toast(ok ? "Ланцюг цілісний. Сама перевірка теж записана в журнал." : "Ланцюг порушено"); }
 
 /* Опитування за жетоном */
-const answered = () => SURVEY_Q.filter(q => S.survey.a[q.id] != null).length;
+const answered = () => SQ().filter(q => S.survey.a[q.id] != null).length;
 V.survey = () => {
-  const sv = S.survey, N = SURVEY_Q.length;
-  if (S.tokenUsed && sv.phase !== "done") return `<div class="survey c12"><section class="card rise" style="padding:32px;text-align:center"><div class="done-ic" style="background:var(--soft);color:var(--muted)">${IC.lock}</div>
+  const sv = S.survey, N = SQ().length;
+  if ((API.on ? API.surveyUsed : S.tokenUsed) && sv.phase !== "done") return `<div class="survey c12"><section class="card rise" style="padding:32px;text-align:center"><div class="done-ic" style="background:var(--soft);color:var(--muted)">${IC.lock}</div>
     <h2 style="margin:18px 0 6px;font-size:22px;font-weight:600">Цю анкету вже заповнено</h2><p class="lbl" style="max-width:480px;margin:0 auto 20px">Повторно відповісти за цим посиланням не можна: так ми захищаємо анонімність і не допускаємо подвоєних відповідей. Дякуємо за участь.</p>
-    <a class="btn btn-primary" href="#me">Мої результати ${IC.arrowR}</a></section></div>`;
+    ${API.anon ? "" : `<a class="btn btn-primary" href="#me">Мої результати ${IC.arrowR}</a>`}</section></div>`;
   if (sv.phase === "intro") return `<div class="survey c12"><section class="card rise" style="padding:28px">
-      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px"><span class="comp-ic" style="background:var(--lime-soft);color:var(--teal-deep)">${IC.shield}</span><span class="lbl">${SURVEY.cat} · жетон demo</span></div>
-      <h2 style="margin:6px 0 4px;font-size:24px;font-weight:600;letter-spacing:-.02em">${SURVEY.title}</h2>
+      <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px"><span class="comp-ic" style="background:var(--lime-soft);color:var(--teal-deep)">${IC.shield}</span><span class="lbl">${SV().cat} · ${API.on ? (API.anon ? "одноразове посилання" : "за обліковим записом") : "жетон demo"}</span></div>
+      <h2 style="margin:6px 0 4px;font-size:24px;font-weight:600;letter-spacing:-.02em">${SV().title}</h2>
       <p class="lbl" style="margin:0 0 18px">Перш ніж почати: ${N} питань, анкета займе кілька хвилин. Ось що ми гарантуємо.</p>
       <div class="guar">
         <div>${IC.lock}<b>Без імен</b><span class="lbl">Ваші відповіді не повʼязані з вами і не містять імен.</span></div>
@@ -2139,15 +2928,15 @@ V.survey = () => {
     </section></div>`;
   if (sv.phase === "done") return `<div class="survey c12"><section class="card rise" style="padding:36px;text-align:center"><div class="done-ic">${IC.ok}</div>
     <h2 style="margin:18px 0 6px;font-size:24px;font-weight:600">Дякуємо. Ваші відповіді збережено анонімно.</h2>
-    <p class="lbl" style="max-width:520px;margin:0 auto 20px">Що далі: коли відповість достатньо людей (не менше ${S.k}), ви зможете побачити узагальнені результати свого підрозділу. Окремих відповідей і імен там не буде.</p>
-    <a class="btn btn-primary" href="#me">Переглянути результати підрозділу ${IC.arrowR}</a></section></div>`;
-  const sec = SURVEY.sections[sv.sec], last = sv.sec === SURVEY.sections.length - 1, miss = SURVEY_Q.filter(q => sv.a[q.id] == null);
+    <p class="lbl" style="max-width:520px;margin:0 auto 20px">Що далі: коли відповість достатньо людей (не менше ${S.k}), ${API.anon ? "узагальнені результати підрозділу стануть доступні керівництву й учасникам" : "ви зможете побачити узагальнені результати свого підрозділу"}. Окремих відповідей і імен там не буде.</p>
+    ${API.anon ? "" : `<a class="btn btn-primary" href="#me">Переглянути результати підрозділу ${IC.arrowR}</a>`}</section></div>`;
+  const sec = SV().sections[sv.sec], SC = COMP[sec.id] || { s: "var(--soft)", c: "var(--muted)", ic: "survey" }, last = sv.sec === SV().sections.length - 1, miss = SQ().filter(q => sv.a[q.id] == null);
   return `<div class="survey c12">
-    <div class="sv-top"><span class="lbl">Розділ ${sv.sec + 1} з ${SURVEY.sections.length}</span><div class="qprog" style="flex:1">${SURVEY_Q.map(q => `<span class="${q.si === sv.sec ? "cur" : ""} ${sv.a[q.id] != null ? "done" : ""}"></span>`).join("")}</div><span class="lbl tnum">Відповіли на ${answered()} з ${N}</span><button class="icon-btn" aria-label="Закрити" onclick="S.survey.phase='intro';render();toast('Відповіді лишаються на цьому пристрої. Їх ще не надіслано.')">${IC.x}</button></div>
+    <div class="sv-top"><span class="lbl">Розділ ${sv.sec + 1} з ${SV().sections.length}</span><div class="qprog" style="flex:1">${SQ().map(q => `<span class="${q.si === sv.sec ? "cur" : ""} ${sv.a[q.id] != null ? "done" : ""}"></span>`).join("")}</div><span class="lbl tnum">Відповіли на ${answered()} з ${N}</span><button class="icon-btn" aria-label="Закрити" onclick="S.survey.phase='intro';render();toast('Відповіді лишаються на цьому пристрої. Їх ще не надіслано.')">${IC.x}</button></div>
     <section class="card qcard" style="padding:24px" key="${sv.sec}">
-      <div class="comp-top" style="margin-bottom:4px"><span class="comp-ic" style="background:${COMP[sec.id].s};color:${COMP[sec.id].c}">${IC[COMP[sec.id].ic]}</span><b style="font-size:18px">${sec.t}</b><span class="lbl">${sec.about}</span></div>
+      <div class="comp-top" style="margin-bottom:4px"><span class="comp-ic" style="background:${SC.s};color:${SC.c}">${IC[SC.ic]}</span><b style="font-size:18px">${sec.t}</b><span class="lbl">${sec.about}</span></div>
       ${sec.q.map(([id, t, o], qi) => `<fieldset class="qf" id="q-${id}"><legend>${qi + 1}. ${t}</legend><div class="opts">${o.map((x, i) => `<button type="button" class="opt ${sv.a[id] === i ? "on" : ""}" aria-pressed="${sv.a[id] === i}" onclick="pick('${id}',${i})"><span class="rb"></span><span>${x}</span></button>`).join("")}</div></fieldset>`).join("")}
-      ${sv.miss && last && miss.length ? `<div class="note-box" style="margin-top:12px"><b>Залишилось відповісти на ${miss.length} ${miss.length === 1 ? "питання" : miss.length < 5 ? "питання" : "питань"}</b><span class="lbl">Натисніть на питання, щоб перейти до нього.</span>${miss.map(q => `<a class="link" href="javascript:void 0" onclick="S.survey.sec=${q.si};S.survey.miss=false;render(true);setTimeout(()=>document.getElementById('q-${q.id}').scrollIntoView({behavior:'smooth',block:'center'}),60)">Розділ «${SURVEY.sections[q.si].t}», питання ${q.qi + 1}</a>`).join("")}</div>` : ""}
+      ${sv.miss && last && miss.length ? `<div class="note-box" style="margin-top:12px"><b>Залишилось відповісти на ${miss.length} ${miss.length === 1 ? "питання" : miss.length < 5 ? "питання" : "питань"}</b><span class="lbl">Натисніть на питання, щоб перейти до нього.</span>${miss.map(q => `<a class="link" href="javascript:void 0" onclick="S.survey.sec=${q.si};S.survey.miss=false;render(true);setTimeout(()=>document.getElementById('q-${q.id}').scrollIntoView({behavior:'smooth',block:'center'}),60)">Розділ «${SV().sections[q.si].t}», питання ${q.qi + 1}</a>`).join("")}</div>` : ""}
       <div style="display:flex;justify-content:space-between;margin-top:20px;gap:10px">
         <button class="btn btn-ghost" ${sv.sec === 0 ? "disabled" : ""} onclick="S.survey.sec--;S.survey.miss=false;render();window.scrollTo(0,0)">${IC.arrowL}Назад</button>
         ${last ? `<button class="btn btn-primary" onclick="submitSurvey()">${IC.send}Надіслати</button>` : `<button class="btn btn-primary" onclick="S.survey.sec++;render();window.scrollTo(0,0)">Далі ${IC.arrowR}</button>`}
@@ -2157,7 +2946,8 @@ V.survey = () => {
 V.survey.after = () => { if (S.survey.phase === "done") S.survey.phase = "intro"; };
 function pick(id, i) { S.survey.a[id] = i; try { localStorage.setItem("ii-survey-draft", JSON.stringify(S.survey.a)); } catch (e) {} render(true); }
 function submitSurvey() {
-  if (answered() < SURVEY_Q.length) { S.survey.miss = true; render(true); return; }
+  if (answered() < SQ().length) { S.survey.miss = true; render(true); return; }
+  if (API.on) return apiSubmitSurvey();
   S.survey = { phase: "done", sec: 0, a: {}, miss: false }; S.tokenUsed = true; UNIT_RESP[S.unit] = (UNIT_RESP[S.unit] || 0) + 1;
   try { localStorage.removeItem("ii-survey-draft"); } catch (e) {}
   addLog("Система", "Отримано анонімну відповідь, жетон погашено"); persist(); render();
@@ -2285,7 +3075,7 @@ async function aiAsk(q) {
   const local = aiTemplate(q); let msg = null;
   if (AI.live && !local.fixed) {
     try {
-      const r = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: q, context: aiCtx(), history }) });
+      const r = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json", ...apiAuth() }, body: JSON.stringify({ question: q, context: aiCtx(), history }) });
       const j = await r.json();
       if (r.ok && j.text) msg = { r: "a", t: j.text, src: local.src, draft: local.draft || /звіт|чернетк|опис/i.test(q), live: true, model: j.model };
     } catch (e) {}
@@ -2312,7 +3102,7 @@ function aiClose() { $("#ai").classList.remove("on"); $("#ai").setAttribute("ari
 function aiBtn() { const b = $("#aiBtn"); b.innerHTML = `${IC.spark}<span class="hide-m">Асистент</span>`; b.classList.toggle("off", !S.aiOn); b.hidden = !AI_ROLES.includes(S.role); }
 
 /* ---------- Router ---------- */
-const allowed = r => NAV.some(n => n[0] === r && n[3].includes(S.role));
+const allowed = r => NAV.some(n => n[0] === r && n[3].includes(S.role)) && (!API.anon || r === "survey");
 function route() { const [r, p] = (location.hash || "").slice(1).split("/"); return allowed(r) ? { r, p } : { r: HOME[S.role], p: null }; }
 function updateBadges() {
   const recs = pendingRecs(), ms = measures(), od = ms.filter(x => overdueDays(x) > 0).length, pend = Object.values(S.fpend).filter(p => !p.ret).length;
@@ -2326,26 +3116,32 @@ function renderNav(cur) {
   $("#nav").innerHTML = NAV.filter(n => n[3].includes(S.role)).map(([r, n, ic]) => `<a href="#${r}" data-r="${r}" class="${r === cur ? "on" : ""}" ${r === cur ? 'aria-current="page"' : ""} aria-label="${n}"${document.documentElement.classList.contains("side-mini") ? ` data-tip="${n}"` : ""}>${IC[ic]}<span>${n}</span></a>`).join("");
   updateBadges();
 }
-const TITLES = { overview: () => S.role === "observer" ? "Огляд закладу" : "Огляд закладу", explain: () => "Розклад індексу", trends: () => "Динаміка", compare: () => "Порівняння: сприйняття і факти", recs: () => "Рекомендації", tracker: () => "Трекер заходів", sources: () => "Джерела", report: () => "Звіт", manage: () => "Керування циклом", surveys: () => "Анкети", checklist: () => "Чек-лист", audit: () => "Журнал", survey: () => "Анонімне опитування", me: () => "Мої результати", institutions: () => "Заклади" };
-let lastRoute = null;
+const TITLES = { overview: () => "Огляд закладу", explain: () => "Розклад індексу", trends: () => "Динаміка", compare: () => "Порівняння: сприйняття і факти", recs: () => "Рекомендації", tracker: () => "Трекер заходів", sources: () => "Джерела", report: () => "Звіт", manage: () => "Керування циклом", surveys: () => "Анкети", checklist: () => "Чек-лист", audit: () => "Журнал", survey: () => "Анонімне опитування", me: () => "Мої результати", institutions: () => "Заклади" };
+let lastRoute = null, lastApiView = false;
 function render(soft) {
+  if (API.on && !API.user && !API.anon) return showLogin();
   const { r, p } = route();
   if (r === "explain" && p) { S.focus = p; const m = cur(); const it = allItems(m).find(x => x.id === p); if (it && it.kind !== "p" && S.mode !== "facts") S.mode = "facts"; if (it && it.kind === "p" && S.mode === "facts") S.mode = "credited"; const c = COMPS.includes(p) ? p : it && it.c; if (c) S.open[c] = true; }
   const want = "#" + r + (p ? "/" + p : ""); if (location.hash !== want) history.replaceState(null, "", want);
   renderNav(r); hideTip(); if (r !== lastRoute) closePop();
   $("#title").textContent = TITLES[r]();
   const v = $("#view");
-  v.innerHTML = V[r]();
+  const av = apiView(r); lastApiView = av != null;
+  v.innerHTML = av ?? V[r]();
   if (!soft) [...v.querySelectorAll(":scope > .rise, :scope > .survey > .rise, :scope > .recs > .rise")].forEach((el, i) => el.style.animationDelay = (Math.min(i, 10) * 60) + "ms");
   else { v.querySelectorAll(".rise, .qcard, .bar-a, .pop, .draw, .reveal").forEach(el => el.style.animation = "none"); v.querySelectorAll(".cu").forEach(el => el.classList.remove("cu")); }
   countUp(v);
-  V[r].after && V[r].after();
+  av == null && V[r].after && V[r].after();
   if (soft) v.querySelectorAll(".pop, .draw, .reveal, .bar-a").forEach(el => el.style.animation = "none");
   if (r !== lastRoute) { if (!p) window.scrollTo(0, 0); lastRoute = r; }
   $("#side").classList.remove("on");
 }
 window.addEventListener("hashchange", () => render());
-let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(() => { const { r } = route(); V[r].after && V[r].after(); }, 150); });
+// Клік по пункту меню поточного екрана теж оновлює екран (напр., «Пройти опитування» одразу після надсилання)
+$("#nav").addEventListener("click", e => { const a = e.target.closest("a[data-r]"); if (a && "#" + a.dataset.r === location.hash.split("/")[0]) { e.preventDefault(); render(); } });
+let rz; window.addEventListener("resize", () => { clearTimeout(rz); rz = setTimeout(redrawAfter, 150); });
+// Перемалювати графіки поточного екрана (не на екранах сервера й не до завантаження даних)
+function redrawAfter() { const { r } = route(); if (!lastApiView && (!API.on || API.model) && $("#view").children.length && V[r] && V[r].after) V[r].after(); }
 
 /* ---------- Chrome ---------- */
 $("#logo").innerHTML = IC.pulse.replace("<svg", '<svg width="20" height="20"');
@@ -2358,7 +3154,17 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") { closeDrawe
 const role = $("#role");
 role.innerHTML = Object.entries(ROLE).map(([k, [n]]) => `<option value="${k}">${n}</option>`).join("");
 role.value = S.role;
-const setAvatar = () => { $("#avatar").textContent = ROLE[S.role][1]; $("#avatar").dataset.tip = ROLE[S.role][0]; };
+const setAvatar = () => { const av = $("#avatar"); av.textContent = ROLE[S.role][1]; av.dataset.tip = ROLE[S.role][0]; av.setAttribute("role", "button"); av.tabIndex = 0; av.setAttribute("aria-label", "Профіль і вихід"); };
+// Клік по аватару: хто ви й кнопка «Вийти» (меню ліворуч на вузьких екранах приховане)
+function openProfile(btn) {
+  const p = $("#pop"); if (p.classList.contains("on") && p._btn === btn) return closePop();
+  const u = API.user;
+  p._btn = btn; pickA = null;
+  p.innerHTML = `<div style="font-weight:600">${esc(u ? u.display_name : ROLE[S.role][0])}</div><div class="lbl" style="margin:2px 0 12px">${ROLE[S.role][0]}${u ? ` · ${esc(u.login)}` : ""}</div>${u ? `<button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="closePop();document.getElementById('logoutBtn').click()">${IC.arrowL}Вийти</button>` : `<div class="lbl">Демо-режим: вихід не потрібен.</div>`}`;
+  p.classList.add("on"); placePop(btn);
+}
+$("#avatar").onclick = e => openProfile(e.currentTarget);
+$("#avatar").onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProfile(e.currentTarget); } };
 role.onchange = () => { S.role = role.value; addLog(ROLE[S.role][0], "Вхід у систему"); persist(); setAvatar(); aiBtn(); aiClose(); closeDrawer(); location.hash = HOME[S.role]; render(); toast("Роль: " + ROLE[S.role][0]); };
 $("#resetBtn").innerHTML = `${IC.reset}Скинути демо-дані`; $("#resetBtn").onclick = resetDemo;
 setAvatar();
@@ -2370,10 +3176,35 @@ $("#themeBtn").onclick = () => {
 };
 try { const t = localStorage.getItem("ii-theme"); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
 themeIcon();
+/* Пошук: підказки під час введення (екрани, компоненти, питання й показники, заклади) */
+function searchHits(q) {
+  q = q.trim().toLowerCase(); if (!q) return [];
+  const has = t => t.toLowerCase().includes(q), out = [];
+  NAV.filter(n => n[3].includes(S.role) && allowed(n[0]) && has(n[1])).forEach(n => out.push({ k: "Екран", t: n[1], go: () => location.hash = n[0] }));
+  if (allowed("explain")) {
+    COMPS.filter(c => has(COMP[c].n)).forEach(c => out.push({ k: "Компонент", t: COMP[c].n, go: () => location.hash = "explain/" + c }));
+    try { allItems(cur()).filter(x => has(x.t)).forEach(x => out.push({ k: x.kind === "p" ? "Питання" : "Показник", t: x.t, go: () => location.hash = "explain/" + x.id })); } catch (e) {}
+  }
+  if (allowed("institutions") && !API.on) INSTITUTIONS().filter(m => !(S.insts.archived || []).includes(m.id) && (has(m.name) || (m.edrpou || "").includes(q))).forEach(m => out.push({ k: "Заклад", t: m.name, go: () => { S.inst = m.id; persist(); location.hash = "overview"; render(); } }));
+  return out.slice(0, 8);
+}
+let qHits = [], qSel = 0;
+function drawSearch() {
+  const p = $("#pop"), box = document.querySelector(".side .search"), q = $("#q").value;
+  qHits = searchHits(q); if (!q.trim()) return closePop();
+  const hl = t => { const i = t.toLowerCase().indexOf(q.trim().toLowerCase()); return i < 0 ? esc(t) : esc(t.slice(0, i)) + "<mark>" + esc(t.slice(i, i + q.trim().length)) + "</mark>" + esc(t.slice(i + q.trim().length)); };
+  p.innerHTML = qHits.length ? `<div class="qs" role="listbox" aria-label="Результати пошуку">${qHits.map((h, i) => `<button type="button" role="option" aria-selected="${i === qSel}" class="qs-i ${i === qSel ? "on" : ""}" onmousedown="event.preventDefault();pickSearch(${i})"><span class="qs-t">${hl(h.t)}</span><span class="lbl">${h.k}</span></button>`).join("")}</div>` : `<div class="lbl" style="padding:6px 4px">Нічого не знайдено</div>`;
+  p._btn = box; p.classList.add("on");
+  const r = zr(box.getBoundingClientRect()), w = Math.max(r.width, 320); p.style.width = w + "px"; p.style.left = Math.max(8, Math.min(r.left, innerWidth / Z() - w - 8)) + "px"; p.style.top = (r.bottom + 6) + "px";
+}
+function pickSearch(i) { const h = qHits[i]; if (!h) return; $("#q").value = ""; $("#q").blur(); closePop(); $("#pop").style.width = ""; h.go(); }
+$("#q").addEventListener("input", () => { qSel = 0; drawSearch(); });
+$("#q").addEventListener("focus", () => { if ($("#q").value.trim()) drawSearch(); });
 $("#q").addEventListener("keydown", e => {
-  if (e.key !== "Enter") return; const q = e.target.value.trim().toLowerCase(); if (!q) return;
-  if (allowed("explain")) { const hit = allItems(cur()).find(x => x.t.toLowerCase().includes(q)); if (hit) { location.hash = "explain/" + hit.id; return; } }
-  const nav = NAV.find(n => n[1].toLowerCase().includes(q) && n[3].includes(S.role)); if (nav) location.hash = nav[0]; else toast("Нічого не знайдено");
+  if (e.key === "ArrowDown" || e.key === "ArrowUp") { if (!qHits.length) return; e.preventDefault(); qSel = (qSel + (e.key === "ArrowDown" ? 1 : qHits.length - 1)) % qHits.length; drawSearch(); return; }
+  if (e.key === "Escape") { $("#q").value = ""; closePop(); $("#q").blur(); return; }
+  if (e.key !== "Enter") return; e.preventDefault();
+  if (qHits.length) pickSearch(qSel); else if ($("#q").value.trim()) toast("Нічого не знайдено");
 });
 // Пошук: Ctrl+K (на Mac ⌘K) і «/». Ctrl+F лишаємо браузеру: це пошук по тексту сторінки
 const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
@@ -2384,28 +3215,41 @@ document.addEventListener("keydown", e => {
   if (e.key === "Escape") closePop();
 });
 /* Доступність: розмір тексту й підвищений контраст (як на сайтах держорганів) */
-function applyA11y() { const a = S.a11y || { z: 1, hc: false }; document.documentElement.style.zoom = a.z === 1 ? "" : a.z; document.documentElement.classList.toggle("hc", !!a.hc); }
+function applyA11y() { const a = S.a11y || { z: 1, hc: false }; document.documentElement.style.zoom = a.z === 1 ? "" : a.z; document.documentElement.classList.toggle("hc", !!a.hc); scaleMedia(a.z); }
+// CSS zoom не змінює ширину, яку бачать медіазапити. Тому межі (max-width/min-width) множимо на масштаб:
+// при 150 % на екрані 1280 px сторінка верстається як для 853 px, без горизонтального скролу (WCAG 1.4.10).
+function scaleMedia(z) {
+  for (const sh of document.styleSheets) { let rules; try { rules = sh.cssRules; } catch (e) { continue; }
+    for (const r of rules) { if (!(r instanceof CSSMediaRule) || !/width/.test(r.media.mediaText + (r._mq || ""))) continue;
+      r._mq = r._mq || r.media.mediaText;
+      const t = r._mq.replace(/(min|max)-width:\s*([\d.]+)px/g, (_, k, n) => `${k}-width: ${Math.round(+n * z * 10) / 10}px`);
+      if (r.media.mediaText !== t) { while (r.media.length) r.media.deleteMedium(r.media.item(0)); t.split(",").forEach(m => r.media.appendMedium(m.trim())); } } }
+}
 function drawA11y() {
   const a = S.a11y;
   $("#pop").innerHTML = `<div class="lbl" style="text-transform:uppercase;letter-spacing:.06em;font-size:11px;margin-bottom:8px">Розмір тексту</div>
     <div style="display:flex;align-items:center;gap:10px"><button class="icon-btn" aria-label="Зменшити текст" onclick="setZoom(-1)" ${a.z <= 1 ? "disabled" : ""}>−</button><b class="tnum" style="min-width:48px;text-align:center">${Math.round(a.z * 100)} %</b><button class="icon-btn" aria-label="Збільшити текст" onclick="setZoom(1)" ${a.z >= 1.5 ? "disabled" : ""}>+</button></div>
     <label class="a11y-row"><span>Підвищений контраст</span><span class="sw"><input type="checkbox" ${a.hc ? "checked" : ""} onchange="S.a11y.hc=this.checked;persist();applyA11y()"><span></span></span></label>
-    <button class="link-btn" onclick="S.a11y={z:1,hc:false};persist();applyA11y();drawA11y();render(true)">Скинути</button>`;
+    <button class="link-btn" onclick="S.a11y={z:1,hc:false};persist();applyA11y();autoSide();drawA11y();render(true)">Скинути</button>`;
 }
-function setZoom(d) { S.a11y.z = Math.round(clamp(S.a11y.z + d * .125, 1, 1.5) * 1000) / 1000; persist(); applyA11y(); drawA11y(); render(true); placePop($("#a11yBtn")); }
+function setZoom(d) { S.a11y.z = Math.round(clamp(S.a11y.z + d * .125, 1, 1.5) * 1000) / 1000; persist(); applyA11y(); autoSide(); drawA11y(); render(true); placePop($("#a11yBtn")); }
 $("#a11yBtn").innerHTML = IC.a11y;
 $("#a11yBtn").onclick = e => { const p = $("#pop"), b = e.currentTarget; if (p.classList.contains("on") && p._btn === b) return closePop(); p._btn = b; drawA11y(); p.classList.add("on"); placePop(b); };
 applyA11y();
 /* Згортання бічного меню (на широких екранах): лишаються лише іконки */
-function setSide(mini) {
+function setSide(mini, auto) {
   document.documentElement.classList.toggle("side-mini", mini);
   const b = $("#sideBtn"); b.innerHTML = mini ? IC.chevR : IC.chevL; b.setAttribute("aria-label", mini ? "Розгорнути меню" : "Згорнути меню"); b.setAttribute("aria-expanded", String(!mini)); b.dataset.tip = mini ? "Розгорнути меню" : "Згорнути меню";
-  try { localStorage.setItem("ii-side", mini ? "mini" : ""); } catch (e) {}
-  const { r } = route(); renderNav(r); setTimeout(() => V[r] && V[r].after && V[r].after(), 260);
+  if (!auto) try { localStorage.setItem("ii-side2", mini ? "mini" : ""); } catch (e) {}
+  const { r } = route(); renderNav(r); setTimeout(redrawAfter, 260);
 }
 $("#sideBtn").onclick = () => setSide(!document.documentElement.classList.contains("side-mini"));
 document.querySelector(".side .search").addEventListener("click", () => { if (document.documentElement.classList.contains("side-mini")) { setSide(false); setTimeout(() => $("#q").focus(), 50); } });
-try { setSide(localStorage.getItem("ii-side") === "mini"); } catch (e) { setSide(false); }
+// Меню: збережений вибір користувача, а без нього на вузьких екранах (до 1100 px) воно згорнуте, щоб не стискати вміст
+const sidePref = () => { try { return localStorage.getItem("ii-side2"); } catch (e) { return null; } };
+const autoSide = () => { const w = innerWidth / Z(); if (sidePref() === null && w > 900) { document.documentElement.classList.toggle("side-mini", w < 1100); const { r } = route(); renderNav(r); } };
+try { const sp = sidePref(); if (sp === null) { document.documentElement.classList.toggle("side-mini", innerWidth / Z() > 900 && innerWidth / Z() < 1100); setSide(document.documentElement.classList.contains("side-mini"), true); } else setSide(sp === "mini"); } catch (e) { setSide(false); }
+addEventListener("resize", autoSide);
 $("#aiLogo").innerHTML = IC.spark.replace("<svg", '<svg width="17" height="17"');
 $("#aiClose").innerHTML = IC.x; $("#aiClose").onclick = aiClose;
 $("#aiSend").innerHTML = IC.send;
@@ -2413,7 +3257,7 @@ $("#aiBtn").onclick = () => aiOpen();
 $("#aiForm").addEventListener("submit", e => { e.preventDefault(); const q = $("#aiQ").value; $("#aiQ").value = ""; aiAsk(q); });
 $("#aiOn").addEventListener("change", e => { S.aiOn = e.target.checked; persist(); addLog(me(), S.aiOn ? "ШІ-асистента увімкнено" : "ШІ-асистента вимкнено"); aiBtn(); aiRender(); if (S.aiOn) checkLive(); });
 aiBtn();
-render();
+boot(); // з бекендом: вхід і дані сервера; без нього — демо (0-api.js)
 </script>
 </body>
 </html>

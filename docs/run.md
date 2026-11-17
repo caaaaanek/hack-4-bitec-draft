@@ -1,7 +1,8 @@
 # Як запустити: база, бекенд, фронтенд
 
-> Екрани фронтенду ще працюють на власних синтетичних даних (`frontend/src/demo`); клієнт API для переходу на бекенд —
-> `frontend/src/api/client.ts`. Збираються й запускаються вони вже разом.
+> Фронтенд — `frontend-proto/` (одна сторінка, vanilla JS). У `docker compose` він бере всі дані з бекенду: вхід, індекс,
+> рекомендації, заходи, хвилі, посилання, анкети, чек-лист, журнал. Відкритий як файл (без API) — працює на демо-даних.
+> Старий `frontend/` (React) у compose більше не використовується.
 
 ## Усе через Docker (одна команда)
 
@@ -12,7 +13,7 @@ docker compose up --build
 
 | Що | Адреса |
 |---|---|
-| Фронтенд (nginx, `/api` проксіюється на бекенд) | http://localhost:8080 |
+| Фронтенд (nginx, `/api` проксіюється на бекенд) | http://localhost:8080 — вхід: `leader`, `admin`, `commissioner`, `auditor`, `wg1`, `staff01`, `expert1`, пароль `DEMO_PASSWORD` |
 | API і Swagger напряму | http://localhost:8000/docs |
 | Стан (процес + БД) | http://localhost:8080/health, http://localhost:8000/health |
 
@@ -42,13 +43,37 @@ python backend/scripts/smoke.py --base http://localhost:8080 --password "$DEMO_P
 
 ## Фронтенд
 
+Код — у `frontend-proto/src/`, після правок `python3 frontend-proto/src/build.py` збирає `frontend-proto/index.html`.
+Сторінка сама визначає режим: якщо `GET /api/v1/config` відповідає — вхід і дані з бекенду, інакше демо-дані.
+
+- Через Docker: `docker compose up --build frontend` перезбирає лише фронтенд.
+- Як файл: відкрити `frontend-proto/index.html` — демо без бекенду, роль перемикається в меню.
+
+Що бачить кожна роль після входу:
+
+| Логін | Екрани |
+|---|---|
+| `leader` | огляд, розклад, динаміка, порівняння, рекомендації (прийняти / уточнити / відхилити), трекер, звіт |
+| `admin` | керування циклом: нова хвиля, відкрити / завершити, одноразові посилання, відкликання; журнал |
+| `commissioner` | анкети (публікація, нова версія), підтвердження пунктів чек-листа, результати |
+| `auditor` | результати лише на перегляд, журнал і перевірка ланцюжка хешів |
+| `wg1` | чек-лист (статус, доказ, файл), анкета, мої результати |
+| `staff01`, `expert1` | анкета за обліковим записом, мої результати |
+
+Анонімна анкета відкривається за посиланням `http://localhost:8080/s/<токен>` без входу; повторне відкриття — «вже заповнено».
+
+## Асистент (опційно)
+
+Кнопка «Асистент» працює і без моделі (шаблони правил). Щоб підключити модель, задайте в `.env`
+будь-який OpenAI-сумісний `/chat/completions`:
+
 ```bash
-cd frontend
-npm ci
-npm run dev          # http://localhost:5173, /api проксіюється на http://localhost:8000 (VITE_PROXY_TARGET)
+LLM_BASE_URL=http://host.docker.internal:11434/v1   # Ollama; для Groq достатньо LLM_API_KEY
+LLM_API_KEY=
+LLM_MODEL=gemma3:4b
 ```
 
-Роль (керівник, адміністратор, учасник тощо) і заклад перемикаються в демо-панелі інтерфейсу, логін не потрібен.
+Бекенд (`/api/assistant`) пускає лише ролі з доступом до результатів і пише в журнал довжину питання, а не його текст.
 
 ## Демо-дані бекенду
 
@@ -88,10 +113,24 @@ commissioner його підтверджує, admin закриває хвилю.
 | `staff01`…`staff75` | учасник, особовий склад | Анкета 2, мої результати |
 | `expert1`…`expert5` | учасник, експерт | Анкета 3, мої результати |
 
+## Факти з інших систем (адаптери)
+
+Моки 5 джерел (ARTEMIDA, атестація, навчання, закупівлі, повідомлення) передають факти «X з Y» у `POST /indicators`, кожне джерело своїм ключем
+(деталі — [`backend.md`](backend.md), «Адаптери джерел фактів»). Задайте ключі в `.env`, наприклад
+`INTEGRATION_KEYS=artemida=…;atestat=…;training=…;procurement=…;reports=…`, перезапустіть compose і виконайте:
+
+```bash
+docker compose exec backend python scripts/mock_sources.py --dry-run   # що буде передано
+docker compose exec backend python scripts/mock_sources.py             # передати (12 місяців, усі 5 джерел)
+docker compose --profile mocks run --rm mocks                         # те саме окремим контейнером (профіль mocks)
+```
+
+Нові факти видно в `GET /units/{id}/indicators` і в ризик-сигналах; знімки вже закритих хвиль не змінюються.
+
 ## Перевірки
 
 ```bash
-cd backend && pytest                    # бекенд: 137 тестів (на SQLite один тест xmin пропускається)
+cd backend && pytest                    # бекенд: 163 тестів (на SQLite один тест xmin пропускається)
 TEST_DATABASE_URL=postgresql+psycopg://imd:пароль@localhost:5432/imd_test pytest   # те саме на PostgreSQL
 cd frontend && npm run check            # фронтенд: typecheck, lint, тести, збірка
 cd frontend && npm run check:contrast   # контраст кольорів

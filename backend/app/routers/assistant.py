@@ -4,6 +4,7 @@
 - бачить лише агрегати й пояснення `rule` знімка та рекомендації, без імен, логінів і відповідей;
 - нічого не рахує й не змінює: бали, рівні, статуси дають тільки правила, захід створює людина;
 - модель локальна (Ollama) або дозволена; моделі й сервіси з РФ, РБ і китайські хмари заборонені;
+- якщо задано LLM_* (наприклад, self-hosted Gemma з ключем), обидва асистенти працюють з тією самою моделлю;
 - система повністю працює з вимкненим асистентом.
 """
 
@@ -12,6 +13,8 @@ import urllib.error
 import urllib.request
 import uuid
 from urllib.parse import urlparse
+
+import httpx
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
@@ -78,7 +81,25 @@ def build_context(result: dict, recs: list[dict]) -> dict:
     }
 
 
+def target() -> tuple[str, str]:
+    """(адреса, модель) асистента. Якщо задано LLM_* (OpenAI-сумісна модель із ключем, напр. self-hosted Gemma),
+    обидва асистенти працюють з нею; інакше — ASSISTANT_URL/ASSISTANT_MODEL (Ollama /api/generate)."""
+    from app.routers import llm  # llm імпортує check_allowed звідси
+
+    ep = llm.endpoint()
+    if ep is not None:
+        return f"{ep[0]}/chat/completions", ep[2]
+    settings = get_settings()
+    return settings.assistant_url, settings.assistant_model
+
+
 def call_model(prompt: str) -> str:
+    from app.routers import llm
+
+    ep = llm.endpoint()
+    if ep is not None:
+        base, key, model = ep
+        return llm.chat(base, key, model, [{"role": "user", "content": prompt}])
     settings = get_settings()
     body = json.dumps({"model": settings.assistant_model, "prompt": prompt, "stream": False}).encode()
     request = urllib.request.Request(settings.assistant_url, data=body, headers={"Content-Type": "application/json"}, method="POST")
@@ -91,7 +112,8 @@ def ask(data: AskIn, db: Session = Depends(get_db), user: User = Depends(require
     settings = get_settings()
     if not settings.assistant_enabled:
         raise HTTPException(status_code=404, detail="Асистента вимкнено в налаштуваннях")
-    check_allowed(settings.assistant_url, settings.assistant_model)
+    url, model = target()
+    check_allowed(url, model)
     campaign = closed_campaign(db, data.campaign_id)
     ensure_unit_access(db, user, data.unit_id or campaign.unit_id)
     result, recs = build(db, campaign, data.unit_id)
@@ -103,9 +125,9 @@ def ask(data: AskIn, db: Session = Depends(get_db), user: User = Depends(require
     )
     try:
         answer = call_model(prompt)
-    except (urllib.error.URLError, OSError, ValueError):
+    except (urllib.error.URLError, OSError, ValueError, KeyError, IndexError, TypeError, httpx.HTTPError):
         raise HTTPException(status_code=503, detail="Асистент тимчасово недоступний. Решта системи працює.")
     # Питання й відповідь не логуються дослівно: лише факт звернення.
     log_action(db, user, "ask", "assistant", campaign.id, {"unit_id": result["unit_id"]})
     db.commit()
-    return {"answer": answer, "model": settings.assistant_model, "disclaimer": DISCLAIMER, "context_keys": sorted(context)}
+    return {"answer": answer, "model": model, "disclaimer": DISCLAIMER, "context_keys": sorted(context)}
