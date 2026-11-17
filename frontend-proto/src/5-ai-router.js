@@ -131,7 +131,7 @@ function updateBadges() {
   });
 }
 function renderNav(cur) {
-  $("#nav").innerHTML = NAV.filter(n => n[3].includes(S.role)).map(([r, n, ic]) => `<a href="#${r}" data-r="${r}" class="${r === cur ? "on" : ""}" ${r === cur ? 'aria-current="page"' : ""}>${IC[ic]}<span>${n}</span></a>`).join("");
+  $("#nav").innerHTML = NAV.filter(n => n[3].includes(S.role)).map(([r, n, ic]) => `<a href="#${r}" data-r="${r}" class="${r === cur ? "on" : ""}" ${r === cur ? 'aria-current="page"' : ""} aria-label="${n}"${document.documentElement.classList.contains("side-mini") ? ` data-tip="${n}"` : ""}>${IC[ic]}<span>${n}</span></a>`).join("");
   updateBadges();
 }
 const TITLES = { overview: () => S.role === "observer" ? "Огляд закладу" : "Огляд закладу", explain: () => "Розклад індексу", trends: () => "Динаміка", compare: () => "Порівняння: сприйняття і факти", recs: () => "Рекомендації", tracker: () => "Трекер заходів", sources: () => "Джерела", report: () => "Звіт", manage: () => "Керування циклом", surveys: () => "Анкети", checklist: () => "Чек-лист", audit: () => "Журнал", survey: () => "Анонімне опитування", me: () => "Мої результати", institutions: () => "Заклади" };
@@ -204,6 +204,16 @@ function setZoom(d) { S.a11y.z = Math.round(clamp(S.a11y.z + d * .125, 1, 1.5) *
 $("#a11yBtn").innerHTML = IC.a11y;
 $("#a11yBtn").onclick = e => { const p = $("#pop"), b = e.currentTarget; if (p.classList.contains("on") && p._btn === b) return closePop(); p._btn = b; drawA11y(); p.classList.add("on"); placePop(b); };
 applyA11y();
+/* Згортання бічного меню (на широких екранах): лишаються лише іконки */
+function setSide(mini) {
+  document.documentElement.classList.toggle("side-mini", mini);
+  const b = $("#sideBtn"); b.innerHTML = mini ? IC.chevR : IC.chevL; b.setAttribute("aria-label", mini ? "Розгорнути меню" : "Згорнути меню"); b.setAttribute("aria-expanded", String(!mini)); b.dataset.tip = mini ? "Розгорнути меню" : "Згорнути меню";
+  try { localStorage.setItem("ii-side", mini ? "mini" : ""); } catch (e) {}
+  const { r } = route(); renderNav(r); setTimeout(() => V[r] && V[r].after && V[r].after(), 260);
+}
+$("#sideBtn").onclick = () => setSide(!document.documentElement.classList.contains("side-mini"));
+document.querySelector(".side .search").addEventListener("click", () => { if (document.documentElement.classList.contains("side-mini")) { setSide(false); setTimeout(() => $("#q").focus(), 50); } });
+try { setSide(localStorage.getItem("ii-side") === "mini"); } catch (e) { setSide(false); }
 $("#aiLogo").innerHTML = IC.spark.replace("<svg", '<svg width="17" height="17"');
 $("#aiClose").innerHTML = IC.x; $("#aiClose").onclick = aiClose;
 $("#aiSend").innerHTML = IC.send;

@@ -681,6 +681,44 @@ html.hc a, html.hc .link { text-decoration: underline; }
 .b-card.tr-click:hover { border-color: var(--teal); }
 .kpi-t { font-size: 13px; line-height: 1.4; color: var(--fg); font-weight: 500; flex: 1; }
 .kpi:hover { outline: 1px solid var(--teal); }
+/* v5: згортання меню й довідки */
+.guide > summary { list-style: none; cursor: pointer; margin: 0; }
+.guide > summary::-webkit-details-marker { display: none; }
+.guide[open] > summary { margin-bottom: 14px; }
+.guide .guide-hint::before { content: "Показати"; } .guide[open] .guide-hint::before { content: "Згорнути"; }
+.guide .chev { display: grid; place-items: center; width: 20px; height: 20px; transition: transform .2s; color: var(--muted); }
+.guide .chev svg { width: 18px; height: 18px; }
+.guide[open] .chev { transform: rotate(180deg); }
+.brand-t { white-space: nowrap; }
+.side-btn { margin-left: auto; width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); display: grid; place-items: center; cursor: pointer; flex: none; }
+.side-btn:hover { color: var(--fg); border-color: var(--faint); }
+.side-btn svg { width: 16px; height: 16px; }
+.app { transition: grid-template-columns .25s ease; }
+@media (min-width: 901px) {
+  html.side-mini .app { grid-template-columns: 76px 1fr; }
+  html.side-mini .side { padding-left: 12px; padding-right: 12px; align-items: center; }
+  html.side-mini .brand { flex-direction: column; padding: 0; gap: 10px; }
+  html.side-mini .side-btn { margin-left: 0; }
+  html.side-mini .brand-t, html.side-mini .nav-label, html.side-mini .nav a span, html.side-mini .search input, html.side-mini .search .kbd, html.side-mini .side-foot { display: none; }
+  html.side-mini .search { padding: 10px; cursor: pointer; }
+  html.side-mini .nav a { padding: 11px; justify-content: center; }
+  html.side-mini .nav a .badge { position: absolute; top: 2px; right: 0; font-size: 9px; padding: 0 4px; }
+}
+@media (max-width: 900px) { .side-btn { display: none; } }
+.lvs-lbl div:last-child.here { align-items: flex-end; text-align: right; }
+.lvs-lbl div:first-child.here { align-items: flex-start; }
+.lbl-halo { paint-order: stroke; stroke: var(--panel); stroke-width: 3px; stroke-linejoin: round; }
+/* v6 */
+.lv-comps { display: flex; flex-direction: column; gap: 4px; }
+.lv-comp { display: grid; grid-template-columns: 110px minmax(0, 1fr) 44px 130px; gap: 12px; align-items: center; padding: 8px; margin: 0 -8px; border-radius: 10px; color: inherit; text-decoration: none; font-size: 13px; }
+.lv-comp:hover { background: var(--soft); }
+.lv-comp b { font-weight: 600; }
+.lv-comp .tnum { text-align: right; font-weight: 600; }
+.lvc-track { position: relative; display: flex; gap: 2px; height: 8px; }
+.lvc-track span { border-radius: 3px; opacity: .3; } .lvc-track span.here { opacity: .85; }
+.lvc-track i { position: absolute; top: -4px; width: 4px; height: 16px; margin-left: -2px; border-radius: 2px; background: var(--fg); box-shadow: 0 0 0 2px var(--panel); }
+@media (max-width: 640px) { .lv-comp { grid-template-columns: 90px minmax(0, 1fr) 40px; } .lv-comp .pill { display: none; } }
+.delta b { white-space: nowrap; }
 
 @media (max-width: 1180px) {
   .c3 { grid-column: span 6; } .c4 { grid-column: span 6; } .c5, .c7, .c8 { grid-column: span 12; } .c6 { grid-column: span 12; }
@@ -718,7 +756,7 @@ html.hc a, html.hc .link { text-decoration: underline; }
 
 <div class="app">
   <aside class="side" id="side">
-    <div class="brand"><span class="logo" id="logo"></span>Integrity<span style="color:var(--muted);font-weight:500">Index</span></div>
+    <div class="brand"><span class="logo" id="logo"></span><span class="brand-t">Integrity<span style="color:var(--muted);font-weight:500">Index</span></span><button type="button" class="side-btn" id="sideBtn" aria-label="Згорнути меню" aria-expanded="true"></button></div>
     <label class="search"><span id="ic-search"></span><input id="q" placeholder="Пошук" aria-label="Пошук по сторінках і показниках"><span class="kbd" id="kbd"></span></label>
     <div class="nav-label">Меню</div>
     <nav class="nav" id="nav"></nav>
@@ -797,6 +835,8 @@ const IC = {
   scale: I('<path d="M12 3v18M7 21h10M5 7h14"/><path d="M5 7l-3 6a3 3 0 0 0 6 0zM19 7l-3 6a3 3 0 0 0 6 0z"/>'),
   copy: I('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'),
   chev: I('<path d="M6 9l6 6 6-6"/>'),
+  chevL: I('<path d="M15 6l-6 6 6 6"/>'),
+  chevR: I('<path d="M9 6l6 6-6 6"/>'),
   plus: I('<path d="M12 5v14M5 12h14"/>'),
   dots: I('<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>', 2.4),
   a11y: I('<circle cx="12" cy="4.5" r="1.8"/><path d="M5 8.5l7 1.5 7-1.5M12 10v5M12 15l-3.5 6M12 15l3.5 6"/>'),
@@ -923,10 +963,13 @@ const ALPHA_EVENTS = [
   { after: "2025-12", t: "Виконано захід: канал анонімних звернень" },
   { after: "2026-06", t: "Виконано захід: навчання для кураторів груп" },
 ];
+// Демо охоплює всі рівні зрілості й усі варіанти достовірності:
+// «Гамма» 5 і A, «Сигма» 4 і B, «Альфа» 3 і C (еталон), «Бета» 2 і «Недостатньо даних», «Омега» 1 і C.
 const OTHERS = [
-  { id: "beta", name: "Умовний навчальний центр «Бета»", seed: 11, perception: [62, 58, 66], facts: [55, 50, 52] },
-  { id: "gamma", name: "Умовна академія «Гамма»", seed: 23, perception: [72, 68, 70], facts: [70, 64, 66] },
-  { id: "omega", name: "Умовний університет «Омега»", seed: 37, perception: [44, 40, 48], facts: [40, 36, 38], declining: "system" },
+  { id: "beta", name: "Умовний навчальний центр «Бета»", seed: 11, perception: [32, 27, 30], facts: [27, 22, 25], flags: [], responses: 7 },
+  { id: "gamma", name: "Умовна академія «Гамма»", seed: 23, perception: [96, 94, 95], facts: [94, 92, 93], flags: [], responses: 71 },
+  { id: "omega", name: "Умовний університет «Омега»", seed: 37, perception: [12, 9, 11], facts: [5, 3, 4], declining: "all", flags: ["tf-jump", "tf-experts"], responses: 42 },
+  { id: "sigma", name: "Умовна військова академія «Сигма»", seed: 53, perception: [80, 75, 78], facts: [74, 70, 72], flags: ["tf-same"], responses: 56 },
 ];
 function rng(seed) {
   let t = seed >>> 0;
@@ -979,12 +1022,12 @@ function buildOther(o) {
   const series = [{ cycle: CYCLE, index: indexOf(cr), cr }];
   let u = cr;
   for (const cy of ["2026-06", "2025-12", "2025-06"]) {
-    const prev = Object.fromEntries(COMPS.map(c => { const d = 2 + t() * 5, a = o.declining === c && cy === "2026-06" ? -3 : d; return [c, r1(clamp(u[c] - a))]; }));
+    const prev = Object.fromEntries(COMPS.map(c => { const d = 2 + t() * 5, a = (o.declining === c || o.declining === "all") && cy === "2026-06" ? (o.declining === "all" ? -(6 + t() * 4) : -3) : d; return [c, r1(clamp(u[c] - a))]; }));
     series.unshift({ cycle: cy, index: indexOf(prev), cr: prev }); u = prev;
   }
   const lim = comps.find(c => c.cr.lim);
-  const flags = FLAGS.map(f => ({ ...f, t: f.id === "tf-gap" && lim ? `Розбіжність сприйняття й фактів у ${COMP[lim.id].loc} (${fb(lim.P)} проти ${fb(lim.F)})` : f.t, raised: f.id === "tf-gap" ? !!lim : f.id !== "tf-jump" && t() < 0.35 }));
-  const responses = 40 + Math.floor(t() * 30);
+  const flags = FLAGS.map(f => ({ ...f, t: f.id === "tf-gap" && lim ? `Розбіжність сприйняття й фактів у ${COMP[lim.id].loc} (${fb(lim.P)} проти ${fb(lim.F)})` : f.t, raised: f.id === "tf-gap" ? !!lim : o.flags ? o.flags.includes(f.id) : f.id !== "tf-jump" && t() < 0.35 }));
+  const responses = o.responses ?? 40 + Math.floor(t() * 30);
   const m = finish({ id: o.id, name: o.name, components: comps, pItems, fItems, series, flags, responses,
     events: [{ after: "2025-12", t: "Виконано захід: оновлено процедури" }, { after: "2026-06", t: "Виконано захід: проведено навчання" }] });
   const sorted = [...comps].sort((a, b) => a.cr.v - b.cr.v), top = sorted[sorted.length - 1];
@@ -1003,7 +1046,7 @@ function inst(id) {
   m.edrpou = EDRPOU[m.id]; return m;
 }
 // Синтетичні коди ЄДРПОУ (не справжні) і синтетичний «реєстр» для демо пошуку
-const EDRPOU = { alpha: "99000101", beta: "99000102", gamma: "99000103", omega: "99000104" };
+const EDRPOU = { alpha: "99000101", beta: "99000102", gamma: "99000103", omega: "99000104", sigma: "99000106" };
 const REGISTRY = [
   ["99000101", "Умовний військовий інститут «Альфа»"], ["99000102", "Умовний навчальний центр «Бета»"], ["99000103", "Умовна академія «Гамма»"], ["99000104", "Умовний університет «Омега»"],
   ["99000105", "Умовний військовий ліцей «Дельта»"], ["99000106", "Умовна військова академія «Сигма»"], ["99000107", "Умовний навчальний центр «Каппа»"], ["99000108", "Умовний інститут «Лямбда»"],
@@ -1157,11 +1200,11 @@ const DEFAULTS = () => ({
   facts: {}, fpend: {}, dec: { rec: {}, mst: {}, added: [] }, qs: QUESTIONNAIRES.map(q => ({ ...q })),
   log: [], notes: [], aiOn: true, tokenUsed: false,
   mode: "credited", trackView: "table", recF: { st: "all", c: "all" }, trF: { st: "all", who: "all" },
-  trend: { from: 0, to: 3, lines: [] }, cmp: { a: 0, b: 3 }, cmpCycle: -1, a11y: { z: 1, hc: false }, insts: { extra: [], renamed: {}, archived: [] }, instQ: "", instArch: false,
+  trend: { from: 0, to: 3, lines: [] }, cmp: { a: 0, b: 3 }, cmpCycle: -1, a11y: { z: 1, hc: false }, insts: { extra: [], renamed: {}, archived: [] }, instQ: "", instArch: false, guideOpen: false,
 });
 const S = Object.assign(DEFAULTS(), { chat: [], survey: { phase: "intro", sec: 0, a: {}, miss: false }, open: {} });
 const KEY = "ii-proto-v2";
-const SAVE = ["role", "k", "inst", "unit", "cycleOpen", "facts", "fpend", "dec", "qs", "log", "notes", "aiOn", "tokenUsed", "mode", "trackView", "recF", "trF", "trend", "cmp", "cmpCycle", "a11y", "insts", "instArch"];
+const SAVE = ["role", "k", "inst", "unit", "cycleOpen", "facts", "fpend", "dec", "qs", "log", "notes", "aiOn", "tokenUsed", "mode", "trackView", "recF", "trF", "trend", "cmp", "cmpCycle", "a11y", "insts", "instArch", "guideOpen"];
 try { const saved = JSON.parse(localStorage.getItem(KEY) || "null"); if (saved) SAVE.forEach(k => { if (saved[k] !== undefined) S[k] = saved[k]; }); } catch (e) {}
 try { const d = JSON.parse(localStorage.getItem("ii-survey-draft") || "null"); if (d) S.survey.a = d; } catch (e) {}
 const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(SAVE.map(k => [k, S[k]])))); } catch (e) {} };
@@ -1192,7 +1235,7 @@ const f2 = v => v.toLocaleString("uk-UA", { minimumFractionDigits: 2, maximumFra
 const pts = v => { const a = Math.abs(r1(v)); const w = Number.isInteger(a) ? (a % 10 === 1 && a % 100 !== 11 ? "пункт" : [2, 3, 4].includes(a % 10) && ![12, 13, 14].includes(a % 100) ? "пункти" : "пунктів") : "пункта"; return `${fb(a)} ${w}`; };
 const ua = d => d.split("-").reverse().join(".");
 const numHTML = (v, d = 1) => { const s = d ? f1(v) : fb(v); const [a, b] = s.split(","); return `<span class="cu" data-v="${v}" data-d="${d}">${a}<span class="dec">${b ? "," + b : ""}</span></span>`; };
-const deltaHTML = (d, suf = "") => { const up = d > 0, dn = d < 0; return `<span class="delta ${up ? "up" : dn ? "down" : "flat"}"><i>${up ? IC.up : dn ? IC.down : IC.flat}</i><b>${up || dn ? pts(d) : "Без змін"}</b>${up ? " зросло" : dn ? " знизилось" : ""}${suf ? " " + suf : ""}</span>`; };
+const deltaHTML = (d, suf = "") => { const up = d > 0, dn = d < 0; return `<span class="delta ${up ? "up" : dn ? "down" : "flat"}"><i>${up ? IC.up : dn ? IC.down : IC.flat}</i><span>${up ? "Зросло на " : dn ? "Знизилось на " : ""}<b>${up || dn ? pts(d) : "Без змін"}</b>${suf ? " " + suf : ""}</span></span>`; };
 const pill = (txt, cls) => `<span class="pill ${cls}">${txt}</span>`;
 const lvPill = l => `<span class="pill lv lv${l} nodot" data-tip="Рівень зрілості ${l} з 5: ${LSHORT[l - 1]}<small>${LDESC[l - 1]}</small>"><b>${l}</b>${LSHORT[l - 1]}</span>`;
 const trustPill = g => `<span class="pill ${TRUST[g][3]} nodot" data-tip="${esc(TRUST[g][2])}">${g === "insufficient" ? "" : `<b>${g}</b>`}${TRUST[g][1]}</span>`;
@@ -1267,10 +1310,22 @@ function trendChart(el, rows, lines, events, showIdx = true) {
   const heads = `<text x="${L - 8}" y="${T - 12}" text-anchor="end" class="ax">0–100</text>${wide ? `<text x="${w - Rr + 8}" y="${T - 12}" class="ax">Рівень зрілості</text>` : ""}`;
   const p = rows.map((r, i) => [X(i), Y(r.index)]);
   const area = n > 1 && showIdx ? `<path d="${smooth(p)} L${X(n - 1)},${Y(0)} L${X(0)},${Y(0)}Z" class="area-fill reveal"/>` : "";
-  const compLines = lines.map(c => { const q = rows.map((r, i) => [X(i), Y(r.cr[c])]); return `<path d="${n > 1 ? smooth(q) : ""}" fill="none" stroke="${COMP[c].c}" stroke-width="2" stroke-dasharray="6 5" class="draw" style="--len:3000"/>${q.map(([x, y], i) => `<rect x="${x - 4}" y="${y - 4}" width="8" height="8" rx="2" fill="${COMP[c].c}" class="pop" data-tip="${COMP[c].n}: ${fb(rows[i].cr[c])}<small>Цикл ${rows[i].cycle}</small>"/>${showIdx ? "" : `<text x="${x}" y="${y - 10}" text-anchor="middle" class="ax-strong">${fb(rows[i].cr[c])}</text>`}`).join("")}`; }).join("");
-  const idx = showIdx ? `<path d="${n > 1 ? smooth(p) : ""}" class="line-teal draw" style="stroke-dasharray:3000;--len:3000"/>${p.map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="5" fill="var(--panel)" stroke="var(--teal)" stroke-width="2.5" class="pop" style="animation-delay:${500 + i * 120}ms" data-tip="Індекс ${f1(rows[i].index)} · рівень ${level(rows[i].index)}<small>Цикл ${rows[i].cycle}</small>"/><text x="${x}" y="${y - 12}" text-anchor="middle" class="ax-strong">${f1(rows[i].index)}</text>`).join("")}` : "";
+  // Підписи значень: по одному на кожну видиму лінію в кожному циклі, розсунуті по вертикалі, щоб не накладались
+  const labs = rows.map(() => []);
+  if (showIdx) rows.forEach((r, i) => labs[i].push({ y: Y(r.index), t: f1(r.index), c: "var(--fg)" }));
+  lines.forEach(c => rows.forEach((r, i) => labs[i].push({ y: Y(r.cr[c]), t: fb(r.cr[c]), c: COMP[c].c })));
+  const GAP = 14, labels = labs.map((L0, i) => {
+    // стопка підписів над групою точок (зверху найбільше значення); якщо зверху немає місця, то під групою
+    const s = [...L0].sort((a, b) => a.y - b.y), top = s[0].y, bot = s[s.length - 1].y, k = s.length;
+    const above = top - 10 - (k - 1) * GAP >= 14;
+    s.forEach((l, j) => { l.ly = above ? top - 10 - (k - 1 - j) * GAP : bot + 18 + j * GAP; });
+    const anchor = n > 1 && i === n - 1 ? "end" : n > 1 && i === 0 ? "start" : "middle", dx = anchor === "end" ? -6 : anchor === "start" ? 6 : 0;
+    return s.map(l => `<text x="${X(i) + dx}" y="${l.ly + 4}" text-anchor="${anchor}" class="ax-strong lbl-halo" style="fill:${l.c}">${l.t}</text>`).join("");
+  }).join("");
+  const compLines = lines.map(c => { const q = rows.map((r, i) => [X(i), Y(r.cr[c])]); return `<path d="${n > 1 ? smooth(q) : ""}" fill="none" stroke="${COMP[c].c}" stroke-width="2" stroke-dasharray="6 5" class="draw" style="--len:3000"/>${q.map(([x, y], i) => `<rect x="${x - 4}" y="${y - 4}" width="8" height="8" rx="2" fill="${COMP[c].c}" class="pop" data-tip="${COMP[c].n}: ${fb(rows[i].cr[c])}<small>Цикл ${rows[i].cycle}</small>"/>`).join("")}`; }).join("");
+  const idx = showIdx ? `<path d="${n > 1 ? smooth(p) : ""}" class="line-teal draw" style="stroke-dasharray:3000;--len:3000"/>${p.map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="5" fill="var(--panel)" stroke="var(--teal)" stroke-width="2.5" class="pop" style="animation-delay:${500 + i * 120}ms" data-tip="Індекс ${f1(rows[i].index)} · рівень ${level(rows[i].index)}<small>Цикл ${rows[i].cycle}</small>"/>`).join("")}` : "";
   const ev = events.map(e => { const i = rows.findIndex(r => r.cycle === e.after); if (i < 0 || i >= n - 1) return ""; const x = (X(i) + X(i + 1)) / 2, y = h - B + 21; return `<g class="pop" data-tip="${esc(e.t)}<small>Після циклу ${e.after}</small>"><rect x="${x - 6}" y="${y - 6}" width="12" height="12" fill="var(--panel)" stroke="var(--fg)" stroke-width="1.6" transform="rotate(45 ${x} ${y})"/></g>`; }).join("");
-  el.innerHTML = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Динаміка індексу доброчесності">${DEFS}${grid}${bounds}${bands}${heads}${area}${idx}${compLines}
+  el.innerHTML = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Динаміка індексу доброчесності">${DEFS}${grid}${bounds}${bands}${heads}${area}${idx}${compLines}${labels}
     ${rows.map((r, i) => `<text x="${X(i)}" y="${h - B + 6}" text-anchor="middle" class="ax" style="dominant-baseline:hanging">${r.cycle}</text>`).join("")}${ev}</svg>`;
 }
 // Радар компонентів (два цикли)
@@ -1287,7 +1342,7 @@ function radar(el, series) {
 function levelBar(v) {
   const spans = [[0, 12.5], [12.5, 37.5], [37.5, 62.5], [62.5, 87.5], [87.5, 100]], lv = level(v);
   return `<div class="lvscale" role="img" aria-label="Індекс ${f1(v)}: рівень ${lv} з 5, ${LSHORT[lv - 1]}">
-    <div class="lvs-mark" style="left:${v}%"><b class="tnum">${f1(v)}</b><i></i></div>
+    <div class="lvs-mark" style="left:${v}%;transform:translateX(${v < 8 ? "-6px" : v > 92 ? "calc(-100% + 6px)" : "-50%"});align-items:${v < 8 ? "flex-start" : v > 92 ? "flex-end" : "center"}"><b class="tnum">${f1(v)}</b><i></i></div>
     <div class="lvs-bar">${spans.map(([lo, hi], i) => `<span class="lv-b${i + 1} ${i + 1 === lv ? "here" : ""}" style="flex:${hi - lo}" data-tip="Рівень ${i + 1}: ${LSHORT[i]}<small>Індекс від ${fb(lo)} до ${fb(hi)}</small>"></span>`).join("")}</div>
     <div class="lvs-lbl">${spans.map(([lo, hi], i) => `<div style="flex:${hi - lo}" class="${i + 1 === lv ? "here" : ""}"><b>${i + 1}</b><span>${LSHORT[i]}</span><small class="tnum">${fb(lo)}–${fb(hi)}</small></div>`).join("")}</div>
   </div>`;
@@ -1388,6 +1443,7 @@ function openResp() {
     <div><div class="lbl" style="margin-bottom:6px">За групами</div><div class="rows">${gs.map(g => { const hid = g.resp < S.k && g.unit; return `<div class="row"><div class="grow"><div class="t">${g.n}</div><div class="dist-bar" style="margin-top:6px"><i style="width:${g.resp / g.inv * 100}%;background:${hid ? "var(--faint)" : "var(--teal)"}"></i></div></div><b class="tnum">${g.resp} з ${g.inv}</b>${hid ? pill("Приховано", "p-mute nodot") : ""}</div>`; }).join("")}</div></div>
     <div class="note-box"><b>Мінімальна група k = ${S.k}</b><span class="lbl">Результати групи показуються, лише якщо відповіли щонайменше ${S.k} людей. Менші групи додаються до вищого рівня, щоб нікого не можна було впізнати. Окремі відповіді не зберігаються разом з особою: жетон одноразовий і не повʼязаний з іменем.</span></div>`);
 }
+const LIST_MAX = 3; // скільки пунктів показувати в «Що потребує уваги» і «Сильні сторони» до розгортання
 function goAttn() {
   const n = cur().attention.filter(a => a.v < 65).length;
   if (!n) return toast("Напрямів, що потребують уваги, немає: усі компоненти мають 65 і більше");
@@ -1406,9 +1462,10 @@ V.overview = () => {
   <section class="card c8 rise">${trendCard(m, "ovTrend")}</section>
   <section class="card c4 rise" id="attn">
     <div class="card-h"><h2>Що потребує уваги</h2></div>
-    <div class="rows">${m.attention.map(a => `<a class="row click" href="#explain/${a.c === "culture" || a.c === "accountability" ? (a.t.startsWith("Підтвердити") || a.t.startsWith("Більше") ? a.c : a.c) : a.c}" data-tip="${esc(a.hint)}"><span class="dot" style="background:${SCOL[status(a.v)]}"></span><div class="grow"><div class="t">${a.t}</div></div>${pill(COMP[a.c].n, "p-mute nodot")}<b class="tnum">${fb(a.v)}</b></a>`).join("")}</div>
-    <div class="lbl" style="margin:16px 0 4px">Сильні сторони</div>
-    <div class="rows">${m.strengths.map(a => `<a class="row click" href="${a.c ? "#explain/" + a.c : "#trends"}" data-tip="${esc(a.hint)}"><span class="dot" style="background:var(--teal)"></span><div class="grow"><div class="t">${a.t}</div></div><b class="tnum">${a.unit ? "+" : ""}${fb(a.v)}</b></a>`).join("")}</div>
+    <div class="rows">${(S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX)).map(a => `<a class="row click" href="#explain/${a.c === "culture" || a.c === "accountability" ? (a.t.startsWith("Підтвердити") || a.t.startsWith("Більше") ? a.c : a.c) : a.c}" data-tip="${esc(a.hint)}"><span class="dot" style="background:${SCOL[status(a.v)]}"></span><div class="grow"><div class="t">${a.t}</div></div>${pill(COMP[a.c].n, "p-mute nodot")}<b class="tnum">${fb(a.v)}</b></a>`).join("")}</div>
+    <div class="card-h" style="margin:20px 0 6px"><h2>Сильні сторони</h2></div>
+    <div class="rows">${(S.attnAll ? m.strengths : m.strengths.slice(0, LIST_MAX)).map(a => `<a class="row click" href="${a.c ? "#explain/" + a.c : "#trends"}" data-tip="${esc(a.hint)}"><span class="dot" style="background:var(--teal)"></span><div class="grow"><div class="t">${a.t}</div></div><b class="tnum">${a.unit ? "+" : ""}${fb(a.v)}</b></a>`).join("")}</div>
+  ${m.attention.length > LIST_MAX || m.strengths.length > LIST_MAX ? `<button class="link-btn" style="margin-top:8px" onclick="S.attnAll=!S.attnAll;render(true)">${S.attnAll ? "Згорнути" : `Показати всі (${m.attention.length + m.strengths.length})`}</button>` : ""}
   </section>
   ${m.components.map((c, ci) => {
     const C = COMP[c.id], pv = prev.cr[c.id], d = r1(c.cr.v - pv), lv = level(c.cr.v);
@@ -1418,7 +1475,7 @@ V.overview = () => {
         <div><div class="mid tnum">${numHTML(c.cr.v)}</div><div style="margin-top:6px">${deltaHTML(d)}</div></div>
         <div class="pf">${[["Сприйняття", c.P, "var(--blue)"], ["Факти", c.F, "var(--amber)"], ["Зараховано", c.cr.v, C.c]].map(([n, v, col], j) => `<div data-tip="${n}: ${fb(v)}"><i class="bar-a" style="height:${Math.max(4, v * .6)}px;background:${col};animation-delay:${300 + ci * 100 + j * 80}ms"></i><small>${n[0]}</small></div>`).join("")}</div>
       </div>
-      <div style="margin-top:14px;min-height:26px">${c.cr.lim ? pill("Зараховано з обмеженням", "p-warn") : `<span class="lbl">Сприйняття ${fb(c.P)} · факти ${fb(c.F)}</span>`}</div>
+      ${c.cr.lim ? `<div style="margin-top:14px">${pill("Зараховано з обмеженням", "p-warn")}</div>` : ""}
     </a>`;
   }).join("")}
   <section class="card c8 rise">
@@ -1426,6 +1483,8 @@ V.overview = () => {
     <div class="lbl" style="margin-bottom:14px">Індекс ${f1(m.index)} з 100 відповідає рівню ${m.level} «${LEVELS[m.level - 1]}» за Моделлю зрілості НАЗК.</div>
     ${levelBar(m.index)}
     <div class="lbl" style="margin-top:14px">${LDESC[m.level - 1]}</div>
+    <div class="lbl" style="margin:20px 0 8px">Компоненти на тій самій шкалі</div>
+    <div class="lv-comps">${m.components.map(c => { const v = c.cr.v, l = level(v); return `<a class="lv-comp" href="#explain/${c.id}"><b>${COMP[c.id].n}</b><div class="lvc-track">${[12.5, 25, 25, 25, 12.5].map((w, i) => `<span class="lv-b${i + 1} ${i + 1 === l ? "here" : ""}" style="flex:${w}"></span>`).join("")}<i style="left:${v}%" data-tip="${COMP[c.id].n}: ${fb(v)}"></i></div><span class="tnum">${fb(v)}</span>${lvPill(l)}</a>`; }).join("")}</div>
   </section>
   <section class="card c4 rise">
     <div class="card-h"><h2>Радар компонентів</h2></div>
@@ -1475,7 +1534,7 @@ function drawPeriod() {
   $("#pop").innerHTML = `<div class="lbl" style="text-transform:uppercase;letter-spacing:.06em;font-size:11px">Оберіть період</div>
     <div style="font-size:17px;font-weight:600;margin:2px 0 10px">${pickA != null ? `${sr[pickA].cycle} – …` : `${sr[from].cycle} – ${sr[to].cycle}`}</div>
     ${years.map(y => `<div class="mp-y">${y}</div><div class="mp">${MON.map((mn, i) => { const cy = `${y}-${String(i + 1).padStart(2, "0")}`, k = sr.findIndex(r => r.cycle === cy); if (k < 0) return `<span class="off">${mn}</span>`; const end = k === lo || k === hi, mid = k > lo && k < hi; return `<button class="${end ? "end" : mid ? "mid" : ""}" onclick="pickCycle(${k})" data-tip="Цикл ${cy}">${mn}</button>`; }).join("")}</div>`).join("")}
-    <div class="lbl" style="margin-top:8px">${pickA != null ? "Тепер оберіть кінець періоду." : "Активні місяці це цикли оцінювання. Клацніть початок, потім кінець."}</div>
+    <div class="lbl" style="margin-top:8px">Активні місяці це цикли оцінювання.</div>
     <div style="display:flex;justify-content:space-between;margin-top:10px"><button class="link-btn" onclick="S.trend.from=0;S.trend.to=${sr.length - 1};persist();closePop();render(true)">Увесь період</button><button class="link-btn" onclick="S.trend.from=${Math.max(0, sr.length - 2)};S.trend.to=${sr.length - 1};persist();closePop();render(true)">Останні два цикли</button></div>`;
 }
 function pickCycle(k) {
@@ -1719,8 +1778,8 @@ function openSource(i) {
 
 /* Заклади (спостерігач) */
 const readGuide = title => `
-  <section class="card c12 rise">
-    <div class="card-h"><h2>${title}</h2></div>
+  <details class="card c12 rise guide" ${S.guideOpen ? "open" : ""} ontoggle="S.guideOpen=this.open;persist()">
+    <summary class="card-h"><h2>${title}</h2><div class="sp"></div><span class="lbl guide-hint"></span><span class="chev">${IC.chev}</span></summary>
     <div class="legend3">
       <div><h3>Індекс доброчесності</h3><p class="lbl">Число від 0 до 100: середнє трьох компонентів (Культура, Система, Підзвітність). Кожен компонент поєднує анкети персоналу й факти з документів. Чим вище, тим краще працює система доброчесності закладу. Оцінюється система, а не окремі люди.</p></div>
       <div><h3>Рівень зрілості</h3><p class="lbl" style="margin-bottom:8px">Рівень за Моделлю зрілості НАЗК, визначається за індексом.</p>
@@ -1728,7 +1787,7 @@ const readGuide = title => `
       <div><h3>Достовірність</h3><p class="lbl" style="margin-bottom:8px">Наскільки можна довіряти результату. Залежить від прапорців: автоматичних перевірок даних на розбіжності й підозрілі відповіді.</p>
         <div class="rows">${["A", "B", "C", "insufficient"].map(g => `<div class="row" style="align-items:flex-start;gap:10px">${trustPill(g)}<div class="grow lbl" style="font-size:12.5px">${TRUST[g][2]}</div></div>`).join("")}</div></div>
     </div>
-  </section>`;
+  </details>`;
 
 V.institutions = () => {
   const q = S.instQ.trim().toLowerCase(), arch = S.insts.archived;
@@ -2251,7 +2310,7 @@ function updateBadges() {
   });
 }
 function renderNav(cur) {
-  $("#nav").innerHTML = NAV.filter(n => n[3].includes(S.role)).map(([r, n, ic]) => `<a href="#${r}" data-r="${r}" class="${r === cur ? "on" : ""}" ${r === cur ? 'aria-current="page"' : ""}>${IC[ic]}<span>${n}</span></a>`).join("");
+  $("#nav").innerHTML = NAV.filter(n => n[3].includes(S.role)).map(([r, n, ic]) => `<a href="#${r}" data-r="${r}" class="${r === cur ? "on" : ""}" ${r === cur ? 'aria-current="page"' : ""} aria-label="${n}"${document.documentElement.classList.contains("side-mini") ? ` data-tip="${n}"` : ""}>${IC[ic]}<span>${n}</span></a>`).join("");
   updateBadges();
 }
 const TITLES = { overview: () => S.role === "observer" ? "Огляд закладу" : "Огляд закладу", explain: () => "Розклад індексу", trends: () => "Динаміка", compare: () => "Порівняння: сприйняття і факти", recs: () => "Рекомендації", tracker: () => "Трекер заходів", sources: () => "Джерела", report: () => "Звіт", manage: () => "Керування циклом", surveys: () => "Анкети", checklist: () => "Чек-лист", audit: () => "Журнал", survey: () => "Анонімне опитування", me: () => "Мої результати", institutions: () => "Заклади" };
@@ -2324,6 +2383,16 @@ function setZoom(d) { S.a11y.z = Math.round(clamp(S.a11y.z + d * .125, 1, 1.5) *
 $("#a11yBtn").innerHTML = IC.a11y;
 $("#a11yBtn").onclick = e => { const p = $("#pop"), b = e.currentTarget; if (p.classList.contains("on") && p._btn === b) return closePop(); p._btn = b; drawA11y(); p.classList.add("on"); placePop(b); };
 applyA11y();
+/* Згортання бічного меню (на широких екранах): лишаються лише іконки */
+function setSide(mini) {
+  document.documentElement.classList.toggle("side-mini", mini);
+  const b = $("#sideBtn"); b.innerHTML = mini ? IC.chevR : IC.chevL; b.setAttribute("aria-label", mini ? "Розгорнути меню" : "Згорнути меню"); b.setAttribute("aria-expanded", String(!mini)); b.dataset.tip = mini ? "Розгорнути меню" : "Згорнути меню";
+  try { localStorage.setItem("ii-side", mini ? "mini" : ""); } catch (e) {}
+  const { r } = route(); renderNav(r); setTimeout(() => V[r] && V[r].after && V[r].after(), 260);
+}
+$("#sideBtn").onclick = () => setSide(!document.documentElement.classList.contains("side-mini"));
+document.querySelector(".side .search").addEventListener("click", () => { if (document.documentElement.classList.contains("side-mini")) { setSide(false); setTimeout(() => $("#q").focus(), 50); } });
+try { setSide(localStorage.getItem("ii-side") === "mini"); } catch (e) { setSide(false); }
 $("#aiLogo").innerHTML = IC.spark.replace("<svg", '<svg width="17" height="17"');
 $("#aiClose").innerHTML = IC.x; $("#aiClose").onclick = aiClose;
 $("#aiSend").innerHTML = IC.send;
