@@ -10586,6 +10586,19 @@
             "type": "array",
             "maxItems": 20,
             "title": "History"
+          },
+          "unit_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Id",
+            "description": "Підрозділ, відкритий на екрані (підказка моделі)"
           }
         },
         "type": "object",
@@ -10603,6 +10616,14 @@
           "model": {
             "type": "string",
             "title": "Model"
+          },
+          "tools": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tools",
+            "description": "Які інструменти викликано (для прозорості відповіді)"
           }
         },
         "type": "object",

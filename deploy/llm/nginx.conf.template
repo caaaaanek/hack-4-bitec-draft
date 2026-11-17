@@ -1,0 +1,29 @@
+# Шлюз до Ollama: пускає лише з ключем (Authorization: Bearer <LLM_API_KEY>) і лише два маршрути
+# OpenAI-сумісного API. Решта API Ollama (pull, delete, create) назовні недоступна.
+# ${LLM_API_KEY} підставляє envsubst образу nginx; змінні nginx ($http_…) лишаються як є.
+server {
+    listen 8080;
+    server_tokens off;
+    client_max_body_size 1m;
+
+    if ($http_authorization != "Bearer ${LLM_API_KEY}") {
+        return 401;
+    }
+
+    location = /v1/chat/completions {
+        proxy_pass http://ollama:11434;
+        proxy_http_version 1.1;
+        proxy_set_header Host localhost;
+        proxy_read_timeout 180s;
+        proxy_buffering off;
+    }
+
+    location = /v1/models {
+        proxy_pass http://ollama:11434;
+        proxy_set_header Host localhost;
+    }
+
+    location / {
+        return 404;
+    }
+}
