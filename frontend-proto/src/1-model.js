@@ -32,6 +32,8 @@ const IC = {
   scale: I('<path d="M12 3v18M7 21h10M5 7h14"/><path d="M5 7l-3 6a3 3 0 0 0 6 0zM19 7l-3 6a3 3 0 0 0 6 0z"/>'),
   copy: I('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'),
   chev: I('<path d="M6 9l6 6 6-6"/>'),
+  chevL: I('<path d="M15 6l-6 6 6 6"/>'),
+  chevR: I('<path d="M9 6l6 6-6 6"/>'),
   plus: I('<path d="M12 5v14M5 12h14"/>'),
   dots: I('<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>', 2.4),
   a11y: I('<circle cx="12" cy="4.5" r="1.8"/><path d="M5 8.5l7 1.5 7-1.5M12 10v5M12 15l-3.5 6M12 15l3.5 6"/>'),
@@ -159,10 +161,13 @@ const ALPHA_EVENTS = [
   { after: "2025-12", t: "Виконано захід: канал анонімних звернень" },
   { after: "2026-06", t: "Виконано захід: навчання для кураторів груп" },
 ];
+// Демо охоплює всі рівні зрілості й усі варіанти достовірності:
+// «Гамма» 5 і A, «Сигма» 4 і B, «Альфа» 3 і C (еталон), «Бета» 2 і «Недостатньо даних», «Омега» 1 і C.
 const OTHERS = [
-  { id: "beta", name: "Умовний навчальний центр «Бета»", seed: 11, perception: [62, 58, 66], facts: [55, 50, 52] },
-  { id: "gamma", name: "Умовна академія «Гамма»", seed: 23, perception: [72, 68, 70], facts: [70, 64, 66] },
-  { id: "omega", name: "Умовний університет «Омега»", seed: 37, perception: [44, 40, 48], facts: [40, 36, 38], declining: "system" },
+  { id: "beta", name: "Умовний навчальний центр «Бета»", seed: 11, perception: [32, 27, 30], facts: [27, 22, 25], flags: [], responses: 7 },
+  { id: "gamma", name: "Умовна академія «Гамма»", seed: 23, perception: [96, 94, 95], facts: [94, 92, 93], flags: [], responses: 71 },
+  { id: "omega", name: "Умовний університет «Омега»", seed: 37, perception: [12, 9, 11], facts: [5, 3, 4], declining: "all", flags: ["tf-jump", "tf-experts"], responses: 42 },
+  { id: "sigma", name: "Умовна військова академія «Сигма»", seed: 53, perception: [80, 75, 78], facts: [74, 70, 72], flags: ["tf-same"], responses: 56 },
 ];
 function rng(seed) {
   let t = seed >>> 0;
@@ -215,20 +220,24 @@ function buildOther(o) {
   const series = [{ cycle: CYCLE, index: indexOf(cr), cr }];
   let u = cr;
   for (const cy of ["2026-06", "2025-12", "2025-06"]) {
-    const prev = Object.fromEntries(COMPS.map(c => { const d = 2 + t() * 5, a = o.declining === c && cy === "2026-06" ? -3 : d; return [c, r1(clamp(u[c] - a))]; }));
+    const prev = Object.fromEntries(COMPS.map(c => { const d = 2 + t() * 5, a = (o.declining === c || o.declining === "all") && cy === "2026-06" ? (o.declining === "all" ? -(6 + t() * 4) : -3) : d; return [c, r1(clamp(u[c] - a))]; }));
     series.unshift({ cycle: cy, index: indexOf(prev), cr: prev }); u = prev;
   }
   const lim = comps.find(c => c.cr.lim);
-  const flags = FLAGS.map(f => ({ ...f, t: f.id === "tf-gap" && lim ? `Розбіжність сприйняття й фактів у ${COMP[lim.id].loc} (${fb(lim.P)} проти ${fb(lim.F)})` : f.t, raised: f.id === "tf-gap" ? !!lim : f.id !== "tf-jump" && t() < 0.35 }));
-  const responses = 40 + Math.floor(t() * 30);
+  const flags = FLAGS.map(f => ({ ...f, t: f.id === "tf-gap" && lim ? `Розбіжність сприйняття й фактів у ${COMP[lim.id].loc} (${fb(lim.P)} проти ${fb(lim.F)})` : f.t, raised: f.id === "tf-gap" ? !!lim : o.flags ? o.flags.includes(f.id) : f.id !== "tf-jump" && t() < 0.35 }));
+  const responses = o.responses ?? 40 + Math.floor(t() * 30);
   const m = finish({ id: o.id, name: o.name, components: comps, pItems, fItems, series, flags, responses,
     events: [{ after: "2025-12", t: "Виконано захід: оновлено процедури" }, { after: "2026-06", t: "Виконано захід: проведено навчання" }] });
   const sorted = [...comps].sort((a, b) => a.cr.v - b.cr.v), top = sorted[sorted.length - 1];
   m.attention = sorted.map(c => ({ t: ATTN_TITLE[c.id], c: c.id, v: c.cr.v, hint: `Зараховане значення компонента ${COMP[c.id].n}, 0-100.` }));
   m.strengths = [
     { t: `Найвищий результат у компоненті ${COMP[top.id].n}`, c: top.id, v: top.cr.v, hint: `Зараховане значення компонента ${COMP[top.id].n}, 0-100.` },
-    { t: "Зростання індексу кілька циклів поспіль", v: r1(m.index - series[0].index), hint: "Сумарне зростання індексу з першого циклу, у пунктах.", unit: "пт" },
   ];
+  // «Зростання поспіль» лише якщо індекс справді зростав останні цикли
+  let k = series.length - 1; while (k > 0 && series[k].index > series[k - 1].index) k--;
+  const streak = series.length - 1 - k;
+  if (streak >= 2) m.strengths.push({ t: `Зростання індексу ${streak === 2 ? "два" : streak === 3 ? "три" : streak} цикли поспіль`, v: r1(m.index - series[k].index), hint: `Сумарне зростання індексу з циклу ${series[k].cycle}, у пунктах.`, unit: "пт" });
+  else if (m.delta > 0) m.strengths.push({ t: "Індекс зріс за останній цикл", v: m.delta, hint: "Зміна індексу порівняно з попереднім циклом, у пунктах.", unit: "пт" });
   return m;
 }
 const OTHER_MODELS = {};
@@ -240,7 +249,7 @@ function inst(id) {
   m.edrpou = EDRPOU[m.id]; return m;
 }
 // Синтетичні коди ЄДРПОУ (не справжні) і синтетичний «реєстр» для демо пошуку
-const EDRPOU = { alpha: "99000101", beta: "99000102", gamma: "99000103", omega: "99000104" };
+const EDRPOU = { alpha: "99000101", beta: "99000102", gamma: "99000103", omega: "99000104", sigma: "99000106" };
 const REGISTRY = [
   ["99000101", "Умовний військовий інститут «Альфа»"], ["99000102", "Умовний навчальний центр «Бета»"], ["99000103", "Умовна академія «Гамма»"], ["99000104", "Умовний університет «Омега»"],
   ["99000105", "Умовний військовий ліцей «Дельта»"], ["99000106", "Умовна військова академія «Сигма»"], ["99000107", "Умовний навчальний центр «Каппа»"], ["99000108", "Умовний інститут «Лямбда»"],
@@ -317,7 +326,7 @@ const BASE_MEASURES = [
   { id: "m-6", rec: "Оновити порядок розгляду скарг", t: "Призначити відповідальну особу за облік звернень", who: "Начальник штабу", due: "2027-01-31", st: "accepted", ind: "sy-f1" },
 ];
 const M_ST = {
-  accepted: ["Прийнято", "p-info"], inprogress: ["В роботі", "p-warn"], done: ["Виконано", "p-good"],
+  accepted: ["Прийнято", "p-info"], inprogress: ["В роботі", "p-warn"], done: ["Виконано", "p-done"],
   confirmed: ["Підтверджено", "p-good"], notconfirmed: ["Не підтверджено", "p-bad"], overdue: ["Прострочено", "p-bad"],
 };
 const M_NEXT = { accepted: ["inprogress"], inprogress: ["done", "accepted"], done: ["inprogress"], confirmed: [], notconfirmed: ["inprogress"] };
