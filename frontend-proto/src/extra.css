@@ -255,3 +255,11 @@ html.hc a, html.hc .link { text-decoration: underline; }
 .drawer-b table { min-width: 0; width: 100%; }
 .drawer-b th, .drawer-b td { padding: 8px 6px; font-size: 13px; white-space: normal; }
 .drawer-b td .pill { white-space: normal; }
+/* v4: трекер, журнал, показники */
+.tl-i .hash { align-self: center; }
+.tl-i.click { cursor: pointer; border-radius: 10px; }
+.tl-i.click:hover { background: var(--soft); }
+.tl-i.click:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.b-card.tr-click:hover { border-color: var(--teal); }
+.kpi-t { font-size: 13px; line-height: 1.4; color: var(--fg); font-weight: 500; flex: 1; }
+.kpi:hover { outline: 1px solid var(--teal); }

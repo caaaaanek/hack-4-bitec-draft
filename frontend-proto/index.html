@@ -673,6 +673,14 @@ html.hc a, html.hc .link { text-decoration: underline; }
 .drawer-b table { min-width: 0; width: 100%; }
 .drawer-b th, .drawer-b td { padding: 8px 6px; font-size: 13px; white-space: normal; }
 .drawer-b td .pill { white-space: normal; }
+/* v4: трекер, журнал, показники */
+.tl-i .hash { align-self: center; }
+.tl-i.click { cursor: pointer; border-radius: 10px; }
+.tl-i.click:hover { background: var(--soft); }
+.tl-i.click:focus-visible { outline: 2px solid var(--teal); outline-offset: 2px; }
+.b-card.tr-click:hover { border-color: var(--teal); }
+.kpi-t { font-size: 13px; line-height: 1.4; color: var(--fg); font-weight: 500; flex: 1; }
+.kpi:hover { outline: 1px solid var(--teal); }
 
 @media (max-width: 1180px) {
   .c3 { grid-column: span 6; } .c4 { grid-column: span 6; } .c5, .c7, .c8 { grid-column: span 12; } .c6 { grid-column: span 12; }
@@ -1157,7 +1165,7 @@ const SAVE = ["role", "k", "inst", "unit", "cycleOpen", "facts", "fpend", "dec",
 try { const saved = JSON.parse(localStorage.getItem(KEY) || "null"); if (saved) SAVE.forEach(k => { if (saved[k] !== undefined) S[k] = saved[k]; }); } catch (e) {}
 try { const d = JSON.parse(localStorage.getItem("ii-survey-draft") || "null"); if (d) S.survey.a = d; } catch (e) {}
 const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(SAVE.map(k => [k, S[k]])))); } catch (e) {} };
-function resetDemo() { const role = S.role, a11y = S.a11y; Object.assign(S, DEFAULTS(), { role, a11y, chat: [], survey: { phase: "intro", sec: 0, a: {}, miss: false } }); try { localStorage.removeItem("ii-survey-draft"); } catch (e) {} persist(); render(); toast("Демо-дані скинуто"); }
+function resetDemo() { const role = S.role, a11y = S.a11y; Object.assign(S, DEFAULTS(), { role, a11y, chat: [], survey: { phase: "intro", sec: 0, a: {}, miss: false } }); try { localStorage.removeItem("ii-survey-draft"); } catch (e) {} addLog(me(), "Демо-дані скинуто"); persist(); render(); toast("Демо-дані скинуто"); }
 
 /* Журнал дій із ланцюгом хешів */
 function fnv(s) { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, "0"); }
@@ -1626,7 +1634,7 @@ V.tracker = () => {
   const od = all.filter(x => overdueDays(x) > 0).length;
   const stCell = x => { const d = overdueDays(x); return d > 0 ? `<div style="display:flex;flex-direction:column;gap:4px;align-items:flex-start">${pill(`Прострочено на ${d} ${daysWord(d)}`, "p-bad")}<span class="lbl">Статус: ${M_ST[x.st][0]}</span></div>` : pill(M_ST[x.st][0], M_ST[x.st][1]); };
   const actCell = x => x.st === "confirmed" ? `<span class="lbl">Змінює наступне оцінювання</span>` : edit ? `<div class="mv">${M_NEXT[x.st].map(s => `<button class="btn btn-ghost" onclick="setMSt('${x.id}','${s}')">${IC.arrowR}${M_ST[s][0]}</button>`).join("")}</div>` : `<span class="lbl">—</span>`;
-  const board = ["accepted", "inprogress", "done", "confirmed", "notconfirmed"].map(st => { const cards = list.filter(x => x.st === st); return `<div class="col-b"><div class="col-h">${pill(M_ST[st][0], M_ST[st][1])}<span class="lbl tnum">${cards.length}</span></div>${cards.map(x => `<div class="b-card"><b>${x.t}</b><span class="lbl">${x.who}</span><div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap"><span class="lbl tnum" ${overdueDays(x) ? 'style="color:var(--red);font-weight:600"' : ""}>Строк: ${ua(x.due)}</span>${overdueDays(x) ? pill(`+${overdueDays(x)} ${daysWord(overdueDays(x))}`, "p-bad nodot") : ""}</div>${edit && M_NEXT[x.st].length ? `<div class="seg sm">${M_NEXT[x.st].map(s => `<button onclick="setMSt('${x.id}','${s}')">${IC.arrowR}${M_ST[s][0]}</button>`).join("")}</div>` : ""}</div>`).join("") || `<div class="lbl" style="padding:8px">Порожньо</div>`}</div>`; }).join("");
+  const board = ["accepted", "inprogress", "done", "confirmed", "notconfirmed"].map(st => { const cards = list.filter(x => x.st === st); return `<div class="col-b"><div class="col-h">${pill(M_ST[st][0], M_ST[st][1])}<span class="lbl tnum">${cards.length}</span></div>${cards.map(x => `<div class="b-card tr-click" tabindex="0" onclick="if(!event.target.closest('button'))openMeasure('${x.id}')"><b>${x.t}</b><span class="lbl">${x.who}</span><div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap"><span class="lbl tnum" ${overdueDays(x) ? 'style="color:var(--red);font-weight:600"' : ""}>Строк: ${ua(x.due)}</span>${overdueDays(x) ? pill(`+${overdueDays(x)} ${daysWord(overdueDays(x))}`, "p-bad nodot") : ""}</div>${edit && M_NEXT[x.st].length ? `<div class="seg sm">${M_NEXT[x.st].map(s => `<button onclick="setMSt('${x.id}','${s}')">${IC.arrowR}${M_ST[s][0]}</button>`).join("")}</div>` : ""}</div>`).join("") || `<div class="lbl" style="padding:8px">Порожньо</div>`}</div>`; }).join("");
   const conf = all.filter(x => x.st === "confirmed").length, wait = all.filter(x => x.st === "done").length, rev = all.filter(x => x.st === "notconfirmed").length;
   return `
   <section class="c12 rise toolbar"><span class="lbl">${all.length} заходів${od ? `, з них ${od} прострочено` : ", прострочених немає"}. ${edit ? "Статуси змінює керівник." : "Режим читання: змінювати статуси може лише керівник."}</span><div class="sp"></div>
@@ -1636,14 +1644,27 @@ V.tracker = () => {
     <span class="lbl tnum">Показано ${list.length} з ${all.length}</span></section>
   ${!list.length ? `<section class="card c12"><div class="empty"><b>За цими фільтрами заходів немає</b><br>Змініть статус або посаду. Нові заходи зʼявляються, коли керівник приймає рекомендацію.<br><br>${can("recs") ? `<a class="btn btn-soft" href="#recs">Перейти до рекомендацій</a>` : ""}</div></section>` : S.trackView === "board" ? `<section class="c12 board rise">${board}</section>` : `
   <section class="card c12 rise"><div class="tbl-wrap"><table><thead><tr><th>Захід</th><th>Відповідальна посада</th><th>Строк</th><th>Статус</th><th>Верифікація</th><th>Змінити статус</th></tr></thead><tbody>
-    ${list.map(x => `<tr><td style="min-width:220px"><b style="font-weight:600">${x.t}</b><div class="lbl">З рекомендації: ${x.rec}</div></td><td style="min-width:160px">${x.who}</td><td class="tnum" style="white-space:nowrap">${ua(x.due)}</td><td>${stCell(x)}</td><td>${pill(verif(x)[0], verif(x)[1] + " nodot")}</td><td>${actCell(x)}</td></tr>`).join("")}
+    ${list.map(x => `<tr class="tr-click" tabindex="0" onclick="if(!event.target.closest('button'))openMeasure('${x.id}')" onkeydown="if(event.key==='Enter'&&!event.target.closest('button'))openMeasure('${x.id}')"><td style="min-width:220px"><b style="font-weight:600">${x.t}</b><div class="lbl">З рекомендації: ${x.rec}</div></td><td style="min-width:160px">${x.who}</td><td class="tnum" style="white-space:nowrap">${ua(x.due)}</td><td>${stCell(x)}</td><td>${pill(verif(x)[0], verif(x)[1] + " nodot")}</td><td>${actCell(x)}</td></tr>`).join("")}
   </tbody></table></div></section>`}
   <section class="card c12 rise">
     <div class="card-h"><h2>Верифікація наступним оцінюванням</h2></div>
-    <div class="lbl" style="max-width:820px">Статус «Виконано» ще не означає, що захід спрацював. Після наступного циклу оцінювання система перевіряє, чи покращились показники, пов’язані із заходом. Результат може бути «Підтверджено наступним оцінюванням» або «Не підтверджено, потрібен перегляд».</div>
+    <div class="lbl" style="max-width:820px">Чи спрацював виконаний захід, видно після наступного циклу: якщо повʼязаний показник зріс, захід підтверджено.</div>
     <div class="stat4 tnum" style="grid-template-columns:repeat(3,1fr);margin-top:14px"><div><small>Підтверджено</small><b>${conf}</b></div><div><small>Очікують наступного оцінювання</small><b>${wait}</b></div><div><small>Потребують перегляду</small><b>${rev}</b></div></div>
   </section>`;
 };
+// Захід: подробиці й перехід у систему звітування суміжної команди
+const MEASURES_APP = { name: "Система звітування за заходами (суміжна команда)", url: "" };
+function openMeasure(id) {
+  const x = measures().find(m => m.id === id); if (!x) return;
+  const m = cur(), it = allItems(m).find(i => i.id === x.ind), d = overdueDays(x), hist = logItems().filter(l => l.a.includes(x.t) || l.a.includes(x.id)).reverse();
+  openDrawer("Захід", `
+    <div><div class="lbl">З рекомендації: ${esc(x.rec)}</div><div style="font-size:16px;font-weight:600;margin-top:4px">${esc(x.t)}</div></div>
+    <div style="display:flex;gap:6px;flex-wrap:wrap">${pill(M_ST[x.st][0], M_ST[x.st][1])}${d ? pill(`Прострочено на ${d} ${daysWord(d)}`, "p-bad") : ""}${pill(verif(x)[0], verif(x)[1] + " nodot")}</div>
+    <dl class="inst-kv" style="grid-template-columns:auto 1fr"><dt>Відповідальна посада</dt><dd>${esc(x.who)}</dd><dt>Строк</dt><dd class="tnum">${ua(x.due)}</dd>${it ? `<dt>Повʼязаний показник</dt><dd><a class="link" href="#explain/${it.id}" onclick="closeDrawer()">${esc(it.t)}: ${fb(it.v)}</a></dd>` : ""}</dl>
+    <div><div class="lbl" style="margin-bottom:6px">Історія в журналі</div>${hist.length ? `<div class="rows">${hist.map(l => `<div class="row"><div class="grow"><div class="t" style="font-size:13px">${esc(l.a)}</div><div class="s">${esc(l.who)} · ${l.t}</div></div></div>`).join("")}</div>` : `<div class="lbl">Змін статусу в цьому циклі ще не було.</div>`}</div>
+    <div class="note-box"><b>Звіт виконавця</b><span class="lbl">Документи й звіти про виконання ведуться в окремому застосунку суміжної команди.</span>
+      ${MEASURES_APP.url ? `<a class="btn btn-soft" href="${MEASURES_APP.url}" target="_blank" rel="noopener" style="justify-content:center">${IC.arrowR}Відкрити в застосунку звітування</a>` : `<button class="btn btn-soft" disabled style="justify-content:center;opacity:.6">${IC.arrowR}Відкрити в застосунку звітування</button><span class="lbl" style="font-size:12px">Посилання зʼявиться після погодження інтеграції.</span>`}</div>`);
+}
 function setMSt(id, st) { const x = measures().find(m => m.id === id); if (!x || !M_NEXT[x.st].includes(st)) return; S.dec.mst[id] = st; addLog(me(), `Захід «${x.t}»: статус «${M_ST[st][0]}»`); persist(); render(true); toast(`Статус заходу змінено на «${M_ST[st][0]}».`); }
 
 /* Джерела */
@@ -1721,7 +1742,7 @@ V.institutions = () => {
   ${list.length ? list.map(m => m.empty ? `<section class="card c6 rise inst"><div class="comp-top"><span class="comp-ic" style="background:var(--soft)">${IC.building}</span><b>${esc(m.name)}</b><div class="sp" style="flex:1"></div>${menu(m)}</div>
     <div class="lbl tnum" style="margin-top:6px">ЄДРПОУ ${m.edrpou}</div>
     <div class="note-box" style="margin-top:14px"><b>Оцінювання ще не проводилось</b><span class="lbl">Уповноважений закладу відкриє цикл і видасть жетони. Після першого циклу тут зʼявиться індекс.</span></div></section>`
-  : `<a class="card c6 rise inst" href="#overview" onclick="S.inst='${m.id}';persist()">
+  : `<a class="card c6 rise inst" href="#overview" onclick="S.inst='${m.id}';addLog(me(),'Переглянуто огляд закладу ${m.edrpou}');persist()">
     <div class="comp-top"><span class="comp-ic" style="background:var(--lime-soft);color:var(--teal-deep)">${IC.building}</span><b>${esc(m.name)}</b><div class="sp" style="flex:1"></div>${menu(m)}</div>
     <div class="lbl tnum" style="margin-top:6px">ЄДРПОУ ${m.edrpou}</div>
     <div class="inst-b"><div><span class="lbl">Індекс доброчесності</span><div class="mid tnum">${numHTML(m.index)}<span class="of">з 100</span></div></div>
@@ -1785,7 +1806,7 @@ V.compare = () => {
   </section>
   <section class="card c8 rise">
     <div class="card-h"><h2>Обʼєктивні показники</h2><div class="sp"></div><a class="pill-btn" href="#sources">${IC.plug}Джерела</a></div>
-    <div class="kpis">${pctFacts.map(f => { const r = 18, C = 2 * Math.PI * r; return `<a class="kpi" href="#explain/${f.id}" style="text-decoration:none;color:inherit"><div class="ring"><svg width="46" height="46" viewBox="0 0 46 46"><circle cx="23" cy="23" r="${r}" fill="none" stroke="var(--line)" stroke-width="5"/><circle cx="23" cy="23" r="${r}" fill="none" stroke="${SCOL[status(f.v)]}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${C}" style="stroke-dashoffset:${C * (1 - f.v / 100)};transform:rotate(-90deg);transform-origin:center;transition:stroke-dashoffset 1s" class="kring" data-off="${C * (1 - f.v / 100)}" data-c="${C}"/></svg><span class="mid tnum" style="font-size:24px">${numHTML(f.v, 0)}<span class="dec">%</span></span></div><span class="lbl">${f.t}</span><span class="lbl tnum">${f.val[0]} з ${f.val[1]} · ${COMP[f.c].n}</span></a>`; }).join("")}</div>
+    <div class="kpis">${pctFacts.map(f => { const r = 18, C = 2 * Math.PI * r; return `<a class="kpi" href="#explain/${f.id}" style="text-decoration:none;color:inherit"><span class="kpi-t">${f.t}</span><div class="ring"><svg width="46" height="46" viewBox="0 0 46 46"><circle cx="23" cy="23" r="${r}" fill="none" stroke="var(--line)" stroke-width="5"/><circle cx="23" cy="23" r="${r}" fill="none" stroke="${SCOL[status(f.v)]}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${C}" style="stroke-dashoffset:${C * (1 - f.v / 100)};transform:rotate(-90deg);transform-origin:center;transition:stroke-dashoffset 1s" class="kring" data-off="${C * (1 - f.v / 100)}" data-c="${C}"/></svg><span class="mid tnum" style="font-size:24px">${numHTML(f.v, 0)}<span class="dec">%</span></span></div><span class="lbl tnum">${f.val[0]} з ${f.val[1]} · ${COMP[f.c].n}</span></a>`; }).join("")}</div>
   </section>
   <section class="card c4 rise">
     <div class="card-h"><h2>Достовірність</h2><div class="sp"></div>${trustPill(m.trust)}</div>
@@ -1879,7 +1900,7 @@ function openExport() {
     <div class="exp-list">${opts.map(([k, ic, t, ds]) => `<button type="button" class="exp-opt" onclick="doExport('${k}')"><span class="comp-ic" style="background:var(--soft)">${ic}</span><span><b>${t}</b><span class="lbl">${ds}</span></span></button>`).join("")}</div></form>`;
   d.showModal();
 }
-function doExport(k) { $("#exp").close(); if (k === "print") return setTimeout(() => window.print(), 50); if (k === "copy") return copyOut("csv"); copyOut(k, true); }
+function doExport(k) { $("#exp").close(); if (k === "print") { addLog(me(), "Експорт звіту (PDF / друк)"); return setTimeout(() => window.print(), 50); } if (k === "copy") return copyOut("csv"); copyOut(k, true); }
 function copyOut(kind, dl) {
   const m = cur(); let txt;
   if (kind === "html") { const doc = `<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>Звіт ${CYCLE}</title><style>body{font:14pt/1.5 "Times New Roman",Times,serif;max-width:800px;margin:40px auto;padding:0 24px;color:#000}table{border-collapse:collapse;width:100%;margin:6px 0 12px}td,th{border:1px solid #000;padding:4px 6px;font-size:12pt;text-align:left;vertical-align:top}th{font-weight:bold}.doc-approve{margin-left:auto;width:300px}.doc-title{text-align:center;font-size:16pt;margin:24px 0 4px}.doc-sub{text-align:center;font-weight:bold}.doc-meta,.doc-note{font-size:11pt}.doc-cap{text-align:right;font-style:italic;margin-bottom:2px}.doc-sign{display:flex;justify-content:space-between;margin-top:36px}.doc-blank{display:inline-block;min-width:140px;border-top:1px solid #000;font-size:10pt;text-align:center}.noprint,svg,button{display:none}p{text-align:justify}</style></head><body>${document.querySelector(".paper").innerHTML}</body></html>`; return download(`integrity-report-${m.id}-${CYCLE}.html`, doc, "text/html"); }
@@ -2001,14 +2022,30 @@ function returnFact(id) {
 
 /* Журнал */
 V.audit = () => {
-  const items = logItems().reverse();
+  const all = logItems(), q = (S.logQ || "").trim().toLowerCase(), who = S.logWho || "all";
+  const shown = all.map((x, i) => ({ ...x, n: i + 1 })).filter(x => (who === "all" || x.who === who) && (!q || (x.a + " " + x.who + " " + x.t + " " + x.h).toLowerCase().includes(q))).reverse();
+  // однакові записи підряд (наприклад, кілька перевірок) показуються одним рядком з лічильником
+  const groups = []; shown.forEach(x => { const g = groups[groups.length - 1]; if (g && g[0].a === x.a && g[0].who === x.who) g.push(x); else groups.push([x]); });
+  const actors = [...new Set(all.map(x => x.who))].sort();
   return `<section class="card c12 rise">
-    <div class="card-h"><h2>Журнал дій</h2><div class="sp"></div><span id="chainSt">${pill("Ланцюг цілісний", "p-good")}</span><button class="btn btn-soft" onclick="verifyChain()">${IC.shield}Перевірити цілісність</button></div>
-    <div class="lbl" style="margin-bottom:10px">Хто, коли й що змінив у налаштуваннях і даних. Кожен запис містить хеш попереднього, тож тиха правка ламає ланцюг. Відповідей респондентів у журналі немає.</div>
-    <div class="tl">${items.map((x, i) => `<div class="tl-i rise" style="animation-delay:${Math.min(i, 12) * 40}ms"><span class="nd"></span><div><div style="font-weight:500">${esc(x.a)}</div><div class="lbl">${x.who} · ${x.t}</div></div><span class="hash">${x.h}</span></div>`).join("")}</div>
+    <div class="card-h" style="flex-wrap:wrap"><h2>Журнал дій</h2><div class="sp"></div><span id="chainSt">${pill("Ланцюг цілісний", "p-good")}</span><button class="btn btn-soft" onclick="verifyChain()">${IC.shield}Перевірити цілісність</button></div>
+    <div class="toolbar" style="margin-bottom:8px"><label class="search inst-search"><span>${IC.search}</span><input id="logQ" placeholder="Дія, роль, дата або хеш" value="${esc(S.logQ || "")}" oninput="S.logQ=this.value;render(true);const i=$('#logQ');i.focus();i.setSelectionRange(i.value.length,i.value.length)"></label>
+      <select class="inp" aria-label="Хто" onchange="S.logWho=this.value;render(true)"><option value="all">Усі ролі</option>${actors.map(a => `<option ${who === a ? "selected" : ""}>${esc(a)}</option>`).join("")}</select>
+      <span class="lbl tnum">Показано ${shown.length} з ${all.length}</span></div>
+    ${groups.length ? `<div class="tl">${groups.map((g, i) => { const x = g[0]; return `<div class="tl-i rise click" role="button" tabindex="0" style="animation-delay:${Math.min(i, 12) * 40}ms" onclick="openLog(${x.n}${g.length > 1 ? `,${g[g.length - 1].n}` : ""})" onkeydown="if(event.key==='Enter')this.click()"><span class="nd"></span><div><div style="font-weight:500">${esc(x.a)}${g.length > 1 ? ` <span class="pill p-mute nodot">×${g.length}</span>` : ""}</div><div class="lbl">${esc(x.who)} · ${g.length > 1 ? `${g[g.length - 1].t} – ${x.t}` : x.t}</div></div><span class="hash">${x.h}</span></div>`; }).join("")}</div>` : `<div class="empty">Записів за цим запитом немає.</div>`}
   </section>`;
 };
-function verifyChain() { let prev = "0", ok = true; logItems().forEach(x => { const h = fnv(prev + x.t + x.who + x.a); if (h !== x.h) ok = false; prev = h; }); $("#chainSt").innerHTML = pill(ok ? `Перевірено: ${logItems().length} записів, розривів немає` : "Ланцюг порушено", ok ? "p-good" : "p-bad"); addLog(me(), "Перевірка цілісності журналу"); }
+// Подробиці запису: що, хто, коли, номер у ланцюгу, хеш попереднього, перевірка саме цього запису
+function openLog(n, n2) {
+  const all = logItems(), x = all[n - 1], prev = n > 1 ? all[n - 2].h : "0", ok = fnv(prev + x.t + x.who + x.a) === x.h;
+  openDrawer("Запис журналу", `
+    <div><div class="lbl">Запис № ${n} з ${all.length}</div><div style="font-size:16px;font-weight:600;margin-top:4px">${esc(x.a)}</div></div>
+    ${n2 ? `<div class="note-box"><span class="lbl">Таких записів підряд: ${n - n2 + 1} (№ ${n2}–${n}). Показано останній.</span></div>` : ""}
+    <dl class="inst-kv" style="grid-template-columns:auto 1fr"><dt>Хто</dt><dd>${esc(x.who)}</dd><dt>Коли</dt><dd class="tnum">${x.t}</dd><dt>Хеш запису</dt><dd><span class="hash">${x.h}</span></dd><dt>Хеш попереднього</dt><dd><span class="hash">${prev}</span></dd></dl>
+    <div>${pill(ok ? "Запис не змінювали" : "Запис змінено після створення", ok ? "p-good" : "p-bad")}</div>
+    <div class="lbl">Хеш рахується з попереднього хешу, часу, ролі й опису дії. Якщо змінити будь-що в цьому чи попередніх записах, хеші далі по ланцюгу не зійдуться. Імен і відповідей респондентів у журналі немає, лише ролі.</div>`);
+}
+function verifyChain() { let prev = "0", ok = true; logItems().forEach(x => { const h = fnv(prev + x.t + x.who + x.a); if (h !== x.h) ok = false; prev = h; }); addLog(me(), "Перевірка цілісності журналу"); const n = logItems().length; render(true); $("#chainSt").innerHTML = pill(ok ? `Перевірено ${n} записів, розривів немає` : "Ланцюг порушено", ok ? "p-good" : "p-bad"); toast(ok ? "Ланцюг цілісний. Сама перевірка теж записана в журнал." : "Ланцюг порушено"); }
 
 /* Опитування за жетоном */
 const answered = () => SURVEY_Q.filter(q => S.survey.a[q.id] != null).length;
@@ -2250,7 +2287,7 @@ const role = $("#role");
 role.innerHTML = Object.entries(ROLE).map(([k, [n]]) => `<option value="${k}">${n}</option>`).join("");
 role.value = S.role;
 const setAvatar = () => { $("#avatar").textContent = ROLE[S.role][1]; $("#avatar").dataset.tip = ROLE[S.role][0]; };
-role.onchange = () => { S.role = role.value; persist(); setAvatar(); aiBtn(); aiClose(); closeDrawer(); location.hash = HOME[S.role]; render(); toast("Роль: " + ROLE[S.role][0]); };
+role.onchange = () => { S.role = role.value; addLog(ROLE[S.role][0], "Вхід у систему"); persist(); setAvatar(); aiBtn(); aiClose(); closeDrawer(); location.hash = HOME[S.role]; render(); toast("Роль: " + ROLE[S.role][0]); };
 $("#resetBtn").innerHTML = `${IC.reset}Скинути демо-дані`; $("#resetBtn").onclick = resetDemo;
 setAvatar();
 function themeIcon() { const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches; $("#themeBtn").innerHTML = dark ? IC.sun : IC.moon; }

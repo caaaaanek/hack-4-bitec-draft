@@ -73,7 +73,7 @@ const SAVE = ["role", "k", "inst", "unit", "cycleOpen", "facts", "fpend", "dec",
 try { const saved = JSON.parse(localStorage.getItem(KEY) || "null"); if (saved) SAVE.forEach(k => { if (saved[k] !== undefined) S[k] = saved[k]; }); } catch (e) {}
 try { const d = JSON.parse(localStorage.getItem("ii-survey-draft") || "null"); if (d) S.survey.a = d; } catch (e) {}
 const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(SAVE.map(k => [k, S[k]])))); } catch (e) {} };
-function resetDemo() { const role = S.role, a11y = S.a11y; Object.assign(S, DEFAULTS(), { role, a11y, chat: [], survey: { phase: "intro", sec: 0, a: {}, miss: false } }); try { localStorage.removeItem("ii-survey-draft"); } catch (e) {} persist(); render(); toast("Демо-дані скинуто"); }
+function resetDemo() { const role = S.role, a11y = S.a11y; Object.assign(S, DEFAULTS(), { role, a11y, chat: [], survey: { phase: "intro", sec: 0, a: {}, miss: false } }); try { localStorage.removeItem("ii-survey-draft"); } catch (e) {} addLog(me(), "Демо-дані скинуто"); persist(); render(); toast("Демо-дані скинуто"); }
 
 /* Журнал дій із ланцюгом хешів */
 function fnv(s) { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, "0"); }

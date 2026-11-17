@@ -167,7 +167,7 @@ const role = $("#role");
 role.innerHTML = Object.entries(ROLE).map(([k, [n]]) => `<option value="${k}">${n}</option>`).join("");
 role.value = S.role;
 const setAvatar = () => { $("#avatar").textContent = ROLE[S.role][1]; $("#avatar").dataset.tip = ROLE[S.role][0]; };
-role.onchange = () => { S.role = role.value; persist(); setAvatar(); aiBtn(); aiClose(); closeDrawer(); location.hash = HOME[S.role]; render(); toast("Роль: " + ROLE[S.role][0]); };
+role.onchange = () => { S.role = role.value; addLog(ROLE[S.role][0], "Вхід у систему"); persist(); setAvatar(); aiBtn(); aiClose(); closeDrawer(); location.hash = HOME[S.role]; render(); toast("Роль: " + ROLE[S.role][0]); };
 $("#resetBtn").innerHTML = `${IC.reset}Скинути демо-дані`; $("#resetBtn").onclick = resetDemo;
 setAvatar();
 function themeIcon() { const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches; $("#themeBtn").innerHTML = dark ? IC.sun : IC.moon; }
