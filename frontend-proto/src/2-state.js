@@ -34,6 +34,7 @@ const ROLE = {
   checklist_editor: ["Вносить дані чек-листа", "ВД"],
   checklist_approver: ["Підтверджує дані чек-листа", "ПД"],
   auditor: ["Внутрішній аудит", "ВА"],
+  coordinator: ["Координатор", "КО"],
 };
 const NAV = [
   ["institutions", "Заклади", "building", ["observer"]],
@@ -46,13 +47,16 @@ const NAV = [
   ["sources", "Джерела", "plug", ["leader", "observer", "auditor"]],
   ["report", "Звіт", "file", ["leader", "observer"]],
   ["manage", "Керування циклом", "sliders", ["admin"]],
+  ["checks", "Перевірки", "shield", ["admin"]],
+  ["summary", "Зведення", "gauge", ["coordinator"]],
+  ["people", "Люди й ролі", "users", ["coordinator"]],
   ["surveys", "Анкети", "survey", ["commissioner"]],
   ["checklist", "Чек-лист", "check", ["checklist_editor", "checklist_approver"]],
-  ["audit", "Журнал", "history", ["admin", "auditor"]],
+  ["audit", "Журнал", "history", ["admin", "auditor", "coordinator"]],
   ["survey", "Пройти опитування", "survey", ["respondent"]],
   ["me", "Мої результати", "user", ["respondent"]],
 ];
-const HOME = { admin: "manage", commissioner: "surveys", respondent: "me", leader: "overview", observer: "institutions", checklist_editor: "checklist", checklist_approver: "checklist", auditor: "overview" };
+const HOME = { admin: "manage", commissioner: "surveys", respondent: "me", leader: "overview", observer: "institutions", checklist_editor: "checklist", checklist_approver: "checklist", auditor: "overview", coordinator: "summary" };
 const AI_ROLES = ["leader", "observer", "auditor"];
 
 /* ---------- Стан ---------- */

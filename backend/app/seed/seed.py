@@ -91,6 +91,7 @@ def seed_users(db: Session, units: dict[str, Unit], password: str, staff_sizes: 
         ("leader", "Керівник (демо)", Role.LEADER, None, None),
         ("leader_a", "Керівник підрозділу А (демо)", Role.LEADER, None, units["Підрозділ А"]),
         ("auditor", "Аудитор (демо)", Role.AUDITOR, None, None),
+        ("coordinator", "Координатор (демо)", Role.COORDINATOR, None, None),
     ]
     people += [(f"wg{i}", f"Член робочої групи {i}", Role.RESPONDENT, RespondentCategory.WORKING_GROUP, root) for i in range(1, 7)]
     people += [

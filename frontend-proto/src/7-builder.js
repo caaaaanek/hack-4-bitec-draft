@@ -73,6 +73,7 @@ function bldDraw() {
       <div class="bld-title"><b>${esc(m.title || "Нова анкета")}</b><span class="lbl">Версія ${m.version} · ${bldPlural(B.sections.length, "розділ", "розділи", "розділів")}, ${bldPlural(nq, "питання", "питання", "питань")} ${B.dirty ? "· є незбережені зміни" : "· збережено"}</span></div>
       <div class="bld-actions"><button type="button" class="btn btn-ghost" data-a="validate" ${B.busy ? "disabled" : ""}>${IC.check}Перевірити</button><button type="button" class="btn btn-soft" data-a="save" ${B.busy || !B.dirty ? "disabled" : ""}>Зберегти</button><button type="button" class="btn btn-primary" data-a="publish" ${B.busy ? "disabled" : ""}>${IC.ok}Опублікувати</button></div></div></div>
     <div class="bld-body"><div class="bld-wrap">
+      <details class="bld-rules"><summary>Коли анкету не можна опублікувати</summary><ul><li>немає жодного розділу, або розділ без питань;</li><li>у питань з вибором менше двох варіантів, або варіанти повторюються;</li><li>для шкали «від» не менше за «до»;</li><li>код питання повторюється в межах анкети;</li><li>порожній текст питання чи варіанта (не збережеться).</li></ul></details>
       ${B.confirmClose ? `<div class="bld-note warn"><b>Є незбережені зміни.</b> Закрити без збереження?<div class="bld-note-act"><button type="button" class="btn btn-ghost" data-a="stay">Лишитись</button><button type="button" class="btn btn-danger" data-a="close-force">Закрити без збереження</button></div></div>` : ""}
       ${B.issues ? (B.issues.length ? `<div class="bld-note warn"><b>Перед публікацією виправте:</b><ul>${B.issues.map(i => `<li>${esc(bldIssuePath(i.path))}${esc(i.message)}</li>`).join("")}</ul></div>` : `<div class="bld-note ok"><b>Усе гаразд.</b> Анкету можна публікувати.</div>`) : ""}
       <section class="card bld-meta"><div class="bld-row"><div class="field bld-grow"><label>Назва анкети</label><input class="inp" data-f="m.title" value="${esc(m.title)}"></div></div>
@@ -83,6 +84,7 @@ function bldDraw() {
       <button type="button" class="btn btn-soft bld-add bld-add-s" data-a="add-s">${IC.plus}Додати розділ</button>
     </div></div>`;
   const body = ov.querySelector(".bld-body"); if (body) body.scrollTop = scrollTop;
+  ov.querySelectorAll("textarea").forEach(bldFit);
 }
 const bldIssuePath = p => { const m = String(p || "").match(/sections\[(\d+)\](?:\.questions\[(\d+)\])?/); return m ? `Розділ ${+m[1] + 1}${m[2] != null ? `, питання ${+m[2] + 1}` : ""}: ` : ""; };
 
@@ -100,7 +102,8 @@ function bldSet(el) {
   else if (f === "o.text") a.o.text = v; else if (f === "o.score") a.o.score = String(v).replace(",", ".");
   if (!B.dirty) { B.dirty = true; B.issues = null; const t = document.querySelector("#bld .bld-title .lbl"); if (t) t.textContent = t.textContent.replace("· збережено", "· є незбережені зміни"); const sv = document.querySelector('#bld [data-a="save"]'); if (sv) sv.disabled = false; }
 }
-document.addEventListener("input", e => { if (B && e.target.closest("#bld") && e.target.dataset.f && e.target.tagName !== "SELECT" && e.target.type !== "checkbox") bldSet(e.target); });
+const bldFit = el => { el.style.height = "auto"; el.style.height = el.scrollHeight + 2 + "px"; };
+document.addEventListener("input", e => { if (B && e.target.tagName === "TEXTAREA") bldFit(e.target); if (B && e.target.closest("#bld") && e.target.dataset.f && e.target.tagName !== "SELECT" && e.target.type !== "checkbox") bldSet(e.target); });
 document.addEventListener("change", e => { if (B && e.target.closest("#bld") && e.target.dataset.f && (e.target.tagName === "SELECT" || e.target.type === "checkbox")) bldSet(e.target); });
 document.addEventListener("keydown", e => { if (B && e.key === "Escape" && document.getElementById("bld") && !e.target.closest(".combo")) bldClose(); });
 document.addEventListener("click", async e => {

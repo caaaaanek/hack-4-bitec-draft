@@ -39,7 +39,7 @@ const apiFail = e => toast(apiErrText(e));
 /* --- Ролі: обліковий запис → роль інтерфейсу --- */
 function frontRole(u) {
   if (!u) return "respondent";
-  if (["admin", "commissioner", "leader", "auditor"].includes(u.role)) return u.role;
+  if (["admin", "commissioner", "leader", "auditor", "coordinator"].includes(u.role)) return u.role;
   return u.category === "working_group" ? "checklist_editor" : "respondent";
 }
 const RESULT_ROLES = ["leader", "auditor", "admin", "commissioner"];
@@ -79,7 +79,7 @@ function showLogin(msg) {
   shellMode("login");
   closeDrawer(); aiClose();
   $("#title").textContent = "Вхід";
-  const demo = [["leader", "Керівник: огляд, рекомендації, заходи"], ["admin", "Уповноважений: хвилі, посилання, журнал"], ["commissioner", "Укладач: анкети, підтвердження чек-листа"], ["auditor", "Аудитор: перегляд і журнал"], ["wg1", "Робоча група: анкета й чек-лист"], ["staff01", "Особовий склад: анкета й результати"], ["expert1", "Експерт: анкета"]];
+  const demo = [["leader", "Керівник: огляд, рекомендації, заходи"], ["admin", "Уповноважений: хвилі, посилання, перевірки, журнал"], ["coordinator", "Координатор: люди, ролі, зведення"], ["commissioner", "Укладач: анкети, підтвердження чек-листа"], ["auditor", "Аудитор: перегляд і журнал"], ["wg1", "Робоча група: анкета й чек-лист"], ["staff01", "Особовий склад: анкета й результати"], ["expert1", "Експерт: анкета"]];
   $("#view").innerHTML = `<div class="login-wrap c12">
     <section class="card rise login-card">
       <div class="brand" style="padding:0 0 6px"><span class="logo">${IC.pulse.replace("<svg", '<svg width="20" height="20"')}</span>Integrity<span style="color:var(--muted);font-weight:500">Index</span></div>
@@ -187,7 +187,7 @@ function apiModel(r, h) {
   ];
   m.strengths = (r.strengths || []).filter(s => byCode[s.code]).map(s => ({ t: `Сильний компонент: ${COMP[s.code].n}`, c: s.code, v: s.score ?? byCode[s.code].cr.v, hint: `Зараховане значення компонента ${COMP[s.code].n}, 0-100.` }));
   if (!m.strengths.length) m.strengths = [{ t: `Найвищий результат у компоненті ${COMP[top.id].n}`, c: top.id, v: top.cr.v, hint: `Зараховане значення компонента ${COMP[top.id].n}, 0-100.` }];
-  if (series[0].index !== m.index) m.strengths.push({ t: m.index > series[0].index ? "Зростання індексу з першої хвилі" : "Зміна індексу з першої хвилі", v: r1(m.index - series[0].index), hint: "Сумарна зміна індексу з першої закритої хвилі, у пунктах.", unit: "пт" });
+  if (series[0].index < m.index) m.strengths.push({ t: m.index > series[0].index ? "Зростання індексу з першої хвилі" : "Зміна індексу з першої хвилі", v: r1(m.index - series[0].index), hint: "Сумарна зміна індексу з першої закритої хвилі, у пунктах.", unit: "пт" });
   return m;
 }
 
@@ -326,6 +326,9 @@ function apiView(r) {
   if (r === "surveys") return apiSurveysView();
   if (r === "checklist") return apiChecklistView();
   if (r === "audit") return apiAuditView();
+  if (r === "checks") return apiChecksView();
+  if (r === "people") return apiPeopleView();
+  if (r === "summary") return apiSummaryView();
   return null;
 }
 
@@ -511,9 +514,16 @@ const QCAT = { working_group: "Робоча група", staff: "Особови�
 function apiSurveysView() {
   if (!apiEnsure("qs", () => api("/questionnaires"))) return apiLoadingHTML("Анкети");
   if (API.qs.error) return apiErrorHTML(API.qs.error);
-  const list = [...API.qs].sort((a, b) => a.code.localeCompare(b.code) || b.version - a.version);
+  const F = { q: "", st: "latest", kind: "all", ...API.qF }, qq = F.q.trim().toLowerCase();
+  const all = [...API.qs].sort((a, b) => a.code.localeCompare(b.code) || b.version - a.version);
+  const newest = {}; all.forEach(q => { if (q.status !== "archived" && (!newest[q.code] || q.version > newest[q.code])) newest[q.code] = q.version; });
+  const list = all.filter(q => (F.st === "all" || (F.st === "latest" ? q.status !== "archived" && q.version === newest[q.code] : F.st === "active" ? q.status !== "archived" : q.status === F.st)) && (F.kind === "all" || q.kind === F.kind) && (!qq || `${q.title} ${q.code} v${q.version}`.toLowerCase().includes(qq)));
   return `
-  <section class="c12 rise toolbar"><div class="sp"></div><button class="btn btn-primary" onclick="bldNew()">${IC.plus}Нова анкета</button></section>
+  <section class="c12 rise toolbar"><label class="search inst-search"><span>${IC.search}</span><input id="qsQ" placeholder="Назва або код анкети" value="${esc(F.q)}" oninput="qsSet('q',this.value)"></label>
+    <select class="inp" aria-label="Статус" onchange="qsSet('st',this.value)">${[["latest", "Найновіші версії"], ["active", "Усі версії без архіву"], ["published", "Лише опубліковані"], ["draft", "Лише чернетки"], ["archived", "Лише архів"], ["all", "Усі, разом з архівом"]].map(([v, n]) => `<option value="${v}" ${F.st === v ? "selected" : ""}>${n}</option>`).join("")}</select>
+    <select class="inp" aria-label="Вид" onchange="qsSet('kind',this.value)"><option value="all">Усі види</option><option value="survey" ${F.kind === "survey" ? "selected" : ""}>Анкети зрілості</option><option value="checklist" ${F.kind === "checklist" ? "selected" : ""}>Чек-листи</option></select>
+    <span class="lbl tnum">Показано ${list.length} з ${all.length}</span><div class="sp"></div><button class="btn btn-primary" onclick="bldNew()">${IC.plus}Нова анкета</button></section>
+  ${list.length ? "" : `<section class="card c12 rise"><div class="empty"><b>Анкет за цими умовами немає</b><br>Змініть фільтр або створіть нову анкету.</div></section>`}
   ${list.map(q => `<section class="card c6 rise">
     <div class="comp-top"><span class="comp-ic" style="background:var(--lime-soft);color:var(--teal-deep)">${q.kind === "checklist" ? IC.check : IC.survey}</span><b>${esc(q.title)}</b><div class="sp" style="flex:1"></div>${pill(QST[q.status][0], QST[q.status][1])}</div>
     <div class="stat4 tnum" style="grid-template-columns:repeat(3,1fr);margin-top:14px"><div><small>Група</small><b style="font-size:14px">${q.kind === "checklist" ? "Чек-лист" : QCAT[q.target_category]}</b></div><div><small>Версія</small><b>${q.version}</b></div><div><small>Код</small><b style="font-size:12px">${esc(q.code)}</b></div></div>
@@ -548,6 +558,7 @@ async function apiQAct(id, act) {
     if (act === "new-version") bldOpen(q.id); // нова версія це чернетка: одразу відкриваємо в конструкторі
   } catch (e) { apiFail(e); }
 }
+function qsSet(k, v) { API.qF = { ...(API.qF || {}), [k]: v }; render(true); const i = $("#qsQ"); if (k === "q" && i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
 function apiSurveysReload() { API.qs = null; render(true); }
 
 /* --- Чек-лист: вносить робоча група, підтверджує укладач --- */
@@ -569,7 +580,7 @@ function apiChecklistView() {
   const camp = K.camps.find(c => c.id === K.sel), open = camp && camp.status === "open";
   const ed = S.role === "checklist_editor" && open, ap = S.role === "commissioner" && open, D = K.data;
   const head = `<section class="c12 rise toolbar">${ed || ap ? "" : `<span class="lbl">Режим перегляду.</span>`}<div class="sp"></div>
-    ${K.camps.length > 1 ? `<select class="inp" aria-label="Хвиля" onchange="apiCkReload(this.value)">${K.camps.map(c => `<option value="${c.id}" ${c.id === K.sel ? "selected" : ""}>${esc(c.title)}</option>`).join("")}</select>` : `<span class="lbl">${esc(camp ? camp.title : "")}</span>`}</section>`;
+    ${K.camps.length > 1 ? `<select class="inp" aria-label="Хвиля" onchange="apiCkReload(this.value)">${K.camps.map(c => `<option value="${c.id}" ${c.id === K.sel ? "selected" : ""}>${esc(c.title)}</option>`).join("")}</select>` : `<span class="wave-chip"><span class="lbl">Хвиля</span><b>${esc(dn(camp ? camp.title : ""))}</b>${camp ? pill(CST[camp.status][0], CST[camp.status][1]) : ""}</span>`}</section>`;
   if (!D) return head + `<section class="card c12 rise"><div class="empty"><b>Чек-лист недоступний</b><br>${esc(K.err || "")}</div></section>`;
   return head + `
   <div class="c12 kpi-row kpi-row-s">

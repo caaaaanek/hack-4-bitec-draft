@@ -21,3 +21,23 @@
 /* довідка «Як читати цей екран»: перший блок на всю ширину, решта поруч, без порожнеч */
 .legend3 { align-items: start; }
 .legend3 > div:first-child { grid-column: 1 / -1; }
+/* плитки KPI: іконка й велике значення стоять в одній колонці й центровані на одній осі */
+.kpi-tile { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 12px; row-gap: 12px; }
+.kpi-tile > .kt-h, .kpi-tile > .kt-b { display: contents; }
+.kpi-tile .kt-ic { justify-self: center; }
+.kpi-tile .kt-b > :first-child { justify-self: center; text-align: center; }
+.kpi-tile .kt-h .lbl { grid-column: 2; }
+.kpi-tile .kt-info { grid-column: 3; margin-left: 0; }
+.kpi-tile .kt-s { grid-column: 2 / -1; }
+.kpi-tile .kt-b > .mid { grid-column: 1; }
+.ibars[hidden] { display: none; }
+/* профіль компонентів: радар по центру картки, без порожнього низу */
+.cmp-radar { display: flex; flex-direction: column; }
+.cmp-radar .chart { flex: 1; display: flex; align-items: center; justify-content: center; }
+/* мітка хвилі в чек-листі */
+.wave-chip { display: inline-flex; align-items: center; gap: 8px; background: var(--panel); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; }
+.wave-chip b { font-weight: 600; }
+.bld-rules { background: var(--soft); border-radius: 12px; padding: 10px 14px; }
+.bld-rules summary { cursor: pointer; font-weight: 600; color: var(--teal-deep); font-size: 13px; }
+.bld-rules ul { margin: 8px 0 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; }
+.bld textarea.inp { overflow: hidden; resize: none; }

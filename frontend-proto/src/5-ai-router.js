@@ -134,7 +134,7 @@ function renderNav(cur) {
   $("#nav").innerHTML = NAV.filter(n => n[3].includes(S.role)).map(([r, n, ic]) => `<a href="#${r}" data-r="${r}" class="${r === cur ? "on" : ""}" ${r === cur ? 'aria-current="page"' : ""} aria-label="${n}"${document.documentElement.classList.contains("side-mini") ? ` data-tip="${n}"` : ""}>${IC[ic]}<span>${n}</span></a>`).join("");
   updateBadges();
 }
-const TITLES = { overview: () => "Огляд закладу", explain: () => "Розклад індексу", trends: () => "Динаміка", compare: () => "Порівняння: сприйняття і факти", recs: () => "Рекомендації", tracker: () => "Трекер заходів", sources: () => "Джерела", report: () => "Звіт", manage: () => "Керування циклом", surveys: () => "Анкети", checklist: () => "Чек-лист", audit: () => "Журнал", survey: () => "Анонімне опитування", me: () => "Мої результати", institutions: () => "Заклади" };
+const TITLES = { checks: () => "Перевірки", people: () => "Люди й ролі", summary: () => "Зведення", overview: () => "Огляд закладу", explain: () => "Розклад індексу", trends: () => "Динаміка", compare: () => "Порівняння: сприйняття і факти", recs: () => "Рекомендації", tracker: () => "Трекер заходів", sources: () => "Джерела", report: () => "Звіт", manage: () => "Керування циклом", surveys: () => "Анкети", checklist: () => "Чек-лист", audit: () => "Журнал", survey: () => "Анонімне опитування", me: () => "Мої результати", institutions: () => "Заклади" };
 let lastRoute = null, lastApiView = false;
 function render(soft) {
   if (API.on && !API.user && !API.anon) return showLogin();

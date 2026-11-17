@@ -66,14 +66,24 @@ V.report = () => {
 };
 // Експорт: одна кнопка, формат обирається у вікні
 function openExport() {
-  const opts = [["print", IC.print, "PDF або друк", "Звіт у форматі документа. У вікні друку оберіть «Зберегти як PDF»."], ["html", IC.file, "Документ HTML", "Відкривається в будь-якому браузері, можна відкрити в Word."], ["csv", IC.table, "Таблиця CSV", "Усі питання й показники з балами. Для Excel."], ["json", IC.file, "Дані JSON", "Для інших систем і бекенду."], ["copy", IC.copy, "Копіювати CSV", "У буфер обміну, щоб вставити в таблицю."]];
+  const opts = [...(API.on ? [["docx", IC.file, "Документ Word (.docx)", "Звіт за структурою Додатку Г, готовий до підпису."], ["xlsx", IC.table, "Таблиця Excel (.xlsx)", "Звіт із таблицями за розділами."]] : []), ["print", IC.print, "PDF або друк", "Звіт у форматі документа. У вікні друку оберіть «Зберегти як PDF»."], ["html", IC.file, "Документ HTML", "Відкривається в будь-якому браузері, можна відкрити в Word."], ["csv", IC.table, "Таблиця CSV", "Усі питання й показники з балами. Для Excel."], ["json", IC.file, "Дані JSON", "Для інших систем і бекенду."], ["copy", IC.copy, "Копіювати CSV", "У буфер обміну, щоб вставити в таблицю."]];
   const d = $("#exp");
   d.innerHTML = `<form method="dialog" class="exp-box"><div class="card-h"><h2>Експорт звіту</h2><div class="sp"></div><button class="icon-btn" value="x" aria-label="Закрити">${IC.x}</button></div>
     <div class="lbl" style="margin-bottom:10px">${esc(cur().name)} · цикл ${CYCLE}</div>
     <div class="exp-list">${opts.map(([k, ic, t, ds]) => `<button type="button" class="exp-opt" onclick="doExport('${k}')"><span class="comp-ic" style="background:var(--soft)">${ic}</span><span><b>${t}</b><span class="lbl">${ds}</span></span></button>`).join("")}</div></form>`;
   d.showModal();
 }
-function doExport(k) { $("#exp").close(); if (k === "print") { addLog(me(), "Експорт звіту (PDF / друк)"); return setTimeout(() => window.print(), 50); } if (k === "copy") return copyOut("csv"); copyOut(k, true); }
+async function apiDownloadReport(fmt) {
+  try {
+    const q = API.unitId ? `&unit_id=${API.unitId}` : "";
+    const r = await fetch(`${API.base}/campaigns/${API.campaignId}/report?format=${fmt}${q}`, { headers: apiAuth() });
+    if (!r.ok) throw new Error((await r.json().catch(() => ({}))).message || "Не вдалося сформувати файл");
+    const cd = r.headers.get("content-disposition") || "", name = (cd.match(/filename="?([^";]+)"?/) || [])[1] || `integrity-report.${fmt}`;
+    const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = name; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500);
+    toast("Завантажено: " + name);
+  } catch (e) { toast(e.message); }
+}
+function doExport(k) { $("#exp").close(); if (k === "docx" || k === "xlsx") return apiDownloadReport(k); if (k === "print") { addLog(me(), "Експорт звіту (PDF / друк)"); return setTimeout(() => window.print(), 50); } if (k === "copy") return copyOut("csv"); copyOut(k, true); }
 function copyOut(kind, dl) {
   const m = cur(); let txt;
   if (kind === "html") { const doc = `<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>Звіт ${CYCLE}</title><style>body{font:14pt/1.5 "Times New Roman",Times,serif;max-width:800px;margin:40px auto;padding:0 24px;color:#000}table{border-collapse:collapse;width:100%;margin:6px 0 12px}td,th{border:1px solid #000;padding:4px 6px;font-size:12pt;text-align:left;vertical-align:top}th{font-weight:bold}.doc-approve{margin-left:auto;width:300px}.doc-title{text-align:center;font-size:16pt;margin:24px 0 4px}.doc-sub{text-align:center;font-weight:bold}.doc-meta,.doc-note{font-size:11pt}.doc-cap{text-align:right;font-style:italic;margin-bottom:2px}.doc-sign{display:flex;justify-content:space-between;margin-top:36px}.doc-blank{display:inline-block;min-width:140px;border-top:1px solid #000;font-size:10pt;text-align:center}.noprint,svg,button{display:none}p{text-align:justify}</style></head><body>${document.querySelector(".paper").innerHTML}</body></html>`; return download(`integrity-report-${m.id}-${CYCLE}.html`, doc, "text/html"); }

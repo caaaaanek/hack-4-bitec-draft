@@ -1,0 +1,67 @@
+{
+  "properties": {
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "kind": {
+      "title": "Kind",
+      "type": "string"
+    },
+    "unit_id": {
+      "format": "uuid",
+      "title": "Unit Id",
+      "type": "string"
+    },
+    "period": {
+      "title": "Period",
+      "type": "string"
+    },
+    "source": {
+      "title": "Source",
+      "type": "string"
+    },
+    "total": {
+      "title": "Total",
+      "type": "integer"
+    },
+    "flagged": {
+      "title": "Flagged",
+      "type": "integer"
+    },
+    "by_risk": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "By Risk",
+      "type": "object"
+    },
+    "extra": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Extra",
+      "type": "object"
+    },
+    "created_at": {
+      "format": "date-time",
+      "title": "Created At",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "kind",
+    "unit_id",
+    "period",
+    "source",
+    "total",
+    "flagged",
+    "by_risk",
+    "extra",
+    "created_at"
+  ],
+  "title": "RunOut",
+  "type": "object"
+}

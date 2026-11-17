@@ -1,0 +1,35 @@
+{
+  "unit_id": "00000000-0000-0000-0000-000000000000",
+  "period": "2026-11",
+  "source": "file",
+  "year": 2025,
+  "items": [
+    {
+      "declaration_id": "nacp_example_001",
+      "declaration_type": 1,
+      "declaration_year": 2025,
+      "date": "2026-03-10",
+      "data": null
+    },
+    {
+      "declaration_id": "nacp_example_002",
+      "declaration_type": 1,
+      "declaration_year": 2025,
+      "date": "2026-04-15",
+      "data": null
+    },
+    {
+      "declaration_id": "nacp_example_003",
+      "declaration_type": 3,
+      "declaration_year": 2025,
+      "date": "2025-12-20",
+      "data": {
+        "step_1": {
+          "data": {
+            "dismissalDate": "2025-12-01"
+          }
+        }
+      }
+    }
+  ]
+}

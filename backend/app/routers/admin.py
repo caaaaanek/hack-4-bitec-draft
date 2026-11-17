@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-from sqlalchemy import exists, select
+from sqlalchemy import exists, func, inspect, select, text
 from sqlalchemy.orm import Session
 
 from app.audit import log_action, verify_chain
@@ -35,12 +35,13 @@ from app.schemas import (
     UserOut,
     UserUpdate,
 )
+from app.routers.campaigns import progress as campaign_progress
 from app.services.units import subtree_from, subtree_ids, unit_tree
 from app.security import hash_password, require_roles
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-admin_only = require_roles(Role.ADMIN)
-audit_readers = require_roles(Role.ADMIN, Role.AUDITOR)
+managers = require_roles(Role.ADMIN, Role.COORDINATOR)  # користувачі, підрозділи, зведення
+audit_readers = require_roles(Role.ADMIN, Role.COORDINATOR, Role.AUDITOR)
 
 
 def check_respondent_fields(role: Role, category, unit_id, db: Session) -> None:
@@ -56,7 +57,7 @@ def check_respondent_fields(role: Role, category, unit_id, db: Session) -> None:
 def list_users(
     role: Role | None = None,
     db: Session = Depends(get_db),
-    _: User = Depends(admin_only),
+    _: User = Depends(managers),
 ):
     query = select(User).order_by(User.login)
     if role is not None:
@@ -65,7 +66,7 @@ def list_users(
 
 
 @router.post("/users", response_model=UserOut, status_code=status.HTTP_201_CREATED)
-def create_user(data: UserCreate, db: Session = Depends(get_db), admin: User = Depends(admin_only)):
+def create_user(data: UserCreate, db: Session = Depends(get_db), admin: User = Depends(managers)):
     if db.scalar(select(User).where(User.login == data.login)):
         raise HTTPException(status_code=409, detail="Такий логін уже існує")
     check_respondent_fields(data.role, data.category, data.unit_id, db)
@@ -90,12 +91,12 @@ def update_user(
     user_id: uuid.UUID,
     data: UserUpdate,
     db: Session = Depends(get_db),
-    admin: User = Depends(admin_only),
+    admin: User = Depends(managers),
 ):
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
-    if user.id == admin.id and (data.role not in (None, Role.ADMIN) or data.is_active is False):
+    if user.id == admin.id and (data.role not in (None, admin.role) or data.is_active is False):
         raise HTTPException(status_code=422, detail="Не можна зняти роль адміна чи заблокувати самого себе")
 
     changes = data.model_dump(exclude_unset=True)
@@ -117,12 +118,12 @@ def update_user(
 # ---------- Підрозділи ----------
 
 @router.get("/units", response_model=list[UnitOut])
-def list_units(db: Session = Depends(get_db), _: User = Depends(admin_only)):
+def list_units(db: Session = Depends(get_db), _: User = Depends(managers)):
     return db.scalars(select(Unit).order_by(Unit.name)).all()
 
 
 @router.post("/units", response_model=UnitOut, status_code=status.HTTP_201_CREATED)
-def create_unit(data: UnitIn, db: Session = Depends(get_db), admin: User = Depends(admin_only)):
+def create_unit(data: UnitIn, db: Session = Depends(get_db), admin: User = Depends(managers)):
     if data.parent_id is not None and db.get(Unit, data.parent_id) is None:
         raise HTTPException(status_code=422, detail="Батьківський підрозділ не знайдено")
     unit = Unit(name=data.name, parent_id=data.parent_id)
@@ -143,7 +144,7 @@ def open_campaigns_covering(db: Session, unit_ids: set[uuid.UUID]) -> list[Campa
 
 
 @router.patch("/units/{unit_id}", response_model=UnitOut)
-def update_unit(unit_id: uuid.UUID, data: UnitUpdate, db: Session = Depends(get_db), admin: User = Depends(admin_only)):
+def update_unit(unit_id: uuid.UUID, data: UnitUpdate, db: Session = Depends(get_db), admin: User = Depends(managers)):
     """Перейменувати або перенести підрозділ (parent_id: null — зробити кореневим).
 
     Переносити не можна в самого себе чи в свій дочірній підрозділ, а також поки відкрита хвиля,
@@ -183,7 +184,7 @@ def update_unit(unit_id: uuid.UUID, data: UnitUpdate, db: Session = Depends(get_
 
 
 @router.delete("/units/{unit_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_unit(unit_id: uuid.UUID, db: Session = Depends(get_db), admin: User = Depends(admin_only)):
+def delete_unit(unit_id: uuid.UUID, db: Session = Depends(get_db), admin: User = Depends(managers)):
     """Видалити підрозділ, лише якщо на нього ніщо не посилається (діти, люди, хвилі, відповіді, факти, заходи)."""
     unit = db.get(Unit, unit_id)
     if unit is None:
@@ -202,6 +203,38 @@ def delete_unit(unit_id: uuid.UUID, db: Session = Depends(get_db), admin: User =
     db.delete(unit)
     db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+# ---------- Зведення ----------
+
+@router.get("/overview")
+def overview(db: Session = Depends(get_db), _: User = Depends(managers)):
+    """Зведення для координатора: без персональних даних, групи менші за k приховані."""
+    def counts(column):
+        return {getattr(k, "value", k): n for k, n in db.execute(select(column, func.count()).group_by(column)) if k is not None}
+
+    campaigns = []
+    for c in db.scalars(select(Campaign).order_by(Campaign.title)):
+        items = campaign_progress(c.id, db, _).items
+        campaigns.append({
+            "id": c.id, "title": c.title, "status": c.status.value, "unit_id": c.unit_id,
+            "progress": [{"questionnaire_title": i.questionnaire_title, "submitted": i.submitted,
+                          "eligible": i.eligible, "hidden": i.too_few_people} for i in items],
+        })
+    checks = {"findings_total": 0, "findings_open": 0}
+    if inspect(db.bind).has_table("check_findings"):
+        checks["findings_total"] = db.scalar(text("select count(*) from check_findings"))
+        checks["findings_open"] = db.scalar(text("select count(*) from check_findings where status = 'new'"))
+    return {
+        "users": {
+            "total": db.scalar(select(func.count()).select_from(User)),
+            "by_role": counts(User.role), "by_category": counts(User.category),
+            "inactive": db.scalar(select(func.count()).select_from(User).where(User.is_active.is_(False))),
+        },
+        "units": {"total": db.scalar(select(func.count()).select_from(Unit))},
+        "campaigns": campaigns,
+        "checks": checks,
+    }
 
 
 # ---------- Журнал дій ----------
