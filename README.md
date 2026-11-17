@@ -18,7 +18,8 @@ hack-4-bitec-draft/
 │   ├── migrations/          Alembic
 │   ├── scripts/demo_wave.py повна демо-хвиля одним запуском
 │   └── tests/               pytest (за замовчуванням на SQLite)
-├── frontend/                UI: Vite + React 19 + TypeScript + Tailwind 4 + Recharts
+├── frontend-proto/          UI (використовується): одна сторінка, vanilla JS, src/ → build.py → index.html, nginx у Docker
+├── frontend/                попередній UI на React (у compose не використовується)
 │   ├── src/pages/           екрани (див. таблицю нижче)
 │   ├── src/components/      ui/ базові, dashboard/ графіки й картки, layout/ оболонка й навігація
 │   ├── src/lib/             логіка UI: scoring/, recommendations.ts, measures.ts, access.ts (ролі й маршрути)
@@ -43,14 +44,13 @@ flowchart LR
   WG["Робоча група<br/>(чек-лист + доказ)"] --> API
   EXT["Інші системи<br/>(факти «X з Y»)"] -->|X-Integration-Key| API
   API["backend /api/v1"] --> DB[(PostgreSQL)]
-  UI["frontend<br/>(nginx, /api → backend)"] -->|вхід, JWT| API
+  API --> UI["frontend-proto"]
 ```
 
 - **Backend** зберігає анкети, хвилі, анонімні відповіді (окремо від факту участі), чек-лист і факти з інших систем. Після закриття хвилі він рахує
   Integrity Index і зберігає незмінний знімок на кожен підрозділ. Кожне число має поле `rule` з поясненням.
-- **Frontend** — вхід, дашборд керівника, розклад індексу, порівняння, динаміка, рекомендації з рішеннями, трекер заходів, звіт (друк і CSV),
-  кабінет учасника, анонімне проходження, керування хвилями, чек-лист із файлами, журнал. Дані з API (`frontend/src/api`: клієнт,
-  адаптери, сесія); окремий демо-режим без бекенду — `npm run dev:demo`.
+- **Frontend** — дашборд керівника, розклад індексу, порівняння, рекомендації, трекер заходів, звіт і кабінет учасника.
+  Це `frontend-proto/`: після входу всі дані йдуть з бекенду, без API сторінка працює на демо-даних.
 
 ## Модулі
 
@@ -58,19 +58,19 @@ flowchart LR
 
 | Модуль | Backend | Frontend |
 |---|---|---|
-| Assessment Manager — хвилі, учасники, підрозділи | `routers/campaigns.py` (зміна чернетки, явні учасники, імпорт CSV псевдонімів, одноразові посилання), `routers/admin.py` | `/manage` хвилі, прогрес, посилання |
-| Digital Questionnaire — анкети 1–3, конструктор, версії | `routers/questionnaires.py`, `routers/respond.py` (вхід або анонімно за посиланням) | `/s/:token` анонімно, `/answer/…` за обліковим записом, `/surveys` версії й публікація |
-| Evidence Repository — чек-лист, файли-докази з sha256 | `routers/checklist.py`, `services/evidence.py` | `/checklist` внесення, файли, підтвердження |
+| Assessment Manager — хвилі, учасники, підрозділи | `routers/campaigns.py` (зміна чернетки, явні учасники, імпорт CSV псевдонімів, одноразові посилання), `routers/admin.py` | `#manage` хвилі, посилання |
+| Digital Questionnaire — анкети 1–3, конструктор, версії | `routers/questionnaires.py`, `routers/respond.py` (вхід або анонімно за посиланням) | `/s/<токен>`, `#survey`, `#surveys` |
+| Evidence Repository — чек-лист, файли-докази з sha256 | `routers/checklist.py`, `services/evidence.py` | `#checklist` з файлами |
 | Integrity Index Engine — детермінований розрахунок | `services/scoring.py`, `services/methodology.py`, `routers/results.py` | `/explain` розклад індексу, `lib/scoring/` |
 | Executive Dashboard — один екран | `GET /dashboard` | `/` |
 | Comparative Analytics — РГ / ОС / експерти / факти, динаміка | `routers/results.py` (history, compare), `routers/indicators.py` (факти, сигнали ризику) | `/compare`, `/trends`, `/institutions` |
 | Recommendations Engine — явні правила | `services/recommendations.py`, `routers/recommendations.py`, каталог з Додатку Д | `/recommendations`, `lib/recommendations.ts` |
 | Recommendations Tracker — відповідальний, строк, статус | `routers/measures.py`, синхронізація з темою 2 (`routers/integrations.py`) | `/tracker`, `lib/measures.ts` |
-| Audit Trail — журнал дій | `audit.py` (ланцюжок хешів), `GET /admin/audit-log`, `POST /admin/audit-log/verify` | `/audit` журнал і перевірка |
+| Audit Trail — журнал дій | `audit.py` (ланцюжок хешів), `GET /admin/audit-log`, `POST /admin/audit-log/verify` | `#audit` з перевіркою |
 | Reporting Module | `GET /campaigns/{id}/report?format=json\|csv` | `/reports` |
 | Кабінет учасника — узагальнені результати свого підрозділу | `GET /me/results` | `/me` |
 | Інтеграція з іншими системами | `POST /indicators` (ключ на джерело), тема 2: `/integrations/theme2/*`, вхід через проксі організації (`POST /auth/proxy`), `ROOT_PATH` | `/integrations` карта інтеграції |
-| Асистент (опційно, вимкнено) | `POST /assistant/ask` | — |
+| Асистент (опційно, вимкнено) | `POST /assistant/ask`, `/api/assistant` (OpenAI-сумісний, `LLM_*`) | кнопка «Асистент» |
 
 Методика індексу — [`docs/integrity-index.md`](docs/integrity-index.md), ролі й API — [`docs/backend.md`](docs/backend.md).
 
@@ -78,7 +78,7 @@ flowchart LR
 
 ```bash
 cp .env.example .env && docker compose up --build   # PostgreSQL + API + UI → http://localhost:8080 (API: :8000/docs)
-cd frontend && npm ci && npm run dev                  # UI на демо-даних → http://localhost:5173
+# без Docker: відкрити frontend-proto/index.html — UI на демо-даних
 ```
 
 Деталі, демо-хвилі, логіни й перевірки — [`docs/run.md`](docs/run.md).

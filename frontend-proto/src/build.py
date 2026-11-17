@@ -3,7 +3,7 @@ import re, pathlib
 root = pathlib.Path(__file__).resolve().parent.parent
 p = root / "index.html"; s = p.read_text(encoding="utf-8")
 src = root / "src"
-js = "\n".join((src / f).read_text(encoding="utf-8") for f in ["1-model.js", "2-state.js", "3-views.js", "4-views2.js", "5-ai-router.js"])
+js = "\n".join((src / f).read_text(encoding="utf-8") for f in ["0-api.js", "1-model.js", "2-state.js", "3-views.js", "4-views2.js", "5-ai-router.js"])
 css = (src / "extra.css").read_text(encoding="utf-8")
 a, b = s.index("<script>"), s.index("</script>")
 s = s[:a] + "<script>\n" + js + "</script>" + s[b + len("</script>"):]

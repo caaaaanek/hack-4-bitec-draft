@@ -294,6 +294,7 @@ function acceptRec(id) {
     b.querySelector("#f-ok").onclick = () => {
       const due = b.querySelector("#f-due").value;
       if (!due || due < TODAY) { b.querySelector("#f-err").textContent = "Оберіть строк не раніше за сьогодні."; return; }
+      if (API.on) { b.querySelector("#f-ok").disabled = true; apiDecide(id, "accepted", "", { owner: b.querySelector("#f-who").value, due_date: due }).then(() => { closeDrawer(); toast(`Рекомендацію прийнято. Захід «${r.t}» додано до трекера.`); }, e => { b.querySelector("#f-err").textContent = apiErrText(e); b.querySelector("#f-ok").disabled = false; }); return; }
       const mid = "m-" + (BASE_MEASURES.length + S.dec.added.length + 1);
       S.dec.rec[id] = { status: "accepted" };
       S.dec.added.push({ id: mid, recId: id, rec: r.t, t: r.t, who: b.querySelector("#f-who").value, due, st: "accepted", ind: r.items[0] });
@@ -311,6 +312,7 @@ function noteRec(id, kind) {
     b.querySelector("#f-ok").onclick = () => {
       const t = b.querySelector("#f-why").value.trim();
       if (!t) { const e = b.querySelector("#f-err"); e.textContent = rej ? "Вкажіть причину відхилення." : "Напишіть, що саме потрібно уточнити."; e.style.color = "var(--red)"; b.querySelector("#f-why").focus(); return; }
+      if (API.on) { apiDecide(id, rej ? "rejected" : "clarify", t).then(() => { closeDrawer(); toast(rej ? "Рекомендацію відхилено. Причину збережено." : "Рекомендацію позначено як «Уточнено». Коментар збережено."); }, e => { const er = b.querySelector("#f-err"); er.textContent = apiErrText(e); er.style.color = "var(--red)"; }); return; }
       S.dec.rec[id] = rej ? { status: "rejected", reason: t } : { status: "clarified", comment: t };
       addLog(me(), `Рекомендацію «${r.t}» ${rej ? "відхилено" : "позначено «Уточнено»"}: ${t}`); persist(); closeDrawer(); render(true);
       toast(rej ? "Рекомендацію відхилено. Причину збережено." : "Рекомендацію позначено як «Уточнено». Коментар збережено.");
@@ -343,6 +345,9 @@ V.tracker = () => {
     <div class="vf-s tnum"><span><b>${conf}</b>Підтверджено</span><span><b>${wait}</b>Очікують оцінювання</span><span><b>${rev}</b>Потребують перегляду</span></div>
   </section>`;
 };
+<<<<<<< HEAD
+function setMSt(id, st) { if (API.on) return apiSetMSt(id, st); const x = measures().find(m => m.id === id); if (!x || !M_NEXT[x.st].includes(st)) return; S.dec.mst[id] = st; addLog(me(), `Захід «${x.t}»: статус «${M_ST[st][0]}»`); persist(); render(true); toast(`Статус заходу змінено на «${M_ST[st][0]}».`); }
+=======
 // Захід: подробиці й перехід у систему звітування суміжної команди
 const MEASURES_APP = { name: "Система звітування за заходами (суміжна команда)", url: "" };
 function openMeasure(id) {
@@ -357,6 +362,7 @@ function openMeasure(id) {
       ${MEASURES_APP.url ? `<a class="btn btn-soft" href="${MEASURES_APP.url}" target="_blank" rel="noopener" style="justify-content:center">${IC.arrowR}Відкрити в застосунку звітування</a>` : `<button class="btn btn-soft" disabled style="justify-content:center;opacity:.6">${IC.arrowR}Відкрити в застосунку звітування</button><span class="lbl" style="font-size:12px">Посилання зʼявиться після погодження інтеграції.</span>`}</div>`);
 }
 function setMSt(id, st) { const x = measures().find(m => m.id === id); if (!x || !M_NEXT[x.st].includes(st)) return; S.dec.mst[id] = st; addLog(me(), `Захід «${x.t}»: статус «${M_ST[st][0]}»`); persist(); render(true); toast(`Статус заходу змінено на «${M_ST[st][0]}».`); }
+>>>>>>> origin/dev
 
 /* Джерела */
 const SOURCES = [
