@@ -210,7 +210,7 @@ a.pill-btn { color: inherit; text-decoration: none; }
 /* Заклади */
 .inst-search { flex: 1 1 260px; max-width: 380px; margin: 0; background: var(--panel); border: 1px solid var(--line); }
 .inst-search svg { width: 16px; height: 16px; }
-.inst-more { width: 30px; height: 30px; border-radius: 9px; margin: -4px -4px 0 0; }
+.inst-more { width: 30px; height: 30px; border-radius: 9px; margin: -2px -4px -2px 0; }
 .inst-more svg { width: 16px; height: 16px; }
 .reg-row { cursor: pointer; gap: 10px; }
 .reg-row input { width: 18px; height: 18px; accent-color: var(--teal); }
@@ -336,7 +336,7 @@ html.hc a, html.hc .link { text-decoration: underline; }
 .attn-cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 32px; }
 @media (max-width: 760px) { .attn-cols { grid-template-columns: minmax(0, 1fr); } }
 .kt-h .lbl { line-height: 26px; }
-.kt-b .mid { display: inline-grid; place-items: center; min-width: 30px; line-height: 1; }
+.kt-b .mid { display: inline-grid; place-items: center; min-width: 26px; line-height: 1; } /* 26px = ширина .kt-ic: одна літера чи цифра стоїть точно під центром іконки */
 .kt-s { line-height: 1.4; }
 .radar-body { display: flex; flex-wrap: wrap; gap: 20px; align-items: center; justify-content: center; }
 .radar-main { flex: 1 1 300px; min-width: 0; max-width: 460px; }
@@ -404,3 +404,20 @@ html.hc a, html.hc .link { text-decoration: underline; }
 @media (max-width: 1180px) { .view > .dyn-card.c4, .view > #attn.c8 { grid-column: span 12; } }
 .dyn-card .card-h { flex-wrap: wrap; row-gap: 8px; }
 @media (min-width: 1181px) and (max-width: 1599px) { #attn.c8 .attn-cols { grid-template-columns: minmax(0, 1fr); } #attn.c8 .attn-cols > div + div { margin-top: 14px; } }
+.inst .link { margin-top: 0; }
+/* Роздільники клікабельних рядків прямі: межа з border-radius загиналася на кінцях */
+.row.click { border-top: 0; position: relative; }
+.row.click::before { content: ""; position: absolute; left: 8px; right: 8px; top: 0; height: 1px; background: var(--line); }
+.row.click:hover::before, .row.click:hover + .row.click::before { opacity: 0; }
+/* Шкала під «Сприйняття проти фактів»: кожна підпис стоїть рівно під своєю поділкою */
+.db-axis div { display: block; position: relative; height: 16px; }
+.db-axis div span { position: absolute; top: 0; transform: translateX(-50%); }
+.db-axis div span:nth-child(1) { left: 0; } .db-axis div span:nth-child(2) { left: 25%; } .db-axis div span:nth-child(3) { left: 50%; } .db-axis div span:nth-child(4) { left: 75%; } .db-axis div span:nth-child(5) { left: 100%; }
+/* Картки «На підставі»: посилання завжди в правому нижньому куті, значок прапорця в рядку з текстом */
+.ev-i { flex-direction: column; align-items: stretch; flex-wrap: nowrap; gap: 8px; }
+.ev-i .lbl { margin-left: 0; margin-top: auto; align-self: flex-end; }
+.ev-flag { display: inline-flex; vertical-align: -2px; margin-right: 6px; color: var(--red); }
+.ev-flag svg { width: 14px; height: 14px; }
+/* Кнопки зміни статусу в трекері однакової ширини */
+.mv { align-items: stretch; width: max-content; }
+.mv .btn { justify-content: flex-start; }

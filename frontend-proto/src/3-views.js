@@ -290,7 +290,7 @@ V.recs = () => {
       <h3>${r.t}</h3>
       <div class="lbl" style="margin:10px 0 4px">Чому система це пропонує</div><div>${r.why}</div>
       <div class="lbl" style="margin:12px 0 4px">На підставі</div>
-      <div class="ev">${r.evidence.map(e => `<a href="#explain/${e.id}" class="ev-i"${e.q ? ` onclick="event.preventDefault();openApiQ('${e.q}')"` : ""}>${e.item ? "" : `<span style="color:var(--red);display:inline-flex;width:14px">${IC.alert}</span>`}<span>${esc(e.t)}: <b>${e.v}</b></span><span class="lbl">${e.q ? "Відкрити питання" : "Відкрити в розкладі"} ${IC.arrowR}</span></a>`).join("")}</div>
+      <div class="ev">${r.evidence.map(e => `<a href="#explain/${e.id}" class="ev-i"${e.q ? ` onclick="event.preventDefault();openApiQ('${e.q}')"` : ""}><span>${e.item ? "" : `<span class="ev-flag">${IC.alert}</span>`}${esc(e.t)}: <b>${e.v}</b></span><span class="lbl">${e.q ? "Відкрити питання" : "Відкрити в розкладі"} ${IC.arrowR}</span></a>`).join("")}</div>
       <details class="acts"><summary>Запропоновані дії (${r.acts.length})</summary><ol>${r.acts.map(a => `<li>${a}</li>`).join("")}</ol></details>
       ${r.note.reason ? `<div class="note-box" style="margin-top:10px"><b>Причина відхилення</b><span>${esc(r.note.reason)}</span></div>` : ""}
       ${r.note.comment ? `<div class="note-box" style="margin-top:10px"><b>Коментар до уточнення</b><span>${esc(r.note.comment)}</span></div>` : ""}
