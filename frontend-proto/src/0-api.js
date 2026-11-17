@@ -168,7 +168,7 @@ function apiModel(r, h) {
   if (at >= 0) series = series.slice(0, at + 1);
   else series.push({ cycle: r.closed_on ? r.closed_on.slice(0, 7) : r.campaign_title, index: r.index.score ?? 0, cr: Object.fromEntries(comps.map(c => [c.id, c.cr.v])) });
   if (series.length === 1) series = [series[0], series[0]];
-  const events = pts.flatMap((p, i) => i > 0 && p.measures_done > 0 ? [{ after: labels[i - 1], t: `Виконано заходів між хвилями: ${p.measures_done}` }] : []);
+  const events = pts.flatMap((p, i) => i > 0 && p.measures_done > 0 ? [{ after: labels[i - 1], n: p.measures_done, t: `Виконано заходів між циклами: ${p.measures_done}` }] : []);
   const flags = [];
   for (const c of r.components) for (const f of c.flags || []) flags.push({ id: `${f.code}:${c.code}`, w: f.severity === "serious" ? "major" : "minor", t: `${c.title}: ${f.title}`, ex: c.rule || f.title, raised: true });
   for (const g of r.groups) for (const code of g.flags || []) if (GROUP_FLAG[code]) flags.push({ id: `${code}:${g.category}`, w: GROUP_FLAG[code][0], t: `${g.title}: ${GROUP_FLAG[code][1]}`, ex: GROUP_FLAG[code][2], raised: true });
@@ -186,8 +186,8 @@ function apiModel(r, h) {
     ...(r.weakest_questions || []).filter(q => q.score != null && q.score < 62.5 && COMPS.includes(qComp(q.code))).slice(0, 3).map(q => ({ t: q.text, c: qComp(q.code), v: q.score, q: q.code, hint: `Середній бал питання ${q.code}, 0-100.` })),
   ];
   m.strengths = (r.strengths || []).filter(s => byCode[s.code]).map(s => ({ t: `Сильний компонент: ${COMP[s.code].n}`, c: s.code, v: s.score ?? byCode[s.code].cr.v, hint: `Зараховане значення компонента ${COMP[s.code].n}, 0-100.` }));
-  if (!m.strengths.length) m.strengths = [{ t: `Найвищий результат у компоненті ${COMP[top.id].n}`, c: top.id, v: top.cr.v, hint: `Зараховане значення компонента ${COMP[top.id].n}, 0-100.` }];
-  if (series[0].index !== m.index) m.strengths.push({ t: m.index > series[0].index ? "Зростання індексу з першої хвилі" : "Зміна індексу з першої хвилі", v: r1(m.index - series[0].index), hint: "Сумарна зміна індексу з першої закритої хвилі, у пунктах.", unit: "пт" });
+  if (!m.strengths.length && !m.attention.some(a => a.c === top.id && !a.q)) m.strengths = [{ t: `Найвищий результат у компоненті ${COMP[top.id].n}`, c: top.id, v: top.cr.v, hint: `Зараховане значення компонента ${COMP[top.id].n}, 0-100.` }];
+  if (m.index > series[0].index) m.strengths.push({ t: "Зростання індексу з першого циклу", v: r1(m.index - series[0].index), hint: "Сумарна зміна індексу з першого закритого циклу, у пунктах.", unit: "пт" });
   return m;
 }
 
@@ -517,7 +517,7 @@ function apiSurveysView() {
   ${list.map(q => `<section class="card c6 rise">
     <div class="comp-top"><span class="comp-ic" style="background:var(--lime-soft);color:var(--teal-deep)">${q.kind === "checklist" ? IC.check : IC.survey}</span><b>${esc(q.title)}</b><div class="sp" style="flex:1"></div>${pill(QST[q.status][0], QST[q.status][1])}</div>
     <div class="stat4 tnum" style="grid-template-columns:repeat(3,1fr);margin-top:14px"><div><small>Група</small><b style="font-size:14px">${q.kind === "checklist" ? "Чек-лист" : QCAT[q.target_category]}</b></div><div><small>Версія</small><b>${q.version}</b></div><div><small>Код</small><b style="font-size:12px">${esc(q.code)}</b></div></div>
-    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center"><span class="lbl">Оновлено ${ua(q.updated_at.slice(0, 10))}</span><div class="sp" style="flex:1"></div>
+    <div class="lbl" style="margin-top:10px">Оновлено ${ua(q.updated_at.slice(0, 10))}</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;justify-content:flex-end">
       <button class="btn btn-soft" onclick="apiOpenQ('${q.id}')">${IC.eye}Переглянути</button>
       ${q.status === "draft" ? `<button class="btn btn-soft" onclick="bldOpen('${q.id}')">${IC.edit}Редагувати</button><button class="btn btn-primary" onclick="apiQAct('${q.id}','publish')">${IC.ok}Опублікувати</button>` : q.status === "published" ? `<button class="btn btn-ghost" onclick="apiQAct('${q.id}','new-version')">${IC.plus}Нова версія</button><button class="btn btn-ghost" onclick="apiQAct('${q.id}','archive')">В архів</button>` : ""}</div>
   </section>`).join("")}`;
@@ -641,8 +641,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 function apiLoadLog() {
   return Promise.all([
     api("/admin/audit-log?limit=500"),
-    api("/admin/units").catch(() => []), // лише для адміністратора; аудитору покажемо скорочений код
-    api("/admin/users").catch(() => []),
+    S.role === "admin" ? api("/admin/units").catch(() => []) : [], // лише для адміністратора; аудитору покажемо скорочений код
+    S.role === "admin" ? api("/admin/users").catch(() => []) : [],
   ]).then(([rows, units, users]) => ({ rows, units, users }));
 }
 // Читабельний рядок із деталей запису: назви підрозділів замість UUID, без службових полів

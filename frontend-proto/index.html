@@ -134,7 +134,7 @@ button { cursor: pointer; }
 .delta b { color: var(--fg); font-weight: 600; }
 .delta svg { width: 12px; height: 12px; }
 
-.btn { border: 0; border-radius: 12px; padding: 10px 16px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: transform .15s, filter .15s; }
+.btn { color: var(--fg); text-decoration: none; border: 0; border-radius: 12px; padding: 10px 16px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: transform .15s, filter .15s; }
 .btn:active { transform: scale(.97); }
 .btn svg { width: 16px; height: 16px; }
 .btn-primary { background: var(--lime); color: var(--lime-ink); }
@@ -839,6 +839,16 @@ html.hc a, html.hc .link { text-decoration: underline; }
 /* Кнопки зміни статусу в трекері однакової ширини */
 .mv { align-items: stretch; width: max-content; }
 .mv .btn { justify-content: flex-start; }
+/* Асистент лише для ролей з AI_ROLES: атрибут hidden сильніший за display:flex кнопки */
+.top [hidden] { display: none !important; }
+/* Ролям без результатів (респондент, робоча група) цикл і позначка в шапці не потрібні */
+html[data-role="respondent"] #cycleBtn, html[data-role="checklist_editor"] #cycleBtn,
+html[data-role="respondent"] .top .synthetic, html[data-role="checklist_editor"] .top .synthetic { display: none; }
+/* Стовпчики питань на телефоні: мінімальна ширина й прокрутка всередині картки */
+@media (max-width: 640px) {
+  .ibars { grid-template-columns: none !important; grid-auto-flow: column; grid-auto-columns: minmax(30px, 1fr); overflow-x: auto; padding-bottom: 4px; }
+  .ibar .v { font-size: 11px; }
+}
 
 /* --- конструктор анкет --- */
 body.bld-open { overflow: hidden; }
@@ -1204,7 +1214,7 @@ function apiModel(r, h) {
   if (at >= 0) series = series.slice(0, at + 1);
   else series.push({ cycle: r.closed_on ? r.closed_on.slice(0, 7) : r.campaign_title, index: r.index.score ?? 0, cr: Object.fromEntries(comps.map(c => [c.id, c.cr.v])) });
   if (series.length === 1) series = [series[0], series[0]];
-  const events = pts.flatMap((p, i) => i > 0 && p.measures_done > 0 ? [{ after: labels[i - 1], t: `Виконано заходів між хвилями: ${p.measures_done}` }] : []);
+  const events = pts.flatMap((p, i) => i > 0 && p.measures_done > 0 ? [{ after: labels[i - 1], n: p.measures_done, t: `Виконано заходів між циклами: ${p.measures_done}` }] : []);
   const flags = [];
   for (const c of r.components) for (const f of c.flags || []) flags.push({ id: `${f.code}:${c.code}`, w: f.severity === "serious" ? "major" : "minor", t: `${c.title}: ${f.title}`, ex: c.rule || f.title, raised: true });
   for (const g of r.groups) for (const code of g.flags || []) if (GROUP_FLAG[code]) flags.push({ id: `${code}:${g.category}`, w: GROUP_FLAG[code][0], t: `${g.title}: ${GROUP_FLAG[code][1]}`, ex: GROUP_FLAG[code][2], raised: true });
@@ -1222,8 +1232,8 @@ function apiModel(r, h) {
     ...(r.weakest_questions || []).filter(q => q.score != null && q.score < 62.5 && COMPS.includes(qComp(q.code))).slice(0, 3).map(q => ({ t: q.text, c: qComp(q.code), v: q.score, q: q.code, hint: `Середній бал питання ${q.code}, 0-100.` })),
   ];
   m.strengths = (r.strengths || []).filter(s => byCode[s.code]).map(s => ({ t: `Сильний компонент: ${COMP[s.code].n}`, c: s.code, v: s.score ?? byCode[s.code].cr.v, hint: `Зараховане значення компонента ${COMP[s.code].n}, 0-100.` }));
-  if (!m.strengths.length) m.strengths = [{ t: `Найвищий результат у компоненті ${COMP[top.id].n}`, c: top.id, v: top.cr.v, hint: `Зараховане значення компонента ${COMP[top.id].n}, 0-100.` }];
-  if (series[0].index !== m.index) m.strengths.push({ t: m.index > series[0].index ? "Зростання індексу з першої хвилі" : "Зміна індексу з першої хвилі", v: r1(m.index - series[0].index), hint: "Сумарна зміна індексу з першої закритої хвилі, у пунктах.", unit: "пт" });
+  if (!m.strengths.length && !m.attention.some(a => a.c === top.id && !a.q)) m.strengths = [{ t: `Найвищий результат у компоненті ${COMP[top.id].n}`, c: top.id, v: top.cr.v, hint: `Зараховане значення компонента ${COMP[top.id].n}, 0-100.` }];
+  if (m.index > series[0].index) m.strengths.push({ t: "Зростання індексу з першого циклу", v: r1(m.index - series[0].index), hint: "Сумарна зміна індексу з першого закритого циклу, у пунктах.", unit: "пт" });
   return m;
 }
 
@@ -1553,7 +1563,7 @@ function apiSurveysView() {
   ${list.map(q => `<section class="card c6 rise">
     <div class="comp-top"><span class="comp-ic" style="background:var(--lime-soft);color:var(--teal-deep)">${q.kind === "checklist" ? IC.check : IC.survey}</span><b>${esc(q.title)}</b><div class="sp" style="flex:1"></div>${pill(QST[q.status][0], QST[q.status][1])}</div>
     <div class="stat4 tnum" style="grid-template-columns:repeat(3,1fr);margin-top:14px"><div><small>Група</small><b style="font-size:14px">${q.kind === "checklist" ? "Чек-лист" : QCAT[q.target_category]}</b></div><div><small>Версія</small><b>${q.version}</b></div><div><small>Код</small><b style="font-size:12px">${esc(q.code)}</b></div></div>
-    <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center"><span class="lbl">Оновлено ${ua(q.updated_at.slice(0, 10))}</span><div class="sp" style="flex:1"></div>
+    <div class="lbl" style="margin-top:10px">Оновлено ${ua(q.updated_at.slice(0, 10))}</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;align-items:center;justify-content:flex-end">
       <button class="btn btn-soft" onclick="apiOpenQ('${q.id}')">${IC.eye}Переглянути</button>
       ${q.status === "draft" ? `<button class="btn btn-soft" onclick="bldOpen('${q.id}')">${IC.edit}Редагувати</button><button class="btn btn-primary" onclick="apiQAct('${q.id}','publish')">${IC.ok}Опублікувати</button>` : q.status === "published" ? `<button class="btn btn-ghost" onclick="apiQAct('${q.id}','new-version')">${IC.plus}Нова версія</button><button class="btn btn-ghost" onclick="apiQAct('${q.id}','archive')">В архів</button>` : ""}</div>
   </section>`).join("")}`;
@@ -1677,8 +1687,8 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 function apiLoadLog() {
   return Promise.all([
     api("/admin/audit-log?limit=500"),
-    api("/admin/units").catch(() => []), // лише для адміністратора; аудитору покажемо скорочений код
-    api("/admin/users").catch(() => []),
+    S.role === "admin" ? api("/admin/units").catch(() => []) : [], // лише для адміністратора; аудитору покажемо скорочений код
+    S.role === "admin" ? api("/admin/users").catch(() => []) : [],
   ]).then(([rows, units, users]) => ({ rows, units, users }));
 }
 // Читабельний рядок із деталей запису: назви підрозділів замість UUID, без службових полів
@@ -2466,7 +2476,7 @@ function trendCard(m, id) {
       <button class="pill-btn" onclick="S.trTable=!S.trTable;render(true)">${S.trTable ? IC.trend + "Діаграма" : IC.table + "Таблиця"}</button></div>
     ${S.trTable ? "" : `<div class="chips-row"><span class="lbl">Лінії:</span>${chip("index", "Індекс", "var(--teal-deep)", !t.noIdx)}${COMPS.map(c => chip(c, COMP[c].n, COMP[c].c, t.lines.includes(c))).join("")}</div>`}
     ${S.trTable ? `<div class="tbl-wrap"><table><thead><tr><th>Цикл</th><th>Індекс</th><th>Рівень</th>${COMPS.map(c => `<th>${COMP[c].n}</th>`).join("")}<th>Події після циклу</th></tr></thead><tbody>${rows.map(r => `<tr><td><b>${r.cycle}</b></td><td class="tnum"><b>${f1(r.index)}</b></td><td>${lvPill(level(r.index))}</td>${COMPS.map(c => `<td class="tnum">${fb(r.cr[c])}</td>`).join("")}<td class="lbl">${m.events.filter(e => e.after === r.cycle && r !== rows[rows.length - 1]).map(e => e.t).join("; ") || "—"}</td></tr>`).join("")}</tbody></table></div>` : `<div class="chart" id="${id}"></div>`}
-    <div class="lbl" style="margin-top:8px;display:flex;align-items:center;flex-wrap:wrap;gap:4px"><span class="ev-ic">${IC.diamond}</span>Виконані заходи між циклами: ${evs.length}. ${d > 0 ? `За період індекс зріс на ${pts(d)}.` : d < 0 ? `За період індекс знизився на ${pts(d)}.` : "За період індекс не змінився."}</div>`;
+    <div class="lbl" style="margin-top:8px;display:flex;align-items:center;flex-wrap:wrap;gap:4px"><span class="ev-ic">${IC.diamond}</span>Виконані заходи між циклами: ${evs.reduce((a, e) => a + (e.n || 1), 0)}. ${d > 0 ? `За період індекс зріс на ${pts(d)}.` : d < 0 ? `За період індекс знизився на ${pts(d)}.` : "За період індекс не змінився."}</div>`;
 }
 function drawTrend(id, m) { const [from, to] = trendRange(m); trendChart($("#" + id), m.series.slice(from, to + 1), S.trend.lines, m.events, !S.trend.noIdx); }
 function toggleLine(c) {
@@ -2650,7 +2660,7 @@ V.tracker = () => {
   const stCell = x => pill(M_ST[x.st][0], M_ST[x.st][1]);
   const actCell = x => x.st === "confirmed" ? `<span class="lbl">Змінює наступне оцінювання</span>` : edit ? `<div class="mv">${M_NEXT[x.st].map(s => `<button class="btn btn-ghost" onclick="setMSt('${x.id}','${s}')">${IC.arrowR}${M_ST[s][0]}</button>`).join("")}</div>` : `<span class="lbl">—</span>`;
   const board = ["accepted", "inprogress", "done", "confirmed", "notconfirmed", ...(list.some(x => x.st === "cancelled") ? ["cancelled"] : [])].map(st => { const cards = list.filter(x => x.st === st); return `<div class="col-b" data-st="${st}"><div class="col-h">${pill(M_ST[st][0], M_ST[st][1])}<span class="lbl tnum">${cards.length}</span></div>${cards.map(x => `<div class="b-card tr-click" tabindex="0" ${edit && M_NEXT[x.st].length ? `draggable="true" data-id="${x.id}" data-st="${x.st}"` : ""} onclick="if(!event.target.closest('button'))openMeasure('${x.id}')"><b>${x.t}</b><span class="lbl">${x.who}</span><div style="display:flex;justify-content:space-between;align-items:center;gap:6px;flex-wrap:wrap"><span class="lbl tnum" ${overdueDays(x) ? 'style="color:var(--red);font-weight:600"' : ""}>Строк: ${ua(x.due)}</span>${overdueDays(x) ? pill(`+${overdueDays(x)} ${daysWord(overdueDays(x))}`, "p-bad nodot") : ""}</div>${edit && M_NEXT[x.st].length ? `<div class="seg sm">${M_NEXT[x.st].map(s => `<button onclick="setMSt('${x.id}','${s}')">${IC.arrowR}${M_ST[s][0]}</button>`).join("")}</div>` : ""}</div>`).join("") || `<div class="lbl" style="padding:8px">Порожньо</div>`}</div>`; }).join("");
-  const conf = all.filter(x => x.st === "confirmed").length, wait = all.filter(x => x.st === "done").length, rev = all.filter(x => x.st === "notconfirmed").length;
+  const conf = all.filter(x => x.st === "confirmed").length, chk = all.filter(x => x.st === "done" && x.vf && x.vf[1] === "p-warn").length, wait = all.filter(x => x.st === "done").length - chk, rev = all.filter(x => x.st === "notconfirmed").length;
   return `
   <section class="c12 rise toolbar"><div class="sp"></div>
     <div class="seg" role="group" aria-label="Вигляд">${[["table", "Таблиця", "table"], ["board", "Дошка", "board"]].map(([k, n, ic]) => `<button class="${S.trackView === k ? "on" : ""}" onclick="S.trackView='${k}';persist();render(true)">${n}</button>`).join("")}</div>
@@ -2664,7 +2674,7 @@ V.tracker = () => {
   <section class="card c12 rise vf">
     <h2>Верифікація наступним оцінюванням</h2><button type="button" class="kt-info" aria-label="Як працює верифікація" data-tip="Чи спрацював виконаний захід, видно після наступного циклу: якщо повʼязаний показник зріс, захід підтверджено.">${IC.info}</button>
     <div class="sp"></div>
-    <div class="vf-s tnum"><span><b>${conf}</b>Підтверджено</span><span><b>${wait}</b>Очікують оцінювання</span><span><b>${rev}</b>Потребують перегляду</span></div>
+    <div class="vf-s tnum"><span><b>${conf}</b>Підтверджено</span><span><b>${wait}</b>Очікують оцінювання</span>${chk ? `<span><b>${chk}</b>Перевірити дані</span>` : ""}<span><b>${rev}</b>Потребують перегляду</span></div>
   </section>`;
 };
 // Захід: подробиці й перехід у систему звітування суміжної команди
@@ -2842,7 +2852,7 @@ V.compare = () => {
   <div class="c7 cmp-stack">
   <section class="card rise">
     <div class="card-h"><h2>Обʼєктивні показники</h2><div class="sp"></div><a class="pill-btn" href="#sources">${IC.plug}Джерела</a></div>
-    <div class="kpis">${pctFacts.map(f => { const r = 18, C = 2 * Math.PI * r; return `<a class="kpi" href="#explain/${f.id}" style="text-decoration:none;color:inherit"><span class="kpi-t">${f.t}</span><div class="ring"><svg width="46" height="46" viewBox="0 0 46 46"><circle cx="23" cy="23" r="${r}" fill="none" stroke="var(--line)" stroke-width="5"/><circle cx="23" cy="23" r="${r}" fill="none" stroke="${SCOL[status(f.v)]}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${C}" style="stroke-dashoffset:${C * (1 - f.v / 100)};transform:rotate(-90deg);transform-origin:center;transition:stroke-dashoffset 1s" class="kring" data-off="${C * (1 - f.v / 100)}" data-c="${C}"/></svg><span class="mid tnum" style="font-size:24px">${numHTML(f.v, 0)}<span class="dec">%</span></span></div><span class="lbl tnum">${f.val[0]} з ${f.val[1]}<br>${COMP[f.c].n}</span></a>`; }).join("")}</div>
+    <div class="kpis">${pctFacts.map(f => { const r = 18, C = 2 * Math.PI * r, sh = f.val[1] ? f.val[0] / f.val[1] * 100 : f.v, sc = Math.abs(sh - f.v) >= 0.5; return `<a class="kpi" href="#explain/${f.id}" style="text-decoration:none;color:inherit"><span class="kpi-t">${f.t}</span><div class="ring"><svg width="46" height="46" viewBox="0 0 46 46"><circle cx="23" cy="23" r="${r}" fill="none" stroke="var(--line)" stroke-width="5"/><circle cx="23" cy="23" r="${r}" fill="none" stroke="${SCOL[status(f.v)]}" stroke-width="5" stroke-linecap="round" stroke-dasharray="${C}" style="stroke-dashoffset:${C * (1 - sh / 100)};transform:rotate(-90deg);transform-origin:center;transition:stroke-dashoffset 1s" class="kring" data-off="${C * (1 - sh / 100)}" data-c="${C}"/></svg><span class="mid tnum" style="font-size:24px">${numHTML(sh, sc ? 1 : 0)}<span class="dec">%</span></span></div><span class="lbl tnum">${f.val[0]} з ${f.val[1]}${sc ? `<br><span${f.rule ? ` data-tip="${esc(f.rule)}"` : ""}>Бал методики: <b>${fb(f.v)}</b></span>` : ""}<br>${COMP[f.c].n}</span></a>`; }).join("")}</div>
   </section>
   <section class="card rise">
     <div class="card-h"><h2>Достовірність</h2><div class="sp"></div>${trustPill(m.trust)}</div>
@@ -2851,10 +2861,11 @@ V.compare = () => {
   </div>
   <section class="card c12 rise">
     <div class="card-h" style="flex-wrap:wrap"><h2>Питання анкет за групами</h2><div class="sp"></div><div class="legend"><span class="lbl">Бал:</span><span><i style="background:var(--teal)"></i>65 і вище</span><span><i style="background:var(--amber)"></i>40–65</span><span><i style="background:var(--red)"></i>нижче 40</span><span class="lbl" style="margin-left:6px">Група:</span>${marks.map(([s, n]) => `<span><i class="mk ${s}"></i>${n}</span>`).join("")}</div></div>
-    <div class="lbl" style="margin:-4px 0 12px">Число над стовпчиком це середній бал питання від 0 до 100. Під стовпчиком код питання: К культура, С система, П підзвітність. Наведіть або клацніть, щоб побачити питання.</div>
-    <div class="ibars" style="grid-template-columns:repeat(${m.pItems.length},1fr)">${m.pItems.map((x, i) => { const col = SCOL[status(x.v)]; return `<a class="ibar" href="#explain/${x.id}" style="text-decoration:none;color:inherit" data-tip="${esc(x.t)}<small>${SRC[x.src][0]} · ${COMP[x.c].n}</small>"><div class="v tnum">${fb(x.v)}</div><div class="b" style="height:${Math.max(8, x.v * 1.5)}px;background:${col};opacity:${0.45 + x.v / 100 * 0.55};animation-delay:${i * 50}ms"></div><div class="n"><i class="mk ${x.src}"></i><span class="tnum">${{ culture: "К", system: "С", accountability: "П" }[x.c]}${x.id.slice(-1)}</span></div></a>`; }).join("")}</div>
+    <div class="lbl" style="margin:-4px 0 12px">Число над стовпчиком це середній бал питання від 0 до 100. ${m.pItems.some(x => IB_GRP[x.id.split("-").pop()]) ? "Під стовпчиком компонент (К культура, С система, П підзвітність) і джерело: ОС особовий склад, РГ робоча група, ЕК експерти, ЧЛ чек-лист. Наведіть або клацніть, щоб побачити деталі." : "Під стовпчиком код питання: К культура, С система, П підзвітність. Наведіть або клацніть, щоб побачити питання."}</div>
+    <div class="ibars" style="grid-template-columns:repeat(${m.pItems.length},minmax(0,1fr))">${m.pItems.map((x, i) => { const col = SCOL[status(x.v)]; return `<a class="ibar" href="#explain/${x.id}" style="text-decoration:none;color:inherit" data-tip="${esc(x.t)}<small>${SRC[x.src][0]} · ${COMP[x.c].n}</small>"><div class="v tnum">${fb(x.v)}</div><div class="b" style="height:${Math.max(8, x.v * 1.5)}px;background:${col};opacity:${0.45 + x.v / 100 * 0.55};animation-delay:${i * 50}ms"></div><div class="n"><i class="mk ${x.src}"></i><span class="tnum">${{ culture: "К", system: "С", accountability: "П" }[x.c]}${IB_GRP[x.id.split("-").pop()] || x.id.slice(-1)}</span></div></a>`; }).join("")}</div>
   </section>`;
 };
+const IB_GRP = { staff: "·ОС", working_group: "·РГ", expert: "·ЕК", checklist: "·ЧЛ" };
 V.compare.after = () => {
   const m = cur();
   const old = S.cmpCycle >= 0 && m.series[S.cmpCycle];
@@ -3272,7 +3283,7 @@ function aiOpen(q) {
   if (q) aiAsk(q); else setTimeout(() => S.aiOn && $("#aiQ").focus(), 350);
 }
 function aiClose() { $("#ai").classList.remove("on"); $("#ai").setAttribute("aria-hidden", "true"); if (!$("#drawer").classList.contains("on")) $("#scrim").classList.remove("on"); }
-function aiBtn() { const b = $("#aiBtn"); b.innerHTML = `${IC.spark}<span class="hide-m">Асистент</span>`; b.classList.toggle("off", !S.aiOn); b.hidden = !AI_ROLES.includes(S.role); }
+function aiBtn() { const b = $("#aiBtn"); b.innerHTML = `${IC.spark}<span class="hide-m">Асистент</span>`; b.classList.toggle("off", !S.aiOn); b.hidden = !AI_ROLES.includes(S.role); document.documentElement.dataset.role = S.role; }
 
 /* ---------- Router ---------- */
 const allowed = r => NAV.some(n => n[0] === r && n[3].includes(S.role)) && (!API.anon || r === "survey");

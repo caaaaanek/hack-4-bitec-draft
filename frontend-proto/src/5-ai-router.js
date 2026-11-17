@@ -117,7 +117,7 @@ function aiOpen(q) {
   if (q) aiAsk(q); else setTimeout(() => S.aiOn && $("#aiQ").focus(), 350);
 }
 function aiClose() { $("#ai").classList.remove("on"); $("#ai").setAttribute("aria-hidden", "true"); if (!$("#drawer").classList.contains("on")) $("#scrim").classList.remove("on"); }
-function aiBtn() { const b = $("#aiBtn"); b.innerHTML = `${IC.spark}<span class="hide-m">Асистент</span>`; b.classList.toggle("off", !S.aiOn); b.hidden = !AI_ROLES.includes(S.role); }
+function aiBtn() { const b = $("#aiBtn"); b.innerHTML = `${IC.spark}<span class="hide-m">Асистент</span>`; b.classList.toggle("off", !S.aiOn); b.hidden = !AI_ROLES.includes(S.role); document.documentElement.dataset.role = S.role; }
 
 /* ---------- Router ---------- */
 const allowed = r => NAV.some(n => n[0] === r && n[3].includes(S.role)) && (!API.anon || r === "survey");

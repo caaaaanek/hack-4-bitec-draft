@@ -421,3 +421,13 @@ html.hc a, html.hc .link { text-decoration: underline; }
 /* Кнопки зміни статусу в трекері однакової ширини */
 .mv { align-items: stretch; width: max-content; }
 .mv .btn { justify-content: flex-start; }
+/* Асистент лише для ролей з AI_ROLES: атрибут hidden сильніший за display:flex кнопки */
+.top [hidden] { display: none !important; }
+/* Ролям без результатів (респондент, робоча група) цикл і позначка в шапці не потрібні */
+html[data-role="respondent"] #cycleBtn, html[data-role="checklist_editor"] #cycleBtn,
+html[data-role="respondent"] .top .synthetic, html[data-role="checklist_editor"] .top .synthetic { display: none; }
+/* Стовпчики питань на телефоні: мінімальна ширина й прокрутка всередині картки */
+@media (max-width: 640px) {
+  .ibars { grid-template-columns: none !important; grid-auto-flow: column; grid-auto-columns: minmax(30px, 1fr); overflow-x: auto; padding-bottom: 4px; }
+  .ibar .v { font-size: 11px; }
+}
