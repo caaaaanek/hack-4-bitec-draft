@@ -8,6 +8,8 @@ docs/
 ├── api/        openapi.json — контракт API бекенду
 ├── backend.md  архітектура, ролі, модель даних, API
 ├── integrity-index.md  методика Integrity Index
+├── recommendations.md  рекомендації, рішення й заходи з прогону (генерується: backend/scripts/gen_docs.py)
+├── cross-check.md      зіставлення РГ / ОС / експертів і фактів з прогону (генерується тим самим скриптом)
 └── run.md      як запустити (Docker, розробка, демо-дані)
 ```
 
