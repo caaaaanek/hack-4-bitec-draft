@@ -1,0 +1,47 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: imd
+      POSTGRES_USER: imd
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Задайте POSTGRES_PASSWORD у .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U imd -d imd"]
+      interval: 3s
+      retries: 20
+
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://imd:${POSTGRES_PASSWORD}@db:5432/imd
+      JWT_SECRET: ${JWT_SECRET:?Задайте JWT_SECRET у .env}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:?Задайте DEMO_PASSWORD у .env}
+      INTEGRATION_API_KEY: ${INTEGRATION_API_KEY:-}
+      INTEGRATION_KEYS: ${INTEGRATION_KEYS:-}
+      TIMEZONE: ${TIMEZONE:-Europe/Kyiv}
+      DEFAULT_MIN_GROUP_SIZE: ${DEFAULT_MIN_GROUP_SIZE:-5}
+      THEME2_URL: ${THEME2_URL:-}
+      THEME2_API_KEY: ${THEME2_API_KEY:-}
+      ASSISTANT_ENABLED: ${ASSISTANT_ENABLED:-false}
+      ASSISTANT_URL: ${ASSISTANT_URL:-http://host.docker.internal:11434/api/generate}
+      ASSISTANT_MODEL: ${ASSISTANT_MODEL:-llama3.1:8b}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # Dockerfile у frontend/ ще немає, тому сервіс у профілі: docker compose --profile frontend up
+  frontend:
+    profiles: ["frontend"]
+    build: ./frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:

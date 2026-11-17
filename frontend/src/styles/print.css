@@ -1,0 +1,77 @@
+/* Базові print-стилі: без навігації й кнопок, чорно-біле читабельне. */
+@media print {
+  @page {
+    margin: 14mm;
+  }
+  /* Друк завжди світлий: токени світлої теми задані в tokens.css під @media print */
+  html {
+    color-scheme: light !important;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    font-size: 11pt;
+  }
+  nav,
+  button:not([data-print-keep]),
+  [role='tablist'],
+  [data-print='hide'],
+  [data-skip-link],
+  [role='status'],
+  [role='alert'] {
+    display: none !important;
+  }
+  * {
+    box-shadow: none !important;
+    text-shadow: none !important;
+    transition: none !important;
+    animation: none !important;
+  }
+  a {
+    color: #000 !important;
+    text-decoration: underline;
+  }
+  [data-print='card'],
+  .card {
+    border: 1px solid #000 !important;
+    background: #fff !important;
+    break-inside: avoid;
+  }
+  /* Зрілість у ч/б: цифра + візерунок, колір не потрібен */
+  [data-maturity] {
+    color: #000 !important;
+    background-color: #fff !important;
+    border: 1px solid #000 !important;
+  }
+  [data-maturity='1'] {
+    background-image: var(--pattern-maturity-1) !important;
+  }
+  [data-maturity='2'] {
+    background-image: var(--pattern-maturity-2) !important;
+  }
+  [data-maturity='3'] {
+    background-image: var(--pattern-maturity-3) !important;
+  }
+  [data-maturity='4'] {
+    background-image: var(--pattern-maturity-4) !important;
+    background-color: #555 !important;
+    color: #fff !important;
+  }
+  [data-maturity='5'] {
+    background-image: var(--pattern-maturity-5) !important;
+    background-color: #000 !important;
+    color: #fff !important;
+  }
+  table {
+    border-collapse: collapse;
+  }
+  th,
+  td {
+    border: 1px solid #000 !important;
+  }
+  * {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+}

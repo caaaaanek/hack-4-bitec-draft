@@ -1,0 +1,2069 @@
+openapi: 3.1.0
+info:
+  title: API платформи оцінювання доброчесності (пропозиція фронтенду)
+  version: 0.1.0-proposal
+  summary: Пропозиція контракту для узгодження з бекендом
+  description: |
+    Це пропозиція фронтенду, а не остаточне рішення. Усе, що позначено «узгодити», потребує підтвердження бекенду.
+
+    **Загальне**
+    - База: `/api/v1`. Формат: JSON. Дати й час: ISO 8601 (`2026-11-16T09:30:00Z`, дата без часу `2026-11-16`).
+    - Усі id це рядки. Числа індексу 0-100, рівні зрілості 1-5.
+    - Помилки мають вигляд `{code, message, hint}`: `message` і `hint` людськими текстами українською.
+    - Анкети версійні: опублікована версія не змінюється, зміни роблять новою версією.
+    - Кожен запит має поле `x-roles` (ролі, яким він доступний). Решта ролей отримують 403.
+
+    **Ролі.** `admin`, `commissioner`, `respondent`. Далі додадуться «вносить» і «підтверджує» для чек-листа
+    (тут умовно `checklist_editor`, `checklist_approver`, узгодити). Для дашборда додано `leader` і `observer` (узгодити).
+
+    **Три шари результату.** Самооцінка (сприйняття з анкет), факти (відсотки й рівні), достовірність (літера
+    A/B/C або «недостатньо даних»). Індекс 0-100 зі шкали 1-5, середнє Культура, Система, Підзвітність, із обмежувачем
+    «зараховане = min(сприйняття, факти + 25)».
+
+    **Анонімність.** Див. розділ «Інваріанти» нижче.
+  x-invariants:
+    - Жоден запит не повертає окремі відповіді респондентів.
+    - Групи менші за k (за замовчуванням 10, налаштовується) ніколи не повертаються (стан hidden_below_k, дані малої групи додаються до батьківського підрозділу).
+    - Ролі admin і commissioner не мають доступу до відповідей.
+    - Роль commissioner не бачить, хто і скільки пройшов.
+    - Немає запитів з іменними рейтингами людей чи підрозділів.
+servers:
+  - url: /api/v1
+    description: Відносно хоста застосунку
+security:
+  - bearerAuth: []
+tags:
+  - name: session
+    description: (a) Сесія і демо-перемикання ролей
+  - name: questionnaires
+    description: (b) Анкети (commissioner)
+  - name: cycles
+    description: (c) Цикли і розсилка (admin)
+  - name: survey
+    description: (d) Проходження анкет (respondent)
+  - name: dashboard
+    description: (e) Дашборд
+  - name: explain
+    description: (f) Розклад індексу
+  - name: analytics
+    description: (g) Порівняння і динаміка
+  - name: facts
+    description: (h) Факти
+  - name: checklist
+    description: (i) Чек-лист
+  - name: recommendations
+    description: (j) Рекомендації і заходи
+  - name: me
+    description: (k) Екран учасника
+  - name: reports
+    description: (l) Звіти, журнал, методологія
+  - name: invariants
+    description: |
+      Інваріанти (обовʼязкові для всіх запитів):
+      1. Жоден запит не повертає окремі відповіді респондентів. Відповіді зберігаються й віддаються лише агрегатами.
+      2. Групи менші за k ніколи не повертаються (k за замовчуванням 10, налаштовується адміністратором циклу): замість даних приходить `{visibility: "hidden_below_k", fallbackScope}`, де `fallbackScope` це батьківський підрозділ, дані якого можна показати.
+      3. admin і commissioner не мають доступу до відповідей, навіть узагальнених за малою групою.
+      4. commissioner не бачить прогрес проходження (хто і скільки пройшли). Лічильники «видано/використано» бачить лише admin і без осіб.
+      5. Немає запитів з іменними рейтингами людей чи підрозділів.
+      6. Відправлення анкети не повертає і не зберігає ідентифікатор людини разом із відповідями.
+paths:
+  /session:
+    get:
+      tags: [session]
+      operationId: getSession
+      summary: Поточна сесія і доступні розділи
+      x-roles: [admin, commissioner, respondent, leader, observer]
+      responses:
+        '200':
+          description: Сесія
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Session' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    post:
+      tags: [session]
+      operationId: createSession
+      summary: Вхід
+      description: У демо вхід за роллю без пароля; у проді механізм входу узгодити.
+      security: []
+      x-roles: [anonymous]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username: { type: string }
+                password: { type: string, format: password }
+      responses:
+        '200':
+          description: Сесія створена
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Session' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    delete:
+      tags: [session]
+      operationId: deleteSession
+      summary: Вихід
+      x-roles: [admin, commissioner, respondent, leader, observer]
+      responses:
+        '204': { description: Сесію завершено }
+  /demo/role:
+    put:
+      tags: [session]
+      operationId: switchDemoRole
+      summary: Перемкнути роль (лише в демо)
+      description: Доступно лише коли сервер запущено в демо-режимі. Скидає scope до значення за замовчуванням для ролі.
+      x-roles: [demo]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [role]
+              properties:
+                role: { $ref: '#/components/schemas/Role' }
+      responses:
+        '200':
+          description: Роль перемкнуто
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Session' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /questionnaires:
+    get:
+      tags: [questionnaires]
+      operationId: listQuestionnaires
+      summary: Список анкет
+      x-roles: [commissioner]
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/QuestionnaireStatus' }
+      responses:
+        '200':
+          description: Анкети
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/QuestionnaireSummary' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+    post:
+      tags: [questionnaires]
+      operationId: createQuestionnaire
+      summary: Створити чернетку анкети
+      x-roles: [commissioner]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, respondentCategory]
+              properties:
+                title: { type: string }
+                respondentCategory: { $ref: '#/components/schemas/RespondentCategory' }
+      responses:
+        '201':
+          description: Чернетку створено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Questionnaire' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '422': { $ref: '#/components/responses/Invalid' }
+  /questionnaires/{questionnaireId}:
+    parameters:
+      - $ref: '#/components/parameters/QuestionnaireId'
+    get:
+      tags: [questionnaires]
+      operationId: getQuestionnaire
+      summary: Анкета з питаннями
+      x-roles: [commissioner]
+      responses:
+        '200':
+          description: Анкета
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Questionnaire' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [questionnaires]
+      operationId: updateQuestionnaire
+      summary: Змінити назву чернетки
+      x-roles: [commissioner]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title: { type: string }
+      responses:
+        '200':
+          description: Оновлено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Questionnaire' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /questionnaires/{questionnaireId}/questions:
+    parameters:
+      - $ref: '#/components/parameters/QuestionnaireId'
+    put:
+      tags: [questionnaires]
+      operationId: replaceQuestions
+      summary: Замінити перелік питань чернетки
+      description: |
+        Лише для чернетки. Кожне питання має рівно 5 варіантів, кожен варіант це рівень 1-5 і бал.
+        Вільного тексту у відповідях немає. Питання привʼязане до компонента й категорії респондента.
+      x-roles: [commissioner]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [questions]
+              properties:
+                questions:
+                  type: array
+                  items: { $ref: '#/components/schemas/QuestionInput' }
+      responses:
+        '200':
+          description: Питання збережено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Questionnaire' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Invalid' }
+  /questionnaires/{questionnaireId}/publish:
+    parameters:
+      - $ref: '#/components/parameters/QuestionnaireId'
+    post:
+      tags: [questionnaires]
+      operationId: publishQuestionnaire
+      summary: Опублікувати анкету
+      description: Після публікації версію змінити не можна, лише створити нову.
+      x-roles: [commissioner]
+      responses:
+        '200':
+          description: Опубліковано
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Questionnaire' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Invalid' }
+  /questionnaires/{questionnaireId}/versions:
+    parameters:
+      - $ref: '#/components/parameters/QuestionnaireId'
+    post:
+      tags: [questionnaires]
+      operationId: createQuestionnaireVersion
+      summary: Створити нову версію (чернетку) з опублікованої
+      x-roles: [commissioner]
+      responses:
+        '201':
+          description: Нову версію створено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Questionnaire' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /questionnaires/{questionnaireId}/archive:
+    parameters:
+      - $ref: '#/components/parameters/QuestionnaireId'
+    post:
+      tags: [questionnaires]
+      operationId: archiveQuestionnaire
+      summary: Архівувати анкету
+      x-roles: [commissioner]
+      responses:
+        '200':
+          description: Архівовано
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Questionnaire' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /cycles:
+    get:
+      tags: [cycles]
+      operationId: listCycles
+      summary: Цикли оцінювання
+      x-roles: [admin, leader, observer, commissioner]
+      responses:
+        '200':
+          description: Цикли
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Cycle' }
+    post:
+      tags: [cycles]
+      operationId: createCycle
+      summary: Створити цикл
+      x-roles: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CycleInput' }
+      responses:
+        '201':
+          description: Цикл створено (статус draft)
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cycle' }
+        '422': { $ref: '#/components/responses/Invalid' }
+  /cycles/{cycleId}:
+    parameters:
+      - $ref: '#/components/parameters/CycleId'
+    get:
+      tags: [cycles]
+      operationId: getCycle
+      summary: Цикл
+      x-roles: [admin, leader, observer, commissioner]
+      responses:
+        '200':
+          description: Цикл
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cycle' }
+        '404': { $ref: '#/components/responses/NotFound' }
+    patch:
+      tags: [cycles]
+      operationId: updateCycle
+      summary: Змінити цикл
+      description: Ваги, k і категорії можна змінювати лише до відкриття, потім вони заморожені (409).
+      x-roles: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/CycleInput' }
+      responses:
+        '200':
+          description: Оновлено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cycle' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /cycles/{cycleId}/assignments:
+    parameters:
+      - $ref: '#/components/parameters/CycleId'
+    put:
+      tags: [cycles]
+      operationId: assignQuestionnaires
+      summary: Призначити анкети категоріям респондентів
+      description: Призначення робиться за категоріями й групами, не за іменами. Видача респондентам відбувається при відкритті.
+      x-roles: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [assignments]
+              properties:
+                assignments:
+                  type: array
+                  items:
+                    type: object
+                    required: [questionnaireId, respondentCategory]
+                    properties:
+                      questionnaireId: { type: string }
+                      respondentCategory: { $ref: '#/components/schemas/RespondentCategory' }
+      responses:
+        '200': { description: Призначено }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /cycles/{cycleId}/open:
+    parameters:
+      - $ref: '#/components/parameters/CycleId'
+    post:
+      tags: [cycles]
+      operationId: openCycle
+      summary: Відкрити цикл
+      description: Ваги методики заморожуються. Анкети стають доступні респондентам.
+      x-roles: [admin]
+      responses:
+        '200':
+          description: Відкрито
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cycle' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /cycles/{cycleId}/close:
+    parameters:
+      - $ref: '#/components/parameters/CycleId'
+    post:
+      tags: [cycles]
+      operationId: closeCycle
+      summary: Завершити цикл
+      x-roles: [admin]
+      responses:
+        '200':
+          description: Завершено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cycle' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /cycles/{cycleId}/publish:
+    parameters:
+      - $ref: '#/components/parameters/CycleId'
+    post:
+      tags: [cycles]
+      operationId: publishCycle
+      summary: Опублікувати результати циклу
+      x-roles: [admin]
+      responses:
+        '200':
+          description: Опубліковано
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Cycle' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /cycles/{cycleId}/counters:
+    parameters:
+      - $ref: '#/components/parameters/CycleId'
+    get:
+      tags: [cycles]
+      operationId: getCycleCounters
+      summary: Лічильники «видано/використано»
+      description: Лише кількості за категоріями, без осіб. Недоступно ролі commissioner.
+      x-roles: [admin]
+      responses:
+        '200':
+          description: Лічильники
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Counters' }
+              example:
+                cycleId: '2026-11'
+                items:
+                  - respondentCategory: wg
+                    issued: 12
+                    used: 11
+                  - respondentCategory: os
+                    issued: 120
+                    used: 83
+                  - respondentCategory: experts
+                    issued: 5
+                    used: 5
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /my/surveys:
+    get:
+      tags: [survey]
+      operationId: listMySurveys
+      summary: Призначені мені анкети
+      x-roles: [respondent]
+      responses:
+        '200':
+          description: Анкети
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AssignedSurvey' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /my/surveys/{assignmentId}:
+    parameters:
+      - $ref: '#/components/parameters/AssignmentId'
+    get:
+      tags: [survey]
+      operationId: getMySurvey
+      summary: Отримати анкету для проходження
+      description: Повертає питання й варіанти. Проміжні відповіді повертаються лише самому респонденту.
+      x-roles: [respondent]
+      responses:
+        '200':
+          description: Анкета
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SurveyForm' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /my/surveys/{assignmentId}/draft:
+    parameters:
+      - $ref: '#/components/parameters/AssignmentId'
+    put:
+      tags: [survey]
+      operationId: saveSurveyDraft
+      summary: Зберегти проміжні відповіді
+      x-roles: [respondent]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnswerSet' }
+      responses:
+        '200':
+          description: Збережено
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  answered: { type: integer, example: 7 }
+                  total: { type: integer, example: 12 }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /my/surveys/{assignmentId}/submit:
+    parameters:
+      - $ref: '#/components/parameters/AssignmentId'
+    post:
+      tags: [survey]
+      operationId: submitSurvey
+      summary: Відправити анкету з перевіркою повноти
+      description: |
+        Якщо відповіді неповні, повертається 422 з переліком питань без відповіді. Після прийняття відповіді
+        записуються окремо від особи (без звʼязку з респондентом), а призначення позначається використаним.
+        Відповідь не містить ідентифікатора людини.
+      x-roles: [respondent]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AnswerSet' }
+      responses:
+        '200':
+          description: Прийнято
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status, message]
+                properties:
+                  status: { type: string, enum: [accepted] }
+                  message: { type: string, example: Дякуємо. Ваші відповіді прийнято анонімно. }
+        '422':
+          description: Анкета неповна
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IncompleteError' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /units:
+    get:
+      tags: [dashboard]
+      operationId: listUnits
+      summary: Дерево підрозділів
+      description: Плоский список вузлів дерева (id, name, parentId), доступних ролі. Кількості відповідей не повертаються.
+      x-roles: [leader, observer, admin, auditor]
+      responses:
+        '200':
+          description: Вузли
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Unit' }
+              example:
+                items:
+                  - { id: alpha, name: 'Умовний військовий інститут «Альфа»', parentId: null }
+                  - { id: unit-a, name: Підрозділ А, parentId: alpha }
+                  - { id: unit-b, name: Підрозділ Б, parentId: alpha }
+                  - { id: unit-v, name: Підрозділ В, parentId: alpha }
+  /institutions:
+    get:
+      tags: [dashboard]
+      operationId: listInstitutions
+      summary: Заклади для спостерігача
+      description: |
+        Узагальнені дані закладів. Єдине сортування це за назвою (алфавітний порядок). Параметрів сортування за
+        індексом чи іншими показниками немає, позицій і місць у відповіді немає: заклади не порівнюються й не
+        ранжуються. Після вибору закладу решта запитів приймає його id у параметрі `scope`.
+      x-roles: [observer]
+      responses:
+        '200':
+          description: Заклади за назвою
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/InstitutionSummary' }
+              example:
+                items:
+                  - {
+                      id: gamma,
+                      name: 'Умовна академія «Гамма»',
+                      cycle: '2026-11',
+                      index: 68.5,
+                      level: 4,
+                      trustGrade: A,
+                      delta: 5.2,
+                    }
+  /data-sources:
+    get:
+      tags: [reports]
+      operationId: listDataSources
+      summary: Звідки беруться дані
+      description: Метрики, джерела, режим отримання й вік даних. Статуси чесні, без обіцянок наперед.
+      x-roles: [leader, observer, auditor]
+      responses:
+        '200':
+          description: Джерела за метриками й карта інтеграцій
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sources, integrations]
+                properties:
+                  sources:
+                    type: array
+                    items: { $ref: '#/components/schemas/DataSource' }
+                  integrations:
+                    type: array
+                    items: { $ref: '#/components/schemas/Integration' }
+  /dashboard:
+    get:
+      tags: [dashboard]
+      operationId: getDashboard
+      summary: Executive Dashboard
+      description: Індекс, рівень, дельта, компоненти (поточний і попередній цикл), достовірність, сильні сторони, напрями уваги, висновок.
+      x-roles: [leader, observer, admin]
+      parameters:
+        - $ref: '#/components/parameters/Cycle'
+        - $ref: '#/components/parameters/Scope'
+      responses:
+        '200':
+          description: Дашборд або стан «група замала»
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/Dashboard'
+                  - $ref: '#/components/schemas/HiddenBelowK'
+              example:
+                scope: institution
+                cycle: { id: '2026-11', date: '2026-11-16' }
+                institution: Умовний військовий інститут «Альфа»
+                index:
+                  { value: 54.2, level: 3, levelName: Визначений, previousValue: 47.0, delta: 7.2 }
+                summary:
+                  {
+                    text: '54,2 бала, Визначений, достовірність C',
+                    reason: 'Підзвітність: самооцінку не підтверджують факти',
+                  }
+                components:
+                  - {
+                      id: culture,
+                      label: Культура,
+                      perception: 57.5,
+                      facts: 40,
+                      credited: 57.5,
+                      limited: false,
+                      previousCredited: 50,
+                    }
+                  - {
+                      id: system,
+                      label: Система,
+                      perception: 45,
+                      facts: 55,
+                      credited: 45,
+                      limited: false,
+                      previousCredited: 41,
+                    }
+                  - {
+                      id: accountability,
+                      label: Підзвітність,
+                      perception: 80,
+                      facts: 35,
+                      credited: 60,
+                      limited: true,
+                      previousCredited: 50,
+                      limiterReason: 'Сприйняття (80) перевищує факти (35) більш ніж на 25 пунктів, тому зараховано 60.',
+                    }
+                trust:
+                  grade: C
+                  word: потрібна перевірка
+                  responses: 48
+                  flags:
+                    - {
+                        id: tf-gap,
+                        weight: major,
+                        raised: true,
+                        title: 'Розбіжність сприйняття й фактів у Підзвітності (80 проти 35)',
+                        explanation: 'Сприйняття значно вище за факти, тому зараховано з обмеженням. Варто звірити з чек-листом.',
+                      }
+                    - {
+                        id: tf-same,
+                        weight: minor,
+                        raised: true,
+                        title: Однакові відповіді в частині анкет особового складу,
+                        explanation: 'У частині анкет усі відповіді однакові. Це може означати, що анкету заповнювали поспіхом. Варто перевірити додатково.',
+                      }
+                    - {
+                        id: tf-jump,
+                        weight: major,
+                        raised: false,
+                        title: Різка зміна індексу між циклами без пояснення,
+                        explanation: 'Індекс змінився помірно, різкого стрибка немає.',
+                      }
+                    - {
+                        id: tf-experts,
+                        weight: minor,
+                        raised: false,
+                        title: Замало відповідей від експертів,
+                        explanation: Отримано всі очікувані експертні анкети.,
+                      }
+                strengths:
+                  - {
+                      id: s1,
+                      title: 'Культура: відкритість до етичних питань',
+                      value: 57.5,
+                      component: culture,
+                    }
+                  - { id: s2, title: Зростання індексу два цикли поспіль, value: 13.2 }
+                attention:
+                  - {
+                      id: a1,
+                      title: 'Підзвітність: підтвердити факти',
+                      value: 35,
+                      component: accountability,
+                    }
+                  - {
+                      id: a2,
+                      title: 'Система: зробити процедури помітнішими',
+                      value: 45,
+                      component: system,
+                    }
+                  - {
+                      id: a3,
+                      title: 'Культура: більше практичних прикладів',
+                      value: 40,
+                      component: culture,
+                    }
+                conclusion: 'Заклад перебуває на рівні зрілості 3 «Визначений»: індекс доброчесності 54,2 з 100, що на 7,2 пункта вище, ніж у попередньому циклі.'
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /index/breakdown:
+    get:
+      tags: [explain]
+      operationId: getIndexBreakdown
+      summary: Розклад індексу
+      description: |
+        Дерево Індекс, Компонент, Питання або показник. Режим `credited`: обмежувач діє на рівні компонента,
+        значення питань показано пропорційно. `sumCheck.matches` істинне, коли сума внесків дорівнює значенню кореня.
+      x-roles: [leader, observer, admin]
+      parameters:
+        - $ref: '#/components/parameters/Cycle'
+        - $ref: '#/components/parameters/Scope'
+        - name: mode
+          in: query
+          schema: { type: string, enum: [perception, facts, credited], default: credited }
+      responses:
+        '200':
+          description: Дерево
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/Breakdown'
+                  - $ref: '#/components/schemas/HiddenBelowK'
+              example:
+                mode: credited
+                root:
+                  id: index
+                  kind: index
+                  label: Індекс доброчесності
+                  weight: 100
+                  value: 54.2
+                  contribution: 54.17
+                  children:
+                    - {
+                        id: culture,
+                        kind: component,
+                        label: Культура,
+                        weight: 33.3,
+                        value: 57.5,
+                        contribution: 19.17,
+                      }
+                    - {
+                        id: system,
+                        kind: component,
+                        label: Система,
+                        weight: 33.3,
+                        value: 45,
+                        contribution: 15,
+                      }
+                    - id: accountability
+                      kind: component
+                      label: Підзвітність
+                      weight: 33.3
+                      value: 60
+                      contribution: 20
+                      limited: true
+                      limiterReason: 'Сприйняття (80) перевищує факти (35) більш ніж на 25 пунктів, тому зараховано 60.'
+                      children:
+                        - {
+                            id: ac-p1,
+                            kind: item,
+                            label: Прозорість рішень керівництва,
+                            weight: 30,
+                            value: 63.75,
+                            contribution: 6.38,
+                            source: wg,
+                            limited: true,
+                          }
+                        - {
+                            id: ac-p2,
+                            kind: item,
+                            label: Оприлюднення результатів перевірок,
+                            weight: 30,
+                            value: 60,
+                            contribution: 6,
+                            source: wg,
+                            limited: true,
+                          }
+                        - {
+                            id: ac-p3,
+                            kind: item,
+                            label: Відповідальність за виконання заходів,
+                            weight: 20,
+                            value: 56.25,
+                            contribution: 3.75,
+                            source: os,
+                            limited: true,
+                          }
+                        - {
+                            id: ac-p4,
+                            kind: item,
+                            label: Контроль виконання рішень,
+                            weight: 20,
+                            value: 58.13,
+                            contribution: 3.88,
+                            source: experts,
+                            limited: true,
+                          }
+                sumCheck: { sum: 54.2, indexValue: 54.2, matches: true }
+  /compare:
+    get:
+      tags: [analytics]
+      operationId: getCompare
+      summary: Порівняння категорій за компонентами
+      description: Стовпчики РГ, ОС, експерти, факти. Категорія з групою меншою за k повертається зі станом hidden_below_k, а не з числами. Порівняння лише категорій і компонентів, не людей чи підрозділів.
+      x-roles: [leader, observer]
+      parameters:
+        - $ref: '#/components/parameters/Cycle'
+        - $ref: '#/components/parameters/Scope'
+      responses:
+        '200':
+          description: Порівняння
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Compare' }
+  /trends:
+    get:
+      tags: [analytics]
+      operationId: getTrends
+      summary: Динаміка по циклах
+      description: |
+        Цикли в періоді `from`-`to` (включно) з датами й значеннями по компонентах. Режим `compare=periods`
+        порівнює два періоди (`from`-`to` і `compareFrom`-`compareTo`) і повертає обидва набори циклів та різницю.
+      x-roles: [leader, observer, auditor]
+      parameters:
+        - $ref: '#/components/parameters/Scope'
+        - {
+            name: from,
+            in: query,
+            description: 'Початок періоду (id циклу або дата YYYY-MM-DD).',
+            schema: { type: string, example: '2025-12' },
+          }
+        - {
+            name: to,
+            in: query,
+            description: 'Кінець періоду (id циклу або дата).',
+            schema: { type: string, example: '2026-11' },
+          }
+        - {
+            name: compare,
+            in: query,
+            description: 'none це один період, periods це порівняння двох періодів.',
+            schema: { type: string, enum: [none, periods], default: none },
+          }
+        - {
+            name: compareFrom,
+            in: query,
+            description: 'Початок другого періоду (лише compare=periods).',
+            schema: { type: string },
+          }
+        - {
+            name: compareTo,
+            in: query,
+            description: 'Кінець другого періоду (лише compare=periods).',
+            schema: { type: string },
+          }
+      responses:
+        '200':
+          description: Динаміка
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Trends' }
+              example:
+                period: { from: '2025-12', to: '2026-11' }
+                points:
+                  - {
+                      cycle: '2025-12',
+                      date: '2025-12-15',
+                      index: 41.0,
+                      components: { culture: 44, system: 36, accountability: 43 },
+                    }
+                  - {
+                      cycle: '2026-06',
+                      date: '2026-06-15',
+                      index: 47.0,
+                      components: { culture: 50, system: 41, accountability: 50 },
+                    }
+                  - {
+                      cycle: '2026-11',
+                      date: '2026-11-16',
+                      index: 54.2,
+                      components: { culture: 57.5, system: 45, accountability: 60 },
+                    }
+                events:
+                  - { cycle: '2026-06', title: Виконано захід за рекомендацією, measureId: m1 }
+  /facts:
+    get:
+      tags: [facts]
+      operationId: listFacts
+      summary: Метрики фактів
+      description: Чотири відсотки та рівні 1-5 з анкет, з джерелом, режимом і віком даних.
+      x-roles: [leader, observer, admin, checklist_editor, checklist_approver]
+      parameters:
+        - $ref: '#/components/parameters/Cycle'
+      responses:
+        '200':
+          description: Метрики
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/FactMetric' }
+              example:
+                items:
+                  - {
+                      id: ac-f1,
+                      component: accountability,
+                      label: Подано декларацій вчасно серед зобовʼязаних,
+                      kind: percent,
+                      value: 45,
+                      numerator: 45,
+                      denominator: 100,
+                      percent: 45,
+                      source: Реєстр декларацій,
+                      mode: automatic,
+                      asOf: '2026-11-10T00:00:00Z',
+                      ageDays: 6,
+                    }
+                  - {
+                      id: ac-f2,
+                      component: accountability,
+                      label: 'Потенційні конфлікти інтересів, за якими уповноважений дав висновок у строк',
+                      kind: percent,
+                      value: 30,
+                      numerator: 6,
+                      denominator: 20,
+                      percent: 30,
+                      source: Журнал уповноваженого,
+                      mode: manual,
+                      asOf: '2026-11-01T00:00:00Z',
+                      ageDays: 15,
+                    }
+                  - {
+                      id: cu-f1,
+                      component: culture,
+                      label: 'Прапорці, за якими прийнято рішення або захід протягом 30 днів',
+                      kind: percent,
+                      value: 55,
+                      numerator: 11,
+                      denominator: 20,
+                      percent: 55,
+                      source: Журнал прапорців,
+                      mode: planned,
+                      asOf: null,
+                      ageDays: null,
+                    }
+                  - {
+                      id: sy-f1,
+                      component: system,
+                      label: 'Скарги й звернення, розглянуті в строк',
+                      kind: percent,
+                      value: 60,
+                      numerator: 36,
+                      denominator: 60,
+                      percent: 60,
+                      source: Облік звернень,
+                      mode: manual,
+                      asOf: '2026-11-05T00:00:00Z',
+                      ageDays: 11,
+                    }
+  /facts/{factId}/manual:
+    parameters:
+      - name: factId
+        in: path
+        required: true
+        schema: { type: string }
+    put:
+      tags: [facts]
+      operationId: enterFactManually
+      summary: Ручний ввід значення факту
+      x-roles: [checklist_editor, admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [value, asOf]
+              properties:
+                value: { type: number, minimum: 0, maximum: 100 }
+                asOf: { type: string, format: date }
+                note: { type: string, description: 'Пояснення джерела, не відповідь респондента.' }
+      responses:
+        '200':
+          description: Збережено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FactMetric' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '422': { $ref: '#/components/responses/Invalid' }
+  /checklist:
+    get:
+      tags: [checklist]
+      operationId: getChecklist
+      summary: Чек-лист (шість розділів)
+      x-roles: [checklist_editor, checklist_approver, leader, observer, admin]
+      parameters:
+        - $ref: '#/components/parameters/Cycle'
+      responses:
+        '200':
+          description: Розділи й пункти
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [sections]
+                properties:
+                  sections:
+                    type: array
+                    items: { $ref: '#/components/schemas/ChecklistSection' }
+  /checklist/items/{itemId}/entry:
+    parameters:
+      - $ref: '#/components/parameters/ItemId'
+    put:
+      tags: [checklist]
+      operationId: enterChecklistItem
+      summary: Внести пункт (вніс)
+      x-roles: [checklist_editor]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [done]
+              properties:
+                done: { type: boolean }
+                evidenceUrl:
+                  { type: string, description: 'Посилання на доказ у внутрішньому контурі' }
+      responses:
+        '200':
+          description: Збережено, статус «очікує підтвердження»
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChecklistItem' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /checklist/items/{itemId}/confirmation:
+    parameters:
+      - $ref: '#/components/parameters/ItemId'
+    post:
+      tags: [checklist]
+      operationId: confirmChecklistItem
+      summary: Підтвердити пункт (підтвердив)
+      description: Підтверджує інший користувач, не той, хто вніс. Інакше 409.
+      x-roles: [checklist_approver]
+      responses:
+        '200':
+          description: Підтверджено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/ChecklistItem' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /recommendations:
+    get:
+      tags: [recommendations]
+      operationId: listRecommendations
+      summary: Рекомендації
+      x-roles: [leader]
+      parameters:
+        - $ref: '#/components/parameters/Cycle'
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/RecommendationStatus' }
+      responses:
+        '200':
+          description: Рекомендації з блоком «На підставі»
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Recommendation' }
+  /recommendations/{recommendationId}/decision:
+    parameters:
+      - name: recommendationId
+        in: path
+        required: true
+        schema: { type: string }
+    post:
+      tags: [recommendations]
+      operationId: decideRecommendation
+      summary: Рішення за рекомендацією
+      description: Прийняти, уточнити або відхилити. Причина обовʼязкова при відхиленні. Прийняття створює захід.
+      x-roles: [leader]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: { type: string, enum: [accept, clarify, reject] }
+                reason: { type: string, description: 'Обовʼязкова при reject.' }
+                assigneeRole:
+                  {
+                    type: string,
+                    description: 'Відповідальний (роль або посада, не імʼя), для accept.',
+                  }
+                dueDate: { type: string, format: date }
+      responses:
+        '200':
+          description: Рішення збережено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Recommendation' }
+        '422': { $ref: '#/components/responses/Invalid' }
+  /measures:
+    get:
+      tags: [recommendations]
+      operationId: listMeasures
+      summary: Заходи (трекер)
+      description: Leader змінює статуси, auditor лише читає. «Прострочено» обчислюється від dueDate і дати запиту, окремо не зберігається.
+      x-roles: [leader, auditor]
+      parameters:
+        - name: status
+          in: query
+          schema: { $ref: '#/components/schemas/MeasureStatus' }
+      responses:
+        '200':
+          description: Заходи
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/Measure' }
+  /measures/{measureId}:
+    parameters:
+      - name: measureId
+        in: path
+        required: true
+        schema: { type: string }
+    patch:
+      tags: [recommendations]
+      operationId: updateMeasure
+      summary: Змінити статус, строк або відповідального
+      description: Статус «Підтверджено»/«Не підтверджено» виставляє система за результатом наступного циклу, вручну його не задають.
+      x-roles: [leader]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status: { type: string, enum: [inprogress, done] }
+                dueDate: { type: string, format: date }
+                assigneeRole: { type: string }
+      responses:
+        '200':
+          description: Оновлено
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Measure' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /me:
+    get:
+      tags: [me]
+      operationId: getMyUnitResults
+      summary: Узагальнені результати підрозділу учасника
+      description: |
+        Повертає агрегати підрозділу респондента. Якщо група менша за k, повертається **200** зі станом
+        `hidden_below_k` і `fallbackScope` (рівень вище), а не помилка.
+      x-roles: [respondent]
+      parameters:
+        - $ref: '#/components/parameters/Cycle'
+      responses:
+        '200':
+          description: Результати або прихована група
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: '#/components/schemas/MyResults'
+                  - $ref: '#/components/schemas/HiddenBelowK'
+              example:
+                visibility: hidden_below_k
+                message: Недостатньо відповідей, щоб показати результати цієї групи. Показано дані рівня вище. Це захищає анонімність учасників.
+                fallbackScope:
+                  { id: alpha, name: 'Умовний військовий інститут «Альфа»', parentId: null }
+  /reports:
+    post:
+      tags: [reports]
+      operationId: createReport
+      summary: Сформувати звіт за циклом
+      x-roles: [leader, admin, observer]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cycle]
+              properties:
+                cycle: { type: string, example: '2026-11' }
+                scope: { type: string, default: institution }
+      responses:
+        '201':
+          description: Звіт сформовано
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Report' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+  /reports/{reportId}:
+    parameters:
+      - $ref: '#/components/parameters/ReportId'
+    get:
+      tags: [reports]
+      operationId: getReport
+      summary: Звіт (структура додатка Г)
+      x-roles: [leader, admin, observer]
+      responses:
+        '200':
+          description: Звіт
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Report' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /reports/{reportId}/export:
+    parameters:
+      - $ref: '#/components/parameters/ReportId'
+    get:
+      tags: [reports]
+      operationId: exportReport
+      summary: Експорт звіту
+      x-roles: [leader, admin, observer]
+      parameters:
+        - name: format
+          in: query
+          required: true
+          schema: { type: string, enum: [pdf, csv, json] }
+      responses:
+        '200':
+          description: Файл. У ньому видно версію методики й її хеш.
+          content:
+            application/pdf: { schema: { type: string, format: binary } }
+            text/csv: { schema: { type: string } }
+            application/json: { schema: { $ref: '#/components/schemas/Report' } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /audit:
+    get:
+      tags: [reports]
+      operationId: listAudit
+      summary: Журнал дій
+      description: Відповідей респондентів у журналі немає.
+      x-roles: [admin, auditor]
+      parameters:
+        - { name: event, in: query, schema: { type: string } }
+        - { name: role, in: query, schema: { $ref: '#/components/schemas/Role' } }
+        - { name: from, in: query, schema: { type: string, format: date } }
+        - { name: to, in: query, schema: { type: string, format: date } }
+        - { name: cursor, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: Записи
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items: { $ref: '#/components/schemas/AuditEntry' }
+                  nextCursor: { type: [string, 'null'] }
+  /audit/verify:
+    post:
+      tags: [reports]
+      operationId: verifyAudit
+      summary: Перевірити цілісність журналу
+      x-roles: [admin, auditor]
+      responses:
+        '200':
+          description: Результат перевірки
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [intact, message, checkedEntries]
+                properties:
+                  intact: { type: boolean }
+                  message: { type: string, example: Журнал не змінювався }
+                  checkedEntries: { type: integer, example: 1284 }
+  /methodology:
+    get:
+      tags: [reports]
+      operationId: getMethodology
+      summary: 'Методологія: версія, хеш, ваги, пороги'
+      x-roles: [admin, leader, observer, commissioner]
+      responses:
+        '200':
+          description: Поточна методика
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Methodology' }
+              example:
+                version: '1.0'
+                hash: 'sha256:узгодити'
+                componentWeights: { culture: 0.3333, system: 0.3333, accountability: 0.3333 }
+                levelUpperBounds: [12.5, 37.5, 62.5, 87.5]
+                limiterMargin: 25
+                minGroupK: 5
+                frozen: false
+    patch:
+      tags: [reports]
+      operationId: updateMethodology
+      summary: Змінити налаштування методології (створює нову версію)
+      description: Не діє на відкриті цикли (там ваги заморожені).
+      x-roles: [admin]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                componentWeights: { $ref: '#/components/schemas/ComponentWeights' }
+                limiterMargin: { type: number }
+                minGroupK: { type: integer, minimum: 2 }
+      responses:
+        '200':
+          description: Нова версія методики
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Methodology' }
+        '409': { $ref: '#/components/responses/Conflict' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      description: Токен сесії. Механізм узгодити.
+  parameters:
+    QuestionnaireId: { name: questionnaireId, in: path, required: true, schema: { type: string } }
+    CycleId: { name: cycleId, in: path, required: true, schema: { type: string } }
+    AssignmentId:
+      name: assignmentId
+      in: path
+      required: true
+      description: Ідентифікатор призначення (не людини і не відповіді).
+      schema: { type: string }
+    ItemId: { name: itemId, in: path, required: true, schema: { type: string } }
+    ReportId: { name: reportId, in: path, required: true, schema: { type: string } }
+    Cycle:
+      name: cycle
+      in: query
+      description: Id циклу, за замовчуванням останній опублікований.
+      schema: { type: string, example: '2026-11' }
+    Scope:
+      name: scope
+      in: query
+      description: Id вузла дерева підрозділів (`GET /units`), за замовчуванням корінь. Роль обмежує доступні значення; недоступний scope дає 403.
+      schema: { type: string, default: institution }
+  responses:
+    Unauthorized:
+      description: Потрібен вхід
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: unauthorized, message: Сесія завершилась., hint: Увійдіть знову. }
+    Forbidden:
+      description: Недоступно для вашої ролі
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            {
+              code: forbidden,
+              message: Ця сторінка недоступна для вашої ролі.,
+              hint: Поверніться на головну.,
+            }
+    NotFound:
+      description: Не знайдено
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example: { code: not_found, message: Такого запису немає., hint: Перевірте адресу. }
+    Conflict:
+      description: Дія недоступна в поточному стані
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            {
+              code: conflict,
+              message: Опубліковану анкету змінити не можна.,
+              hint: Створіть нову версію.,
+            }
+    Invalid:
+      description: Дані не пройшли перевірку
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+          example:
+            {
+              code: invalid,
+              message: Для відхилення потрібна причина.,
+              hint: 'Напишіть коротко, чому рекомендацію відхилено.',
+            }
+  schemas:
+    Error:
+      type: object
+      required: [code, message, hint]
+      properties:
+        code: { type: string, description: 'Стабільний код для програми.' }
+        message: { type: string, description: 'Що сталося, людською мовою.' }
+        hint: { type: string, description: 'Що робити далі.' }
+    IncompleteError:
+      allOf:
+        - $ref: '#/components/schemas/Error'
+        - type: object
+          required: [missingQuestionIds]
+          properties:
+            missingQuestionIds:
+              type: array
+              items: { type: string }
+    Role:
+      type: string
+      enum:
+        [
+          admin,
+          commissioner,
+          respondent,
+          leader,
+          observer,
+          checklist_editor,
+          checklist_approver,
+          auditor,
+        ]
+      description: |
+        admin, commissioner, respondent вирішені командою. leader і observer додано для дашборда,
+        checklist_editor і checklist_approver це «вносить» і «підтверджує», auditor читає журнал (узгодити).
+    RespondentCategory:
+      type: string
+      enum: [wg, os, experts]
+      description: wg це робоча група, os це особовий склад, experts це експерти.
+    ComponentId:
+      type: string
+      enum: [culture, system, accountability]
+    Source:
+      type: string
+      enum: [wg, os, experts, facts]
+    ComponentWeights:
+      type: object
+      required: [culture, system, accountability]
+      properties:
+        culture: { type: number }
+        system: { type: number }
+        accountability: { type: number }
+    Session:
+      type: object
+      required: [role, sections, demo]
+      properties:
+        role: { $ref: '#/components/schemas/Role' }
+        demo: { type: boolean }
+        scope: { type: string, example: institution }
+        sections:
+          type: array
+          description: Розділи, доступні ролі (решта не показуються).
+          items: { type: string, example: dashboard }
+    QuestionnaireStatus:
+      type: string
+      enum: [draft, published, archived]
+    QuestionnaireSummary:
+      type: object
+      required: [id, title, version, status, respondentCategory]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        version: { type: integer, minimum: 1 }
+        status: { $ref: '#/components/schemas/QuestionnaireStatus' }
+        respondentCategory: { $ref: '#/components/schemas/RespondentCategory' }
+    Questionnaire:
+      allOf:
+        - $ref: '#/components/schemas/QuestionnaireSummary'
+        - type: object
+          required: [questions]
+          properties:
+            questions:
+              type: array
+              items: { $ref: '#/components/schemas/Question' }
+    QuestionInput:
+      type: object
+      required: [text, component, options]
+      properties:
+        text: { type: string }
+        component: { $ref: '#/components/schemas/ComponentId' }
+        respondentCategory: { $ref: '#/components/schemas/RespondentCategory' }
+        weight:
+          { type: number, description: 'Частка в компоненті, % (узгодити, де живуть ваги питань).' }
+        options:
+          type: array
+          minItems: 5
+          maxItems: 5
+          items: { $ref: '#/components/schemas/OptionInput' }
+    OptionInput:
+      type: object
+      required: [text, level, score]
+      properties:
+        text: { type: string }
+        level: { type: integer, minimum: 1, maximum: 5 }
+        score: { type: number, description: 'Бал варіанта, 0-100.' }
+    Question:
+      allOf:
+        - $ref: '#/components/schemas/QuestionInput'
+        - type: object
+          required: [id]
+          properties:
+            id: { type: string }
+    CycleInput:
+      type: object
+      required: [period, k, categories]
+      properties:
+        period:
+          type: object
+          required: [from, to]
+          properties:
+            from: { type: string, format: date }
+            to: { type: string, format: date }
+        k: { type: integer, minimum: 2, default: 5, description: 'Мінімальна група для показу.' }
+        categories:
+          type: array
+          items:
+            type: object
+            required: [category, weight]
+            properties:
+              category: { $ref: '#/components/schemas/RespondentCategory' }
+              weight: { type: number, description: 'Вага категорії у сприйнятті.' }
+        componentWeights: { $ref: '#/components/schemas/ComponentWeights' }
+    Cycle:
+      allOf:
+        - $ref: '#/components/schemas/CycleInput'
+        - type: object
+          required: [id, status, weightsFrozen]
+          properties:
+            id: { type: string, example: '2026-11' }
+            status: { type: string, enum: [draft, open, closed, published] }
+            weightsFrozen: { type: boolean }
+            methodologyVersion: { type: string }
+    Counters:
+      type: object
+      required: [cycleId, items]
+      properties:
+        cycleId: { type: string }
+        items:
+          type: array
+          items:
+            type: object
+            required: [respondentCategory, issued, used]
+            properties:
+              respondentCategory: { $ref: '#/components/schemas/RespondentCategory' }
+              issued: { type: integer }
+              used: { type: integer }
+    AssignedSurvey:
+      type: object
+      required: [assignmentId, title, status, questionCount]
+      properties:
+        assignmentId: { type: string }
+        title: { type: string }
+        status: { type: string, enum: [new, in_progress, submitted] }
+        questionCount: { type: integer }
+        answeredCount: { type: integer }
+    SurveyForm:
+      type: object
+      required: [assignmentId, title, questions]
+      properties:
+        assignmentId: { type: string }
+        title: { type: string }
+        guarantees: { type: string, description: 'Текст екрана гарантій анонімності.' }
+        questions:
+          type: array
+          items:
+            type: object
+            required: [id, text, options]
+            properties:
+              id: { type: string }
+              text: { type: string }
+              options:
+                type: array
+                items:
+                  type: object
+                  required: [id, text]
+                  properties:
+                    id: { type: string }
+                    text: { type: string }
+        draft: { $ref: '#/components/schemas/AnswerSet' }
+    AnswerSet:
+      type: object
+      required: [answers]
+      description: Лише вибір варіанта. Вільного тексту немає.
+      properties:
+        answers:
+          type: array
+          items:
+            type: object
+            required: [questionId, optionId]
+            properties:
+              questionId: { type: string }
+              optionId: { type: string }
+    InstitutionSummary:
+      type: object
+      required: [id, name, cycle, index, level, trustGrade, delta]
+      description: Узагальнена картка закладу. Без позиції, місця чи рангу.
+      properties:
+        id: { type: string }
+        name: { type: string }
+        cycle: { type: string }
+        index: { type: number }
+        level: { type: integer, minimum: 1, maximum: 5 }
+        trustGrade: { type: string, enum: [A, B, C, insufficient] }
+        delta: { type: number, description: 'Зміна індексу до попереднього циклу, пункти.' }
+    DataSource:
+      type: object
+      required: [id, metric, source, mode, age, explanation]
+      properties:
+        id: { type: string }
+        metric: { type: string }
+        source: { type: string }
+        mode: { type: string, enum: [auto, manual, planned, approval] }
+        age: { type: string, description: 'Вік даних простою мовою.' }
+        explanation: { type: string }
+    Integration:
+      type: object
+      required: [id, system, purpose, method, mode]
+      properties:
+        id: { type: string }
+        system: { type: string }
+        purpose: { type: string }
+        method: { type: string }
+        mode: { type: string, enum: [auto, manual, planned, approval] }
+    Unit:
+      type: object
+      required: [id, name, parentId]
+      description: Вузол дерева підрозділів. Корінь має parentId null. Назви нейтральні, глибина довільна.
+      properties:
+        id: { type: string, example: unit-a }
+        name: { type: string, example: Підрозділ А }
+        parentId: { type: [string, 'null'], example: alpha }
+    HiddenBelowK:
+      type: object
+      required: [visibility, message, fallbackScope]
+      properties:
+        visibility: { type: string, enum: [hidden_below_k] }
+        message: { type: string }
+        fallbackScope:
+          {
+            $ref: '#/components/schemas/Unit',
+            description: 'Батьківський підрозділ (рівень вище), дані якого можна показати.',
+          }
+    TrustFlag:
+      type: object
+      required: [id, weight, raised, title, explanation]
+      properties:
+        id: { type: string }
+        weight:
+          {
+            type: string,
+            enum: [minor, major],
+            description: 'minor це незначний, major це серйозний.',
+          }
+        raised: { type: boolean, description: 'Так чи ні.' }
+        title: { type: string }
+        explanation: { type: string, description: 'Пояснення простою мовою.' }
+    Trust:
+      type: object
+      required: [grade, word, flags]
+      properties:
+        grade:
+          type: string
+          enum: [A, B, C, insufficient]
+          description: |
+            A жоден прапорець; B лише 1-2 незначних; C хоча б один серйозний або 3 і більше незначних;
+            insufficient якщо відповідей у групі менше k.
+        word:
+          {
+            type: string,
+            description: 'підтверджується, є зауваження, потрібна перевірка або недостатньо даних.',
+          }
+        responses: { type: integer }
+        flags:
+          type: array
+          items: { $ref: '#/components/schemas/TrustFlag' }
+    ComponentResult:
+      type: object
+      required: [id, label, perception, facts, credited, limited]
+      properties:
+        id: { $ref: '#/components/schemas/ComponentId' }
+        label: { type: string }
+        perception: { type: number }
+        facts: { type: number }
+        credited: { type: number }
+        limited: { type: boolean }
+        limiterReason: { type: string }
+        previousCredited: { type: [number, 'null'] }
+    Insight:
+      type: object
+      required: [id, title, value]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        value: { type: number }
+        component: { $ref: '#/components/schemas/ComponentId' }
+    Dashboard:
+      type: object
+      required: [scope, cycle, index, summary, components, trust, strengths, attention, conclusion]
+      properties:
+        scope: { type: string }
+        institution: { type: string }
+        cycle:
+          type: object
+          properties:
+            id: { type: string }
+            date: { type: string, format: date }
+        index:
+          type: object
+          required: [value, level, levelName]
+          properties:
+            value: { type: number, minimum: 0, maximum: 100 }
+            level: { type: integer, minimum: 1, maximum: 5 }
+            levelName: { type: string }
+            previousValue: { type: [number, 'null'] }
+            delta: { type: [number, 'null'] }
+        summary:
+          type: object
+          properties:
+            text: { type: string }
+            reason: { type: string }
+        components:
+          type: array
+          items: { $ref: '#/components/schemas/ComponentResult' }
+        trust: { $ref: '#/components/schemas/Trust' }
+        strengths:
+          type: array
+          items: { $ref: '#/components/schemas/Insight' }
+        attention:
+          type: array
+          items: { $ref: '#/components/schemas/Insight' }
+        conclusion: { type: string }
+    BreakdownNode:
+      type: object
+      required: [id, kind, label, weight, value, contribution]
+      properties:
+        id: { type: string }
+        kind: { type: string, enum: [index, component, item] }
+        label: { type: string }
+        weight: { type: number, description: 'Вага в батьківському вузлі, %.' }
+        value: { type: number }
+        contribution: { type: number, description: 'Внесок в індекс, пункти.' }
+        source: { $ref: '#/components/schemas/Source' }
+        limited: { type: boolean }
+        limiterReason: { type: string }
+        hint: { type: string }
+        children:
+          type: array
+          items: { $ref: '#/components/schemas/BreakdownNode' }
+    Breakdown:
+      type: object
+      required: [mode, root, sumCheck]
+      properties:
+        mode: { type: string, enum: [perception, facts, credited] }
+        root: { $ref: '#/components/schemas/BreakdownNode' }
+        sumCheck:
+          type: object
+          required: [sum, indexValue, matches]
+          properties:
+            sum: { type: number }
+            indexValue: { type: number }
+            matches: { type: boolean }
+    Compare:
+      type: object
+      required: [components]
+      properties:
+        components:
+          type: array
+          items:
+            type: object
+            required: [id, bars]
+            properties:
+              id: { $ref: '#/components/schemas/ComponentId' }
+              explanation: { type: string, description: 'Розбіжності текстом.' }
+              bars:
+                type: array
+                items:
+                  type: object
+                  required: [source]
+                  properties:
+                    source: { $ref: '#/components/schemas/Source' }
+                    value: { type: [number, 'null'] }
+                    visibility: { type: string, enum: [visible, hidden_below_k] }
+    TrendPoint:
+      type: object
+      required: [cycle, date, index]
+      properties:
+        cycle: { type: string }
+        date: { type: string, format: date, description: 'Дата циклу.' }
+        index: { type: number }
+        components:
+          {
+            $ref: '#/components/schemas/ComponentWeights',
+            description: 'Зараховані значення компонентів, 0-100.',
+          }
+    Trends:
+      type: object
+      required: [points]
+      properties:
+        period:
+          type: object
+          properties:
+            from: { type: string }
+            to: { type: string }
+        points:
+          type: array
+          items: { $ref: '#/components/schemas/TrendPoint' }
+        comparePeriod:
+          type: object
+          description: Лише при compare=periods.
+          properties:
+            from: { type: string }
+            to: { type: string }
+        comparePoints:
+          type: array
+          description: Цикли другого періоду (лише при compare=periods).
+          items: { $ref: '#/components/schemas/TrendPoint' }
+        delta:
+          type: object
+          description: Різниця середніх значень другого періоду й першого, у пунктах (лише при compare=periods).
+          properties:
+            index: { type: number }
+            components: { $ref: '#/components/schemas/ComponentWeights' }
+        events:
+          type: array
+          items:
+            type: object
+            properties:
+              cycle: { type: string }
+              title: { type: string }
+              measureId: { type: string }
+    FactMetric:
+      type: object
+      required: [id, component, label, kind, mode]
+      properties:
+        id: { type: string }
+        component: { $ref: '#/components/schemas/ComponentId' }
+        label: { type: string }
+        kind: { type: string, enum: [percent, level] }
+        value:
+          { type: [number, 'null'], description: 'Значення 0-100 (для percent дорівнює percent).' }
+        numerator:
+          {
+            type: [integer, 'null'],
+            description: 'Скільки відповідає умові (лише percent). Без імен.',
+          }
+        denominator: { type: [integer, 'null'], description: 'З скількох (лише percent).' }
+        percent: { type: [number, 'null'], description: 'Відсоток 0-100: numerator / denominator.' }
+        source: { type: string, description: 'Звідки дані (система або реєстр).' }
+        mode:
+          {
+            type: string,
+            enum: [automatic, manual, planned],
+            description: 'automatic це автоматично, manual це ручний ввід, planned це планується.',
+          }
+        asOf: { type: [string, 'null'], format: date-time }
+        ageDays: { type: [integer, 'null'], description: 'Вік даних у днях.' }
+    ChecklistItem:
+      type: object
+      required: [id, title, status]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        status: { type: string, enum: [open, awaiting_confirmation, confirmed] }
+        evidenceUrl: { type: [string, 'null'] }
+        enteredBy:
+          {
+            type: [string, 'null'],
+            description: 'Посада або роль того, хто вніс (узгодити, чи потрібне імʼя).',
+          }
+        confirmedBy:
+          {
+            type: [string, 'null'],
+            description: 'Посада або роль того, хто підтвердив; інша особа, ніж enteredBy.',
+          }
+    ChecklistSection:
+      type: object
+      required: [id, title, items]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/ChecklistItem' }
+    RecommendationStatus:
+      type: string
+      enum: [proposed, accepted, clarified, rejected]
+    Recommendation:
+      type: object
+      required: [id, title, priority, status, basis]
+      properties:
+        id: { type: string }
+        title: { type: string }
+        priority: { type: string, enum: [high, medium, low] }
+        status: { $ref: '#/components/schemas/RecommendationStatus' }
+        actions:
+          type: array
+          items: { type: string }
+        basis:
+          type: array
+          description: 'Блок «На підставі»: які агрегати й показники спричинили рекомендацію (без окремих відповідей).'
+          items:
+            type: object
+            properties:
+              nodeId: { type: string, description: 'Вузол розкладу індексу.' }
+              text: { type: string }
+              value: { type: number }
+        rejectionReason: { type: [string, 'null'] }
+    MeasureStatus:
+      type: string
+      enum: [accepted, inprogress, done, confirmed, notconfirmed, overdue]
+    Measure:
+      type: object
+      required: [id, title, assignee, dueDate, status]
+      properties:
+        id: { type: string }
+        recommendationId: { type: string }
+        title: { type: string }
+        assignee: { type: string, description: 'Посада або роль відповідального.' }
+        dueDate: { type: string, format: date }
+        status: { $ref: '#/components/schemas/MeasureStatus' }
+        verifiedInCycle:
+          { type: [string, 'null'], description: 'Цикл, у якому захід верифіковано.' }
+        verification:
+          type: [string, 'null']
+          enum: ['Підтверджено наступним оцінюванням', 'Не підтверджено, потрібен перегляд', null]
+          description: Результат верифікації наступним циклом. Для відкритого заходу null.
+        overdueDays:
+          {
+            type: integer,
+            minimum: 0,
+            description: 'Скільки днів прострочено на дату запиту, 0 якщо ні.',
+          }
+    MyResults:
+      type: object
+      required: [scope, cycle, index, components]
+      properties:
+        scope: { type: string }
+        cycle: { type: string }
+        index: { type: number }
+        level: { type: integer }
+        components:
+          type: array
+          items: { $ref: '#/components/schemas/ComponentResult' }
+        doneSinceLastCycle:
+          type: array
+          items: { type: string }
+        next:
+          type: array
+          items: { type: string }
+    Report:
+      type: object
+      required: [id, cycle, methodology]
+      properties:
+        id: { type: string }
+        cycle: { type: string }
+        generatedAt: { type: string, format: date-time }
+        methodology:
+          type: object
+          required: [version, hash]
+          properties:
+            version: { type: string }
+            hash: { type: string }
+        sections:
+          type: array
+          description: 'Структура додатка Г: затвердження, підстава, методика, таблиці, висновок.'
+          items:
+            type: object
+            properties:
+              title: { type: string }
+              body: { type: string }
+    AuditEntry:
+      type: object
+      required: [id, at, event, role]
+      properties:
+        id: { type: string }
+        at: { type: string, format: date-time }
+        event: { type: string }
+        role: { $ref: '#/components/schemas/Role' }
+        details: { type: string, description: 'Без відповідей респондентів.' }
+    Methodology:
+      type: object
+      required: [version, hash, componentWeights]
+      properties:
+        version: { type: string }
+        hash: { type: string }
+        componentWeights: { $ref: '#/components/schemas/ComponentWeights' }
+        levelUpperBounds:
+          type: array
+          items: { type: number }
+        limiterMargin: { type: number }
+        minGroupK: { type: integer }
+        frozen: { type: boolean }

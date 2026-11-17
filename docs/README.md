@@ -1,10 +1,14 @@
-# docs — джерела хакатону
+# docs — джерела хакатону і документація проєкту
 
 ```
 docs/
 ├── raw/        оригінали (HTML, PDF) без змін + SOURCES.md (URL, дата, SHA-256)
 ├── md/         оброблені версії: Markdown (+ .txt), картинки в <doc>-img/
-└── tools/      скрипти конвертації (html2md, pdf2md, check_words, fixes/)
+├── tools/      скрипти конвертації (html2md, pdf2md, check_words, fixes/)
+├── api/        openapi.json — контракт API бекенду
+├── backend.md  архітектура, ролі, модель даних, API
+├── integrity-index.md  методика Integrity Index
+└── run.md      як запустити (Docker, розробка, демо-дані)
 ```
 
 Що тут лежить:

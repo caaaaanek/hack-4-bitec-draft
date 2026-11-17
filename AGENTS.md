@@ -33,6 +33,12 @@ git switch dev && git merge --no-ff feature/questionnaire-json && git push
 - `.githooks/commit-msg` відхиляє коміт із такими рядками. Після клонування один раз виконати:
   `git config core.hooksPath .githooks`
 
-## Документи
+## Структура і перевірки
 
-Джерела хакатону лежать у `docs/` (`raw/` — оригінали, `md/` — оброблене). Як додавати й конвертувати — `docs/README.md` і скіл `.claude/skills/ingest-docs/SKILL.md`.
+Огляд модулів і дерево проєкту — `README.md`.
+
+- `backend/` — FastAPI. Перед комітом: `cd backend && pytest`. Ваги й пороги індексу міняються лише в `app/services/methodology.py`, зміни API — разом із `docs/api/openapi.json` і `docs/backend.md`.
+- `frontend/` — Vite + React. Перед комітом: `cd frontend && npm run check`. Локальні правила UI (тексти, кольори, доступність) — `frontend/CLAUDE.md`; правила гілок і комітів звідси діють і там.
+- `docs/` — джерела хакатону (`raw/` — оригінали, `md/` — оброблене) і документація проєкту. Як додавати й конвертувати джерела — `docs/README.md` і скіл `.claude/skills/ingest-docs/SKILL.md`.
+
+Документацію оновлюємо в тому ж коміті, що й код, який вона описує.
