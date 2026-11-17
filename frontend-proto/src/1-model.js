@@ -231,8 +231,12 @@ function buildOther(o) {
   m.attention = sorted.map(c => ({ t: ATTN_TITLE[c.id], c: c.id, v: c.cr.v, hint: `Зараховане значення компонента ${COMP[c.id].n}, 0-100.` }));
   m.strengths = [
     { t: `Найвищий результат у компоненті ${COMP[top.id].n}`, c: top.id, v: top.cr.v, hint: `Зараховане значення компонента ${COMP[top.id].n}, 0-100.` },
-    { t: "Зростання індексу кілька циклів поспіль", v: r1(m.index - series[0].index), hint: "Сумарне зростання індексу з першого циклу, у пунктах.", unit: "пт" },
   ];
+  // «Зростання поспіль» лише якщо індекс справді зростав останні цикли
+  let k = series.length - 1; while (k > 0 && series[k].index > series[k - 1].index) k--;
+  const streak = series.length - 1 - k;
+  if (streak >= 2) m.strengths.push({ t: `Зростання індексу ${streak === 2 ? "два" : streak === 3 ? "три" : streak} цикли поспіль`, v: r1(m.index - series[k].index), hint: `Сумарне зростання індексу з циклу ${series[k].cycle}, у пунктах.`, unit: "пт" });
+  else if (m.delta > 0) m.strengths.push({ t: "Індекс зріс за останній цикл", v: m.delta, hint: "Зміна індексу порівняно з попереднім циклом, у пунктах.", unit: "пт" });
   return m;
 }
 const OTHER_MODELS = {};
@@ -319,7 +323,7 @@ const BASE_MEASURES = [
   { id: "m-6", rec: "Оновити порядок розгляду скарг", t: "Призначити відповідальну особу за облік звернень", who: "Начальник штабу", due: "2027-01-31", st: "accepted", ind: "sy-f1" },
 ];
 const M_ST = {
-  accepted: ["Прийнято", "p-info"], inprogress: ["В роботі", "p-warn"], done: ["Виконано", "p-good"],
+  accepted: ["Прийнято", "p-info"], inprogress: ["В роботі", "p-warn"], done: ["Виконано", "p-done"],
   confirmed: ["Підтверджено", "p-good"], notconfirmed: ["Не підтверджено", "p-bad"], overdue: ["Прострочено", "p-bad"],
 };
 const M_NEXT = { accepted: ["inprogress"], inprogress: ["done", "accepted"], done: ["inprogress"], confirmed: [], notconfirmed: ["inprogress"] };

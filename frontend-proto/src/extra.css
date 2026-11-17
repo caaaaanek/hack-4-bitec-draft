@@ -139,8 +139,6 @@ a.pill-btn { color: inherit; text-decoration: none; }
 .kt-info svg { width: 15px; height: 15px; }
 .flag-ic.ok { background: var(--lime-soft); color: var(--teal-deep); }
 
-#attn.flash { animation: attnFlash 1.4s ease; }
-@keyframes attnFlash { 0%, 60% { box-shadow: 0 0 0 3px var(--blue); } 100% { box-shadow: 0 0 0 0 transparent; } }
 
 /* ---- v3: відгук користувача 17.11 ---- */
 /* Шкала рівнів зрілості */
@@ -301,3 +299,20 @@ html.hc a, html.hc .link { text-decoration: underline; }
 .lvc-track i { position: absolute; top: -4px; width: 4px; height: 16px; margin-left: -2px; border-radius: 2px; background: var(--fg); box-shadow: 0 0 0 2px var(--panel); }
 @media (max-width: 640px) { .lv-comp { grid-template-columns: 90px minmax(0, 1fr) 40px; } .lv-comp .pill { display: none; } }
 .delta b { white-space: nowrap; }
+
+[role="button"]:focus:not(:focus-visible) { outline: none; }
+/* v7 */
+.p-done { background: var(--panel); color: var(--teal-deep); box-shadow: inset 0 0 0 1.5px var(--teal-pale); }
+.vf { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding-top: 16px; padding-bottom: 16px; }
+.vf h2 { margin: 0; }
+.vf-s { display: flex; gap: 8px; flex-wrap: wrap; }
+.vf-s span { display: inline-flex; align-items: baseline; gap: 8px; background: var(--soft); border-radius: 10px; padding: 7px 12px; font-size: 13px; color: var(--muted); }
+.vf-s b { font-size: 16px; color: var(--fg); }
+#ic-search { display: grid; place-items: center; flex: none; }
+#ic-search svg { width: 18px; height: 18px; display: block; }
+@media (min-width: 901px) { html.side-mini .search { width: 42px; height: 42px; padding: 0; justify-content: center; } }
+.vf h2 { font-size: 16px; font-weight: 600; }
+.b-card .seg.sm { flex-wrap: wrap; max-width: 100%; }
+.cmp-stack { display: flex; flex-direction: column; gap: inherit; gap: 20px; min-width: 0; }
+.cmp-stack > .card { flex: 1; }
+@media (max-width: 1200px) { .cmp-stack { grid-column: span 12; } }
