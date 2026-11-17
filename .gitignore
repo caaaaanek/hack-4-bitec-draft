@@ -25,19 +25,11 @@ service-account*.json
 ._*
 Thumbs.db
 Desktop.ini
-<<<<<<< HEAD
+desktop.ini
 secrets/
 credentials.json
 
-# --- OS ---
-.DS_Store
-Thumbs.db
-desktop.ini
-
 # --- IDE / editors ---
-=======
-desktop.ini
->>>>>>> 63f6e00e9493d15f8b28bade71baddd010b7e797
 .idea/
 .vscode/
 *.swp
@@ -97,22 +89,6 @@ coverage/
 *.log
 tmp/
 .tmp/
-<<<<<<< HEAD
-.pytest_cache/
-.mypy_cache/
-.ruff_cache/
-*.egg-info/
-=======
-logs/
-temp/
-*.tmp
-*.bak
-secrets/
-out/
-.next/
-.nuxt/
-.turbo/
->>>>>>> 63f6e00e9493d15f8b28bade71baddd010b7e797
 
 # --- Java / JVM ---
 target/
