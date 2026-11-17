@@ -168,7 +168,17 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") { closeDrawe
 const role = $("#role");
 role.innerHTML = Object.entries(ROLE).map(([k, [n]]) => `<option value="${k}">${n}</option>`).join("");
 role.value = S.role;
-const setAvatar = () => { $("#avatar").textContent = ROLE[S.role][1]; $("#avatar").dataset.tip = ROLE[S.role][0]; };
+const setAvatar = () => { const av = $("#avatar"); av.textContent = ROLE[S.role][1]; av.dataset.tip = ROLE[S.role][0]; av.setAttribute("role", "button"); av.tabIndex = 0; av.setAttribute("aria-label", "Профіль і вихід"); };
+// Клік по аватару: хто ви й кнопка «Вийти» (меню ліворуч на вузьких екранах приховане)
+function openProfile(btn) {
+  const p = $("#pop"); if (p.classList.contains("on") && p._btn === btn) return closePop();
+  const u = API.user;
+  p._btn = btn; pickA = null;
+  p.innerHTML = `<div style="font-weight:600">${esc(u ? u.display_name : ROLE[S.role][0])}</div><div class="lbl" style="margin:2px 0 12px">${ROLE[S.role][0]}${u ? ` · ${esc(u.login)}` : ""}</div>${u ? `<button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="closePop();document.getElementById('logoutBtn').click()">${IC.arrowL}Вийти</button>` : `<div class="lbl">Демо-режим: вихід не потрібен.</div>`}`;
+  p.classList.add("on"); placePop(btn);
+}
+$("#avatar").onclick = e => openProfile(e.currentTarget);
+$("#avatar").onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openProfile(e.currentTarget); } };
 role.onchange = () => { S.role = role.value; addLog(ROLE[S.role][0], "Вхід у систему"); persist(); setAvatar(); aiBtn(); aiClose(); closeDrawer(); location.hash = HOME[S.role]; render(); toast("Роль: " + ROLE[S.role][0]); };
 $("#resetBtn").innerHTML = `${IC.reset}Скинути демо-дані`; $("#resetBtn").onclick = resetDemo;
 setAvatar();
@@ -207,15 +217,19 @@ $("#a11yBtn").innerHTML = IC.a11y;
 $("#a11yBtn").onclick = e => { const p = $("#pop"), b = e.currentTarget; if (p.classList.contains("on") && p._btn === b) return closePop(); p._btn = b; drawA11y(); p.classList.add("on"); placePop(b); };
 applyA11y();
 /* Згортання бічного меню (на широких екранах): лишаються лише іконки */
-function setSide(mini) {
+function setSide(mini, auto) {
   document.documentElement.classList.toggle("side-mini", mini);
   const b = $("#sideBtn"); b.innerHTML = mini ? IC.chevR : IC.chevL; b.setAttribute("aria-label", mini ? "Розгорнути меню" : "Згорнути меню"); b.setAttribute("aria-expanded", String(!mini)); b.dataset.tip = mini ? "Розгорнути меню" : "Згорнути меню";
-  try { localStorage.setItem("ii-side", mini ? "mini" : ""); } catch (e) {}
+  if (!auto) try { localStorage.setItem("ii-side2", mini ? "mini" : ""); } catch (e) {}
   const { r } = route(); renderNav(r); setTimeout(() => V[r] && V[r].after && V[r].after(), 260);
 }
 $("#sideBtn").onclick = () => setSide(!document.documentElement.classList.contains("side-mini"));
 document.querySelector(".side .search").addEventListener("click", () => { if (document.documentElement.classList.contains("side-mini")) { setSide(false); setTimeout(() => $("#q").focus(), 50); } });
-try { setSide(localStorage.getItem("ii-side") === "mini"); } catch (e) { setSide(false); }
+// Меню: збережений вибір користувача, а без нього на вузьких екранах (до 1100 px) воно згорнуте, щоб не стискати вміст
+const sidePref = () => { try { return localStorage.getItem("ii-side2"); } catch (e) { return null; } };
+const autoSide = () => { if (sidePref() === null && innerWidth > 900) { document.documentElement.classList.toggle("side-mini", innerWidth < 1100); const { r } = route(); renderNav(r); } };
+try { const sp = sidePref(); if (sp === null) { document.documentElement.classList.toggle("side-mini", innerWidth > 900 && innerWidth < 1100); setSide(document.documentElement.classList.contains("side-mini"), true); } else setSide(sp === "mini"); } catch (e) { setSide(false); }
+addEventListener("resize", autoSide);
 $("#aiLogo").innerHTML = IC.spark.replace("<svg", '<svg width="17" height="17"');
 $("#aiClose").innerHTML = IC.x; $("#aiClose").onclick = aiClose;
 $("#aiSend").innerHTML = IC.send;
