@@ -10,3 +10,5 @@ bcrypt==5.0.0
 python-multipart==0.0.33
 # Бази часових поясів для Europe/Kyiv у slim-образі й на Windows
 tzdata==2026.6
+# Демо-хвилі: seed --with-waves (TestClient) і scripts/demo_wave.py
+httpx==0.28.1
