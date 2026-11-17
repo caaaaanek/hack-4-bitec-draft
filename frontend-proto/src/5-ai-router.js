@@ -175,6 +175,7 @@ role.value = S.role;
 const setAvatar = () => { const av = $("#avatar"); av.textContent = ROLE[S.role][1]; av.dataset.tip = ROLE[S.role][0]; av.setAttribute("role", "button"); av.tabIndex = 0; av.setAttribute("aria-label", "Профіль і вихід"); };
 // Клік по аватару: хто ви й кнопка «Вийти» (меню ліворуч на вузьких екранах приховане)
 function openProfile(btn) {
+  hideTip();
   const p = $("#pop"); if (p.classList.contains("on") && p._btn === btn) return closePop();
   const u = API.user;
   p._btn = btn; pickA = null;

@@ -1,0 +1,8 @@
+/* Анкета: кожне питання окремою карткою, заголовок розділу окремо над ними */
+.survey .qcard { display:flex; flex-direction:column; gap:14px; }
+.sv-sec-h { display:flex; align-items:center; gap:12px; padding:4px 2px; }
+.sv-sec-h b { font-size:18px; font-weight:600; }
+fieldset.qf.card { margin:0; padding:20px; min-width:0; }
+/* текст питання всередині картки, а не на її верхній межі (стандартна поведінка legend у fieldset) */
+fieldset.qf.card > legend { float: left; width: 100%; padding: 0; margin: 0 0 14px; }
+fieldset.qf.card > legend + * { clear: both; }

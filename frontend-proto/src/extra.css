@@ -288,8 +288,8 @@ html.hc a, html.hc .link { text-decoration: underline; }
   html.side-mini .side { padding-left: 12px; padding-right: 12px; align-items: center; }
   html.side-mini .brand { flex-direction: column; padding: 0; gap: 10px; }
   html.side-mini .side-btn { margin-left: 0; }
-  html.side-mini .brand-t, html.side-mini .nav-label, html.side-mini .nav a span, html.side-mini .search input, html.side-mini .search .kbd, html.side-mini .side-foot { display: none; }
-  html.side-mini .search { padding: 10px; cursor: pointer; }
+  html.side-mini .brand-t, html.side-mini .nav-label, html.side-mini .nav a span, html.side-mini .side .search input, html.side-mini .side .search .kbd, html.side-mini .side-foot { display: none; }
+  html.side-mini .side .search { padding: 10px; cursor: pointer; }
   html.side-mini .nav a { padding: 11px; justify-content: center; }
   html.side-mini .nav a .badge { position: absolute; top: 2px; right: 0; font-size: 9px; padding: 0 4px; }
 }
@@ -319,7 +319,7 @@ html.hc a, html.hc .link { text-decoration: underline; }
 .vf-s b { font-size: 16px; color: var(--fg); }
 #ic-search { display: grid; place-items: center; flex: none; }
 #ic-search svg { width: 18px; height: 18px; display: block; }
-@media (min-width: 901px) { html.side-mini .search { width: 42px; height: 42px; padding: 0; justify-content: center; } }
+@media (min-width: 901px) { html.side-mini .side .search { width: 42px; height: 42px; padding: 0; justify-content: center; } }
 .vf h2 { font-size: 16px; font-weight: 600; }
 .b-card .seg.sm { flex-wrap: wrap; max-width: 100%; }
 .cmp-stack { display: flex; flex-direction: column; gap: inherit; gap: 20px; min-width: 0; }

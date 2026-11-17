@@ -285,7 +285,7 @@ function apiSurveyModel(form, kind, category) {
         opt[q.id] = q.options.map(o => ({ id: o.id })); return [q.id, q.text, q.options.map(o => o.text)];
       }) };
   });
-  return { title: form.title, cat: CAT[category] || form.title, sections, opt, kind, campaignId: form.campaign_id, questionnaireId: form.questionnaire_id, k: form.min_group_size };
+  return { title: form.title, cat: CAT[category] || "Анонімне опитування", sections, opt, kind, campaignId: form.campaign_id, questionnaireId: form.questionnaire_id, k: form.min_group_size };
 }
 async function apiSubmitSurvey() {
   const sv = API.survey, answers = Object.entries(S.survey.a).filter(([qid]) => sv.opt[qid]).map(([qid, i]) => { const o = sv.opt[qid][i]; return o.id ? { question_id: qid, option_ids: [o.id] } : { question_id: qid, option_ids: [], value: o.value }; });
@@ -439,9 +439,8 @@ function apiManageView() {
   return `
   <section class="card c8 rise">
     ${c ? `<div class="card-h"><h2>${esc(dn(c.title))}</h2>${pill(CST[c.status][0], CST[c.status][1])}<div class="sp"></div><span class="lbl">${c.opened_on ? ua(c.opened_on) : "ще не відкрито"} – ${c.closed_on ? ua(c.closed_on) : "триває"}</span></div>
-    <div class="rows">${(A.progress ? A.progress.items : []).map(i => `<div class="row"><div class="grow"><div class="t" style="display:flex;gap:8px;align-items:center">${esc(i.questionnaire_title)}${i.too_few_people ? `<span style="display:inline-flex;width:15px;color:var(--muted)" data-tip="Менше ${c.min_group_size} осіб: кількості приховано">${IC.lock}</span>` : ""}</div>
-      <div class="ticks" style="height:14px;margin-top:6px">${Array.from({ length: 30 }, (_, j) => `<span class="${!i.too_few_people && j < Math.round((i.percent || 0) / 100 * 30) ? "f2" : ""}" ${!i.too_few_people && j < Math.round((i.percent || 0) / 100 * 30) ? 'style="background:var(--teal)"' : ""}></span>`).join("")}</div></div>
-      <b class="tnum">${i.too_few_people ? "приховано" : `${i.submitted} з ${i.eligible}`}</b></div>`).join("") || `<div class="lbl">Анкет у хвилі немає.</div>`}</div>
+    <div class="rows">${(A.progress ? A.progress.items : []).map(i => { const n = i.too_few_people ? 30 : Math.max(1, Math.min(30, i.eligible || 30)), on = i.too_few_people || !i.eligible ? 0 : Math.round((i.submitted || 0) / i.eligible * n); return `<div class="row prog-row"><div class="grow"><div class="prog-h"><span class="t">${esc(i.questionnaire_title)}</span>${i.too_few_people ? `<span class="prog-lock" data-tip="Менше ${c.min_group_size} осіб: кількості приховано">${IC.lock}</span>` : ""}<b class="tnum prog-n">${i.too_few_people ? "приховано" : `${i.submitted} з ${i.eligible}`}</b></div>
+      <div class="ticks" style="height:14px;margin-top:8px">${Array.from({ length: n }, (_, j) => `<span ${j < on ? 'style="background:var(--teal)"' : ""}></span>`).join("")}</div></div></div>`; }).join("") || `<div class="lbl">Анкет у хвилі немає.</div>`}</div>
     <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap" id="cActs">
       ${c.status === "draft" ? `<button class="btn btn-primary" onclick="apiCampaignAct('${c.id}','open')">${IC.ok}Відкрити хвилю</button>` : ""}
       ${c.status === "open" ? `<button class="btn btn-soft" onclick="apiAskClose('${c.id}')">${IC.lock}Завершити й порахувати індекс</button>` : ""}
@@ -462,10 +461,9 @@ function apiManageView() {
     </div>
     ${A.links ? `<div class="note-box" style="margin-top:14px">${A.links.warning ? `<b style="color:var(--amber)">${esc(A.links.warning)}</b>` : `<b>Видано посилань: ${A.links.urls.length}</b>`}
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin:6px 0"><button class="btn btn-soft" onclick="apiCopyLinks()">${IC.copy}Копіювати всі</button><button class="btn btn-soft" onclick="download('links.csv','\\ufefflink\\n'+API.adm.links.urls.join('\\n'),'text/csv')">${IC.file}CSV</button></div>
-      <div class="lbl tnum" style="max-height:200px;overflow:auto;word-break:break-all">${A.links.urls.map(u => `<div><a class="link" href="${esc(u)}" target="_blank" rel="noreferrer">${esc(u)}</a></div>`).join("")}</div></div>` : ""}
+      <div class="link-list tnum">${A.links.urls.map((u, i) => `<div class="link-row"><span class="link-n">${i + 1}</span><a class="link" href="${esc(u)}" target="_blank" rel="noreferrer">${esc(u)}</a><button type="button" class="icon-btn sm" aria-label="Копіювати посилання ${i + 1}" data-tip="Копіювати це посилання" onclick="apiCopyOne(${i})">${IC.copy}</button></div>`).join("")}</div></div>` : ""}
     <div style="margin-top:12px"><button class="btn btn-ghost" onclick="apiRevoke('${c.id}')">Відкликати всі невикористані</button></div>
-  </section>` : ""}
-  <section class="card c12 rise"><div class="lock">${IC.lock}<div><b>Ця роль не має доступу до відповідей респондентів, навіть узагальнених.</b><div class="lbl">Тут видно лише скільки людей мали пройти анкету і скільки пройшли. Якщо в групі менше людей, ніж мінімальна група k, замість цифр буде «приховано».</div></div></div></section>`;
+  </section>` : ""}`;
 }
 function apiNewCampaign() {
   const A = API.adm;
@@ -503,6 +501,7 @@ async function apiIssueTokens(id) {
     toast(`Видано посилань: ${r.tokens.length}`); render(true);
   } catch (e) { apiFail(e); }
 }
+function apiCopyOne(i) { const t = API.adm.links.urls[i]; const ok = () => toast(`Посилання ${i + 1} скопійовано`); try { navigator.clipboard.writeText(t).then(ok, () => fallbackCopy(t, ok)); } catch (e) { fallbackCopy(t, ok); } }
 function apiCopyLinks() { const t = API.adm.links.urls.join("\n"); try { navigator.clipboard.writeText(t).then(() => toast("Посилання скопійовано"), () => fallbackCopy(t, () => toast("Скопійовано"))); } catch (e) { fallbackCopy(t, () => toast("Скопійовано")); } }
 async function apiRevoke(id) { try { const r = await api(`/campaigns/${id}/tokens/revoke`, { method: "POST", body: {} }); toast(`Відкликано невикористаних посилань: ${r.revoked}`); } catch (e) { apiFail(e); } }
 
@@ -513,20 +512,31 @@ function apiSurveysView() {
   if (!apiEnsure("qs", () => api("/questionnaires"))) return apiLoadingHTML("Анкети");
   if (API.qs.error) return apiErrorHTML(API.qs.error);
   const list = [...API.qs].sort((a, b) => a.code.localeCompare(b.code) || b.version - a.version);
-  return `<section class="card c12 rise"><div class="lock">${IC.lock}<div><b>Ця роль не має доступу до відповідей респондентів.</b><div class="lbl">Укладач не бачить, хто та скільки людей пройшли анкету. Опублікована версія не змінюється: правки йдуть у нову версію.</div></div></div></section>
+  return `
+  <section class="c12 rise toolbar"><div class="sp"></div><button class="btn btn-primary" onclick="bldNew()">${IC.plus}Нова анкета</button></section>
   ${list.map(q => `<section class="card c6 rise">
     <div class="comp-top"><span class="comp-ic" style="background:var(--lime-soft);color:var(--teal-deep)">${q.kind === "checklist" ? IC.check : IC.survey}</span><b>${esc(q.title)}</b><div class="sp" style="flex:1"></div>${pill(QST[q.status][0], QST[q.status][1])}</div>
     <div class="stat4 tnum" style="grid-template-columns:repeat(3,1fr);margin-top:14px"><div><small>Група</small><b style="font-size:14px">${q.kind === "checklist" ? "Чек-лист" : QCAT[q.target_category]}</b></div><div><small>Версія</small><b>${q.version}</b></div><div><small>Код</small><b style="font-size:12px">${esc(q.code)}</b></div></div>
     <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center"><span class="lbl">Оновлено ${ua(q.updated_at.slice(0, 10))}</span><div class="sp" style="flex:1"></div>
       <button class="btn btn-soft" onclick="apiOpenQ('${q.id}')">${IC.eye}Переглянути</button>
-      ${q.status === "draft" ? `<button class="btn btn-primary" onclick="apiQAct('${q.id}','publish')">${IC.ok}Опублікувати</button>` : q.status === "published" ? `<button class="btn btn-ghost" onclick="apiQAct('${q.id}','new-version')">${IC.plus}Нова версія</button><button class="btn btn-ghost" onclick="apiQAct('${q.id}','archive')">В архів</button>` : ""}</div>
+      ${q.status === "draft" ? `<button class="btn btn-soft" onclick="bldOpen('${q.id}')">${IC.edit}Редагувати</button><button class="btn btn-primary" onclick="apiQAct('${q.id}','publish')">${IC.ok}Опублікувати</button>` : q.status === "published" ? `<button class="btn btn-ghost" onclick="apiQAct('${q.id}','new-version')">${IC.plus}Нова версія</button><button class="btn btn-ghost" onclick="apiQAct('${q.id}','archive')">В архів</button>` : ""}</div>
   </section>`).join("")}`;
 }
 async function apiOpenQ(id) {
   try {
     const q = await api(`/questionnaires/${id}`);
-    openDrawer(q.title, `<div style="display:flex;gap:6px;flex-wrap:wrap">${pill("Версія " + q.version, "p-mute nodot")}${pill(q.kind === "checklist" ? "Чек-лист" : QCAT[q.target_category], "p-mute nodot")}</div>
-      ${q.sections.map(s => `<div><div class="lbl" style="margin-bottom:6px">Розділ «${esc(s.title)}»</div><div class="rows">${s.questions.map((x, j) => `<div class="row" style="align-items:flex-start"><span class="lbl tnum">${j + 1}</span><div class="grow">${esc(x.text)}<div class="s">${x.options.map(o => `${fb(o.score)} · ${esc(o.text)}`).join("<br>")}</div></div></div>`).join("")}</div></div>`).join("")}`);
+    const pl = (n, one, few, many) => (n % 100 >= 11 && n % 100 <= 14) ? many : (n % 10 === 1) ? one : (n % 10 >= 2 && n % 10 <= 4) ? few : many;
+    const nSec = q.sections.length;
+    const nQ = q.sections.reduce((a, s) => a + s.questions.length, 0);
+    const head = `<div style="display:flex;gap:6px;flex-wrap:wrap">${pill("Версія " + q.version, "p-mute nodot")}${pill(q.kind === "checklist" ? "Чек-лист" : QCAT[q.target_category], "p-mute nodot")}${pill(`${nSec} ${pl(nSec, "розділ", "розділи", "розділів")}, ${nQ} ${pl(nQ, "питання", "питання", "питань")}`, "p-mute nodot")}</div>`;
+    const secs = q.sections.map((s, i) => `<section class="pv-sec">
+        <div class="pv-sec-h"><span class="pv-num">${i + 1}</span><b class="pv-sec-t">${esc(s.title)}</b><span class="pv-cnt">${s.questions.length} ${pl(s.questions.length, "питання", "питання", "питань")}</span></div>
+        ${s.questions.map((x, j) => `<div class="pv-q">
+          <div class="pv-qt"><span class="pv-qn">${j + 1}.</span> ${esc(x.text)}</div>
+          ${x.options.length ? `<ul class="pv-opts">${x.options.map(o => `<li><span class="pv-score">${fb(o.score)}</span><span>${esc(o.text)}</span></li>`).join("")}</ul>` : `<div class="s">Шкала від ${esc(x.scale_min)} до ${esc(x.scale_max)}</div>`}
+        </div>`).join("")}
+      </section>`).join("");
+    openDrawer(q.title, head + secs);
   } catch (e) { apiFail(e); }
 }
 async function apiQAct(id, act) {
@@ -535,8 +545,10 @@ async function apiQAct(id, act) {
     const q = await api(`/questionnaires/${id}/${act}`, { method: "POST" });
     toast(act === "publish" ? `Опубліковано: ${q.title}` : act === "new-version" ? `Створено чернетку версії ${q.version}` : `В архіві: ${q.title}`);
     API.qs = null; render(true);
+    if (act === "new-version") bldOpen(q.id); // нова версія це чернетка: одразу відкриваємо в конструкторі
   } catch (e) { apiFail(e); }
 }
+function apiSurveysReload() { API.qs = null; render(true); }
 
 /* --- Чек-лист: вносить робоча група, підтверджує укладач --- */
 const CKS = { full: ["Впроваджено повністю", "p-good"], partial: ["Частково", "p-warn"], none: ["Не впроваджено", "p-bad"] };
@@ -556,21 +568,22 @@ function apiChecklistView() {
   if (!K.camps.length) return `<section class="card c12 rise"><div class="empty"><b>Немає хвилі з чек-листом</b><br>Чек-лист зʼявиться, коли уповноважений відкриє хвилю з ним.</div></section>`;
   const camp = K.camps.find(c => c.id === K.sel), open = camp && camp.status === "open";
   const ed = S.role === "checklist_editor" && open, ap = S.role === "commissioner" && open, D = K.data;
-  const head = `<section class="c12 rise toolbar"><span class="lbl">${ed ? "Ви вносите статус і докази. Підтверджує інша людина (укладач). Будь-яка зміна знімає підтвердження." : ap ? "Ви підтверджуєте пункти за доказами робочої групи. Без доказу підтвердити не можна." : "Режим перегляду."}</span><div class="sp"></div>
+  const head = `<section class="c12 rise toolbar">${ed || ap ? "" : `<span class="lbl">Режим перегляду.</span>`}<div class="sp"></div>
     ${K.camps.length > 1 ? `<select class="inp" aria-label="Хвиля" onchange="apiCkReload(this.value)">${K.camps.map(c => `<option value="${c.id}" ${c.id === K.sel ? "selected" : ""}>${esc(c.title)}</option>`).join("")}</select>` : `<span class="lbl">${esc(camp ? camp.title : "")}</span>`}</section>`;
   if (!D) return head + `<section class="card c12 rise"><div class="empty"><b>Чек-лист недоступний</b><br>${esc(K.err || "")}</div></section>`;
   return head + `
-  <section class="card c4 rise kpi-tile"><div class="kt-h"><span class="kt-ic">${IC.check}</span><span class="lbl">Пунктів</span></div><div class="kt-b"><span class="mid tnum">${D.total}</span></div></section>
-  <section class="card c4 rise kpi-tile"><div class="kt-h"><span class="kt-ic">${IC.edit}</span><span class="lbl">Внесено</span></div><div class="kt-b"><span class="mid tnum">${D.filled}</span></div></section>
-  <section class="card c4 rise kpi-tile"><div class="kt-h"><span class="kt-ic">${IC.ok}</span><span class="lbl">Підтверджено</span></div><div class="kt-b"><span class="mid tnum">${D.confirmed}</span></div></section>
+  <div class="c12 kpi-row kpi-row-s">
+  <section class="card rise kpi-tile"><div class="kt-h"><span class="kt-ic">${IC.check}</span><span class="lbl">Пунктів</span></div><div class="kt-b"><span class="mid tnum">${D.total}</span></div></section>
+  <section class="card rise kpi-tile"><div class="kt-h"><span class="kt-ic">${IC.edit}</span><span class="lbl">Внесено</span></div><div class="kt-b"><span class="mid tnum">${D.filled}</span></div></section>
+  <section class="card rise kpi-tile"><div class="kt-h"><span class="kt-ic">${IC.ok}</span><span class="lbl">Підтверджено</span></div><div class="kt-b"><span class="mid tnum">${D.confirmed}</span></div></section>
+  </div>
   <section class="card c12 rise"><div class="tbl-wrap"><table><thead><tr><th>Пункт</th><th>Компонент</th><th>Стан і доказ</th><th>Файли</th><th></th></tr></thead><tbody>
   ${D.items.map(it => `<tr id="ck-${it.question_id}"><td style="min-width:260px"><b style="font-weight:600">${esc(it.number)}.</b> ${esc(it.text.replace(/^\d+(\.\d+)*\.\s*/, ""))}</td>
     <td>${COMPS.includes(it.component) ? pill(COMP[it.component].n, "p-mute nodot") : ""}</td>
     <td style="min-width:200px">${it.status ? pill(CKS[it.status][0], CKS[it.status][1]) : pill("Не внесено", "p-mute")} ${it.confirmed ? pill("Підтверджено", "p-good nodot") : it.status ? pill("Не підтверджено", "p-mute nodot") : ""}${it.evidence ? `<div class="lbl" style="margin-top:4px">${esc(it.evidence)}</div>` : ""}</td>
     <td class="lbl" style="min-width:160px">${it.files.map(f => `<div><a class="link" href="javascript:void 0" onclick="apiDownload('${K.sel}','${it.question_id}','${f.id}','${esc(f.filename).replace(/'/g, "")}')">${esc(f.filename)}</a> <span class="hash" title="sha256 ${f.sha256}">${f.sha256.slice(0, 10)}</span>${ed ? ` <a class="link" href="javascript:void 0" aria-label="Прибрати файл" onclick="apiDelFile('${K.sel}','${it.question_id}','${f.id}')">×</a>` : ""}</div>`).join("") || "—"}</td>
     <td style="white-space:nowrap">${ed ? `<button class="btn btn-soft" style="padding:6px 12px" onclick="apiEditItem('${it.question_id}')">${IC.edit}Внести</button>` : ""}${ap && it.status ? (it.confirmed ? `<button class="btn btn-ghost" style="padding:6px 12px" onclick="apiConfirm('${it.question_id}',false)">Відкликати</button>` : `<button class="btn btn-primary" style="padding:6px 12px" onclick="apiConfirm('${it.question_id}',true)">${IC.ok}Підтвердити</button>`) : ""}</td></tr>`).join("")}
-  </tbody></table></div></section>
-  <section class="card c12 rise"><div class="lock">${IC.shield}<div><b>Файли-докази зберігаються з sha256.</b><div class="lbl">Під час завантаження вміст звіряється з хешем: якщо файл змінили поза системою, це буде видно. Кожна дія потрапляє в журнал.</div></div></div></section>`;
+  </tbody></table></div></section>`;
 }
 function apiEditItem(qid) {
   const it = API.ck.data.items.find(x => x.question_id === qid), camp = API.ck.sel;

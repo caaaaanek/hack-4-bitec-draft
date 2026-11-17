@@ -105,7 +105,6 @@ V.manage = () => {
       <div id="closeZone">${S.cycleOpen ? `<button class="btn btn-soft" style="width:100%;justify-content:center" onclick="askClose()">Завершити цикл</button>` : `<button class="btn btn-primary" style="width:100%;justify-content:center" onclick="S.cycleOpen=true;addLog(me(),'Цикл ${CYCLE} відновлено');persist();render(true)">Відновити цикл</button>`}</div>
     </div>
   </section>
-  <section class="card c12 rise"><div class="lock">${IC.lock}<div><b>Ця роль не має доступу до відповідей респондентів, навіть узагальнених.</b><div class="lbl">Результати бачать лише ті ролі, яким вони потрібні для рішень. Тут видно тільки кількість виданих і використаних жетонів.</div></div></div></section>
   <section class="card c12 rise">
     <div class="card-h"><h2>Цикли оцінювання</h2></div>
     <div class="tbl-wrap"><table><thead><tr><th>Цикл</th><th>Період</th><th>Мінімальна група k</th><th>Жетонів видано / використано</th><th>Статус</th></tr></thead><tbody>
@@ -124,7 +123,6 @@ function askClose() {
 
 /* Анкети (укладач) */
 V.surveys = () => `
-  <section class="card c12 rise"><div class="lock">${IC.lock}<div><b>Ця роль не має доступу до відповідей респондентів.</b><div class="lbl">Укладач не бачить, хто та скільки людей пройшли анкету. Опублікована версія не змінюється: правки йдуть у нову версію.</div></div></div></section>
   ${S.qs.map((q, i) => `<section class="card c6 rise">
     <div class="comp-top"><span class="comp-ic" style="background:var(--lime-soft);color:var(--teal-deep)">${IC.survey}</span><b>${q.t}</b><div class="sp" style="flex:1"></div>${pill(q.st === "published" ? "Опубліковано" : "Чернетка", q.st === "published" ? "p-good" : "p-warn")}</div>
     <div class="stat4 tnum" style="grid-template-columns:repeat(3,1fr);margin-top:14px"><div><small>Група</small><b style="font-size:14px">${q.grp}</b></div><div><small>Версія</small><b>${q.ver}</b></div><div><small>Питань</small><b>${q.n}</b></div></div>
@@ -229,8 +227,7 @@ V.survey = () => {
     ${API.anon ? "" : `<a class="btn btn-primary" href="#me">Мої результати ${IC.arrowR}</a>`}</section></div>`;
   if (sv.phase === "intro") return `<div class="survey c12"><section class="card rise" style="padding:28px">
       <div style="display:flex;align-items:center;gap:12px;margin-bottom:6px"><span class="comp-ic" style="background:var(--lime-soft);color:var(--teal-deep)">${IC.shield}</span><span class="lbl">${SV().cat} · ${API.on ? (API.anon ? "одноразове посилання" : "за обліковим записом") : "жетон demo"}</span></div>
-      <h2 style="margin:6px 0 4px;font-size:24px;font-weight:600;letter-spacing:-.02em">${SV().title}</h2>
-      <p class="lbl" style="margin:0 0 18px">Перш ніж почати: ${N} питань, анкета займе кілька хвилин. Ось що ми гарантуємо.</p>
+      <h2 style="margin:6px 0 18px;font-size:24px;font-weight:600;letter-spacing:-.02em">${SV().title}</h2>
       <div class="guar">
         <div>${IC.lock}<b>Без імен</b><span class="lbl">Ваші відповіді не повʼязані з вами і не містять імен.</span></div>
         <div>${IC.eye}<b>Лише кількість</b><span class="lbl">Адміністратор бачить лише кількість відповідей, а не те, що ви відповіли.</span></div>
@@ -245,15 +242,15 @@ V.survey = () => {
   const sec = SV().sections[sv.sec], SC = COMP[sec.id] || { s: "var(--soft)", c: "var(--muted)", ic: "survey" }, last = sv.sec === SV().sections.length - 1, miss = SQ().filter(q => sv.a[q.id] == null);
   return `<div class="survey c12">
     <div class="sv-top"><span class="lbl">Розділ ${sv.sec + 1} з ${SV().sections.length}</span><div class="qprog" style="flex:1">${SQ().map(q => `<span class="${q.si === sv.sec ? "cur" : ""} ${sv.a[q.id] != null ? "done" : ""}"></span>`).join("")}</div><span class="lbl tnum">Відповіли на ${answered()} з ${N}</span><button class="icon-btn" aria-label="Закрити" onclick="S.survey.phase='intro';render();toast('Відповіді лишаються на цьому пристрої. Їх ще не надіслано.')">${IC.x}</button></div>
-    <section class="card qcard" style="padding:24px" key="${sv.sec}">
-      <div class="comp-top" style="margin-bottom:4px"><span class="comp-ic" style="background:${SC.s};color:${SC.c}">${IC[SC.ic]}</span><b style="font-size:18px">${sec.t}</b><span class="lbl">${sec.about}</span></div>
-      ${sec.q.map(([id, t, o], qi) => `<fieldset class="qf" id="q-${id}"><legend>${qi + 1}. ${t}</legend><div class="opts">${o.map((x, i) => `<button type="button" class="opt ${sv.a[id] === i ? "on" : ""}" aria-pressed="${sv.a[id] === i}" onclick="pick('${id}',${i})"><span class="rb"></span><span>${x}</span></button>`).join("")}</div></fieldset>`).join("")}
+    <div class="qcard" key="${sv.sec}">
+      <div class="sv-sec-h"><span class="comp-ic" style="background:${SC.s};color:${SC.c}">${IC[SC.ic]}</span><div><b>${sec.t}</b><div class="lbl">${sec.about}</div></div></div>
+      ${sec.q.map(([id, t, o], qi) => `<fieldset class="card qf" id="q-${id}"><legend>${qi + 1}. ${t}</legend><div class="opts">${o.map((x, i) => `<button type="button" class="opt ${sv.a[id] === i ? "on" : ""}" aria-pressed="${sv.a[id] === i}" onclick="pick('${id}',${i})"><span class="rb"></span><span>${x}</span></button>`).join("")}</div></fieldset>`).join("")}
       ${sv.miss && last && miss.length ? `<div class="note-box" style="margin-top:12px"><b>Залишилось відповісти на ${miss.length} ${miss.length === 1 ? "питання" : miss.length < 5 ? "питання" : "питань"}</b><span class="lbl">Натисніть на питання, щоб перейти до нього.</span>${miss.map(q => `<a class="link" href="javascript:void 0" onclick="S.survey.sec=${q.si};S.survey.miss=false;render(true);setTimeout(()=>document.getElementById('q-${q.id}').scrollIntoView({behavior:'smooth',block:'center'}),60)">Розділ «${SV().sections[q.si].t}», питання ${q.qi + 1}</a>`).join("")}</div>` : ""}
       <div style="display:flex;justify-content:space-between;margin-top:20px;gap:10px">
         <button class="btn btn-ghost" ${sv.sec === 0 ? "disabled" : ""} onclick="S.survey.sec--;S.survey.miss=false;render();window.scrollTo(0,0)">${IC.arrowL}Назад</button>
         ${last ? `<button class="btn btn-primary" onclick="submitSurvey()">${IC.send}Надіслати</button>` : `<button class="btn btn-primary" onclick="S.survey.sec++;render();window.scrollTo(0,0)">Далі ${IC.arrowR}</button>`}
       </div>
-    </section></div>`;
+    </div></div>`;
 };
 V.survey.after = () => { if (S.survey.phase === "done") S.survey.phase = "intro"; };
 function pick(id, i) { S.survey.a[id] = i; try { localStorage.setItem("ii-survey-draft", JSON.stringify(S.survey.a)); } catch (e) {} render(true); }
