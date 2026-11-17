@@ -1005,7 +1005,7 @@ function showLogin(msg) {
 }
 
 async function afterLogin(user) {
-  API.user = user; S.role = frontRole(user); API.my = API.assignments = API.adm = API.qs = API.ck = API.log = null; API.survey = null;
+  API.user = user; S.role = frontRole(user); API.my = API.assignments = API.adm = API.qs = API.ck = API.log = API.logF = API.chain = null; API.survey = null;
   shellMode("app");
   const rc = document.querySelector(".role-card");
   rc.innerHTML = `<small>Ви увійшли як</small><b style="font-size:14px">${esc(user.display_name)}</b><small>${ROLE[S.role][0]} · ${esc(user.login)}</small>
@@ -1461,19 +1461,71 @@ async function apiDownload(camp, qid, fid, name) {
 }
 
 /* --- Журнал --- */
-const AUDIT_ENT = { campaign: "Хвиля", questionnaire: "Анкета", user: "Користувач", unit: "Підрозділ", checklist_entry: "Чек-лист", evidence_file: "Файл-доказ", measure: "Захід", recommendation: "Рекомендація", results: "Результати", indicator: "Факт", report: "Звіт", assistant: "Асистент" };
+const AUDIT_ENT = { campaign: "Хвиля", questionnaire: "Анкета", user: "Користувач", unit: "Підрозділ", checklist_entry: "Чек-лист", evidence_file: "Файл-доказ", measure: "Захід", recommendation: "Рекомендація", results: "Результати", indicator: "Факт", report: "Звіт", assistant: "Асистент", audit_log: "Журнал" };
+// Людські назви дій бекенду: «сутність:дія» → текст
+const AUDIT_ACT = {
+  "assistant:ask": "Запит до асистента", "audit_log:verify": "Перевірено цілісність журналу",
+  "campaign:create": "Створено хвилю", "campaign:update": "Змінено хвилю", "campaign:open": "Відкрито хвилю", "campaign:close": "Закрито хвилю, збережено знімок результатів",
+  "campaign:set_participants": "Змінено учасників хвилі", "campaign:clear_participants": "Очищено учасників хвилі", "campaign:import_participants": "Імпортовано учасників",
+  "campaign:issue_tokens": "Видано одноразові посилання", "campaign:import_tokens": "Імпортовано посилання", "campaign:revoke_tokens": "Відкликано посилання",
+  "campaign:export_report": "Експортовано звіт", "campaign:view_dashboard": "Переглянуто огляд закладу", "campaign:view_recommendations": "Переглянуто рекомендації", "campaign:view_results": "Переглянуто результати",
+  "checklist_entry:set": "Внесено пункт чек-листа", "checklist_entry:confirm": "Підтверджено пункт чек-листа", "checklist_entry:revoke_confirm": "Відкликано підтвердження пункту чек-листа",
+  "evidence_file:upload": "Додано файл-доказ", "evidence_file:download": "Завантажено файл-доказ", "evidence_file:delete": "Видалено файл-доказ", "evidence_file:integrity_fail": "Файл-доказ не пройшов перевірку цілісності",
+  "indicator:upsert": "Передано факт із зовнішньої системи",
+  "measure:create": "Створено захід", "measure:update": "Змінено захід", "measure:external_status": "Статус заходу оновлено із зовнішньої системи",
+  "questionnaire:create": "Створено анкету", "questionnaire:update_meta": "Змінено анкету", "questionnaire:publish": "Опубліковано анкету", "questionnaire:new_version": "Створено нову версію анкети", "questionnaire:archive": "Анкету архівовано", "questionnaire:delete": "Видалено анкету",
+  "recommendation:decide": "Ухвалено рішення щодо рекомендації",
+  "unit:create": "Створено підрозділ", "unit:update": "Змінено підрозділ", "unit:delete": "Видалено підрозділ", "unit:compare": "Порівняно хвилі підрозділу", "unit:view_history": "Переглянуто історію підрозділу",
+  "user:create": "Створено користувача", "user:update": "Змінено користувача", "user:login_proxy": "Вхід через проксі",
+};
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function apiLoadLog() {
+  return Promise.all([
+    api("/admin/audit-log?limit=500"),
+    api("/admin/units").catch(() => []), // лише для адміністратора; аудитору покажемо скорочений код
+    api("/admin/users").catch(() => []),
+  ]).then(([rows, units, users]) => ({ rows, units, users }));
+}
+// Читабельний рядок із деталей запису: назви підрозділів замість UUID, без службових полів
+function auditDetails(x, units) {
+  const unit = id => { const u = units.find(u => u.id === id); return u ? dn(u.name) : "підрозділ …" + String(id).slice(-4); };
+  const d = x.details || {}, out = [];
+  if (d.unit_id) out.push(unit(d.unit_id));
+  if (d.unit_name) out.push(dn(d.unit_name));
+  if (d.title) out.push(`«${dn(d.title)}»`);
+  if (d.recalculate === true) out.push("з перерахунком");
+  if (d.access_mode) out.push(d.access_mode === "token" ? "анонімно за посиланнями" : "за обліковими записами");
+  if (d.count != null) out.push(`кількість: ${d.count}`);
+  if (d.ok != null) out.push(d.ok ? "ланцюг цілий" : "ланцюг порушено");
+  if (d.checked != null) out.push(`перевірено записів: ${d.checked}`);
+  return out.join(" · ");
+}
+function auditSet(k, v) { API.logF = { ...(API.logF || {}), [k]: v }; render(true); const i = $("#logQ"); if (k === "q" && i) { i.focus(); i.setSelectionRange(i.value.length, i.value.length); } }
 function apiAuditView() {
-  if (!apiEnsure("log", () => api("/admin/audit-log?limit=200"))) return apiLoadingHTML("Журнал");
+  if (!apiEnsure("log", apiLoadLog)) return apiLoadingHTML("Журнал");
   if (API.log.error) return apiErrorHTML(API.log.error);
-  const det = d => Object.entries(d || {}).slice(0, 4).map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`).join(" · ");
+  const { rows, units, users } = API.log, F = { q: "", ent: "all", who: "all", ...API.logF };
+  const who = id => { const u = users.find(u => u.id === id); return u ? u.display_name : id ? "Користувач …" + String(id).slice(-4) : "Система"; };
+  const act = x => AUDIT_ACT[`${x.entity}:${x.action}`] || `${AUDIT_ENT[x.entity] || x.entity}: ${x.action}`;
+  const fmt = at => new Date(at).toLocaleString("uk-UA", { dateStyle: "short", timeStyle: "short" });
+  const items = rows.map(x => ({ x, a: act(x), w: who(x.actor_id), d: auditDetails(x, units), t: fmt(x.at) }));
+  const q = (F.q || "").trim().toLowerCase();
+  const shown = items.filter(i => (F.ent === "all" || i.x.entity === F.ent) && (F.who === "all" || i.x.actor_id === F.who) && (!q || `${i.a} ${i.w} ${i.d} ${i.t} ${i.x.seq} ${i.x.hash}`.toLowerCase().includes(q)));
+  const groups = []; shown.forEach(i => { const g = groups[groups.length - 1]; if (g && g[0].a === i.a && g[0].w === i.w && g[0].d === i.d) g.push(i); else groups.push([i]); });
+  const ents = [...new Set(rows.map(x => x.entity))].sort((a, b) => (AUDIT_ENT[a] || a).localeCompare(AUDIT_ENT[b] || b, "uk"));
+  const actors = [...new Set(rows.map(x => x.actor_id).filter(Boolean))].map(id => [id, who(id)]).sort((a, b) => a[1].localeCompare(b[1], "uk"));
   return `<section class="card c12 rise">
-    <div class="card-h"><h2>Журнал дій</h2><div class="sp"></div><span id="chainSt"></span><button class="btn btn-soft" onclick="apiVerify()">${IC.shield}Перевірити цілісність</button></div>
+    <div class="card-h" style="flex-wrap:wrap"><h2>Журнал дій</h2><div class="sp"></div><span id="chainSt">${API.chain ? pill(API.chain.ok ? `Ланцюг цілісний: перевірено ${API.chain.checked} записів` : `Ланцюг порушено на записі № ${API.chain.broken_seq}`, API.chain.ok ? "p-good" : "p-bad") : ""}</span><button class="btn btn-soft" onclick="apiVerify()">${IC.shield}Перевірити цілісність</button></div>
     <div class="lbl" style="margin-bottom:10px">Хто, коли й що змінив. Кожен запис містить хеш попереднього (sha256), тож тиха правка чи видалення ламає ланцюг. Подань анкет у журналі немає.</div>
-    <div class="tl">${API.log.map((x, i) => `<div class="tl-i rise" style="animation-delay:${Math.min(i, 12) * 40}ms"><span class="nd"></span><div><div style="font-weight:500">${esc(AUDIT_ENT[x.entity] || x.entity)}: ${esc(x.action)}</div><div class="lbl">№ ${x.seq} · ${new Date(x.at).toLocaleString("uk-UA", { dateStyle: "short", timeStyle: "short" })}${det(x.details) ? " · " + esc(det(x.details)) : ""}</div></div><span class="hash">${x.hash.slice(0, 10)}</span></div>`).join("")}</div>
+    <div class="toolbar" style="margin-bottom:8px"><label class="search inst-search"><span>${IC.search}</span><input id="logQ" placeholder="Дія, хто, підрозділ, дата або хеш" value="${esc(F.q || "")}" oninput="auditSet('q',this.value)"></label>
+      <select class="inp" aria-label="Тип дії" onchange="auditSet('ent',this.value)"><option value="all">Усі дії</option>${ents.map(e => `<option value="${e}" ${F.ent === e ? "selected" : ""}>${esc(AUDIT_ENT[e] || e)}</option>`).join("")}</select>
+      ${actors.length ? `<select class="inp" aria-label="Хто" onchange="auditSet('who',this.value)"><option value="all">Усі користувачі</option>${actors.map(([id, n]) => `<option value="${id}" ${F.who === id ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>` : ""}
+      <span class="lbl tnum">Показано ${shown.length} з ${rows.length}</span></div>
+    ${groups.length ? `<div class="tl">${groups.map((g, i) => { const f = g[0], l = g[g.length - 1]; return `<div class="tl-i rise" style="animation-delay:${Math.min(i, 12) * 40}ms"><span class="nd"></span><div><div style="font-weight:500">${esc(f.a)}${g.length > 1 ? ` <span class="pill p-mute nodot">×${g.length}</span>` : ""}</div><div class="lbl">${esc(f.w)} · ${g.length > 1 ? `${l.t} – ${f.t}` : f.t}${f.d ? " · " + esc(f.d) : ""}</div></div><span class="hash" data-tip="Запис № ${f.x.seq}">${f.x.hash.slice(0, 10)}</span></div>`; }).join("")}</div>` : `<div class="empty">Записів за цим запитом немає.</div>`}
   </section>`;
 }
 async function apiVerify() {
-  try { const v = await api("/admin/audit-log/verify", { method: "POST" }); $("#chainSt").innerHTML = pill(v.ok ? `Перевірено: ${v.checked} записів, розривів немає` : `Ланцюг порушено на записі № ${v.broken_seq}`, v.ok ? "p-good" : "p-bad"); }
+  try { API.chain = await api("/admin/audit-log/verify", { method: "POST" }); API.log = null; render(true); }
   catch (e) { apiFail(e); }
 }
 
