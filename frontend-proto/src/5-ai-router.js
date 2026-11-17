@@ -20,6 +20,8 @@ function aiCtx() {
 function aiTemplate(q) {
   const s = q.toLowerCase(), m = cur(), recs = m.id === ALPHA ? buildRecs(m) : [];
   const comps = m.components.map(c => `${COMP[c.id].n} ${fb(c.cr.v)}`);
+  if (/чому така достовірн|прапор|достовірн/.test(s)) return { t: trustText(m), src: [`Достовірність ${TRUST[m.trust][0]}`, ...m.flags.map(f => `${f.id}: ${f.raised ? "так" : "ні"}`)], fixed: true };
+  if (/чому такий індекс/.test(s)) return { t: `${whyText(m, true)}\n\n${flagsText(m)}`, src: ["Методика v1.0", `Індекс ${f1(m.index)}`, `Достовірність ${TRUST[m.trust][0]}`, ...m.raised.map(f => f.id)], fixed: true };
   if (/звіт|чернетк|опис/.test(s)) {
     const sorted = [...m.components].sort((a, b) => b.cr.v - a.cr.v), low = [...allItems(m)].sort((a, b) => a.v - b.v).slice(0, 3);
     const t = `За результатами циклу ${CYCLE} ${m.name} перебуває на рівні зрілості ${m.level} «${LEVELS[m.level - 1]}»: індекс доброчесності ${f1(m.index)} з 100, ${m.delta >= 0 ? "на " + pts(m.delta) + " вище" : "на " + pts(m.delta) + " нижче"}, ніж у попередньому циклі.
@@ -42,7 +44,7 @@ function aiTemplate(q) {
   const item = allItems(m).find(x => s.includes(x.t.toLowerCase().slice(0, 18)));
   const comp = COMPS.find(c => s.includes(COMP[c].n.toLowerCase().slice(0, 6)));
   if (item) return { t: `«${item.t}»: ${fb(item.v)} зі 100 (${ST[status(item.v)][0].toLowerCase()}). Це ${item.src ? SRC[item.src][0].toLowerCase() : "факт"} з вагою ${item.w} % у компоненті «${COMP[item.c].n}».${item.kind === "pct" ? ` Дані: ${item.val[0]} з ${item.val[1]}.` : item.kind === "lvl" ? ` Рівень ${item.val} з 5 за анкетою чек-листа.` : ""}`, src: [item.id, `${fb(item.v)} зі 100`] };
-  if (comp) { const c = m.byId[comp]; return { t: `«${COMP[comp].n}»: зараховано ${fb(c.cr.v)} (рівень ${level(c.cr.v)}). Сприйняття ${fb(c.P)}, факти ${fb(c.F)}.${c.cr.lim ? " " + c.cr.reason : " Обмежувач не спрацював: сприйняття не перевищує факти більш ніж на 25 пунктів."}`, src: [`${COMP[comp].n} ${fb(c.cr.v)}`, "Методика v1.0"] }; }
+  if (comp) { const c = m.byId[comp]; return { t: `«${COMP[comp].n}»: зараховано ${fb(c.cr.v)} (рівень зрілості ${level(c.cr.v)}). Сприйняття ${fb(c.P)}, факти ${fb(c.F)}.${c.cr.lim ? " " + c.cr.reason : " Обмежувач не спрацював: сприйняття не перевищує факти більш ніж на 25 пунктів."}`, src: [`${COMP[comp].n} ${fb(c.cr.v)}`, "Методика v1.0"] }; }
   if (/індекс|загал|рівень|стан/.test(s)) return { t: whyText(m), src: ["Методика v1.0", ...comps] };
   return { t: "Можу пояснити індекс, будь-який компонент чи показник, методику й обмежувач, захист анонімності, підказати, з чого почати, або підготувати чернетку опису для звіту. Рішення щодо оцінок і заходів ухвалюють правила системи та посадові особи.", src: [] };
 }
@@ -89,7 +91,7 @@ async function aiAsk(q) {
   const history = S.chat.slice(-4).map(m => ({ role: m.r === "u" ? "user" : "assistant", content: m.t }));
   S.chat.push({ r: "u", t: q }); AI.busy = true; aiRender();
   const local = aiTemplate(q); let msg = null;
-  if (AI.live) {
+  if (AI.live && !local.fixed) {
     try {
       const r = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ question: q, context: aiCtx(), history }) });
       const j = await r.json();
@@ -132,13 +134,13 @@ function renderNav(cur) {
   $("#nav").innerHTML = NAV.filter(n => n[3].includes(S.role)).map(([r, n, ic]) => `<a href="#${r}" data-r="${r}" class="${r === cur ? "on" : ""}" ${r === cur ? 'aria-current="page"' : ""}>${IC[ic]}<span>${n}</span></a>`).join("");
   updateBadges();
 }
-const TITLES = { overview: () => S.role === "observer" ? "Огляд закладу" : "Огляд закладу", explain: () => "Розклад індексу", trends: () => "Динаміка", compare: () => "Порівняння: сприйняття і факти", recs: () => "Рекомендації", tracker: () => "Трекер заходів", sources: () => "Звідки беруться дані", report: () => "Звіт", manage: () => "Керування циклом", surveys: () => "Анкети", checklist: () => "Чек-лист", audit: () => "Журнал", survey: () => "Анонімне опитування", me: () => "Мої результати", institutions: () => "Заклади" };
+const TITLES = { overview: () => S.role === "observer" ? "Огляд закладу" : "Огляд закладу", explain: () => "Розклад індексу", trends: () => "Динаміка", compare: () => "Порівняння: сприйняття і факти", recs: () => "Рекомендації", tracker: () => "Трекер заходів", sources: () => "Джерела", report: () => "Звіт", manage: () => "Керування циклом", surveys: () => "Анкети", checklist: () => "Чек-лист", audit: () => "Журнал", survey: () => "Анонімне опитування", me: () => "Мої результати", institutions: () => "Заклади" };
 let lastRoute = null;
 function render(soft) {
   const { r, p } = route();
   if (r === "explain" && p) { S.focus = p; const m = cur(); const it = allItems(m).find(x => x.id === p); if (it && it.kind !== "p" && S.mode !== "facts") S.mode = "facts"; if (it && it.kind === "p" && S.mode === "facts") S.mode = "credited"; const c = COMPS.includes(p) ? p : it && it.c; if (c) S.open[c] = true; }
   const want = "#" + r + (p ? "/" + p : ""); if (location.hash !== want) history.replaceState(null, "", want);
-  renderNav(r);
+  renderNav(r); hideTip(); if (r !== lastRoute) closePop();
   $("#title").textContent = TITLES[r]();
   const v = $("#view");
   v.innerHTML = V[r]();
@@ -165,7 +167,7 @@ const role = $("#role");
 role.innerHTML = Object.entries(ROLE).map(([k, [n]]) => `<option value="${k}">${n}</option>`).join("");
 role.value = S.role;
 const setAvatar = () => { $("#avatar").textContent = ROLE[S.role][1]; $("#avatar").dataset.tip = ROLE[S.role][0]; };
-role.onchange = () => { S.role = role.value; persist(); setAvatar(); aiBtn(); aiClose(); closeDrawer(); location.hash = HOME[S.role]; render(); toast("Роль: " + ROLE[S.role][0]); };
+role.onchange = () => { S.role = role.value; addLog(ROLE[S.role][0], "Вхід у систему"); persist(); setAvatar(); aiBtn(); aiClose(); closeDrawer(); location.hash = HOME[S.role]; render(); toast("Роль: " + ROLE[S.role][0]); };
 $("#resetBtn").innerHTML = `${IC.reset}Скинути демо-дані`; $("#resetBtn").onclick = resetDemo;
 setAvatar();
 function themeIcon() { const dark = document.documentElement.dataset.theme ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches; $("#themeBtn").innerHTML = dark ? IC.sun : IC.moon; }
@@ -181,7 +183,27 @@ $("#q").addEventListener("keydown", e => {
   if (allowed("explain")) { const hit = allItems(cur()).find(x => x.t.toLowerCase().includes(q)); if (hit) { location.hash = "explain/" + hit.id; return; } }
   const nav = NAV.find(n => n[1].toLowerCase().includes(q) && n[3].includes(S.role)); if (nav) location.hash = nav[0]; else toast("Нічого не знайдено");
 });
-document.addEventListener("keydown", e => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); $("#q").focus(); } });
+// Пошук: Ctrl+K (на Mac ⌘K) і «/». Ctrl+F лишаємо браузеру: це пошук по тексту сторінки
+const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
+$("#kbd").textContent = isMac ? "⌘K" : "Ctrl K"; $("#kbd").dataset.tip = `Швидкий пошук: ${isMac ? "⌘K" : "Ctrl+K"} або «/»`;
+document.addEventListener("keydown", e => {
+  const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
+  if (((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") || (e.key === "/" && !typing)) { e.preventDefault(); $("#q").focus(); }
+  if (e.key === "Escape") closePop();
+});
+/* Доступність: розмір тексту й підвищений контраст (як на сайтах держорганів) */
+function applyA11y() { const a = S.a11y || { z: 1, hc: false }; document.documentElement.style.zoom = a.z === 1 ? "" : a.z; document.documentElement.classList.toggle("hc", !!a.hc); }
+function drawA11y() {
+  const a = S.a11y;
+  $("#pop").innerHTML = `<div class="lbl" style="text-transform:uppercase;letter-spacing:.06em;font-size:11px;margin-bottom:8px">Розмір тексту</div>
+    <div style="display:flex;align-items:center;gap:10px"><button class="icon-btn" aria-label="Зменшити текст" onclick="setZoom(-1)" ${a.z <= 1 ? "disabled" : ""}>−</button><b class="tnum" style="min-width:48px;text-align:center">${Math.round(a.z * 100)} %</b><button class="icon-btn" aria-label="Збільшити текст" onclick="setZoom(1)" ${a.z >= 1.5 ? "disabled" : ""}>+</button></div>
+    <label class="a11y-row"><span>Підвищений контраст</span><span class="sw"><input type="checkbox" ${a.hc ? "checked" : ""} onchange="S.a11y.hc=this.checked;persist();applyA11y()"><span></span></span></label>
+    <button class="link-btn" onclick="S.a11y={z:1,hc:false};persist();applyA11y();drawA11y();render(true)">Скинути</button>`;
+}
+function setZoom(d) { S.a11y.z = Math.round(clamp(S.a11y.z + d * .125, 1, 1.5) * 1000) / 1000; persist(); applyA11y(); drawA11y(); render(true); placePop($("#a11yBtn")); }
+$("#a11yBtn").innerHTML = IC.a11y;
+$("#a11yBtn").onclick = e => { const p = $("#pop"), b = e.currentTarget; if (p.classList.contains("on") && p._btn === b) return closePop(); p._btn = b; drawA11y(); p.classList.add("on"); placePop(b); };
+applyA11y();
 $("#aiLogo").innerHTML = IC.spark.replace("<svg", '<svg width="17" height="17"');
 $("#aiClose").innerHTML = IC.x; $("#aiClose").onclick = aiClose;
 $("#aiSend").innerHTML = IC.send;

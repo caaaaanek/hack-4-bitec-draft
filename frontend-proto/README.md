@@ -13,7 +13,7 @@ xdg-open index.html             # усе працює з файлу, асист�
 
 ## Структура
 
-- `src/` — частини коду; після правок `python3 src/build.py` збирає їх у `index.html`.
+- `src/` — частини коду; після правок `python3 src/build.py` збирає їх у `index.html`. Структура й правила роботи — `CLAUDE.md`.
 - `api/assistant.js` — серверна функція асистента (будь-який OpenAI-сумісний `/chat/completions`, ключ лише в змінних оточення).
 - `server.mjs`, `start.sh` — локальний сервер для закритого контуру.
 
