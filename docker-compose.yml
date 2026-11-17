@@ -28,6 +28,8 @@ services:
       ASSISTANT_URL: ${ASSISTANT_URL:-http://host.docker.internal:11434/api/generate}
       ASSISTANT_MODEL: ${ASSISTANT_MODEL:-llama3.1:8b}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      # Демо-історія при старті: дві закриті хвилі, рішення й заходи (повторний старт нічого не дублює)
+      SEED_WITH_WAVES: ${SEED_WITH_WAVES:-true}
     ports:
       - "8000:8000"
     depends_on:

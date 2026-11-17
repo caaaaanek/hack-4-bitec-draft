@@ -1,10 +1,12 @@
 """Заповнення БД синтетичними демо-даними й анкетами з додатків Б і В.
 
-Запуск: python -m app.seed.seed
+Запуск: python -m app.seed.seed [--with-waves]
 Повторний запуск нічого не дублює.
 """
 
+import argparse
 import json
+import os
 from datetime import date
 from pathlib import Path
 
@@ -23,6 +25,7 @@ from app.models import (
     User,
 )
 from app.schemas import QuestionnaireCreate
+from app.seed.waves import WAVE_GAP_MONTHS, seed_waves
 from app.security import hash_password
 from app.services.facts import months_back
 from app.services.methodology import FACTS_WINDOW_MONTHS
@@ -65,7 +68,21 @@ def seed_units(db: Session) -> dict[str, Unit]:
     return units
 
 
-def seed_users(db: Session, units: dict[str, Unit], password: str) -> int:
+# Повний демо-склад (python -m app.seed.seed): 10–15 осіб особового складу на підрозділ.
+# Базові staff01…staff24 лишаються як були (по 4 на підрозділ), решта staff25+ доповнює до цих розмірів.
+DEMO_STAFF_SIZES = {
+    "Підрозділ А": 12,
+    "Підрозділ Б": 14,
+    "Підрозділ А-1": 10,
+    "Підрозділ А-2": 13,
+    "Підрозділ Б-1": 11,
+    "Підрозділ В": 15,
+}
+BASE_STAFF = 24
+
+
+def seed_users(db: Session, units: dict[str, Unit], password: str, staff_sizes: dict[str, int] | None = None) -> int:
+    """Демо-користувачі. Без staff_sizes — компактний склад (24 особи, як у тестах)."""
     root = units[ROOT_UNIT]
     staff_units = [u for name, u in units.items() if name != ROOT_UNIT]
     people: list[tuple[str, str, Role, RespondentCategory | None, Unit | None]] = [
@@ -78,8 +95,16 @@ def seed_users(db: Session, units: dict[str, Unit], password: str) -> int:
     people += [(f"wg{i}", f"Член робочої групи {i}", Role.RESPONDENT, RespondentCategory.WORKING_GROUP, root) for i in range(1, 7)]
     people += [
         (f"staff{i:02d}", f"Респондент {i:02d}", Role.RESPONDENT, RespondentCategory.STAFF, staff_units[(i - 1) % len(staff_units)])
-        for i in range(1, 25)
+        for i in range(1, BASE_STAFF + 1)
     ]
+    if staff_sizes:
+        base_per_unit = {u.id: sum(1 for i in range(BASE_STAFF) if i % len(staff_units) == n) for n, u in enumerate(staff_units)}
+        number = BASE_STAFF
+        for name, size in staff_sizes.items():
+            unit = units[name]
+            for _ in range(size - base_per_unit[unit.id]):
+                number += 1
+                people.append((f"staff{number:02d}", f"Респондент {number:02d}", Role.RESPONDENT, RespondentCategory.STAFF, unit))
     people += [(f"expert{i}", f"Експерт {i}", Role.RESPONDENT, RespondentCategory.EXPERT, None) for i in range(1, 6)]
 
     created = 0
@@ -137,16 +162,34 @@ DEMO_FACTS = {
 }
 
 
-def seed_indicators(db: Session, units: dict[str, Unit], today: date | None = None) -> int:
-    """Факти за 12 місяців для всіх підрозділів, крім кореневого. Детерміновано, без випадковості."""
-    periods = months_back(today or clock_today(), FACTS_WINDOW_MONTHS)
+# Факти старші за останні 12 місяців (потрібні для хвилі «пів року тому»): розбір гірший,
+# щоб у динаміці було видно покращення після заходів.
+DEMO_FACTS_EARLY = {
+    "training_coverage": [(4, 7), (5, 8), (4, 7)],
+    "declarations_on_time": [(22, 25), (23, 25), (22, 25)],
+    "coi_reviewed": [(1, 3), (0, 2), (1, 2)],
+    "procurement_flags_reviewed": [(0, 3), (1, 3), (0, 0)],
+    "reports_handled": [(0, 1), (1, 2), (1, 1), (1, 2), (0, 1)],
+    "hiring_checks": [(1, 2), (1, 1), (2, 3), (1, 2)],
+}
+
+
+def seed_indicators(db: Session, units: dict[str, Unit], today: date | None = None,
+                    months: int = FACTS_WINDOW_MONTHS) -> int:
+    """Факти за `months` місяців для всіх підрозділів, крім кореневого. Детерміновано, без випадковості.
+
+    Останні 12 місяців — DEMO_FACTS, старші — DEMO_FACTS_EARLY.
+    """
+    periods = months_back(today or clock_today(), months)
+    early = len(periods) - FACTS_WINDOW_MONTHS
     created = 0
     for u_index, (name, unit) in enumerate(units.items()):
         if name == ROOT_UNIT:
             continue
         for p_index, period in enumerate(periods):
-            for code, pattern in DEMO_FACTS.items():
-                numerator, denominator = pattern[(u_index + p_index) % len(pattern)]
+            patterns = DEMO_FACTS_EARLY if p_index < early else DEMO_FACTS
+            for code, pattern in patterns.items():
+                numerator, denominator = pattern[(u_index + p_index - early) % len(pattern)]
                 exists = db.scalar(
                     select(Indicator.id).where(Indicator.unit_id == unit.id, Indicator.period == period, Indicator.indicator == code)
                 )
@@ -158,17 +201,27 @@ def seed_indicators(db: Session, units: dict[str, Unit], today: date | None = No
     return created
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description="Синтетичні демо-дані")
+    parser.add_argument("--with-waves", action="store_true",
+                        help="Ще дві закриті хвилі, рішення керівника й заходи (або SEED_WITH_WAVES=1)")
+    args = parser.parse_args(argv)
+    with_waves = args.with_waves or os.environ.get("SEED_WITH_WAVES", "").lower() in ("1", "true", "yes")
+
     password = get_settings().demo_password
     if len(password) < 8:
         raise SystemExit("Задайте DEMO_PASSWORD (щонайменше 8 символів) у .env")
+    months = FACTS_WINDOW_MONTHS + (WAVE_GAP_MONTHS if with_waves else 0)
     with SessionLocal() as db:
         units = seed_units(db)
-        users = seed_users(db, units, password)
+        users = seed_users(db, units, password, DEMO_STAFF_SIZES)
         questionnaires = seed_questionnaires(db)
-        indicators = seed_indicators(db, units)
+        indicators = seed_indicators(db, units, months=months)
         db.commit()
     print(f"Підрозділів: {len(units)}, нових користувачів: {users}, нових анкет: {questionnaires}, фактів: {indicators}")
+    if with_waves:
+        for line in seed_waves():
+            print(line)
 
 
 if __name__ == "__main__":
