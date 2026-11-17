@@ -55,3 +55,4 @@ cd backend && pytest
 | `migrations/` | Міграції Alembic |
 | `scripts/demo_wave.py` | Демо-хвиля через API від початку до кінця |
 | `adapters/`, `scripts/mock_sources.py` | Моки 5 джерел фактів (ARTEMIDA, атестація, навчання, закупівлі, повідомлення) → `POST /indicators`, кожне своїм ключем |
+| `scripts/gen_docs.py` | Генерує `docs/recommendations.md` і `docs/cross-check.md` з прогону на тимчасовій базі (демо-seed, фіксована дата) |
