@@ -1,4 +1,4 @@
-"""Reporting Module: звіт хвилі за структурою Додатку Г у JSON або CSV (для Excel)."""
+"""Reporting Module: звіт хвилі за структурою Додатку Г у JSON, CSV, Excel (.xlsx) або Word (.docx)."""
 
 import csv
 import io
@@ -16,6 +16,7 @@ from app.models import Measure, User
 from app.routers.recommendations import build, closed_campaign, with_decisions
 from app.security import RESULT_READERS, ensure_unit_access, require_roles
 from app.services import measures as measures_service
+from app.services import report_export, report_g
 from app.services.units import subtree_ids
 
 router = APIRouter(tags=["reports"])
@@ -24,9 +25,10 @@ router = APIRouter(tags=["reports"])
 def report_data(db: Session, campaign, unit_id: uuid.UUID | None) -> dict:
     data, recs = build(db, campaign, unit_id)
     scope = uuid.UUID(data["unit_id"])
-    measures = [measures_service.to_dict(x) for x in db.scalars(
-        select(Measure).where(Measure.unit_id.in_(subtree_ids(db, scope))).order_by(Measure.due_date))]
-    return {
+    measures = measures_service.to_dicts(db, db.scalars(
+        select(Measure).where(Measure.unit_id.in_(subtree_ids(db, scope))).order_by(Measure.due_date)).all())
+    report = {
+        "unit_name": data["unit_name"],
         "report": {
             "title": f"Звіт за результатами визначення рівня доброчесності: {data['unit_name']}",
             "campaign_title": data["campaign_title"],
@@ -48,6 +50,8 @@ def report_data(db: Session, campaign, unit_id: uuid.UUID | None) -> dict:
         "recommendations": with_decisions(db, campaign, scope, recs),
         "measures": measures,
     }
+    report["appendix_g"] = report_g.build(db, report)
+    return report
 
 
 def to_csv(report: dict) -> str:
@@ -85,19 +89,29 @@ def to_csv(report: dict) -> str:
 def campaign_report(
     campaign_id: uuid.UUID,
     unit_id: uuid.UUID | None = None,
-    format: str = Query(default="json", pattern="^(json|csv)$"),
+    format: str = Query(default="json", pattern="^(json|csv|xlsx|docx)$",
+                        description="json для сторінки; csv, xlsx (Excel) або docx (Word) для завантаження"),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*RESULT_READERS)),
 ):
     """Звіт хвилі (структура Додатку Г): індекс, компоненти, факти, питання, розбіжності,
-    динаміка, рекомендації з рішеннями, заходи. PDF друкує фронтенд (print.css)."""
+    динаміка, рекомендації з рішеннями, заходи з перевіркою наступною хвилею.
+    Розділ `appendix_g`: крос-таблиці РГ / ОС / експерти, збіги й розбіжності, висновок, пропозиції.
+    PDF друкує фронтенд (print.css)."""
     campaign = closed_campaign(db, campaign_id)
     ensure_unit_access(db, user, unit_id or campaign.unit_id)
     report = report_data(db, campaign, unit_id)
     log_action(db, user, "export_report", "campaign", campaign.id, {"unit_id": str(unit_id or campaign.unit_id), "format": format})
     db.commit()
-    if format == "csv":
-        name = f"integrity-report-{report['report']['closed_on']}.csv"
-        return Response(content=to_csv(report), media_type="text/csv; charset=utf-8",
-                        headers={"Content-Disposition": f'attachment; filename="{name}"'})
-    return jsonable_encoder(report)
+    if format == "json":
+        return jsonable_encoder(report)
+    content, media = FILES[format](jsonable_encoder(report))
+    name = f"integrity-report-{report['report']['closed_on']}.{format}"
+    return Response(content=content, media_type=media, headers={"Content-Disposition": f'attachment; filename="{name}"'})
+
+
+FILES = {
+    "csv": lambda r: (to_csv(r), "text/csv; charset=utf-8"),
+    "xlsx": lambda r: (report_export.to_xlsx(r), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
+    "docx": lambda r: (report_export.to_docx(r), "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
+}

@@ -33,12 +33,16 @@ const IC = {
   copy: I('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'),
   chev: I('<path d="M6 9l6 6 6-6"/>'),
   plus: I('<path d="M12 5v14M5 12h14"/>'),
+  dots: I('<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>', 2.4),
+  a11y: I('<circle cx="12" cy="4.5" r="1.8"/><path d="M5 8.5l7 1.5 7-1.5M12 10v5M12 15l-3.5 6M12 15l3.5 6"/>'),
+  download: I('<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>'),
   ok: I('<path d="M5 12l5 5 9-10"/>', 2.6),
   arrowR: I('<path d="M5 12h14M13 6l6 6-6 6"/>'),
   arrowL: I('<path d="M19 12H5M11 6l-6 6 6 6"/>'),
   spark: I('<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>'),
   send: I('<path d="M5 12h14M13 6l6 6-6 6"/>', 2.2),
   pulse: I('<path d="M3 12h4l3-8 4 16 3-8h4"/>', 2.2),
+  info: I('<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/>'),
   help: I('<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17h.01"/>'),
   alert: I('<path d="M12 3l9.5 16.5h-19z"/><path d="M12 10v4M12 17h.01"/>'),
   flag: I('<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>'),
@@ -61,6 +65,14 @@ const COMP = {
 const LEVELS = ["Початковий (хаотичний)", "Керований", "Визначений", "Вимірюваний", "Оптимізуючий"];
 const LSHORT = ["Початковий", "Керований", "Визначений", "Вимірюваний", "Оптимізуючий"];
 const BOUNDS = [12.5, 37.5, 62.5, 87.5];
+// Коротко за Моделлю зрілості НАЗК (Рекомендації НУОУ, розділ про рівні зрілості)
+const LDESC = [
+  "Системи доброчесності немає: норми виконуються вибірково, до питання повертаються лише після порушень.",
+  "Є базові правила й контроль: цінності названі, призначено уповноваженого, ухвалено програму доброчесності.",
+  "Система описана й працює: процедури чіткі, відомі всім і виконуються, канали повідомлень налагоджені.",
+  "Цілі вимірюються: заклад стежить за показниками, оцінює кожен захід і проводить аудит системи.",
+  "Система постійно вдосконалюється на основі даних, доброчесність стала частиною культури, є зовнішній аудит.",
+];
 const CAP = 25;
 // let: з бекендом дата й цикл беруться з останньої закритої хвилі (0-api.js).
 let TODAY = "2026-11-16", TODAY_UA = "16.11.2026", CYCLE = "2026-11";
@@ -107,7 +119,7 @@ const factValue = (f, val) => f.kind === "pct" ? Math.round(val[0] / val[1] * 10
 
 function credit(P, F) {
   const lim = F + CAP;
-  return P <= lim ? { v: P, lim: false } : { v: lim, lim: true, reason: `Сприйняття (${fb(P)}) перевищує факти (${fb(F)}) більш ніж на ${CAP} пунктів, тому зараховано ${fb(lim)}.` };
+  return P <= lim ? { v: P, lim: false } : { v: lim, lim: true, reason: `Сприйняття (${fb(P)}) вище за факти (${fb(F)}) більш ніж на ${CAP} пунктів. Тому зараховано не ${fb(P)}, а факти + ${CAP}: ${fb(F)} + ${CAP} = ${fb(lim)}.` };
 }
 function components(pItems, fItems) {
   return COMPS.map(c => {
@@ -222,11 +234,19 @@ function buildOther(o) {
 const OTHER_MODELS = {};
 function inst(id) {
   if (API.on) return API.model;
-  if (!id || id === ALPHA) return buildAlpha();
-  const o = OTHERS.find(x => x.id === id); if (!o) return buildAlpha();
-  return OTHER_MODELS[id] || (OTHER_MODELS[id] = buildOther(o));
+  const o = OTHERS.find(x => x.id === id);
+  const m = !o ? buildAlpha() : OTHER_MODELS[id] || (OTHER_MODELS[id] = buildOther(o));
+  const ren = S.insts && S.insts.renamed[m.id]; if (ren) m.name = ren; else if (o) m.name = o.name;
+  m.edrpou = EDRPOU[m.id]; return m;
 }
-const INSTITUTIONS = () => [inst(ALPHA), ...OTHERS.map(o => inst(o.id))].sort((a, b) => a.name.localeCompare(b.name, "uk"));
+// Синтетичні коди ЄДРПОУ (не справжні) і синтетичний «реєстр» для демо пошуку
+const EDRPOU = { alpha: "99000101", beta: "99000102", gamma: "99000103", omega: "99000104" };
+const REGISTRY = [
+  ["99000101", "Умовний військовий інститут «Альфа»"], ["99000102", "Умовний навчальний центр «Бета»"], ["99000103", "Умовна академія «Гамма»"], ["99000104", "Умовний університет «Омега»"],
+  ["99000105", "Умовний військовий ліцей «Дельта»"], ["99000106", "Умовна військова академія «Сигма»"], ["99000107", "Умовний навчальний центр «Каппа»"], ["99000108", "Умовний інститут «Лямбда»"],
+  ["99000109", "Умовний коледж сержантського складу «Тета»"], ["99000110", "Умовна кафедра військової підготовки «Йота»"],
+];
+const INSTITUTIONS = () => [inst(ALPHA), ...OTHERS.map(o => inst(o.id)), ...(S.insts ? S.insts.extra.map(x => ({ ...x, name: S.insts.renamed[x.id] || x.name, empty: true })) : [])].sort((a, b) => a.name.localeCompare(b.name, "uk"));
 
 /* ---------- Підрозділи й поріг k ---------- */
 const UNITS = [

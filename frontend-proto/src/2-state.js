@@ -43,7 +43,7 @@ const NAV = [
   ["compare", "Порівняння", "compare", ["leader", "observer", "auditor"]],
   ["recs", "Рекомендації", "bulb", ["leader"]],
   ["tracker", "Трекер", "target", ["leader", "auditor"]],
-  ["sources", "Звідки беруться дані", "plug", ["leader", "observer", "auditor"]],
+  ["sources", "Джерела", "plug", ["leader", "observer", "auditor"]],
   ["report", "Звіт", "file", ["leader", "observer"]],
   ["manage", "Керування циклом", "sliders", ["admin"]],
   ["surveys", "Анкети", "survey", ["commissioner"]],
@@ -68,15 +68,15 @@ const DEFAULTS = () => ({
   facts: {}, fpend: {}, dec: { rec: {}, mst: {}, added: [] }, qs: QUESTIONNAIRES.map(q => ({ ...q })),
   log: [], notes: [], aiOn: true, tokenUsed: false,
   mode: "credited", trackView: "table", recF: { st: "all", c: "all" }, trF: { st: "all", who: "all" },
-  trend: { from: 0, to: 3, lines: [] }, cmp: { a: 0, b: 3 },
+  trend: { from: 0, to: 3, lines: [] }, cmp: { a: 0, b: 3 }, cmpCycle: -1, a11y: { z: 1, hc: false }, insts: { extra: [], renamed: {}, archived: [] }, instQ: "", instArch: false,
 });
 const S = Object.assign(DEFAULTS(), { chat: [], survey: { phase: "intro", sec: 0, a: {}, miss: false }, open: {} });
 const KEY = "ii-proto-v2";
-const SAVE = ["role", "k", "inst", "unit", "cycleOpen", "facts", "fpend", "dec", "qs", "log", "notes", "aiOn", "tokenUsed", "mode", "trackView", "recF", "trF", "trend", "cmp"];
+const SAVE = ["role", "k", "inst", "unit", "cycleOpen", "facts", "fpend", "dec", "qs", "log", "notes", "aiOn", "tokenUsed", "mode", "trackView", "recF", "trF", "trend", "cmp", "cmpCycle", "a11y", "insts", "instArch"];
 try { const saved = JSON.parse(localStorage.getItem(KEY) || "null"); if (saved) SAVE.forEach(k => { if (saved[k] !== undefined) S[k] = saved[k]; }); } catch (e) {}
 try { const d = JSON.parse(localStorage.getItem("ii-survey-draft") || "null"); if (d) S.survey.a = d; } catch (e) {}
 const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(SAVE.map(k => [k, S[k]])))); } catch (e) {} };
-function resetDemo() { const role = S.role; Object.assign(S, DEFAULTS(), { role, chat: [], survey: { phase: "intro", sec: 0, a: {}, miss: false } }); try { localStorage.removeItem("ii-survey-draft"); } catch (e) {} persist(); render(); toast("Демо-дані скинуто"); }
+function resetDemo() { const role = S.role, a11y = S.a11y; Object.assign(S, DEFAULTS(), { role, a11y, chat: [], survey: { phase: "intro", sec: 0, a: {}, miss: false } }); try { localStorage.removeItem("ii-survey-draft"); } catch (e) {} persist(); render(); toast("Демо-дані скинуто"); }
 
 /* Журнал дій із ланцюгом хешів */
 function fnv(s) { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, "0"); }
@@ -105,7 +105,7 @@ const ua = d => d.split("-").reverse().join(".");
 const numHTML = (v, d = 1) => { const s = d ? f1(v) : fb(v); const [a, b] = s.split(","); return `<span class="cu" data-v="${v}" data-d="${d}">${a}<span class="dec">${b ? "," + b : ""}</span></span>`; };
 const deltaHTML = (d, suf = "") => { const up = d > 0, dn = d < 0; return `<span class="delta ${up ? "up" : dn ? "down" : "flat"}"><i>${up ? IC.up : dn ? IC.down : IC.flat}</i><b>${up || dn ? pts(d) : "Без змін"}</b>${up ? " зросло" : dn ? " знизилось" : ""}${suf ? " " + suf : ""}</span>`; };
 const pill = (txt, cls) => `<span class="pill ${cls}">${txt}</span>`;
-const lvPill = l => `<span class="pill lv lv${l} nodot"><b>${l}</b>${LSHORT[l - 1]}</span>`;
+const lvPill = l => `<span class="pill lv lv${l} nodot" data-tip="Рівень зрілості ${l} з 5: ${LSHORT[l - 1]}<small>${LDESC[l - 1]}</small>"><b>${l}</b>${LSHORT[l - 1]}</span>`;
 const trustPill = g => `<span class="pill ${TRUST[g][3]} nodot" data-tip="${esc(TRUST[g][2])}">${g === "insufficient" ? "" : `<b>${g}</b>`}${TRUST[g][1]}</span>`;
 const srcDot = s => `<span class="src-dot ${SRC[s][2]}" style="--c:${SRC[s][1]}"></span>`;
 const allItems = m => [...m.pItems, ...m.fItems];
@@ -124,9 +124,20 @@ function countUp(root) {
 }
 function toast(m) { const t = $("#toast"); t.textContent = m; t.classList.add("on"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("on"), 2400); }
 const tip = $("#tip");
-function showTip(x, y, html) { tip.innerHTML = html; tip.style.left = x + "px"; tip.style.top = y + "px"; tip.classList.add("on"); }
+// Масштаб тексту (zoom на <html>): координати getBoundingClientRect екранні, а left/top задаються в CSS-пікселях
+const Z = () => parseFloat(document.documentElement.style.zoom) || 1;
+const zr = r => { const z = Z(); return { left: r.left / z, right: (r.right ?? r.left + r.width) / z, top: r.top / z, bottom: r.bottom / z, width: r.width / z }; };
+function placePop(btn) { const p = $("#pop"), r = zr(btn.getBoundingClientRect()), w = p.offsetWidth, vw = innerWidth / Z(); p.style.left = Math.max(8, Math.min(r.right - w, vw - w - 8)) + "px"; p.style.top = (r.bottom + 6) + "px"; }
+function showTip(r, html) {
+  r = zr(r); const innerWidth = window.innerWidth / Z(), innerHeight = window.innerHeight / Z();
+  tip.innerHTML = html; tip.style.left = "0px"; tip.style.top = "0px";
+  const w = tip.offsetWidth, h = tip.offsetHeight, m = 8, gap = 10;
+  const x = Math.min(Math.max(r.left + r.width / 2 - w / 2, m), innerWidth - w - m);
+  const y = r.top - h - gap >= m ? r.top - h - gap : Math.min(r.bottom + gap, innerHeight - h - m);
+  tip.style.left = x + "px"; tip.style.top = y + "px"; tip.classList.add("on");
+}
 function hideTip() { tip.classList.remove("on"); }
-document.addEventListener("mouseover", e => { const el = e.target.closest("[data-tip]"); if (!el) return; const r = el.getBoundingClientRect(); showTip(r.left + r.width / 2, r.top, el.dataset.tip); });
+document.addEventListener("mouseover", e => { const el = e.target.closest("[data-tip]"); if (!el) return; const r = el.getBoundingClientRect(); showTip(r, el.dataset.tip); });
 document.addEventListener("mouseout", e => { if (e.target.closest("[data-tip]")) hideTip(); });
 
 /* ---------- Charts ---------- */
@@ -152,24 +163,25 @@ function curveChart(el, vals, labels) {
   svg.addEventListener("mousemove", e => {
     const r = svg.getBoundingClientRect(), i = Math.round(clamp((e.clientX - r.left - pad) / (w - 2 * pad) * (vals.length - 1), 0, vals.length - 1)), [px, py] = p[i];
     vl.setAttribute("x1", px); vl.setAttribute("x2", px); vl.setAttribute("opacity", 1); dt.setAttribute("cx", px); dt.setAttribute("cy", py); dt.setAttribute("opacity", 1);
-    showTip(r.left + px, r.top + py, `${f1(vals[i])}<small>Цикл ${labels[i]}</small>`);
+    showTip({ left: r.left + px, top: r.top + py - 6, width: 0, bottom: r.top + py + 6 }, `${f1(vals[i])}<small>Цикл ${labels[i]}</small>`);
   });
   svg.addEventListener("mouseleave", () => { vl.setAttribute("opacity", 0); dt.setAttribute("opacity", 0); hideTip(); });
 }
 // Динаміка: індекс + лінії компонентів, межі рівнів зрілості, події між циклами
-function trendChart(el, rows, lines, events) {
+function trendChart(el, rows, lines, events, showIdx = true) {
   if (!el) return;
-  const w = el.clientWidth || 600, h = 300, L = 36, Rr = 74, T = 22, B = 46;
-  const n = rows.length, X = i => L + (n === 1 ? (w - L - Rr) / 2 : i * (w - L - Rr) / (n - 1)), Y = v => T + (1 - v / 100) * (h - T - B);
-  const grid = [0, ...BOUNDS, 100].map(v => `<line x1="${L}" x2="${w - Rr}" y1="${Y(v)}" y2="${Y(v)}" class="grid-l"/><text x="${L - 6}" y="${Y(v) + 4}" text-anchor="end" class="ax">${fb(v)}</text>`).join("");
-  const bands = [0, ...BOUNDS].map((lo, i) => { const hi = [...BOUNDS, 100][i]; return `<text x="${w - Rr + 8}" y="${(Y(lo) + Y(hi)) / 2 + 4}" class="ax">Рівень ${i + 1}</text>`; }).join("");
+  const w = el.clientWidth || 600, wide = w > 520, h = 300, L = 40, Rr = wide ? 104 : 30, T = 26, B = 46;
+  const n = rows.length, IP = 22, X = i => L + IP + (n === 1 ? (w - L - Rr - 2 * IP) / 2 : i * (w - L - Rr - 2 * IP) / (n - 1)), Y = v => T + (1 - v / 100) * (h - T - B);
+  const grid = [0, 25, 50, 75, 100].map(v => `<line x1="${L}" x2="${w - Rr}" y1="${Y(v)}" y2="${Y(v)}" class="grid-l"/><text x="${L - 8}" y="${Y(v) + 4}" text-anchor="end" class="ax">${v}</text>`).join("");
+  const bounds = BOUNDS.map(v => `<line x1="${L}" x2="${w - Rr + 4}" y1="${Y(v)}" y2="${Y(v)}" class="lv-bound"/>`).join("");
+  const bands = [0, ...BOUNDS].map((lo, i) => { const hi = [...BOUNDS, 100][i], y1 = Y(hi), y2 = Y(lo); return `<g data-tip="Рівень зрілості ${i + 1}: ${LSHORT[i]}<small>Індекс від ${fb(lo)} до ${fb(hi)}</small>"><rect x="${w - Rr + 8}" y="${y1 + 1}" width="4" height="${y2 - y1 - 2}" rx="2" class="lv-band lv-b${i + 1}"/><text x="${w - Rr + 18}" y="${(y1 + y2) / 2 + 4}" class="ax">${wide ? `${i + 1} ${LSHORT[i]}` : i + 1}</text></g>`; }).join("");
+  const heads = `<text x="${L - 8}" y="${T - 12}" text-anchor="end" class="ax">0–100</text>${wide ? `<text x="${w - Rr + 8}" y="${T - 12}" class="ax">Рівень зрілості</text>` : ""}`;
   const p = rows.map((r, i) => [X(i), Y(r.index)]);
-  const area = n > 1 ? `<path d="${smooth(p)} L${X(n - 1)},${Y(0)} L${X(0)},${Y(0)}Z" class="area-fill reveal"/>` : "";
-  const compLines = lines.map(c => { const q = rows.map((r, i) => [X(i), Y(r.cr[c])]); return `<path d="${n > 1 ? smooth(q) : ""}" fill="none" stroke="${COMP[c].c}" stroke-width="2" stroke-dasharray="6 5" class="draw" style="--len:3000"/>${q.map(([x, y], i) => `<rect x="${x - 4}" y="${y - 4}" width="8" height="8" rx="2" fill="${COMP[c].c}" class="pop" data-tip="${COMP[c].n}: ${fb(rows[i].cr[c])}<small>Цикл ${rows[i].cycle}</small>"/>`).join("")}`; }).join("");
-  const ev = events.map(e => { const i = rows.findIndex(r => r.cycle === e.after); if (i < 0 || i >= n - 1) return ""; const x = (X(i) + X(i + 1)) / 2; return `<g class="pop" data-tip="${esc(e.t)}<small>Після циклу ${e.after}</small>"><rect x="${x - 7}" y="${h - B + 14}" width="14" height="14" fill="var(--panel)" stroke="var(--fg)" stroke-width="1.6" transform="rotate(45 ${x} ${h - B + 21})"/></g>`; }).join("");
-  el.innerHTML = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">${DEFS}${grid}${bands}${area}
-    <path d="${n > 1 ? smooth(p) : ""}" class="line-teal draw" style="stroke-dasharray:3000;--len:3000"/>${compLines}
-    ${p.map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="5" fill="var(--panel)" stroke="var(--teal)" stroke-width="2.5" class="pop" style="animation-delay:${500 + i * 120}ms" data-tip="Індекс ${f1(rows[i].index)} · рівень ${level(rows[i].index)}<small>Цикл ${rows[i].cycle}</small>"/><text x="${x}" y="${y - 12}" text-anchor="middle" class="ax-strong">${f1(rows[i].index)}</text>`).join("")}
+  const area = n > 1 && showIdx ? `<path d="${smooth(p)} L${X(n - 1)},${Y(0)} L${X(0)},${Y(0)}Z" class="area-fill reveal"/>` : "";
+  const compLines = lines.map(c => { const q = rows.map((r, i) => [X(i), Y(r.cr[c])]); return `<path d="${n > 1 ? smooth(q) : ""}" fill="none" stroke="${COMP[c].c}" stroke-width="2" stroke-dasharray="6 5" class="draw" style="--len:3000"/>${q.map(([x, y], i) => `<rect x="${x - 4}" y="${y - 4}" width="8" height="8" rx="2" fill="${COMP[c].c}" class="pop" data-tip="${COMP[c].n}: ${fb(rows[i].cr[c])}<small>Цикл ${rows[i].cycle}</small>"/>${showIdx ? "" : `<text x="${x}" y="${y - 10}" text-anchor="middle" class="ax-strong">${fb(rows[i].cr[c])}</text>`}`).join("")}`; }).join("");
+  const idx = showIdx ? `<path d="${n > 1 ? smooth(p) : ""}" class="line-teal draw" style="stroke-dasharray:3000;--len:3000"/>${p.map(([x, y], i) => `<circle cx="${x}" cy="${y}" r="5" fill="var(--panel)" stroke="var(--teal)" stroke-width="2.5" class="pop" style="animation-delay:${500 + i * 120}ms" data-tip="Індекс ${f1(rows[i].index)} · рівень ${level(rows[i].index)}<small>Цикл ${rows[i].cycle}</small>"/><text x="${x}" y="${y - 12}" text-anchor="middle" class="ax-strong">${f1(rows[i].index)}</text>`).join("")}` : "";
+  const ev = events.map(e => { const i = rows.findIndex(r => r.cycle === e.after); if (i < 0 || i >= n - 1) return ""; const x = (X(i) + X(i + 1)) / 2, y = h - B + 21; return `<g class="pop" data-tip="${esc(e.t)}<small>Після циклу ${e.after}</small>"><rect x="${x - 6}" y="${y - 6}" width="12" height="12" fill="var(--panel)" stroke="var(--fg)" stroke-width="1.6" transform="rotate(45 ${x} ${y})"/></g>`; }).join("");
+  el.innerHTML = `<svg width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" role="img" aria-label="Динаміка індексу доброчесності">${DEFS}${grid}${bounds}${bands}${heads}${area}${idx}${compLines}
     ${rows.map((r, i) => `<text x="${X(i)}" y="${h - B + 6}" text-anchor="middle" class="ax" style="dominant-baseline:hanging">${r.cycle}</text>`).join("")}${ev}</svg>`;
 }
 // Радар компонентів (два цикли)
@@ -182,10 +194,14 @@ function radar(el, series) {
   const polys = series.map(s => `<polygon class="${s.cls} pop" style="animation-delay:${s.delay || 0}ms" points="${s.v.map((v, i) => P(i, v).join(",")).join(" ")}"/>`).join("");
   el.innerHTML = `<svg width="${w}" height="${h + 14}" viewBox="0 0 ${w} ${h + 14}" style="margin:0 auto;max-width:100%">${rings}${axes}${polys}</svg>`;
 }
-// Рівнева шкала (нерівні межі 12,5 / 37,5 / 62,5 / 87,5)
+// Шкала рівнів зрілості (нерівні межі 12,5 / 37,5 / 62,5 / 87,5) з позначкою індексу
 function levelBar(v) {
   const spans = [[0, 12.5], [12.5, 37.5], [37.5, 62.5], [62.5, 87.5], [87.5, 100]], lv = level(v);
-  return `<div class="levelbar">${spans.map(([lo, hi], i) => { const cnt = Math.round((hi - lo) / 3.125); return `<div class="${i + 1 === lv ? "here" : ""}" style="flex:${hi - lo}"><div class="tk">${Array.from({ length: cnt }, (_, j) => { const t = lo + (j + 1) * 3.125; const cls = t <= v + 1.5 ? (Math.abs(t - v) <= 3.2 ? "cur" : "f") : ""; return `<span class="${cls} bar-a" style="animation-delay:${(lo / 3.125 + j) * 16}ms"></span>`; }).join("")}</div><small>${i + 1 === lv ? `${i + 1} · ${LSHORT[i]}` : i + 1}</small></div>`; }).join("")}</div>`;
+  return `<div class="lvscale" role="img" aria-label="Індекс ${f1(v)}: рівень ${lv} з 5, ${LSHORT[lv - 1]}">
+    <div class="lvs-mark" style="left:${v}%"><b class="tnum">${f1(v)}</b><i></i></div>
+    <div class="lvs-bar">${spans.map(([lo, hi], i) => `<span class="lv-b${i + 1} ${i + 1 === lv ? "here" : ""}" style="flex:${hi - lo}" data-tip="Рівень ${i + 1}: ${LSHORT[i]}<small>Індекс від ${fb(lo)} до ${fb(hi)}</small>"></span>`).join("")}</div>
+    <div class="lvs-lbl">${spans.map(([lo, hi], i) => `<div style="flex:${hi - lo}" class="${i + 1 === lv ? "here" : ""}"><b>${i + 1}</b><span>${LSHORT[i]}</span><small class="tnum">${fb(lo)}–${fb(hi)}</small></div>`).join("")}</div>
+  </div>`;
 }
 
 /* ---------- Drawer ---------- */

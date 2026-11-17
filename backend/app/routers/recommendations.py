@@ -110,9 +110,10 @@ def with_decisions(db: Session, campaign: Campaign, unit_id: uuid.UUID, recs: li
     decisions = {d.recommendation_code: d for d in db.scalars(select(RecommendationDecision).where(
         RecommendationDecision.campaign_id == campaign.id, RecommendationDecision.unit_id == unit_id))}
     linked: dict[str, list] = {}
-    for x in db.scalars(select(Measure).where(Measure.campaign_id == campaign.id, Measure.unit_id == unit_id,
-                                              Measure.recommendation_code.is_not(None))):
-        linked.setdefault(x.recommendation_code, []).append(measures_service.to_dict(x))
+    rows = db.scalars(select(Measure).where(Measure.campaign_id == campaign.id, Measure.unit_id == unit_id,
+                                            Measure.recommendation_code.is_not(None))).all()
+    for x, item in zip(rows, measures_service.to_dicts(db, rows), strict=True):
+        linked.setdefault(x.recommendation_code, []).append(item)
     out = []
     for r in recs:
         d = decisions.get(r["code"])
