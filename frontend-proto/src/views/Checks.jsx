@@ -6,6 +6,7 @@ import { toast } from "../lib/store.js";
 import { ua, dsh } from "../lib/format.js";
 import { Pill } from "../components/ui.jsx";
 import { Loading, Failed, Empty, NeedServer, NoAccess } from "../components/states.jsx";
+import { KpiRow, ModHead, More } from "../components/modkit.jsx";
 
 const KIND = { procurement: "Закупівлі", declarations: "Декларації" };
 const RISK = { low: ["Низький", "p-good nodot"], medium: ["Середній", "p-warn nodot"], high: ["Високий", "p-bad nodot"] };
@@ -33,6 +34,7 @@ export function Checks() {
   if (S.role !== "admin") return <NoAccess />;
   const units = apiMod("chk:units", () => api("/admin/units")), runs = apiMod("chk:runs", apiCheckRuns);
   const fkey = "chk:f:" + [fk, fs, fr].join("|"), found = apiMod(fkey, () => apiCheckFindings({ kind: fk, status: fs, risk_level: fr }));
+  const all = apiMod("chk:f:||", () => apiCheckFindings({})), allD = all && all.data;
   if (!units || !runs) return <Loading t="Перевірки" />;
   if (units.error) return <Failed e={units.error} onRetry={() => apiModReset("chk:units")} />;
   if (runs.error) return <Failed e={runs.error} onRetry={() => apiModReset("chk:runs")} />;
@@ -42,22 +44,25 @@ export function Checks() {
   const run = async () => { setBusy(true); try { const r = await apiCheckRun(kind, uid, period); toast(`Перевірено записів: ${r.total}, знахідок: ${r.flagged}`); refresh(); } catch (e) { apiFail(e); } finally { setBusy(false); } };
   const publish = async () => { setBusy(true); try { const r = await apiCheckPublish(uid, period); toast(`Записано показників: ${r.indicators.filter(i => i.written).length}`); } catch (e) { apiFail(e); } finally { setBusy(false); } };
   return <>
-    <section className="c12 rise toolbar"><span className="lbl">Перевірка за правилами без ШІ. Показуються лише публічні ідентифікатори записів, імен і контактів немає. Дані для запуску синтетичні.</span></section>
-    <section className="card c12 rise"><div className="card-h"><h2>Запуск</h2></div>
+    <KpiRow items={[{ ic: "history", t: "Запусків", v: runs.data.length, sub: runs.data.length >= 50 ? "показано останні 50" : null },
+      { ic: "flag", t: "Знахідок", v: allD ? allD.length : "…", tone: allD && allD.some(f => f.status === "new") ? "amber" : undefined, sub: allD ? `${allD.length >= 200 ? "показано 200, " : ""}нових ${allD.filter(f => f.status === "new").length}` : null },
+      { ic: "check", t: "Розглянуто", v: allD ? allD.filter(f => f.status !== "new").length : "…", tone: "teal", sub: allD && allD.length >= 200 ? "серед показаних" : null }]} />
+    <section className="card c12 rise"><ModHead ic="shield" tone="teal" title="Запуск" />
+      <div className="lbl" style={{ marginBottom: 10 }}>Перевірка за правилами без ШІ, лише публічні ідентифікатори записів.</div>
       <div className="mod-grid">
         <div className="field"><label htmlFor="ck-kind">Що перевіряти</label><select className="inp" id="ck-kind" value={kind} onChange={e => setKind(e.target.value)}>{Object.entries(KIND).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
         <div className="field"><label htmlFor="ck-unit">Підрозділ</label><select className="inp" id="ck-unit" value={uid || ""} onChange={e => setUnit(e.target.value)}>{units.data.map(u => <option key={u.id} value={u.id}>{dn(u.name)}</option>)}</select></div>
         <div className="field"><label htmlFor="ck-per">Період (РРРР-ММ)</label><input className="inp" id="ck-per" value={period} onChange={e => setPeriod(e.target.value)} aria-invalid={!okPeriod} /></div></div>
       <div className="chk-row" style={{ marginTop: 12 }}><button type="button" className="btn btn-primary" onClick={run} disabled={busy || !okPeriod || !uid}>Запустити перевірку</button>
         <button type="button" className="btn btn-soft" onClick={publish} disabled={busy || !okPeriod || !uid} data-tip="Рахує частки з усіх знахідок підрозділу за період і записує їх як факти для індексу">Записати показники</button></div></section>
-    <section className="card c12 rise"><div className="card-h"><h2>Останні запуски</h2></div>
+    <section className="card c12 rise"><ModHead ic="history" tone="blue" title="Останні запуски" />
       {runs.data.length ? <div className="tbl-wrap"><table><thead><tr><th>Коли</th><th>Вид</th><th>Підрозділ</th><th>Період</th><th>Записів</th><th>Знахідок</th></tr></thead><tbody>
         {runs.data.slice(0, 8).map(r => <tr key={r.run_id}><td className="tnum">{ua(r.created_at.slice(0, 10))}</td><td>{KIND[r.kind] || r.kind}</td><td>{uname(r.unit_id)}</td><td className="tnum">{r.period}</td><td className="tnum">{r.total}</td><td className="tnum">{r.flagged}</td></tr>)}</tbody></table></div> : <div className="lbl">Запусків ще не було.</div>}</section>
-    <section className="card c12 rise"><div className="card-h" style={{ flexWrap: "wrap" }}><h2>Знахідки</h2><div className="sp" />
+    <section className="card c12 rise"><ModHead ic="flag" tone="amber" title="Знахідки">
       <select className="inp" aria-label="Вид" value={fk} onChange={e => setFk(e.target.value)}><option value="">Усі види</option>{Object.entries(KIND).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select>
       <select className="inp" aria-label="Статус" value={fs} onChange={e => setFs(e.target.value)}><option value="">Усі статуси</option>{Object.entries(ST).map(([k, v]) => <option key={k} value={k}>{v[0]}</option>)}</select>
-      <select className="inp" aria-label="Ризик" value={fr} onChange={e => setFr(e.target.value)}><option value="">Будь-який ризик</option>{Object.entries(RISK).map(([k, v]) => <option key={k} value={k}>{v[0]}</option>)}</select></div>
+      <select className="inp" aria-label="Ризик" value={fr} onChange={e => setFr(e.target.value)}><option value="">Будь-який ризик</option>{Object.entries(RISK).map(([k, v]) => <option key={k} value={k}>{v[0]}</option>)}</select></ModHead>
       {!found ? <div className="lbl" role="status">Завантажуємо знахідки…</div> : found.error ? <Failed e={found.error} onRetry={() => apiModReset(fkey)} />
-        : found.data.length ? <div className="qa-list" aria-live="polite">{found.data.map(f => <Finding key={f.id + f.status} f={f} onDone={() => { delete API.mod[fkey]; apiModReset("chk:runs"); }} />)}</div> : <Empty t="Знахідок немає">Змініть фільтри або запустіть перевірку.</Empty>}</section>
+        : found.data.length ? <div className="qa-list" aria-live="polite">{found.data.map(f => <Finding key={f.id + f.status} f={f} onDone={() => { delete API.mod[fkey]; apiModReset("chk:runs", "chk:f:||"); }} />)}</div> : <Empty t="Знахідок немає">Змініть фільтри або запустіть перевірку.</Empty>}</section>
   </>;
 }

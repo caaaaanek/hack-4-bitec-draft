@@ -5,6 +5,7 @@ import { API, apiAnalyze, apiFail } from "../lib/api.js";
 import { fb, dsh } from "../lib/format.js";
 import { Pill } from "../components/ui.jsx";
 import { NeedServer } from "../components/states.jsx";
+import { KpiRow, ModHead, More } from "../components/modkit.jsx";
 import { can, go } from "../lib/nav.js";
 
 const KIND = { checklist: "Пункти чек-листа", question: "Питання анкет", measure: "Заходи типового плану", fact: "Показники методики" };
@@ -20,18 +21,23 @@ export function Normative() {
     try { setRes(await apiAnalyze(file, text, title.trim())); setKind("all"); } catch (x) { setErr(x.message || "Не вдалося проаналізувати"); apiFail(x); } finally { setBusy(false); }
   };
   const ok = file || text.trim().length >= 30, ms = res ? res.matches.filter(m => kind === "all" || m.kind === kind) : [];
+  // Показники методики лише узгоджують з джерелом; переглядати треба пункти чек-листа, питання анкет і заходи
+  const act = res ? res.matches.filter(m => m.kind !== "fact").length : 0;
   return <>
-    <section className="card c12 rise"><div className="card-h"><h2>Документ</h2></div>
+    <section className="card c12 rise"><ModHead ic="layers" tone="teal" title="Документ" />
+      <div className="lbl" style={{ marginBottom: 12 }}>Наказ чи нова редакція закону: система покаже, які пункти чек-листа, питання анкет, заходи й показники він зачіпає.</div>
       <form onSubmit={run} style={{ display: "flex", flexDirection: "column", gap: 12 }}>
         <div className="field"><label htmlFor="nm-title">Назва (необовʼязково)</label><input className="inp" id="nm-title" maxLength={200} value={title} onChange={e => setTitle(e.target.value)} /></div>
         <div className="drop"><input ref={inp} id="nm-file" type="file" accept=".txt,.md,.docx,.pdf" onChange={e => pick(e.target.files[0])} aria-label="Файл документа: txt, md, docx або pdf" />
           <div className="lbl" style={{ marginTop: 6 }}>{file ? `Обрано: ${file.name}` : "Файл .docx, .pdf, .txt або .md, до 10 МБ"}</div></div>
-        <div className="field"><label htmlFor="nm-text">Або вставте текст документа</label><textarea className="inp" id="nm-text" rows={5} value={text} onChange={e => setText(e.target.value)} disabled={!!file} /></div>
+        <div className="field"><label htmlFor="nm-text">Або вставте текст документа</label><textarea className="inp" id="nm-text" rows={5} style={{ font: "inherit" }} value={text} onChange={e => setText(e.target.value)} disabled={!!file} /></div>
         {err && <div className="lbl" role="alert" style={{ color: "var(--red)" }}>{err}</div>}
         <div className="chk-row"><button type="submit" className="btn btn-primary" disabled={!ok || busy}>{busy ? "Аналізуємо…" : "Проаналізувати"}</button>{file && <button type="button" className="btn btn-ghost" onClick={() => { setFile(null); if (inp.current) inp.current.value = ""; }}>Прибрати файл</button>}</div>
-        <div className="lbl">Документ не зберігається. У журнал дій потрапляють лише назва, розмір і контрольна сума. Система нічого не змінює сама: лише підказує, що переглянути.</div>
+        <More><div className="lbl">Документ не зберігається. У журнал дій потрапляють лише назва, розмір і контрольна сума. Система нічого не змінює сама: лише підказує, що переглянути.</div></More>
       </form></section>
-    {res && <section className="card c12 rise" aria-live="polite"><div className="card-h"><h2>Що зачіпає «{dsh(res.document.name)}»</h2><div className="sp" /><span className="lbl">Фрагментів: {res.document.fragments}</span></div>
+    {res && <KpiRow items={[{ ic: "layers", t: "Збігів", v: res.matches.length, sub: `фрагментів документа ${res.document.fragments}` },
+      { ic: "flag", t: "Потребують дії", v: act, tone: act ? "amber" : "teal", sub: "пункти чек-листа, питання, заходи" }]} />}
+    {res && <section className="card c12 rise" aria-live="polite"><ModHead ic="search" tone="blue" title={`Що зачіпає «${dsh(res.document.name)}»`} />
       {res.document.top_terms.length > 0 && <div className="tags" style={{ marginBottom: 10 }}>{res.document.top_terms.map(t => <Pill key={t} cls="p-mute nodot">{t}</Pill>)}</div>}
       <div className="tags" role="group" aria-label="Фільтр за видом" style={{ marginBottom: 10 }}>{[["all", `Усе (${res.matches.length})`], ...Object.entries(KIND).map(([k, n]) => [k, `${n} (${res.by_kind[k] || 0})`])].map(([k, n]) => <button key={k} type="button" className={`pill-btn ${kind === k ? "lime" : ""}`} aria-pressed={kind === k} onClick={() => setKind(k)}>{n}</button>)}</div>
       {ms.length ? <div className="qa-list">{ms.map((m, i) => <article key={i} className="qa-item">
