@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     llm_model: str = "gemma4-26b"
     llm_timeout_seconds: float = 60.0
 
+    # Живі запити модуля «Перевірки» до відкритих API (Prozorro, НАЗК). Закритий контур: false.
+    external_fetch_enabled: bool = False
+
     # Пароль для синтетичних демо-користувачів, яких створює seed.
     demo_password: str = ""
 

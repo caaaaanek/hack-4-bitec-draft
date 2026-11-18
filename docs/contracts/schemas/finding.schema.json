@@ -1,0 +1,110 @@
+{
+  "$defs": {
+    "FlagOut": {
+      "properties": {
+        "rule_id": {
+          "title": "Rule Id",
+          "type": "string"
+        },
+        "severity": {
+          "title": "Severity",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        },
+        "law_refs": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Law Refs",
+          "type": "array"
+        }
+      },
+      "required": [
+        "rule_id",
+        "severity",
+        "title",
+        "law_refs"
+      ],
+      "title": "FlagOut",
+      "type": "object"
+    }
+  },
+  "properties": {
+    "id": {
+      "format": "uuid",
+      "title": "Id",
+      "type": "string"
+    },
+    "run_id": {
+      "format": "uuid",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "kind": {
+      "title": "Kind",
+      "type": "string"
+    },
+    "unit_id": {
+      "format": "uuid",
+      "title": "Unit Id",
+      "type": "string"
+    },
+    "period": {
+      "title": "Period",
+      "type": "string"
+    },
+    "record_ref": {
+      "title": "Record Ref",
+      "type": "string"
+    },
+    "risk_level": {
+      "title": "Risk Level",
+      "type": "string"
+    },
+    "flags": {
+      "items": {
+        "$ref": "#/$defs/FlagOut"
+      },
+      "title": "Flags",
+      "type": "array"
+    },
+    "status": {
+      "title": "Status",
+      "type": "string"
+    },
+    "comment": {
+      "title": "Comment",
+      "type": "string"
+    },
+    "reviewed_at": {
+      "anyOf": [
+        {
+          "format": "date-time",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Reviewed At"
+    }
+  },
+  "required": [
+    "id",
+    "run_id",
+    "kind",
+    "unit_id",
+    "period",
+    "record_ref",
+    "risk_level",
+    "flags",
+    "status",
+    "comment",
+    "reviewed_at"
+  ],
+  "title": "FindingOut",
+  "type": "object"
+}

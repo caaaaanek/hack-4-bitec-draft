@@ -46,6 +46,7 @@ class Role(StrEnum):
     RESPONDENT = "respondent"      # проходить анкети
     LEADER = "leader"              # керівник: результати, рішення щодо рекомендацій, заходи
     AUDITOR = "auditor"            # аудитор: лише читання результатів, заходів і журналу дій
+    COORDINATOR = "coordinator"    # координатор: користувачі, ролі, підрозділи, журнал і зведення по всіх групах
 
 
 class RespondentCategory(StrEnum):
@@ -521,3 +522,42 @@ class OutboxMessage(Base):
     attempts: Mapped[int] = mapped_column(Integer, default=0)
     last_error: Mapped[str] = mapped_column(Text, default="")
     sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), index=True)
+
+
+class CheckRun(Base):
+    """Запуск перевірки (закупівлі чи декларації). Зберігає лише підсумки, без самих записів."""
+
+    __tablename__ = "check_runs"
+    __table_args__ = (Index("ix_check_runs_unit_period_kind", "unit_id", "period", "kind"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    kind: Mapped[str] = mapped_column(String(16))  # procurement | declarations
+    unit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("units.id"))
+    period: Mapped[str] = mapped_column(String(7))  # YYYY-MM
+    source: Mapped[str] = mapped_column(String(16))
+    total: Mapped[int] = mapped_column(Integer)
+    flagged: Mapped[int] = mapped_column(Integer)
+    by_risk: Mapped[dict] = mapped_column(JSON, default=dict)
+    extra: Mapped[dict] = mapped_column(JSON, default=dict)
+    created_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CheckFinding(Base):
+    """Знахідка: публічний ідентифікатор запису (або хеш декларації), прапорці правил, рішення уповноваженого."""
+
+    __tablename__ = "check_findings"
+    __table_args__ = (Index("ix_check_findings_unit_period_kind", "unit_id", "period", "kind"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    run_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("check_runs.id", ondelete="CASCADE"), index=True)
+    kind: Mapped[str] = mapped_column(String(16))
+    unit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("units.id"))
+    period: Mapped[str] = mapped_column(String(7))
+    record_ref: Mapped[str] = mapped_column(String(200))
+    risk_level: Mapped[str] = mapped_column(String(8))
+    flags: Mapped[list] = mapped_column(JSON, default=list)
+    status: Mapped[str] = mapped_column(String(16), default="new")  # new | reviewed | dismissed
+    comment: Mapped[str] = mapped_column(Text, default="")
+    reviewed_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

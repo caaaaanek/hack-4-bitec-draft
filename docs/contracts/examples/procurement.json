@@ -1,0 +1,184 @@
+{
+  "unit_id": "00000000-0000-0000-0000-000000000000",
+  "period": "2026-11",
+  "source": "file",
+  "records": [
+    {
+      "record_id": "UA-2026-10-01-000101-a-L1",
+      "procurement_method": "open",
+      "procurement_method_type": "aboveThresholdUA",
+      "category": "goods",
+      "expected_value": 1500000.0,
+      "currency": "UAH",
+      "cpv": "30190000-7",
+      "dates": {
+        "created_at": "2026-10-01",
+        "tender_start": "2026-10-01",
+        "tender_period_days": 20
+      },
+      "buyer": {
+        "edrpou": "00000001",
+        "kind": "general"
+      },
+      "bids": [
+        {
+          "bid_id": "b1",
+          "amount": 1300000.0,
+          "award_status": "active",
+          "bidder": {
+            "edrpou": "30000001",
+            "name": "ТОВ «Приклад-1»",
+            "phone": "+380500000001",
+            "email": "example1@example.test",
+            "address": {
+              "street": "вул. Прикладна, 1",
+              "locality": "Київ"
+            }
+          }
+        },
+        {
+          "bid_id": "b2",
+          "amount": 1380000.0,
+          "award_status": "active",
+          "bidder": {
+            "edrpou": "30000002",
+            "name": "ТОВ «Приклад-2»",
+            "phone": "+380500000002",
+            "email": "example2@example.test",
+            "address": {
+              "street": "вул. Прикладна, 2",
+              "locality": "Київ"
+            }
+          }
+        },
+        {
+          "bid_id": "b3",
+          "amount": 1450000.0,
+          "award_status": "active",
+          "bidder": {
+            "edrpou": "30000003",
+            "name": "ТОВ «Приклад-3»",
+            "phone": "+380500000003",
+            "email": "example3@example.test",
+            "address": {
+              "street": "вул. Прикладна, 3",
+              "locality": "Київ"
+            }
+          }
+        }
+      ],
+      "winner": {
+        "edrpou": "30000001",
+        "amount": 1300000.0
+      },
+      "contract": {
+        "changes_count": 0
+      },
+      "complaints_count": 0,
+      "beneficiaries": []
+    },
+    {
+      "record_id": "UA-2026-10-01-000102-a-L1",
+      "procurement_method": "open",
+      "procurement_method_type": "aboveThresholdUA",
+      "category": "goods",
+      "expected_value": 3000000.0,
+      "currency": "UAH",
+      "cpv": "30190000-7",
+      "dates": {
+        "created_at": "2026-10-01",
+        "tender_start": "2026-10-01",
+        "tender_period_days": 20
+      },
+      "buyer": {
+        "edrpou": "00000001",
+        "kind": "general"
+      },
+      "bids": [
+        {
+          "bid_id": "b4",
+          "amount": 2990000.0,
+          "award_status": "active",
+          "bidder": {
+            "edrpou": "30000004",
+            "name": "ТОВ «Приклад-4»",
+            "phone": "+380500000004",
+            "email": "example4@example.test",
+            "address": {
+              "street": "вул. Прикладна, 4",
+              "locality": "Київ"
+            }
+          }
+        }
+      ],
+      "winner": {
+        "edrpou": "30000004",
+        "amount": 2990000.0
+      },
+      "contract": {
+        "changes_count": 0
+      },
+      "complaints_count": 0,
+      "beneficiaries": []
+    },
+    {
+      "record_id": "UA-2026-10-01-000103-a-L1",
+      "procurement_method": "open",
+      "procurement_method_type": "aboveThresholdUA",
+      "category": "goods",
+      "expected_value": 900000.0,
+      "currency": "UAH",
+      "cpv": "30190000-7",
+      "dates": {
+        "created_at": "2026-10-01",
+        "tender_start": "2026-10-01",
+        "tender_period_days": 2
+      },
+      "buyer": {
+        "edrpou": "00000001",
+        "kind": "general"
+      },
+      "bids": [
+        {
+          "bid_id": "b5",
+          "amount": 880000.0,
+          "award_status": "active",
+          "bidder": {
+            "edrpou": "30000005",
+            "name": "ТОВ «Приклад-5»",
+            "phone": "+380500009999",
+            "email": "example5@example.test",
+            "address": {
+              "street": "вул. Прикладна, 5",
+              "locality": "Київ"
+            }
+          }
+        },
+        {
+          "bid_id": "b6",
+          "amount": 890000.0,
+          "award_status": "active",
+          "bidder": {
+            "edrpou": "30000006",
+            "name": "ТОВ «Приклад-6»",
+            "phone": "+380500009999",
+            "email": "example6@example.test",
+            "address": {
+              "street": "вул. Прикладна, 6",
+              "locality": "Київ"
+            }
+          }
+        }
+      ],
+      "winner": {
+        "edrpou": "30000005",
+        "amount": 880000.0
+      },
+      "contract": {
+        "changes_count": 0
+      },
+      "complaints_count": 1,
+      "beneficiaries": []
+    }
+  ]
+}

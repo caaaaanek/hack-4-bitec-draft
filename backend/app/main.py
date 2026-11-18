@@ -12,6 +12,7 @@ from app.routers import (
     auth,
     campaigns,
     checklist,
+    checks,
     dashboard,
     indicators,
     integrations,
@@ -64,7 +65,7 @@ app.add_middleware(
     max_age=600,
 )
 
-for module in (config_router, auth, admin, questionnaires, campaigns, respond, checklist, indicators, results,
+for module in (config_router, auth, admin, questionnaires, campaigns, respond, checklist, checks, indicators, results,
                dashboard, recommendations, measures, reports, integrations, assistant, what_if):
     app.include_router(module.router, prefix=API_PREFIX, responses=ERROR_RESPONSES)
 

@@ -1,0 +1,235 @@
+[
+  {
+    "declaration_id": "mock_decl_001",
+    "declaration_type": 1,
+    "declaration_year": 2025,
+    "date": "2026-03-10",
+    "data": null
+  },
+  {
+    "declaration_id": "mock_decl_002",
+    "declaration_type": 1,
+    "declaration_year": 2025,
+    "date": "2026-03-31",
+    "data": null
+  },
+  {
+    "declaration_id": "mock_decl_003",
+    "declaration_type": 1,
+    "declaration_year": 2025,
+    "date": "2026-04-15",
+    "data": null
+  },
+  {
+    "declaration_id": "mock_decl_004",
+    "declaration_type": 1,
+    "declaration_year": 2025,
+    "date": "2026-06-01",
+    "data": null
+  },
+  {
+    "declaration_id": "mock_decl_005",
+    "declaration_type": 1,
+    "declaration_year": 2024,
+    "date": "2025-03-20",
+    "data": null
+  },
+  {
+    "declaration_id": "mock_decl_006",
+    "declaration_type": 2,
+    "declaration_year": 2025,
+    "date": "2025-09-01",
+    "data": null
+  },
+  {
+    "declaration_id": "mock_decl_007",
+    "declaration_type": 3,
+    "declaration_year": 2025,
+    "date": "2025-12-20",
+    "data": {
+      "step_1": {
+        "data": {
+          "lastname": "Тестович",
+          "firstname": "Тест",
+          "middlename": "Тестівна",
+          "dismissalDate": "2025-12-01"
+        }
+      }
+    }
+  },
+  {
+    "declaration_id": "mock_decl_008",
+    "declaration_type": 4,
+    "declaration_year": 2025,
+    "date": "2025-11-11",
+    "data": null
+  },
+  {
+    "declaration_id": "mock_decl_009",
+    "declaration_type": 1,
+    "declaration_year": 2025,
+    "date": "2026-02-02",
+    "data": null
+  },
+  {
+    "declaration_id": "mock_decl_010",
+    "declaration_type": 1,
+    "declaration_year": 2025,
+    "date": "2026-04-02",
+    "data": {
+      "step_1": {
+        "data": {
+          "lastname": "Тестович",
+          "firstname": "Тест",
+          "middlename": "Тестівна",
+          "workPlace": "ТОВ Тестова Компанія",
+          "workPlaceEdrpou": "99900001"
+        }
+      },
+      "step_8": {
+        "data": [
+          {
+            "name": "ТОВ Тестова Компанія",
+            "corporate_rights_company_code": "99900001",
+            "cost_percent": "100",
+            "rights": [
+              {
+                "rightBelongs": "1"
+              }
+            ]
+          }
+        ]
+      },
+      "step_2": {
+        "data": [
+          {
+            "id": "2",
+            "lastname": "Тестович",
+            "firstname": "Родич",
+            "middlename": "Тестович",
+            "subjectRelation": "дружина"
+          }
+        ]
+      },
+      "step_11": {
+        "data": [
+          {
+            "objectType": "Дохід від зайняття підприємницькою діяльністю",
+            "sizeIncome": "1500000",
+            "person_who_care": [
+              {
+                "person": "2"
+              }
+            ],
+            "sources": [
+              {
+                "source_ua_company_name": "ТОВ Тестова Компанія",
+                "source_ua_company_code": "99900001",
+                "source_citizen": "Юридична особа, зареєстрована в Україні"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "declaration_id": "mock_decl_011",
+    "declaration_type": 1,
+    "declaration_year": 2025,
+    "date": "2026-03-01",
+    "data": {
+      "step_1": {
+        "data": {
+          "lastname": "Тестович",
+          "firstname": "Тест",
+          "middlename": "Тестівна",
+          "workPlace": "Тестовий орган",
+          "workPlaceEdrpou": "99900002"
+        }
+      },
+      "step_8": {
+        "data": [
+          {
+            "name": "Благодійний фонд Тестова Допомога",
+            "corporate_rights_company_code": "99900003",
+            "cost_percent": "100",
+            "rights": [
+              {
+                "rightBelongs": "1"
+              }
+            ]
+          }
+        ]
+      },
+      "step_11": {
+        "data": [
+          {
+            "objectType": "Подарунок у грошовій формі",
+            "sizeIncome": "50000",
+            "person_who_care": [
+              {
+                "person": "1"
+              }
+            ],
+            "sources": [
+              {
+                "source_ua_lastname": "Невигадан",
+                "source_ua_firstname": "Чужий",
+                "source_citizen": "Громадянин України"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  },
+  {
+    "declaration_id": "mock_decl_012",
+    "declaration_type": 1,
+    "declaration_year": 2025,
+    "date": "2026-03-30",
+    "data": {
+      "step_1": {
+        "data": {
+          "lastname": "Тестович",
+          "firstname": "Тест",
+          "middlename": "Тестівна",
+          "workPlace": "Тестовий орган",
+          "workPlaceEdrpou": "99900002"
+        }
+      },
+      "step_2": {
+        "data": [
+          {
+            "id": "2",
+            "lastname": "Тестович",
+            "firstname": "Родич",
+            "middlename": "Тестович",
+            "subjectRelation": "дружина"
+          }
+        ]
+      },
+      "step_11": {
+        "data": [
+          {
+            "objectType": "Дохід від зайняття підприємницькою діяльністю",
+            "sizeIncome": "2500000",
+            "person_who_care": [
+              {
+                "person": "2"
+              }
+            ],
+            "sources": [
+              {
+                "source_ua_company_name": "ТОВ Чужа Компанія",
+                "source_ua_company_code": "99900004",
+                "source_citizen": "Юридична особа, зареєстрована в Україні"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+]

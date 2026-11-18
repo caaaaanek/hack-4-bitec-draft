@@ -1,0 +1,62 @@
+{
+  "description": "Декларація НАЗК: тип, рік, дата подання, необов'язково повний JSON (step_1..step_16).",
+  "properties": {
+    "declaration_id": {
+      "maxLength": 200,
+      "minLength": 1,
+      "title": "Declaration Id",
+      "type": "string"
+    },
+    "declaration_type": {
+      "description": "1 щорічна, 2 перед звільненням, 3 після, 4 кандидата",
+      "maximum": 4,
+      "minimum": 1,
+      "title": "Declaration Type",
+      "type": "integer"
+    },
+    "declaration_year": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Declaration Year"
+    },
+    "date": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Дата подання, YYYY-MM-DD",
+      "title": "Date"
+    },
+    "data": {
+      "anyOf": [
+        {
+          "additionalProperties": true,
+          "type": "object"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Data"
+    }
+  },
+  "required": [
+    "declaration_id",
+    "declaration_type"
+  ],
+  "title": "DeclarationItem",
+  "type": "object"
+}
