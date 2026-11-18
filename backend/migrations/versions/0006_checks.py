@@ -3,8 +3,8 @@
 - check_runs: запуски перевірки закупівель і декларацій (підсумки, без записів);
 - check_findings: знахідки (публічний ідентифікатор запису, прапорці, статус розгляду).
 
-Revision ID: 0005
-Revises: 0004
+Revision ID: 0006
+Revises: 0005
 Create Date: 2026-11-17 20:00:00
 """
 from typing import Sequence, Union
@@ -12,8 +12,8 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0005"
-down_revision: Union[str, None] = "0004"
+revision: str = "0006"
+down_revision: Union[str, None] = "0005"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
