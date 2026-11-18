@@ -45,6 +45,26 @@ managers = require_roles(Role.ADMIN, Role.COORDINATOR)  # користувачі
 audit_readers = require_roles(Role.ADMIN, Role.COORDINATOR, Role.AUDITOR)
 
 
+# Адміністратора й координатора створює, змінює і призначає лише адміністратор. Інакше координатор
+# видав би собі чи іншому роль admin або скинув би пароль адміна (ескалація прав).
+PRIVILEGED_ROLES = (Role.ADMIN, Role.COORDINATOR)
+
+
+def guard_privileged(actor: User, target_role: Role | None = None, new_role: Role | None = None,
+                     target: User | None = None, self_edit_fields: set[str] | None = None) -> None:
+    if actor.role == Role.ADMIN:
+        return
+    if new_role in PRIVILEGED_ROLES:
+        raise ApiError(403, "Роль адміністратора чи координатора призначає лише адміністратор", code="forbidden_role")
+    if target_role in PRIVILEGED_ROLES:
+        # Себе координатор може змінити лише в межах імені й пароля.
+        if target is not None and target.id == actor.id and self_edit_fields is not None \
+                and self_edit_fields <= {"display_name", "password"}:
+            return
+        raise ApiError(403, "Обліковий запис адміністратора чи координатора змінює лише адміністратор",
+                       code="forbidden_role")
+
+
 def check_respondent_fields(role: Role, category, unit_id, db: Session) -> None:
     if role == Role.RESPONDENT and category is None:
         raise HTTPException(status_code=422, detail="Для респондента потрібна категорія")
@@ -70,6 +90,7 @@ def list_users(
 def create_user(data: UserCreate, db: Session = Depends(get_db), admin: User = Depends(managers)):
     if db.scalar(select(User).where(User.login == data.login)):
         raise HTTPException(status_code=409, detail="Такий логін уже існує")
+    guard_privileged(admin, new_role=data.role)
     check_respondent_fields(data.role, data.category, data.unit_id, db)
 
     user = User(
@@ -101,6 +122,8 @@ def update_user(
         raise HTTPException(status_code=422, detail="Не можна зняти роль адміна чи заблокувати самого себе")
 
     changes = data.model_dump(exclude_unset=True)
+    guard_privileged(admin, target_role=user.role, new_role=changes.get("role"), target=user,
+                     self_edit_fields=set(changes))
     structural = [f for f in ("unit_id", "category", "role") if f in changes and changes[f] != getattr(user, f)]
     if structural:
         busy = open_frozen_campaigns_of(db, user.id)
