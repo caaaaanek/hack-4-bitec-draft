@@ -51,9 +51,20 @@ Smoke лише на окремому проєкті (`-p smoke`): він лиш�
 
 `cd backend`, далі кроки з [`backend/README.md`](../backend/README.md): venv, alembic, seed, uvicorn на порту 8000.
 
+## Усе одним процесом без Docker
+
+API може сам віддавати зібраний фронтенд (`FRONTEND_DIST`): один процес, один порт, без nginx.
+
+```bash
+cp backend/.env.example backend/.env   # DATABASE_URL (PostgreSQL), JWT_SECRET ≥ 32 символи, DEMO_PASSWORD
+./run-local.sh                          # збирає frontend-proto, міграції, seed з демо-хвилями → http://localhost:8000
+```
+
+Сторінки, `/s/<токен>` і `/api/v1` — на тому ж порту, з тими самими заголовками безпеки, що й у nginx. `SKIP_BUILD=1` і `SKIP_SEED=1` пропускають відповідні кроки.
+
 ## Фронтенд
 
-Код — у `frontend-proto/src/` (React + Vite). `npm install`, далі `npm run dev` (http://localhost:5173, `/api/v1` проксіюється на `BACKEND_URL`, за замовчуванням http://127.0.0.1:8011) або `npm run build` → `dist/`.
+Код — у `frontend-proto/src/` (React + Vite). `npm install`, далі `npm run dev` (http://localhost:5173, `/api` і `/health` проксіюються на `BACKEND_URL`, за замовчуванням http://127.0.0.1:8000) або `npm run build` → `dist/`.
 Сторінка сама визначає режим: якщо `GET /api/v1/config` відповідає — вхід і дані з бекенду, інакше демо-дані.
 
 - Через Docker: `docker compose up --build frontend` перезбирає лише фронтенд.

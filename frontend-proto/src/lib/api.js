@@ -218,7 +218,8 @@ export async function apiDecide(code, decision, comment, measure) {
 }
 // Зміна статусу заходу на сервері; для «Виконано» потрібен доказ
 export async function apiSendMSt(id, st, evidence) {
-  await api(`/measures/${id}`, { method: "PATCH", body: { status: MEAS_BACK[st] || "in_progress", ...(st === "done" ? { evidence, done_on: new Date().toISOString().slice(0, 10) } : {}) } });
+  // done_on не передаємо: сервер ставить сьогоднішню дату за своїм часовим поясом (TIMEZONE), а не за UTC браузера
+  await api(`/measures/${id}`, { method: "PATCH", body: { status: MEAS_BACK[st] || "in_progress", ...(st === "done" ? { evidence } : {}) } });
   await apiReloadResults();
 }
 

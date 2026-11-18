@@ -50,7 +50,7 @@ frontend-proto/
 │   ├── ai/assistant.jsx асистент
 │   └── styles/         CSS: base.css → extra*.css → base-end.css (порядок задано в main.jsx)
 ├── api/assistant.js    serverless-функція асистента (OpenAI-сумісний /chat/completions)
-├── vite.config.js      dev-проксі /api/v1 → BACKEND_URL (за замовчуванням http://127.0.0.1:8011)
+├── vite.config.js      dev-проксі /api і /health → BACKEND_URL (за замовчуванням http://127.0.0.1:8000)
 ├── vercel.json, Dockerfile, deploy/ (nginx, шрифт), server.mjs, start.sh
 ```
 
