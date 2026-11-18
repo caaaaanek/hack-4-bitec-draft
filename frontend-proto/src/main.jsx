@@ -1,5 +1,6 @@
 /* Точка входу: стилі, стан, роутер, запуск. */
 import { createRoot } from "react-dom/client";
+import "./styles/fonts.css";
 import "./styles/base.css";
 import "./styles/extra.css";
 import "./styles/extra-builder.css";

@@ -13,7 +13,7 @@
 
 ```bash
 npm install
-npm run dev                     # http://localhost:5173; /api/v1 → BACKEND_URL (за замовчуванням http://127.0.0.1:8011), без бекенду — демо-дані
+npm run dev                     # http://localhost:5173; /api і /health → BACKEND_URL (за замовчуванням http://127.0.0.1:8000), без бекенду — демо-дані
 npm run build                   # збірка в dist/
 ./start.sh                      # збірка + асистент на локальній моделі Ollama (gemma3:4b) → http://127.0.0.1:3000
 ```

@@ -74,3 +74,15 @@ app.include_router(llm_router.router, responses=ERROR_RESPONSES)
 # /health і /api/v1/health: перевірка процесу й БД (див. routers/config.py).
 app.include_router(config_router.health_router)
 app.include_router(config_router.health_router, prefix=API_PREFIX, include_in_schema=False)
+
+# FRONTEND_DIST=../frontend-proto/dist: API сам віддає сторінки (один процес, один порт). Реєструється останнім,
+# щоб /api, /docs і /health мали пріоритет.
+if settings.frontend_dist:
+    from app.frontend import mount_frontend
+
+    if not mount_frontend(app, settings.frontend_dist):
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "FRONTEND_DIST=%s: немає index.html, фронтенд не підключено (зберіть: cd frontend-proto && npm run build)",
+            settings.frontend_dist)

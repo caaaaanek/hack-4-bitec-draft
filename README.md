@@ -78,7 +78,8 @@ flowchart LR
 
 ```bash
 cp .env.example .env && docker compose up --build   # PostgreSQL + API + UI → http://localhost:8080 (API: :8000/docs)
-# без Docker: cd frontend-proto && npm install && npm run dev — UI на демо-даних
+# без Docker, усе одним процесом: cp backend/.env.example backend/.env && ./run-local.sh → http://localhost:8000
+# лише UI на демо-даних: cd frontend-proto && npm install && npm run dev
 ```
 
 Деталі, демо-хвилі, логіни й перевірки — [`docs/run.md`](docs/run.md).
