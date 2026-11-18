@@ -88,6 +88,10 @@ class Settings(BaseSettings):
     trusted_proxies: str = ""
     # Необов'язковий спільний секрет, який проксі додає в заголовок X-Proxy-Secret.
     proxy_auth_secret: str = ""
+    # Через кому: IP або CIDR зворотного проксі перед API (nginx фронтенду), від якого беремо реальну
+    # адресу клієнта з X-Forwarded-For. Лише для лімітів спроб і журналу; вхід через SSO цим не вмикається
+    # (для нього окремо TRUSTED_PROXIES). Порожньо: адреса клієнта — безпосередній співрозмовник TCP.
+    forwarded_proxies: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:
@@ -107,6 +111,10 @@ class Settings(BaseSettings):
     @property
     def trusted_proxy_list(self) -> list[str]:
         return [p.strip() for p in self.trusted_proxies.split(",") if p.strip()]
+
+    @property
+    def forwarded_proxy_list(self) -> list[str]:
+        return [p.strip() for p in self.forwarded_proxies.split(",") if p.strip()]
 
     @property
     def min_group_size(self) -> int:
