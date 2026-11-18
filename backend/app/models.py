@@ -284,6 +284,26 @@ class AccessToken(Base):
     token_hash: Mapped[str] = mapped_column(String(64), unique=True)
     used: Mapped[bool] = mapped_column(Boolean, default=False)
     revoked: Mapped[bool] = mapped_column(Boolean, default=False)
+    # Токен створено скануванням QR: у знаменник участі він не йде, там очікувана кількість із QrLink.
+    qr_link_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("qr_links.id", ondelete="CASCADE"), index=True)
+
+
+class QrLink(Base):
+    """Одне посилання на анкету для зали (QR). Кожне відкриття створює свіжий одноразовий токен.
+
+    Кількість людей у групі невідома, тому адміністратор вказує очікувану (expected): від неї
+    рахується участь, а перевищення видно як ознаку накрутки. Зв'язку з відповідями немає.
+    """
+
+    __tablename__ = "qr_links"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    campaign_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), index=True)
+    questionnaire_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("questionnaires.id"))
+    unit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("units.id"))
+    code: Mapped[str] = mapped_column(String(64), unique=True)
+    expected: Mapped[int] = mapped_column(Integer)
+    revoked: Mapped[bool] = mapped_column(Boolean, default=False)
 
 
 class Participation(Base):

@@ -3642,6 +3642,294 @@
         }
       }
     },
+    "/api/v1/campaigns/{campaign_id}/qr-links": {
+      "post": {
+        "tags": [
+          "campaigns"
+        ],
+        "summary": "Create Qr Link",
+        "description": "Одне посилання (QR) на анкету для групи: кожне відкриття дає свіжу одноразову форму.\n\nЗавершена форма — одна відповідь; покинута нічого не рахує. Участь рахується від expected,\nа відповіді понад expected видно в /progress як ознаку накрутки. Відкрити форм можна не більше\nніж у 3 рази більше за expected.",
+        "operationId": "create_qr_link_api_v1_campaigns__campaign_id__qr_links_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/QrLinkIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QrLinkOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "campaigns"
+        ],
+        "summary": "List Qr Links",
+        "operationId": "list_qr_links_api_v1_campaigns__campaign_id__qr_links_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/QrLinkOut"
+                  },
+                  "title": "Response List Qr Links Api V1 Campaigns  Campaign Id  Qr Links Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/campaigns/{campaign_id}/qr-links/{qr_id}/revoke": {
+      "post": {
+        "tags": [
+          "campaigns"
+        ],
+        "summary": "Revoke Qr Link",
+        "description": "Зупинити нові скани. Вже відкриті форми можна дописати; очікувана кількість лишається в участі.",
+        "operationId": "revoke_qr_link_api_v1_campaigns__campaign_id__qr_links__qr_id__revoke_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          },
+          {
+            "name": "qr_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Qr Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QrLinkOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
     "/api/v1/me/assignments": {
       "get": {
         "tags": [
@@ -3872,6 +4160,89 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/SubmissionOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/respond/qr/{code}": {
+      "post": {
+        "tags": [
+          "respond"
+        ],
+        "summary": "Qr Open",
+        "description": "Скан QR: свіжий одноразовий токен для нової форми. Подання лише через POST: GET могли б\n«натиснути» превʼю месенджера чи антивірус, і форми розтратилися б.\n\nХто відкрив форму, не зберігається: у БД лише sha256 токена без часу й IP. Закрив форму\nбез подання — токен просто лишається невикористаним, наступний скан дає нову форму.",
+        "operationId": "qr_open_api_v1_respond_qr__code__post",
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Code"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QrOpenOut"
                 }
               }
             }
@@ -15996,6 +16367,11 @@
             "type": "boolean",
             "title": "Too Few People",
             "default": false
+          },
+          "over_expected": {
+            "type": "boolean",
+            "title": "Over Expected",
+            "default": false
           }
         },
         "type": "object",
@@ -16078,6 +16454,124 @@
           "written"
         ],
         "title": "PublishedIndicator"
+      },
+      "QrLinkIn": {
+        "properties": {
+          "questionnaire_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Questionnaire Id"
+          },
+          "unit_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Id",
+            "description": "Підрозділ людей; для експертів не потрібен"
+          },
+          "expected": {
+            "type": "integer",
+            "maximum": 100000.0,
+            "minimum": 1.0,
+            "title": "Expected",
+            "description": "Скільки людей у групі: від цього рахується участь"
+          }
+        },
+        "type": "object",
+        "required": [
+          "questionnaire_id",
+          "expected"
+        ],
+        "title": "QrLinkIn"
+      },
+      "QrLinkOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "questionnaire_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Questionnaire Id"
+          },
+          "questionnaire_title": {
+            "type": "string",
+            "title": "Questionnaire Title"
+          },
+          "unit_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Id"
+          },
+          "expected": {
+            "type": "integer",
+            "title": "Expected"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "link": {
+            "type": "string",
+            "title": "Link"
+          },
+          "revoked": {
+            "type": "boolean",
+            "title": "Revoked"
+          },
+          "opened": {
+            "type": "integer",
+            "title": "Opened",
+            "description": "Скільки форм відкрито скануванням"
+          },
+          "completed": {
+            "type": "integer",
+            "title": "Completed",
+            "description": "Скільки з них завершено; різниця — покинуті форми"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "questionnaire_id",
+          "questionnaire_title",
+          "unit_id",
+          "expected",
+          "code",
+          "link",
+          "revoked",
+          "opened",
+          "completed"
+        ],
+        "title": "QrLinkOut"
+      },
+      "QrOpenOut": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "title": "Token"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token"
+        ],
+        "title": "QrOpenOut"
       },
       "QuestionCategory": {
         "properties": {

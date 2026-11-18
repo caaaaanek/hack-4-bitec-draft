@@ -65,7 +65,7 @@ frontend-proto/
 **`lib/`**
 - `model.js` — модель і дані: `COMPS`, `COMP`, `LEVELS`, `LDESC`, `BOUNDS`, `CAP = 25`, `TODAY`/`CYCLE` (змінюються через `setClock`), `PERCEPTION`, `FACTS`, `credit`, `components`, `trust`, `FLAGS`, `ALPHA_HISTORY`, `OTHERS`, `inst(id)`, `INSTITUTIONS`, `UNITS`, `resolveUnit`, `buildRecs`, `measures`, `overdueDays`.
 - `state.js` — анкета `SURVEY`, ролі `ROLE`, меню `NAV` (`[route, label, icon, roles]`), `HOME`, `AI_ROLES`, стан `S` (localStorage `ii-proto-v2`), `persist`, `resetDemo`, журнал з хеш-ланцюгом (`fnv`, `addLog`, `logItems`).
-- `api.js` — режим бекенду: `boot`, вхід/вихід, завантаження результатів, рішення, анкети, хвилі й посилання, чек-лист, журнал.
+- `api.js` — режим бекенду: `boot` (зокрема скан QR `/q/<код>` → `/s/<токен>`), вхід/вихід, завантаження результатів, рішення, анкети, хвилі й QR для зали (`apiQrCreate`, `apiQrRevoke`, живі лічильники `apiQrTick`), чек-лист, журнал.
 - `nav.js` — `route()`, `allowed`, `can`, `cur()`, `TITLES`, `isLogin`.
 - `store.js` — `render`, `useStore`, `ui`, панелі, поповер, сповіщення.
 - `format.js` (`fb`, `f1`, `pts`, `ua`, `plural`), `texts.js` (тексти «Чому такий індекс/достовірність»), `util.js` (завантаження файлу, копіювання), `icons.jsx` (`<Ic n="…"/>`).
@@ -87,7 +87,7 @@ frontend-proto/
   - «Редагувати»: документ `contentEditable`, правки в localStorage окремо для закладу, циклу й шаблону (`ii-rt-edit:…`). «Скинути правки» — натиснути двічі.
   - ШІ за виділенням (`ReportAi.jsx`): «Запитати ШІ» → `POST /api/assistant/edit`. Заміна лише після «Замінити» (через `insertText`, тож Ctrl/⌘+Z працює); попередження про числа, яких немає у звіті. Без бекенду чи моделі — повідомлення, правити можна вручну.
 - `demo.jsx` — демо-екрани без бекенду: «Керування циклом», «Анкети», «Чек-лист», «Журнал», «Опитування», «Мої результати».
-- `api-views.jsx` — ті самі екрани з даними сервера; `apiView(route)` повертає `null`, якщо треба показати звичайний екран.
+- `api-views.jsx` — ті самі екрани з даними сервера; `apiView(route)` повертає `null`, якщо треба показати звичайний екран. У «Керуванні циклом» картка «QR для зали» і повноекранний QR (`QrScreen`); сам код малює `components/QrCode.jsx` (qrcode-generator, локально).
 - `Builder.jsx` — конструктор анкети (режим API).
 
 **`ai/assistant.jsx`** — `aiTemplate(q)` (шаблони правил, регулярні вирази від питання), `aiAsk`, `aiOpen`, `aiClose`, панель `AiPanel`.

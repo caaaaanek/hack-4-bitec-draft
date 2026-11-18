@@ -7,6 +7,8 @@
 
 import json
 import uuid
+from functools import lru_cache
+from pathlib import Path
 
 from fastapi import HTTPException
 from sqlalchemy import select
@@ -29,6 +31,12 @@ TOOLS = [
         "name": "get_methodology",
         "description": "Методика Integrity Index: ваги джерел, пороги фактів, правило реальності, рівні, достовірність.",
         "parameters": {"type": "object", "properties": {}}}},
+    {"type": "function", "function": {
+        "name": "explain_term",
+        "description": "Словник термінів теми (Рекомендації НУОУ, НАЗК, методика системи): визначення і джерело. "
+                       "Виклич, коли питають «що таке…» або коли пояснюєш термін. Без term — перелік усіх термінів.",
+        "parameters": {"type": "object", "properties": {"term": {
+            "type": "string", "description": "Термін або його частина, наприклад «правило реальності» чи «Додаток Б»"}}}}},
     {"type": "function", "function": {
         "name": "list_units",
         "description": "Підрозділи, доступні користувачу: id і назва.",
@@ -53,6 +61,8 @@ TOOLS = [
 ]
 
 TOOL_NAMES = {t["function"]["name"] for t in TOOLS}
+# Довідкові інструменти без даних підрозділів: access_scope до них не додається.
+UNSCOPED_TOOLS = {"get_methodology", "explain_term"}
 
 
 class ToolError(Exception):
@@ -166,6 +176,49 @@ def _units(db: Session, user: User, _: dict) -> dict:
     return {"units": [{"id": str(u.id), "name": u.name} for u in db.scalars(query)]}
 
 
+GLOSSARY_PATH = Path(__file__).resolve().parent.parent / "data" / "glossary.json"
+MAX_TERMS = 3
+
+
+@lru_cache
+def glossary() -> list[dict]:
+    """Словник термінів (app/data/glossary.json): term, aliases, definition, source."""
+    return json.loads(GLOSSARY_PATH.read_text(encoding="utf-8"))["terms"]
+
+
+def _norm(text: str) -> str:
+    text = text.casefold().replace("’", "'").replace("ʼ", "'").replace("`", "'")
+    return " ".join(text.replace("«", " ").replace("»", " ").replace('"', " ").replace("?", " ").split())
+
+
+def find_terms(query: str) -> list[dict]:
+    """Точний збіг з назвою чи синонімом, інакше — терміни, що містяться в запиті або містять його."""
+    q = _norm(query)
+    if not q:
+        return []
+    names = [(t, [_norm(t["term"])] + [_norm(a) for a in t.get("aliases", [])]) for t in glossary()]
+    exact = [t for t, ns in names if q in ns]
+    if exact:
+        return exact[:MAX_TERMS]
+    # Однолітерні синоніми (A, B, C) лише для точного збігу, інакше «а» знайдеться в кожному запиті.
+    partial = [t for t, ns in names if any((len(n) >= 3 and n in q) or (len(q) >= 3 and q in n) for n in ns)]
+    # Довший збіг точніший: «конфлікт інтересів» раніше за «інтерес».
+    partial.sort(key=lambda t: -max((len(n) for n in [_norm(t["term"])] + [_norm(a) for a in t.get("aliases", [])]
+                                     if n in q), default=0))
+    return partial[:MAX_TERMS]
+
+
+def _explain_term(_db, _user, args: dict) -> dict:
+    raw = str(args.get("term") or "").strip()
+    if not raw:
+        return {"terms": [t["term"] for t in glossary()]}
+    found = find_terms(raw)
+    if not found:
+        return {"error": f"Терміна «{raw}» у словнику немає. Не вигадуй визначення; скажи, що його немає у словнику.",
+                "terms": [t["term"] for t in glossary()]}
+    return {"items": [{k: t[k] for k in ("term", "definition", "source")} for t in found]}
+
+
 def _methodology(*_) -> dict:
     data = methodology.as_dict()
     return {k: data[k] for k in ("version", "points_per_level", "source_weights", "reality_margin", "weak_link_max_gap",
@@ -173,7 +226,7 @@ def _methodology(*_) -> dict:
         "facts": {code: {"title": f["title"], "thresholds": f["thresholds"]} for code, f in data["facts"].items()}}
 
 
-_HANDLERS = {"get_methodology": _methodology, "list_units": _units, "get_results": _results,
+_HANDLERS = {"get_methodology": _methodology, "explain_term": _explain_term, "list_units": _units, "get_results": _results,
              "get_recommendations": _recommendations, "get_measures": _measures, "get_history": _history}
 
 
@@ -189,7 +242,8 @@ def run_tool(db: Session, user: User, name: str, arguments) -> str:
     try:
         args = arguments if isinstance(arguments, dict) else {}
         out = _HANDLERS[name](db, user, args)
-        if user.role == Role.LEADER and user.unit_id is not None and isinstance(out, dict):
+        if (user.role == Role.LEADER and user.unit_id is not None and isinstance(out, dict)
+                and name not in UNSCOPED_TOOLS):
             # Керівник підрозділу бачить лише свою зону: кажемо це моделі прямо, щоб вона не назвала
             # дані підрозділу «даними всієї організації».
             own = db.get(Unit, user.unit_id)

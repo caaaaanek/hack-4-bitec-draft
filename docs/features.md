@@ -13,7 +13,7 @@
 | Флешкартки доброчесності | усі учасники | `GET /learning/decks`, `GET /learning/decks/{code}`, `POST /learning/decks/{code}/complete`, `GET /learning/stats`, `POST /learning/publish` | `services/learning.py`, `routers/learning.py`, `seed/data/flashcards.json` |
 | Факти з модулів системи | усі | (через наявні `/units/{id}/indicators`, результати хвилі) | `seed/system_facts.py` |
 
-Міграція `0008_autopilot_learning`. Тести: `backend/tests/test_killer_features.py`.
+Міграція `0009_autopilot_learning` (після `0008_qr_links`). Тести: `backend/tests/test_killer_features.py`.
 
 ---
 

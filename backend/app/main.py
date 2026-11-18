@@ -36,11 +36,12 @@ from app.routers import llm as llm_router
 
 API_PREFIX = "/api/v1"
 
-_TOKEN_PATH = re.compile(r"(/s/)[^/?#\s]+")
+_TOKEN_PATH = re.compile(r"(/s/|/q/|/respond/qr/)[^/?#\s]+")
 
 
 class RedactTokenPaths(logging.Filter):
-    """Одноразові посилання /s/<токен> не потрапляють у журнал uvicorn (як і в журнал nginx: access_log off).
+    """Одноразові посилання /s/<токен> і коди QR (/q/<код>, /respond/qr/<код>) не потрапляють у журнал uvicorn
+    (як і в журнал nginx: access_log off): скан не лишає часу й IP поруч із кодом групи.
 
     Потрібно, коли сторінки віддає сам API (FRONTEND_DIST, run-local.sh). Запит до API токен несе
     лише в заголовку X-Response-Token, який uvicorn не журналює.
@@ -51,7 +52,7 @@ class RedactTokenPaths(logging.Filter):
             args = list(record.args)
             args[2] = _TOKEN_PATH.sub(r"\1***", args[2])
             record.args = tuple(args)
-        elif isinstance(record.msg, str) and "/s/" in record.msg:
+        elif isinstance(record.msg, str) and _TOKEN_PATH.search(record.msg):
             record.msg = _TOKEN_PATH.sub(r"\1***", record.msg)
         return True
 

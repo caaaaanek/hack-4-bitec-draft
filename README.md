@@ -60,8 +60,8 @@ flowchart LR
 
 | Модуль | Backend | Frontend |
 |---|---|---|
-| Assessment Manager — хвилі, учасники, підрозділи | `routers/campaigns.py` (зміна чернетки, явні учасники, імпорт CSV псевдонімів, одноразові посилання), `routers/admin.py` | `#manage` хвилі, посилання |
-| Digital Questionnaire — анкети 1–3, конструктор, версії | `routers/questionnaires.py`, `routers/respond.py` (вхід або анонімно за посиланням) | `/s/<токен>`, `#survey`, `#surveys` |
+| Assessment Manager — хвилі, учасники, підрозділи | `routers/campaigns.py` (зміна чернетки, явні учасники, імпорт CSV псевдонімів, одноразові посилання, QR для зали), `routers/admin.py` | `#manage` хвилі, QR |
+| Digital Questionnaire — анкети 1–3, конструктор, версії | `routers/questionnaires.py`, `routers/respond.py` (вхід або анонімно за QR чи посиланням) | `/q/<код>`, `/s/<токен>`, `#survey`, `#surveys` |
 | Evidence Repository — чек-лист, файли-докази з sha256 | `routers/checklist.py`, `services/evidence.py` | `#checklist` з файлами |
 | Integrity Index Engine — детермінований розрахунок | `services/scoring.py`, `services/methodology.py`, `routers/results.py` | `/explain` розклад індексу, `lib/scoring/` |
 | Executive Dashboard — один екран | `GET /dashboard` | `/` |

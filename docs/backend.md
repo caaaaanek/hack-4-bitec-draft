@@ -176,7 +176,7 @@ stateDiagram-v2
 | `POST /questionnaires/{id}/publish` · `/new-version` · `/archive` | commissioner | Життєвий цикл |
 | `DELETE /questionnaires/{id}` | commissioner | Видалити чернетку |
 | `GET/POST /campaigns`, `POST /campaigns/{id}/open` · `/close` | admin (читати список: також commissioner, leader, auditor) | Хвилі. `min_group_size` ≥ 5. Відкриття фіксує склад (хвиля `login`); при закритті зашифрований буфер переноситься в `responses` |
-| `GET /campaigns/{id}/progress` | admin | % проходження без імен |
+| `GET /campaigns/{id}/progress` | admin | % проходження без імен; `over_expected` — відповідей більше, ніж людей у групі (ознака накрутки QR) |
 | `GET /me/assignments` | respondent | Мої анкети в відкритих хвилях |
 | `GET /campaigns/{cid}/questionnaires/{qid}/form` | respondent | Форма без балів |
 | `POST /campaigns/{cid}/questionnaires/{qid}/responses` | respondent | Подати відповіді |
@@ -227,6 +227,10 @@ stateDiagram-v2
 | `POST /campaigns/{id}/participants/import?format=json\|csv` | admin | CSV `login,category,unit[,display_name]`. `login`: створює респондентів (пароль один раз) і додає до складу. `token`: видає посилання, повертає «псевдонім → посилання». Усе або нічого, 422 з номерами рядків; стовпці з ПД → 422 `personal_data` |
 | `POST /campaigns/{id}/tokens?format=json\|csv` | admin | Видати одноразові посилання: анкета + підрозділ + кількість (≤ 1000). Токени лише у відповіді, у БД sha256 |
 | `POST /campaigns/{id}/tokens/revoke` | admin | Відкликати невикористані посилання: усі, анкети або анкети + підрозділу |
+| `POST /campaigns/{id}/qr-links` | admin | QR для зали: анкета + підрозділ + очікувана кількість `expected`. Одне посилання `/q/{code}`, кожен скан дає нову одноразову форму |
+| `GET /campaigns/{id}/qr-links` | admin | QR-посилання хвилі: `opened` (відкрито форм) і `completed` (завершено); різниця — покинуті форми |
+| `POST /campaigns/{id}/qr-links/{qr_id}/revoke` | admin | Зупинити нові скани; відкриті форми можна дописати, `expected` лишається в участі |
+| `POST /respond/qr/{code}` | без входу | Скан QR → `{token}` для `/s/{token}`. Недійсний код → 404 `qr_invalid`; відкрито форм більше за 3 × `expected` → 429 `qr_limit` |
 | `GET /respond/form`, `POST /respond/responses` | без входу, заголовок `X-Response-Token` | Анкета й подання за посиланням. Кожен розділ форми має `component` (`culture` / `system` / `accountability` / `overall`). Повтор → 409 `token_used`, недійсне → 404 `token_invalid`, перебір → 429 |
 | `PATCH /admin/units/{id}`, `DELETE /admin/units/{id}` | admin | Перейменувати, перенести (без циклів; не під час відкритої хвилі), видалити невикористаний |
 | `GET` / `POST /campaigns/{id}/checklist/{qid}/files` | перегляд: РГ, admin, commissioner, auditor; додавання: РГ | Файли-докази. Ліміти розміру, кількості, типів (за сигнатурою). Додавання знімає підтвердження |
@@ -392,14 +396,24 @@ Word-файл повторює шаблон: гриф «Затверджую», 
 `deploy/llm/` (Ollama + nginx, інструкція в README).
 
 **Tool calling** (`/api/assistant` без `context`). Модель не отримує готових чисел і методики в промпті, а сама
-викликає інструменти бекенду (`app/services/assistant_tools.py`): `get_methodology`, `list_units`, `get_results`,
-`get_recommendations`, `get_measures`, `get_history`. Кожен лише читає, виконується від імені користувача з тими самими
+викликає інструменти бекенду (`app/services/assistant_tools.py`): `get_methodology`, `explain_term`, `list_units`,
+`get_results`, `get_recommendations`, `get_measures`, `get_history`. Кожен лише читає, виконується від імені користувача з тими самими
 перевірками доступу (керівник підрозділу не отримає чужий підрозділ) і агрегатами з порогом k, віддає стислий JSON.
 Методика береться з `methodology.py`, тож пояснення асистента не розходяться з розрахунком. Не більше 4 кроків
 інструментів на запитання. Якщо модель не підтримує `tools` (Ollama відповідає 400), бекенд сам викликає
 `get_results`, `get_recommendations`, `get_methodology` і дає дані в запиті. Відповідь має поле `tools` — які дані
 використано; у журнал пишеться лише факт звернення й список інструментів, без тексту запитання.
 Запит із `context` (демо-режим frontend-proto із синтетичними закладами) працює як раніше, без інструментів.
+
+**Словник термінів** (`app/data/glossary.json`, 48 термінів): поняття з Рекомендацій НУОУ (ВВНЗ (ВНП ЗВО), «тон згори»,
+антикорупційний уповноважений, робоча група, сфери й етапи трансформації, Додатки Б–Д, п'ять рівнів зрілості), НАЗК і
+зовнішніх рамок (CMMI, ISO 31000, ОЕСР), предметної області (корупційний ризик, конфлікт інтересів, викривач, декларація,
+Prozorro) і нашої методики (S, F, правило реальності, достовірність, поріг k, знімок). У кожного терміна — синоніми,
+коротке визначення своїми словами й джерело. `explain_term` шукає за назвою чи синонімом і віддає до 3 збігів; якщо
+терміна немає, модель має так і сказати, а не вигадувати. Чисел (ваг, порогів, меж рівнів) у визначеннях немає — їх дає
+`get_methodology`, тож словник не розходиться з розрахунком. Промпт просить писати термінами Рекомендацій
+(«індекс доброчесності», а не «Integrity Index»), пояснювати літеру достовірності словами й наводити формулу з `rule`
+лише на прохання. Тести: `tests/test_glossary.py` (повнота, унікальність назв, збіг рівнів і компонентів з методикою).
 
 ## Сценарій «що, якщо»
 
