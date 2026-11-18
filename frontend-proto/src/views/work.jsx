@@ -59,7 +59,7 @@ function acceptRec(id) {
       <div><div className="lbl">{COMP[r.c].n}</div><div style={{ fontSize: 16, fontWeight: 600, marginTop: 4 }}>{r.t}</div></div>
       <div className="field"><label htmlFor="f-who">Відповідальна посада</label><select id="f-who" className="inp" value={who} onChange={e => setWho(e.target.value)}>{POSITIONS.map(w => <option key={w}>{w}</option>)}</select></div>
       <div className="field"><label htmlFor="f-due">Строк виконання</label><DatePicker id="f-due" value={due} min={TODAY} onChange={setDue} /><span className="err lbl" id="f-err">{err}</span></div>
-      <div className="note-box"><span className="lbl">Після прийняття в трекері зʼявиться захід із цією посадою й строком. Посаду і строк можна буде уточнити пізніше.</span></div>
+      <div className="note-box"><span className="lbl">Після прийняття в трекері зʼявиться захід із цією посадою й строком. Посада і строк зберігаються в заході разом із рішенням.</span></div>
       <div style={{ display: "flex", gap: 8 }}><button className="btn btn-ghost" style={{ flex: 1, justifyContent: "center" }} onClick={closeDrawer}>Скасувати</button><button className="btn btn-primary" id="f-ok" style={{ flex: 2, justifyContent: "center" }} disabled={busy} onClick={ok}><Ic n="ok" />Прийняти й створити захід</button></div>
     </>;
   });

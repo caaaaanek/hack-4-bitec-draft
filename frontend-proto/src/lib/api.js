@@ -6,7 +6,7 @@
  */
 import { S, NAV, HOME, freshSurvey } from "./state.js";
 import { COMPS, COMP, ALPHA, r1, finish, setClock } from "./model.js";
-import { fb, esc } from "./format.js";
+import { fb, esc, quarters } from "./format.js";
 import { render, toast, closeDrawer, ui } from "./store.js";
 
 export const API = {
@@ -40,7 +40,8 @@ export async function api(path, { method = "GET", body, headers = {}, auth = tru
   return (r.headers.get("content-type") || "").includes("json") ? r.json() : r.text();
 }
 // Для збоїв сервера (5xx) додаємо код запиту: за ним адміністратор знайде запис у журналі сервера
-export const apiErrText = e => e instanceof ApiErr ? `${e.message}${e.hint ? ". " + e.hint : ""}${e.status >= 500 && e.requestId ? ` Код запиту: ${e.requestId}` : ""}` : "Не вдалося виконати дію";
+// Відмова переходу статусу містить службові назви статусів: показуємо зрозумілий текст
+export const apiErrText = e => e instanceof ApiErr && e.code === "bad_transition" ? "Такий перехід статусу недоступний. Оновіть сторінку: статус могли змінити." : e instanceof ApiErr ? `${e.message}${e.hint ? ". " + e.hint : ""}${e.status >= 500 && e.requestId ? ` Код запиту: ${e.requestId}` : ""}` : "Не вдалося виконати дію";
 export const apiFail = e => toast(apiErrText(e));
 
 /* --- Ролі: обліковий запис → роль інтерфейсу --- */
@@ -164,7 +165,7 @@ function apiModel(r, h) {
     const fs = (c.facts || []).filter(f => f.score != null);
     return fs.map(f => ({ id: `${c.code}-f-${f.indicator}`, c: c.code, t: f.title, w: r1(100 / fs.length), v: f.score,
       kind: f.numerator != null && f.denominator ? "pct" : "lvl", val: f.numerator != null && f.denominator ? [f.numerator, f.denominator] : (f.level || 1),
-      from: (f.sources || []).map(s => SRC[s] || s).join(", ") || "Дані обліку", rule: f.rule }));
+      from: (f.sources || []).map(s => SRC[s] || s).join(", ") || "Дані обліку", rule: f.rule, per: quarters(f.periods) }));
   });
   const pts = (h && h.points) || [], labels = cycleLabels(pts);
   let series = pts.map((p, i) => ({ cycle: labels[i], index: p.index ?? 0, cr: Object.fromEntries(COMPS.map(c => [c, (p.components || {})[c] ?? 0])) }));
