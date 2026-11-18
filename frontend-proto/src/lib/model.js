@@ -1,96 +1,42 @@
-/* ---------- Icons ---------- */
-const I = (d, w = 1.8) => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
-const IC = {
-  grid: I('<rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/>'),
-  gauge: I('<path d="M12 14l4-4"/><path d="M3.3 17a9 9 0 1 1 17.4 0"/><circle cx="12" cy="14" r="1.5"/>'),
-  tree: I('<path d="M4 5h6M4 12h6M4 19h6M14 5h6M14 12h6M14 19h6"/><path d="M7 5v14"/>'),
-  trend: I('<path d="M3 17l6-6 4 4 8-8"/><path d="M15 7h6v6"/>'),
-  plug: I('<ellipse cx="12" cy="6" rx="8" ry="3"/><path d="M4 6v6c0 1.7 3.6 3 8 3s8-1.3 8-3V6"/><path d="M4 12v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6"/>'),
-  building: I('<path d="M3 21h18M5 21V8l7-5 7 5v13"/><path d="M9 21v-5h6v5M9 11h.01M15 11h.01"/>'),
-  survey: I('<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/>'),
-  check: I('<rect x="3" y="3" width="18" height="18" rx="3"/><path d="M8 12l3 3 5-6"/>'),
-  bulb: I('<path d="M9 18h6M10 21h4"/><path d="M12 3a6 6 0 0 0-4 10.5c.7.7 1 1.5 1 2.5h6c0-1 .3-1.8 1-2.5A6 6 0 0 0 12 3z"/>'),
-  target: I('<path d="M9 6h11M9 12h11M9 18h11"/><path d="M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2"/>'),
-  cal: I('<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>'),
-  user: I('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>'),
-  file: I('<path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z"/><path d="M14 3v6h6M8 13h8M8 17h5"/>'),
-  history: I('<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>'),
-  sliders: I('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>'),
-  menu: I('<path d="M4 7h16M4 12h16M4 17h16"/>'),
-  sun: I('<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>'),
-  moon: I('<path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/>'),
-  x: I('<path d="M6 6l12 12M18 6L6 18"/>'),
-  lock: I('<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>'),
-  up: I('<path d="M7 17L17 7M9 7h8v8"/>', 2.4),
-  down: I('<path d="M7 7l10 10M17 9v8H9"/>', 2.4),
-  flat: I('<path d="M5 12h14"/>', 2.4),
-  search: I('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'),
-  shield: I('<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="M9 12l2 2 4-4"/>'),
-  eye: I('<path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>'),
-  users: I('<circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.5 3-5.5 7-5.5s7 2 7 5.5"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14.6c2.4.6 4 2.4 4 5.4"/>'),
-  layers: I('<path d="M12 3l9 5-9 5-9-5z"/><path d="M3 13l9 5 9-5"/>'),
-  scale: I('<path d="M12 3v18M7 21h10M5 7h14"/><path d="M5 7l-3 6a3 3 0 0 0 6 0zM19 7l-3 6a3 3 0 0 0 6 0z"/>'),
-  copy: I('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/>'),
-  chev: I('<path d="M6 9l6 6 6-6"/>'),
-  chevL: I('<path d="M15 6l-6 6 6 6"/>'),
-  chevR: I('<path d="M9 6l6 6-6 6"/>'),
-  plus: I('<path d="M12 5v14M5 12h14"/>'),
-  dots: I('<circle cx="5" cy="12" r="1.2"/><circle cx="12" cy="12" r="1.2"/><circle cx="19" cy="12" r="1.2"/>', 2.4),
-  a11y: I('<circle cx="12" cy="4.5" r="1.8"/><path d="M5 8.5l7 1.5 7-1.5M12 10v5M12 15l-3.5 6M12 15l3.5 6"/>'),
-  download: I('<path d="M12 4v11M7 10l5 5 5-5M5 20h14"/>'),
-  ok: I('<path d="M5 12l5 5 9-10"/>', 2.6),
-  arrowR: I('<path d="M5 12h14M13 6l6 6-6 6"/>'),
-  arrowL: I('<path d="M19 12H5M11 6l-6 6 6 6"/>'),
-  spark: I('<path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/><path d="M19 15l.8 2.2L22 18l-2.2.8L19 21l-.8-2.2L16 18l2.2-.8z"/>'),
-  send: I('<path d="M5 12h14M13 6l6 6-6 6"/>', 2.2),
-  pulse: I('<path d="M3 12h4l3-8 4 16 3-8h4"/>', 2.2),
-  info: I('<circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5h.01"/>'),
-  help: I('<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17h.01"/>'),
-  alert: I('<path d="M12 3l9.5 16.5h-19z"/><path d="M12 10v4M12 17h.01"/>'),
-  flag: I('<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>'),
-  table: I('<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M9 4v16"/>'),
-  board: I('<rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="10" y="4" width="5" height="11" rx="1.5"/><rect x="17" y="4" width="4" height="7" rx="1.5"/>'),
-  edit: I('<path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13 7l4 4"/>'),
-  reset: I('<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>'),
-  print: I('<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/>'),
-  compare: I('<path d="M8 3v18M16 3v18"/><path d="M3 8h5M16 16h5M3 16h5M16 8h5"/>'),
-  diamond: I('<path d="M12 3l9 9-9 9-9-9z"/>'),
-};
+/* Модель і методика (як у робочій версії команди). Чисті дані й функції без DOM. */
+import { S } from "./state.js";
+import { API } from "./api.js";
+import { fb } from "./format.js";
 
-/* ---------- Методика (як у робочій версії команди) ---------- */
-const COMPS = ["culture", "system", "accountability"];
-const COMP = {
+export const COMPS = ["culture", "system", "accountability"];
+export const COMP = {
   culture: { n: "Культура", loc: "Культурі", ic: "users", c: "var(--teal)", s: "var(--teal-soft)" },
   system: { n: "Система", loc: "Системі", ic: "layers", c: "var(--blue)", s: "var(--blue-soft)" },
   accountability: { n: "Підзвітність", loc: "Підзвітності", ic: "scale", c: "var(--amber)", s: "var(--amber-soft)" },
 };
-const LEVELS = ["Початковий (хаотичний)", "Керований", "Визначений", "Вимірюваний", "Оптимізуючий"];
-const LSHORT = ["Початковий", "Керований", "Визначений", "Вимірюваний", "Оптимізуючий"];
-const BOUNDS = [12.5, 37.5, 62.5, 87.5];
+export const LEVELS = ["Початковий (хаотичний)", "Керований", "Визначений", "Вимірюваний", "Оптимізуючий"];
+export const LSHORT = ["Початковий", "Керований", "Визначений", "Вимірюваний", "Оптимізуючий"];
+export const BOUNDS = [12.5, 37.5, 62.5, 87.5];
 // Коротко за Моделлю зрілості НАЗК (Рекомендації НУОУ, розділ про рівні зрілості)
-const LDESC = [
+export const LDESC = [
   "Системи доброчесності немає: норми виконуються вибірково, до питання повертаються лише після порушень.",
   "Є базові правила й контроль: цінності названі, призначено уповноваженого, ухвалено програму доброчесності.",
   "Система описана й працює: процедури чіткі, відомі всім і виконуються, канали повідомлень налагоджені.",
   "Цілі вимірюються: заклад стежить за показниками, оцінює кожен захід і проводить аудит системи.",
   "Система постійно вдосконалюється на основі даних, доброчесність стала частиною культури, є зовнішній аудит.",
 ];
-const CAP = 25;
-// let: з бекендом дата й цикл беруться з останньої закритої хвилі (0-api.js).
-let TODAY = "2026-11-16", TODAY_UA = "16.11.2026", CYCLE = "2026-11";
-const r1 = v => Math.round(v * 10) / 10;
-const clamp = (v, a = 0, b = 100) => Math.max(a, Math.min(b, v));
-const level = v => { const i = BOUNDS.findIndex(b => v <= b); return i === -1 ? 5 : i + 1; };
-const lvl100 = l => (l - 1) * 25;
-const status = v => v >= 65 ? "good" : v >= 40 ? "warn" : "bad";
-const ST = { good: ["Сильна сторона", "p-good"], warn: ["Потребує уваги", "p-warn"], bad: ["Критична зона", "p-bad"] };
-const SCOL = { good: "var(--teal)", warn: "var(--amber)", bad: "var(--red)" };
-const SRC = { wg: ["Сприйняття РГ", "var(--blue)", "circle"], os: ["Сприйняття ОС", "var(--teal)", "square"], experts: ["Експерти", "#8b6fd6", "diamond"], facts: ["Факти", "var(--amber)", "triangle"] };
-const SRC_HINT = { wg: "Середня оцінка відповідей робочої групи, 0-100.", os: "Середня оцінка відповідей особового складу, 0-100.", experts: "Середня оцінка експертів, 0-100." };
-const wmean = arr => { const w = arr.reduce((a, x) => a + x.w, 0); return r1(arr.reduce((a, x) => a + x.w * x.v, 0) / w); };
-const indexOf = cr => r1(COMPS.reduce((a, c) => a + cr[c] / 3, 0));
+export const CAP = 25;
+// З бекендом дата й цикл беруться з останньої закритої хвилі (api.js → setClock).
+export let TODAY = "2026-11-16", TODAY_UA = "16.11.2026", CYCLE = "2026-11";
+export function setClock(today, cycle) { TODAY = today; TODAY_UA = today.split("-").reverse().join("."); CYCLE = cycle; }
+export const r1 = v => Math.round(v * 10) / 10;
+export const clamp = (v, a = 0, b = 100) => Math.max(a, Math.min(b, v));
+export const level = v => { const i = BOUNDS.findIndex(b => v <= b); return i === -1 ? 5 : i + 1; };
+export const lvl100 = l => (l - 1) * 25;
+export const status = v => v >= 65 ? "good" : v >= 40 ? "warn" : "bad";
+export const ST = { good: ["Сильна сторона", "p-good"], warn: ["Потребує уваги", "p-warn"], bad: ["Критична зона", "p-bad"] };
+export const SCOL = { good: "var(--teal)", warn: "var(--amber)", bad: "var(--red)" };
+export const SRC = { wg: ["Сприйняття РГ", "var(--blue)", "circle"], os: ["Сприйняття ОС", "var(--teal)", "square"], experts: ["Експерти", "#8b6fd6", "diamond"], facts: ["Факти", "var(--amber)", "triangle"] };
+export const SRC_HINT = { wg: "Середня оцінка відповідей робочої групи, 0-100.", os: "Середня оцінка відповідей особового складу, 0-100.", experts: "Середня оцінка експертів, 0-100." };
+export const wmean = arr => { const w = arr.reduce((a, x) => a + x.w, 0); return r1(arr.reduce((a, x) => a + x.w * x.v, 0) / w); };
+export const indexOf = cr => r1(COMPS.reduce((a, c) => a + cr[c] / 3, 0));
 
-const PERCEPTION = [
+export const PERCEPTION = [
   ["cu-p1", "culture", "Відкритість до обговорення етичних питань", 30, 70, "wg"],
   ["cu-p2", "culture", "Особистий приклад керівників", 30, 50, "os"],
   ["cu-p3", "culture", "Готовність повідомляти про проблеми без страху наслідків", 20, 45, "os"],
@@ -106,7 +52,7 @@ const PERCEPTION = [
 ].map(([id, c, t, w, v, src]) => ({ id, c, t, w, v, src, kind: "p" }));
 
 // Факти: відсоток за даними обліку або рівень 1–5 за анкетою чек-листа
-const FACTS = [
+export const FACTS = [
   ["cu-f1", "culture", "Прапорці, за якими прийнято рішення або захід протягом 30 днів", 50, "pct", [11, 20], "Журнал рішень уповноваженого"],
   ["cu-f2", "culture", "Рівень за анкетою «Етичні практики»", 25, "lvl", 2, "Чек-лист закладу"],
   ["cu-f3", "culture", "Рівень за анкетою «Навчання з доброчесності»", 25, "lvl", 2, "Чек-лист закладу"],
@@ -117,31 +63,31 @@ const FACTS = [
   ["ac-f2", "accountability", "Потенційні конфлікти інтересів, за якими уповноважений дав висновок у строк", 40, "pct", [6, 20], "Журнал уповноваженого"],
   ["ac-f3", "accountability", "Рівень за анкетою «Звітність і оприлюднення»", 20, "lvl", 2, "Чек-лист закладу"],
 ].map(([id, c, t, w, kind, val, from]) => ({ id, c, t, w, kind, base: val, from }));
-const factValue = (f, val) => f.kind === "pct" ? Math.round(val[0] / val[1] * 1000) / 10 : lvl100(val);
+export const factValue = (f, val) => f.kind === "pct" ? Math.round(val[0] / val[1] * 1000) / 10 : lvl100(val);
 
-function credit(P, F) {
+export function credit(P, F) {
   const lim = F + CAP;
   return P <= lim ? { v: P, lim: false } : { v: lim, lim: true, reason: `Сприйняття (${fb(P)}) вище за факти (${fb(F)}) більш ніж на ${CAP} пунктів. Тому зараховано не ${fb(P)}, а факти + ${CAP}: ${fb(F)} + ${CAP} = ${fb(lim)}.` };
 }
-function components(pItems, fItems) {
+export function components(pItems, fItems) {
   return COMPS.map(c => {
     const P = wmean(pItems.filter(x => x.c === c)), F = wmean(fItems.filter(x => x.c === c));
     return { id: c, P, F, cr: credit(P, F) };
   });
 }
-function trust(flags, responses) {
+export function trust(flags, responses) {
   if (responses < S.k) return "insufficient";
   const raised = flags.filter(f => f.raised), major = raised.filter(f => f.w === "major").length, minor = raised.length - major;
   return major >= 1 || minor >= 3 ? "C" : minor >= 1 ? "B" : "A";
 }
-const TRUST = {
+export const TRUST = {
   A: ["A", "Підтверджується", "Жоден прапорець не спрацював.", "p-good"],
   B: ["B", "Є зауваження", "Спрацювали один або два незначні прапорці.", "p-warn"],
   C: ["C", "Потрібна перевірка", "Спрацював хоча б один серйозний прапорець або три і більше незначних.", "p-bad"],
   insufficient: ["?", "Недостатньо даних", "У групі менше k відповідей, тому достовірність не оцінюється.", "p-mute"],
 };
-const TRUST_HINT = "Наскільки результату можна довіряти. Літера залежить від прапорців: A без прапорців, B один-два незначних, C серйозний або три і більше незначних.";
-const FLAGS = [
+export const TRUST_HINT = "Наскільки результату можна довіряти. Літера залежить від прапорців: A без прапорців, B один-два незначних, C серйозний або три і більше незначних.";
+export const FLAGS = [
   { id: "tf-gap", w: "major", t: "Розбіжність сприйняття й фактів", ex: "Сприйняття значно вище за факти, тому зараховано з обмеженням. Варто звірити з чек-листом." },
   { id: "tf-same", w: "minor", t: "Однакові відповіді в частині анкет особового складу", ex: "У частині анкет усі відповіді однакові. Це може означати, що анкету заповнювали поспіхом. Варто перевірити додатково." },
   { id: "tf-jump", w: "major", t: "Різка зміна індексу між циклами без пояснення", ex: "Індекс змінився помірно, різкого стрибка немає." },
@@ -150,7 +96,7 @@ const FLAGS = [
 const ATTN_TITLE = { culture: "Більше практичних прикладів", system: "Зробити процедури помітнішими", accountability: "Підтвердити факти" };
 
 /* ---------- Заклади ---------- */
-const ALPHA = "alpha";
+export const ALPHA = "alpha";
 const ALPHA_HISTORY = [
   { cycle: "2025-06", cr: { culture: 38, system: 30, accountability: 36 } },
   { cycle: "2025-12", cr: { culture: 44, system: 36, accountability: 43 } },
@@ -163,7 +109,7 @@ const ALPHA_EVENTS = [
 ];
 // Демо охоплює всі рівні зрілості й усі варіанти достовірності:
 // «Гамма» 5 і A, «Сигма» 4 і B, «Альфа» 3 і C (еталон), «Бета» 2 і «Недостатньо даних», «Омега» 1 і C.
-const OTHERS = [
+export const OTHERS = [
   { id: "beta", name: "Умовний навчальний центр «Бета»", seed: 11, perception: [32, 27, 30], facts: [27, 22, 25], flags: [], responses: 7 },
   { id: "gamma", name: "Умовна академія «Гамма»", seed: 23, perception: [96, 94, 95], facts: [94, 92, 93], flags: [], responses: 71 },
   { id: "omega", name: "Умовний університет «Омега»", seed: 37, perception: [12, 9, 11], facts: [5, 3, 4], declining: "all", flags: ["tf-jump", "tf-experts"], responses: 42 },
@@ -175,7 +121,7 @@ function rng(seed) {
 }
 const round5 = v => Math.round(clamp(v) / 5) * 5;
 
-function finish(m) {
+export function finish(m) {
   const cur = m.series[m.series.length - 1], prev = m.series[m.series.length - 2];
   m.index = cur.index; m.level = level(cur.index); m.prevIndex = prev.index; m.delta = r1(cur.index - prev.index);
   m.limited = m.components.find(c => c.cr.lim);
@@ -241,7 +187,7 @@ function buildOther(o) {
   return m;
 }
 const OTHER_MODELS = {};
-function inst(id) {
+export function inst(id) {
   if (API.on) return API.model;
   const o = OTHERS.find(x => x.id === id);
   const m = !o ? buildAlpha() : OTHER_MODELS[id] || (OTHER_MODELS[id] = buildOther(o));
@@ -250,28 +196,28 @@ function inst(id) {
 }
 // Синтетичні коди ЄДРПОУ (не справжні) і синтетичний «реєстр» для демо пошуку
 const EDRPOU = { alpha: "99000101", beta: "99000102", gamma: "99000103", omega: "99000104", sigma: "99000106" };
-const REGISTRY = [
+export const REGISTRY = [
   ["99000101", "Умовний військовий інститут «Альфа»"], ["99000102", "Умовний навчальний центр «Бета»"], ["99000103", "Умовна академія «Гамма»"], ["99000104", "Умовний університет «Омега»"],
   ["99000105", "Умовний військовий ліцей «Дельта»"], ["99000106", "Умовна військова академія «Сигма»"], ["99000107", "Умовний навчальний центр «Каппа»"], ["99000108", "Умовний інститут «Лямбда»"],
   ["99000109", "Умовний коледж сержантського складу «Тета»"], ["99000110", "Умовна кафедра військової підготовки «Йота»"],
 ];
-const INSTITUTIONS = () => [inst(ALPHA), ...OTHERS.map(o => inst(o.id)), ...(S.insts ? S.insts.extra.map(x => ({ ...x, name: S.insts.renamed[x.id] || x.name, empty: true })) : [])].sort((a, b) => a.name.localeCompare(b.name, "uk"));
+export const INSTITUTIONS = () => [inst(ALPHA), ...OTHERS.map(o => inst(o.id)), ...(S.insts ? S.insts.extra.map(x => ({ ...x, name: S.insts.renamed[x.id] || x.name, empty: true })) : [])].sort((a, b) => a.name.localeCompare(b.name, "uk"));
 
 /* ---------- Підрозділи й поріг k ---------- */
-const UNITS = [
+export const UNITS = [
   { id: ALPHA, n: "Умовний військовий інститут «Альфа»", parent: null },
   { id: "unit-a", n: "Підрозділ А", parent: ALPHA },
   { id: "unit-b", n: "Підрозділ Б", parent: ALPHA },
   { id: "unit-v", n: "Підрозділ В", parent: ALPHA },
 ];
-const UNIT_RESP = { [ALPHA]: 48, "unit-a": 12, "unit-b": 3, "unit-v": 33 };
-const UNIT_CR = { "unit-a": { culture: 58, system: 47, accountability: 52 } };
-function resolveUnit(id) {
+export const UNIT_RESP = { [ALPHA]: 48, "unit-a": 12, "unit-b": 3, "unit-v": 33 };
+export const UNIT_CR = { "unit-a": { culture: 58, system: 47, accountability: 52 } };
+export function resolveUnit(id) {
   const req = UNITS.find(u => u.id === id) || UNITS[0]; let u = req;
   while ((UNIT_RESP[u.id] || 0) < S.k && u.parent) u = UNITS.find(x => x.id === u.parent);
   return { unit: u, req, hidden: u.id !== req.id, resp: UNIT_RESP[u.id] || 0 };
 }
-const GROUPS = [
+export const GROUPS = [
   { n: "Робоча група", inv: 15, resp: 14 },
   { n: "Підрозділ А", inv: 15, resp: 12, unit: "unit-a" },
   { n: "Підрозділ Б", inv: 9, resp: 3, unit: "unit-b" },
@@ -297,11 +243,11 @@ const REC_RULES = [
     why: "Навчання проводять за планом, але працівники рідко бачать практичні приклади. Приклади допомагають вчасно повідомляти про проблеми.",
     acts: ["Підібрати три-чотири типові ситуації для обговорення", "Додати розбір ситуацій у плани занять", "Зібрати відгуки учасників після занять"] },
 ];
-const PRI = { high: ["Високий", "var(--red-soft)", "var(--red)", "!"], medium: ["Середній", "var(--amber-soft)", "var(--amber)", "2"], low: ["Низький", "var(--blue-soft)", "var(--blue)", "3"] };
-const REC_ST = { proposed: ["Запропоновано", "p-info"], accepted: ["Прийнято", "p-good"], clarified: ["Уточнено", "p-warn"], rejected: ["Відхилено", "p-mute"] };
-const REC_NEXT = { proposed: ["accepted", "clarified", "rejected"], clarified: ["accepted", "rejected"], accepted: [], rejected: [] };
+export const PRI = { high: ["Високий", "var(--red-soft)", "var(--red)", "!"], medium: ["Середній", "var(--amber-soft)", "var(--amber)", "2"], low: ["Низький", "var(--blue-soft)", "var(--blue)", "3"] };
+export const REC_ST = { proposed: ["Запропоновано", "p-info"], accepted: ["Прийнято", "p-good"], clarified: ["Уточнено", "p-warn"], rejected: ["Відхилено", "p-mute"] };
+export const REC_NEXT = { proposed: ["accepted", "clarified", "rejected"], clarified: ["accepted", "rejected"], accepted: [], rejected: [] };
 const priority = (vals, flag) => { const mn = vals.length ? Math.min(...vals) : 100; return mn < 40 || (flag && mn < 65) ? "high" : mn < 65 || flag ? "medium" : "low"; };
-function buildRecs(m = inst(ALPHA)) {
+export function buildRecs(m = inst(ALPHA)) {
   if (API.on) return API.recs;
   const all = [...m.pItems, ...m.fItems], out = [];
   for (const r of REC_RULES) {
@@ -313,11 +259,11 @@ function buildRecs(m = inst(ALPHA)) {
   const o = { high: 0, medium: 1, low: 2 };
   return out.sort((a, b) => o[a.pri] - o[b.pri]);
 }
-const pendingRecs = () => buildRecs().filter(r => r.st === "proposed" || r.st === "clarified").length;
+export const pendingRecs = () => buildRecs().filter(r => r.st === "proposed" || r.st === "clarified").length;
 
 /* ---------- Трекер заходів ---------- */
-const POSITIONS = ["Заступник начальника з виховної роботи", "Начальник навчального відділу", "Начальник юридичного відділу", "Уповноважений з доброчесності", "Начальник штабу"];
-const BASE_MEASURES = [
+export const POSITIONS = ["Заступник начальника з виховної роботи", "Начальник навчального відділу", "Начальник юридичного відділу", "Уповноважений з доброчесності", "Начальник штабу"];
+export const BASE_MEASURES = [
   { id: "m-1", rec: "Запровадити канал анонімних звернень", t: "Запровадити канал анонімних звернень", who: "Заступник начальника з виховної роботи", due: "2026-03-31", st: "confirmed", ind: "sy-p2" },
   { id: "m-2", rec: "Провести навчання для кураторів груп", t: "Провести навчання для кураторів груп", who: "Начальник навчального відділу", due: "2026-10-15", st: "done", ind: "cu-p3" },
   { id: "m-3", rec: "Оновити порядок розгляду скарг", t: "Оновити порядок розгляду скарг і звернень", who: "Начальник юридичного відділу", due: "2026-11-05", st: "inprogress", ind: "sy-f1" },
@@ -325,14 +271,15 @@ const BASE_MEASURES = [
   { id: "m-5", rec: "Підготувати пам’ятку з правил доброчесності", t: "Підготувати пам’ятку з правил доброчесності", who: "Заступник начальника з виховної роботи", due: "2026-12-20", st: "inprogress", ind: "cu-p4" },
   { id: "m-6", rec: "Оновити порядок розгляду скарг", t: "Призначити відповідальну особу за облік звернень", who: "Начальник штабу", due: "2027-01-31", st: "accepted", ind: "sy-f1" },
 ];
-const M_ST = {
+export const M_ST = {
   accepted: ["Прийнято", "p-info"], inprogress: ["В роботі", "p-warn"], done: ["Виконано", "p-done"],
   confirmed: ["Підтверджено", "p-good"], notconfirmed: ["Не підтверджено", "p-bad"], overdue: ["Прострочено", "p-bad"], cancelled: ["Скасовано", "p-mute"],
 };
-const M_NEXT = { accepted: ["inprogress"], inprogress: ["done", "accepted"], done: ["inprogress"], confirmed: [], notconfirmed: ["inprogress"], cancelled: [] };
+export const M_NEXT = { accepted: ["inprogress"], inprogress: ["done", "accepted"], done: ["inprogress"], confirmed: [], notconfirmed: ["inprogress"], cancelled: [] };
 const dayMs = 864e5, utc = d => { const [y, m, dd] = d.split("-").map(Number); return Date.UTC(y, m - 1, dd); };
-const overdueDays = m => ["done", "confirmed", "notconfirmed", "cancelled"].includes(m.st) ? 0 : Math.max(0, Math.floor((utc(TODAY) - utc(m.due)) / dayMs));
-const dispSt = m => overdueDays(m) > 0 ? "overdue" : m.st;
-const daysWord = n => { const t = n % 100, u = n % 10; return t >= 11 && t <= 14 ? "днів" : u === 1 ? "день" : u >= 2 && u <= 4 ? "дні" : "днів"; };
-const measures = () => API.on ? API.ms : [...BASE_MEASURES, ...S.dec.added].map(m => S.dec.mst[m.id] ? { ...m, st: S.dec.mst[m.id] } : m);
-const verif = m => m.vf ? m.vf : m.st === "cancelled" ? ["Захід скасовано", "p-mute"] : m.st === "confirmed" ? ["Підтверджено наступним оцінюванням", "p-good"] : m.st === "notconfirmed" ? ["Не підтверджено, потрібен перегляд", "p-bad"] : m.st === "done" ? ["Очікує наступного оцінювання", "p-info"] : ["Ще не настав час", "p-mute"];
+export const overdueDays = m => ["done", "confirmed", "notconfirmed", "cancelled"].includes(m.st) ? 0 : Math.max(0, Math.floor((utc(TODAY) - utc(m.due)) / dayMs));
+export const dispSt = m => overdueDays(m) > 0 ? "overdue" : m.st;
+export const daysWord = n => { const t = n % 100, u = n % 10; return t >= 11 && t <= 14 ? "днів" : u === 1 ? "день" : u >= 2 && u <= 4 ? "дні" : "днів"; };
+export const measures = () => API.on ? API.ms : [...BASE_MEASURES, ...S.dec.added].map(m => S.dec.mst[m.id] ? { ...m, st: S.dec.mst[m.id] } : m);
+export const verif = m => m.vf ? m.vf : m.st === "cancelled" ? ["Захід скасовано", "p-mute"] : m.st === "confirmed" ? ["Підтверджено наступним оцінюванням", "p-good"] : m.st === "notconfirmed" ? ["Не підтверджено, потрібен перегляд", "p-bad"] : m.st === "done" ? ["Очікує наступного оцінювання", "p-info"] : ["Ще не настав час", "p-mute"];
+export const allItems = m => [...m.pItems, ...m.fItems];

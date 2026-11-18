@@ -55,10 +55,10 @@ class Settings(BaseSettings):
 
     # Асистент фронтенду (frontend-proto, /api/assistant): будь-який OpenAI-сумісний /chat/completions.
     # Порожній LLM_BASE_URL і LLM_API_KEY — асистент вимкнено, фронтенд відповідає шаблонами правил.
-    # Закритий контур: LLM_BASE_URL=http://host.docker.internal:11434/v1 (Ollama), LLM_MODEL=gemma3:4b.
+    # Шлюз кафедри: LLM_BASE_URL=https://api.csit-mitit.com/v1, LLM_MODEL=gemma4-26b (ключ — LLM_API_KEY).
     llm_base_url: str = ""
     llm_api_key: str = ""
-    llm_model: str = "gemma3:4b"
+    llm_model: str = "gemma4-26b"
     llm_timeout_seconds: float = 60.0
 
     # Живі запити модуля «Перевірки» до відкритих API (Prozorro, НАЗК). Закритий контур: false.
@@ -72,6 +72,9 @@ class Settings(BaseSettings):
     # Публічна адреса фронтенду для посилань на анонімне проходження (наприклад "https://imd.example").
     # Порожньо: посилання відносні ("/s#<токен>").
     public_url: str = ""
+    # Каталог зібраного фронтенду (frontend-proto/dist). Якщо задано, API сам віддає сторінки на тому ж порту:
+    # один процес без nginx і Docker. Порожньо: фронтенд віддає nginx (docker compose) або Vite.
+    frontend_dist: str = ""
 
     # Одноразові посилання (анонімне проходження без облікового запису).
     token_batch_max: int = 1000
@@ -91,6 +94,10 @@ class Settings(BaseSettings):
     trusted_proxies: str = ""
     # Необов'язковий спільний секрет, який проксі додає в заголовок X-Proxy-Secret.
     proxy_auth_secret: str = ""
+    # Через кому: IP або CIDR зворотного проксі перед API (nginx фронтенду), від якого беремо реальну
+    # адресу клієнта з X-Forwarded-For. Лише для лімітів спроб і журналу; вхід через SSO цим не вмикається
+    # (для нього окремо TRUSTED_PROXIES). Порожньо: адреса клієнта — безпосередній співрозмовник TCP.
+    forwarded_proxies: str = ""
 
     @property
     def cors_origin_list(self) -> list[str]:
@@ -110,6 +117,10 @@ class Settings(BaseSettings):
     @property
     def trusted_proxy_list(self) -> list[str]:
         return [p.strip() for p in self.trusted_proxies.split(",") if p.strip()]
+
+    @property
+    def forwarded_proxy_list(self) -> list[str]:
+        return [p.strip() for p in self.forwarded_proxies.split(",") if p.strip()]
 
     @property
     def min_group_size(self) -> int:

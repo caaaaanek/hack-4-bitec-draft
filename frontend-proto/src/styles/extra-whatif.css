@@ -1,0 +1,57 @@
+/* «Що, якщо»: прогноз індексу (views/WhatIf.jsx) */
+.wi-busy { animation: rtPulse 1.2s ease-in-out infinite; }
+.wi-sum { display: flex; align-items: center; gap: 18px; flex-wrap: wrap; margin: 4px 0 14px; }
+.wi-sum > svg { width: 22px; height: 22px; color: var(--faint); }
+.wi-idx { display: flex; flex-direction: column; gap: 2px; min-width: 150px; }
+.wi-idx b { font-size: 40px; line-height: 1.05; font-weight: 700; letter-spacing: -.02em; }
+.wi-idx.up b { color: var(--teal); }
+.wi-idx.down b { color: var(--red); }
+.wi-d { margin-left: auto; padding: 8px 14px; border-radius: 999px; background: var(--soft); color: var(--muted); font-weight: 600; font-variant-numeric: tabular-nums; }
+.wi-d.up { background: var(--teal-soft); color: var(--teal); }
+.wi-d.down { background: var(--red-soft); color: var(--red); }
+.wi-comps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.wi-comp { display: flex; gap: 10px; align-items: flex-start; background: var(--soft); border-radius: var(--r-sm); padding: 10px 12px; font-size: 14px; }
+.wi-comp .comp-ic { flex: none; }
+.wi-comp .lbl { margin-top: 4px; font-size: 12.5px; line-height: 1.4; }
+.wi-cd { margin-left: 6px; font-size: 12px; font-weight: 600; padding: 1px 7px; border-radius: 999px; }
+.wi-cd.up { background: var(--teal-soft); color: var(--teal); }
+.wi-cd.down { background: var(--red-soft); color: var(--red); }
+.wi-note { display: flex; gap: 8px; align-items: flex-start; margin-top: 12px; }
+.wi-note svg { width: 15px; height: 15px; flex: none; margin-top: 2px; }
+.wi-lever .btn { flex: none; padding: 7px 12px; }
+.wi-plus { flex: none; min-width: 52px; text-align: center; font-weight: 700; color: var(--teal); background: var(--teal-soft); border-radius: 10px; padding: 6px 8px; }
+.wi-facts { display: flex; flex-direction: column; }
+.wi-fact { display: grid; grid-template-columns: minmax(0, 1fr) minmax(220px, 1fr); gap: 14px; align-items: center; padding: 12px 0; border-top: 1px solid var(--line); }
+.wi-fact:first-child { border-top: 0; }
+.wi-fact.off { opacity: .6; grid-template-columns: 1fr; }
+.wi-fact.set .wi-ft b::after { content: " · у сценарії"; color: var(--teal); font-weight: 600; font-size: 12px; }
+.wi-ft { display: flex; flex-direction: column; gap: 2px; font-size: 14px; }
+.wi-ft b { font-weight: 600; }
+.wi-ctl { display: flex; align-items: center; gap: 10px; }
+.wi-ctl .icon-btn { width: 30px; height: 30px; flex: none; }
+.wi-v { min-width: 52px; text-align: right; }
+.wi-range { position: relative; flex: 1; height: 28px; display: flex; align-items: center; }
+.wi-range input { width: 100%; margin: 0; accent-color: var(--teal); position: relative; z-index: 1; }
+.wi-th { position: absolute; top: 2px; bottom: 2px; width: 2px; margin-left: -1px; background: var(--faint); border-radius: 1px; opacity: .7; }
+.wi-cur { position: absolute; bottom: -4px; width: 0; height: 0; margin-left: -5px; border: 5px solid transparent; border-bottom-color: var(--fg); }
+.wi-side { display: flex; flex-direction: column; gap: 20px; min-width: 0; }
+@media (max-width: 1200px) { .wi-side { grid-column: span 12; } }
+.wi-ms, .wi-ck { font-size: 14px; align-items: flex-start; }
+.wi-ms input { margin-top: 3px; accent-color: var(--teal); width: 16px; height: 16px; flex: none; }
+.wi-ck select { flex: none; width: 150px; }
+.wi-dot { flex: none; width: 24px; height: 24px; border-radius: 50%; display: grid; place-items: center; background: var(--soft); color: var(--muted); }
+.wi-dot.on { background: var(--teal-soft); color: var(--teal); }
+.wi-dot svg { width: 14px; height: 14px; }
+.wi-clamp { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; overflow: hidden; }
+@media (max-width: 900px) {
+  .wi-lever { flex-wrap: wrap; }
+  .wi-lever .grow { flex: 1 1 calc(100% - 70px); }
+  .wi-lever .btn { margin-left: 64px; }
+  .wi-hide-s { display: none; }
+  .wi-comps { grid-template-columns: 1fr; }
+  .wi-fact { grid-template-columns: 1fr; gap: 8px; }
+  .wi-d { margin-left: 0; }
+  .wi-idx b { font-size: 32px; }
+  .wi-ck { flex-wrap: wrap; }
+  .wi-ck select { width: 100%; }
+}

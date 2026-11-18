@@ -22,6 +22,7 @@ from app.routers import (
     reports,
     respond,
     results,
+    what_if,
 )
 from app.routers import config as config_router
 from app.routers import llm as llm_router
@@ -65,7 +66,7 @@ app.add_middleware(
 )
 
 for module in (config_router, auth, admin, questionnaires, campaigns, respond, checklist, checks, indicators, results,
-               dashboard, recommendations, measures, reports, integrations, assistant):
+               dashboard, recommendations, measures, reports, integrations, assistant, what_if):
     app.include_router(module.router, prefix=API_PREFIX, responses=ERROR_RESPONSES)
 
 # /api/assistant — асистент frontend-proto (шлях без /api/v1, як очікує фронтенд).
@@ -74,3 +75,15 @@ app.include_router(llm_router.router, responses=ERROR_RESPONSES)
 # /health і /api/v1/health: перевірка процесу й БД (див. routers/config.py).
 app.include_router(config_router.health_router)
 app.include_router(config_router.health_router, prefix=API_PREFIX, include_in_schema=False)
+
+# FRONTEND_DIST=../frontend-proto/dist: API сам віддає сторінки (один процес, один порт). Реєструється останнім,
+# щоб /api, /docs і /health мали пріоритет.
+if settings.frontend_dist:
+    from app.frontend import mount_frontend
+
+    if not mount_frontend(app, settings.frontend_dist):
+        import logging
+
+        logging.getLogger(__name__).warning(
+            "FRONTEND_DIST=%s: немає index.html, фронтенд не підключено (зберіть: cd frontend-proto && npm run build)",
+            settings.frontend_dist)

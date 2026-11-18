@@ -120,7 +120,8 @@ def ask(data: AskIn, db: Session = Depends(get_db), user: User = Depends(require
     context = build_context(result, recs)
     prompt = (
         "Ти помічник керівника з питань доброчесності. Відповідай українською, коротко, лише на основі даних нижче. "
-        "Не вигадуй чисел. Не змінюй бали й рівні. Якщо даних бракує, так і скажи.\n\n"
+        "Не вигадуй чисел. Не змінюй бали й рівні. Якщо даних бракує, так і скажи. "
+        "Простий текст без Markdown: без зірочок і заголовків; списки — рядками з «• ».\n\n"
         f"ДАНІ (JSON):\n{json.dumps(context, ensure_ascii=False)}\n\nПИТАННЯ: {data.question}\n"
     )
     try:

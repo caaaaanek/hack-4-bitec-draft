@@ -150,13 +150,15 @@ token_throttle = LoginThrottle()
 
 
 def token_assignment(request: Request, db: Session, token: str | None):
-    key = ("token", client_ip(request))
-    retry_after = token_throttle.blocked_for(key)
-    if retry_after:
-        raise ApiError(429, "Забагато спроб з невірним посиланням", hint=f"Спробуйте через {retry_after} с.",
-                       headers={"Retry-After": str(retry_after)})
+    # Спершу шукаємо токен: дійсне посилання ніколи не впирається в ліміт, навіть якщо з тієї ж адреси
+    # (спільний NAT, той самий nginx) хтось уже ввів кілька невірних. Рахуємо лише невдалі спроби.
     row = tokens.find(db, token or "")
     if row is None or row.revoked:
+        key = ("token", client_ip(request))
+        retry_after = token_throttle.blocked_for(key)
+        if retry_after:
+            raise ApiError(429, "Забагато спроб з невірним посиланням", hint=f"Спробуйте через {retry_after} с.",
+                           headers={"Retry-After": str(retry_after)})
         token_throttle.fail(key)
         raise ApiError(404, "Посилання недійсне", code="token_invalid",
                        hint="Перевірте, що посилання скопійовано повністю, або попросіть нове.")

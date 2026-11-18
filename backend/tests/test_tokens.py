@@ -107,6 +107,61 @@ def test_invalid_token_and_throttle(client):
     assert r.status_code == 429 and r.headers["Retry-After"]
 
 
+def test_valid_token_passes_after_invalid_attempts(client):
+    """5 невірних посилань з однієї адреси не блокують дійсне посилання з тієї ж адреси."""
+    campaign_id, q, admin = token_campaign(client)
+    token = issue(client, campaign_id, q[STAFF], units(client, admin)["Підрозділ А"], 1, admin)["tokens"][0]["token"]
+    client.post(f"{API}/campaigns/{campaign_id}/open", headers=admin)
+    for _ in range(5):
+        assert client.get(f"{API}/respond/form", headers=tok("x" * 43)).status_code == 404
+    assert client.get(f"{API}/respond/form", headers=tok("x" * 43)).status_code == 429
+    r = client.get(f"{API}/respond/form", headers=tok(token))
+    assert r.status_code == 200, r.text
+    assert fill(client, token).status_code == 201
+
+
+def test_throttle_is_per_client_behind_nginx(client, monkeypatch):
+    """За nginx (FORWARDED_PROXIES) ліміт рахується за X-Forwarded-For, а не за адресою nginx."""
+    from app.config import get_settings
+
+    monkeypatch.setattr(get_settings(), "forwarded_proxies", "10.0.0.0/8")
+    from app import security
+
+    real = security.client_ip
+
+    def via_nginx(request):  # TestClient не має IP-адреси: підставляємо адресу nginx у scope
+        request.scope["client"] = ("10.0.0.2", 40000)
+        return real(request)
+
+    monkeypatch.setattr("app.routers.respond.client_ip", via_nginx)
+    campaign_id, q, admin = token_campaign(client)
+    bad = {"X-Forwarded-For": "203.0.113.7", **tok("x" * 43)}
+    for _ in range(5):
+        client.get(f"{API}/respond/form", headers=bad)
+    assert client.get(f"{API}/respond/form", headers=bad).status_code == 429
+    other = {"X-Forwarded-For": "198.51.100.9", **tok("y" * 43)}
+    assert client.get(f"{API}/respond/form", headers=other).status_code == 404
+
+
+def test_client_ip_trusts_forwarded_only_from_listed_proxy(monkeypatch):
+    from starlette.requests import Request
+
+    from app.config import get_settings
+    from app.security import client_ip
+
+    def req(peer, xff=None):
+        headers = [(b"x-forwarded-for", xff.encode())] if xff else []
+        return Request({"type": "http", "client": (peer, 1), "headers": headers})
+
+    settings = get_settings()
+    monkeypatch.setattr(settings, "forwarded_proxies", "172.16.0.0/12")
+    monkeypatch.setattr(settings, "trusted_proxies", "")
+    assert client_ip(req("172.18.0.4", "203.0.113.7")) == "203.0.113.7"
+    assert client_ip(req("172.18.0.4", "1.1.1.1, 203.0.113.7")) == "203.0.113.7"  # підробка зліва не діє
+    assert client_ip(req("198.51.100.1", "203.0.113.7")) == "198.51.100.1"  # чужий проксі — XFF ігнорується
+    assert client_ip(req("172.18.0.4")) == "172.18.0.4"
+
+
 def test_login_respondents_cannot_use_token_campaign(client):
     campaign_id, q, admin = token_campaign(client)
     client.post(f"{API}/campaigns/{campaign_id}/open", headers=admin)

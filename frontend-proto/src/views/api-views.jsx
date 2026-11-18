@@ -1,0 +1,282 @@
+/* Екрани з даними сервера (null — показати звичайний екран). */
+import { useState } from "react";
+import { Ic } from "../lib/icons.jsx";
+import { S } from "../lib/state.js";
+import { API, api, apiEnsure, apiRetry, apiLoadForm, apiFail, apiErrText, RESULT_VIEWS, dn, apiLoadAdm, apiAdmReload, apiCreateCampaign, apiCampaignAct, apiIssueTokens, apiCopyOne, apiCopyLinks, apiRevoke,
+  QST, QCAT, apiQAct, bldOpen, CKS, apiLoadCk, apiCkReload, apiSaveItem, apiConfirm, apiDelFile, apiDownload, AUDIT_ENT, AUDIT_ACT, apiLoadLog, auditDetails, apiVerify } from "../lib/api.js";
+import { COMPS, COMP, level } from "../lib/model.js";
+import { fb, ua, plural } from "../lib/format.js";
+import { render, toast, openDrawer, closeDrawer, ui } from "../lib/store.js";
+import { download } from "../lib/util.js";
+import { Pill, LvPill, Num, LevelBar, Ticks } from "../components/ui.jsx";
+import { UnitCombo } from "../components/UnitCombo.jsx";
+import { bldFromServer, bldNewSec } from "./Builder.jsx";
+
+const Loading = ({ t }) => <section className="card c12 rise"><div className="empty"><b>{t}</b><br />Завантажуємо дані з сервера…</div></section>;
+const Failed = ({ e }) => <section className="card c12 rise"><div className="empty"><b>Не вдалося завантажити дані</b><br />{e}<br /><br /><button className="btn btn-soft" onClick={apiRetry}>Спробувати ще раз</button></div></section>;
+const Empty = ({ t, children }) => <section className="card c12 rise"><div className="empty"><b>{t}</b><br />{children}</div></section>;
+
+export function apiView(r) {
+  if (!API.on) return null;
+  if (RESULT_VIEWS.includes(r) && r !== "sources" && !API.model)
+    return API.empty ? <Empty t="Ще немає закритої хвилі оцінювання">Результати зʼявляться, коли уповноважений закриє хвилю: система порахує індекс і збереже незмінний знімок.</Empty> : <Loading t="Результати" />;
+  if (r === "survey") return apiSurveyView();
+  if (r === "me") return <ApiMe />;
+  if (r === "manage") return <ApiManage />;
+  if (r === "surveys") return <ApiSurveys />;
+  if (r === "checklist") return <ApiChecklist />;
+  if (r === "audit") return <ApiAudit />;
+  return null;
+}
+
+function apiSurveyView() {
+  if (API.anon) {
+    if (API.surveyMsg && !API.survey) {
+      const [t, d] = API.surveyMsg === "used" ? ["Цю анкету вже заповнено", "Повторно відповісти за цим посиланням не можна: так ми захищаємо анонімність і не допускаємо подвоєних відповідей. Дякуємо за участь."]
+        : API.surveyMsg === "closed" ? ["Опитування зараз не приймає відповіді", "Хвилю оцінювання ще не відкрито або вже закрито. Перевірте строки в того, хто надіслав вам посилання."]
+        : ["Посилання недійсне або застаріле", "Перевірте, чи адресу скопійовано повністю. Якщо не допомогло, попросіть нове посилання в того, хто надіслав вам анкету."];
+      return <div className="survey c12"><section className="card rise" style={{ padding: 32, textAlign: "center" }}><div className="done-ic" style={{ background: "var(--soft)", color: "var(--muted)" }}><Ic n="lock" /></div><h2 style={{ margin: "18px 0 6px", fontSize: 22, fontWeight: 600 }}>{t}</h2><p className="lbl" style={{ maxWidth: 480, margin: "0 auto" }}>{d}</p></section></div>;
+    }
+    return null;
+  }
+  // Після подання показуємо подяку; наступний захід на екран бере наступну анкету.
+  if (API.survey && API.survey.submitted && S.survey.phase !== "done") API.survey = null;
+  if (API.survey) return null;
+  if (!apiEnsure("assignments", () => api("/me/assignments"))) return <Loading t="Анкети" />;
+  if (API.assignments.error) return <Failed e={API.assignments.error} />;
+  const todo = API.assignments.filter(a => a.kind !== "checklist"), next = todo.find(a => !a.submitted);
+  if (next && API.formError) return <Failed e={API.formError} />;
+  if (next) { apiLoadForm(next); return <Loading t={next.questionnaire_title} />; }
+  return <Empty t="Зараз немає анкет до проходження">{todo.length ? `Ви вже пройшли: ${todo.map(a => a.questionnaire_title).join(", ")}.` : "Анкети зʼявляться, коли уповноважений відкриє хвилю оцінювання."}<br /><br /><a className="btn btn-soft" href="#me">Мої результати <Ic n="arrowR" /></a></Empty>;
+}
+
+function ApiScope({ sc, title }) {
+  if (!sc.sufficient) return <section className="card c12 rise"><div className="lock"><Ic n="lock" /><div><b>{title}: результати приховано</b><div className="lbl">Відповіло менше {S.k} осіб. Так ми не дозволяємо обчислити відповіді окремих людей.</div></div></div></section>;
+  const idx = sc.index.score ?? 0, lv = (sc.index.level && sc.index.level.level) || level(idx);
+  return <>
+    <section className="card c5 rise"><div className="lbl">{title}</div>
+      <div className="big tnum" style={{ marginTop: 12 }}><Num v={idx} /><span className="of">з 100</span></div>
+      <div style={{ margin: "10px 0 14px" }}><LvPill l={lv} /></div><LevelBar v={idx} /></section>
+    <section className="card c7 rise"><div className="card-h"><h2>Три компоненти</h2></div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>{sc.components.filter(c => COMPS.includes(c.code)).map((c, i) => { const v = c.score ?? 0; return <div key={c.code}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}><span style={{ display: "flex", gap: 10, alignItems: "center" }}><span className="comp-ic" style={{ background: COMP[c.code].s, color: COMP[c.code].c }}><Ic n={COMP[c.code].ic} /></span><b>{COMP[c.code].n}</b></span><span style={{ display: "flex", gap: 8, alignItems: "center" }}><b className="tnum">{c.score == null ? "н/д" : fb(v)}</b><LvPill l={(c.level && c.level.level) || level(v)} /></span></div>
+        <Ticks n={20} on={Math.round(v / 5)} color={COMP[c.code].c} delay={i * 120} /></div>; })}</div></section>
+  </>;
+}
+function ApiMe() {
+  const okA = apiEnsure("assignments", () => api("/me/assignments")), okM = apiEnsure("my", () => api("/me/results").catch(e => e.status === 404 ? [] : Promise.reject(e)));
+  if (!okA || !okM) return <Loading t="Мої результати" />;
+  if (API.my.error) return <Failed e={API.my.error} />;
+  const todo = Array.isArray(API.assignments) ? API.assignments.filter(a => a.kind !== "checklist") : [];
+  const latest = Array.isArray(API.my) ? API.my[0] : API.my;
+  return <>
+    <section className="c12 rise toolbar"><span className="lbl">Відповіді анонімні: вони не повʼязані з вашим обліковим записом.</span></section>
+    <section className="card c12 rise"><div className="card-h"><h2>Анкети відкритих хвиль</h2></div>
+      <div className="rows">{todo.length ? todo.map((a, i) => <div key={i} className="row"><div className="grow"><div className="t">{a.questionnaire_title}</div><div className="s">{a.campaign_title}</div></div>{a.submitted ? <Pill cls="p-good">Пройдено</Pill> : <a className="btn btn-primary" href="#survey">Пройти анкету <Ic n="arrowR" /></a>}</div>) : <div className="lbl">Зараз немає відкритих анкет для вас.</div>}</div>
+      {S.role === "checklist_editor" && <div className="lbl" style={{ marginTop: 10 }}>Ви в робочій групі: <a className="link" href="#checklist">заповнити чек-лист</a>.</div>}</section>
+    {latest ? <>
+      <section className="c12 rise toolbar"><span className="lbl">{latest.campaign_title}{latest.closed_on ? `, закрито ${ua(latest.closed_on)}` : ""}</span></section>
+      {latest.my_unit && <ApiScope sc={latest.my_unit} title={"Мій підрозділ: " + latest.my_unit.unit_name} />}
+      <ApiScope sc={latest.institution} title={"Заклад: " + latest.institution.unit_name} />
+      {latest.summary && latest.summary.length > 0 && <section className="card c12 rise"><div className="card-h"><h2>Коротко</h2></div><div className="rows">{latest.summary.map(t => <div key={t} className="row"><span className="dot" style={{ background: "var(--teal)" }} /><div className="grow">{t}</div></div>)}</div></section>}
+    </> : <Empty t="Результатів ще немає">Вони зʼявляться після закриття хвилі.</Empty>}
+    <section className="c12 rise"><div className="lbl" style={{ textAlign: "center" }}>Тут лише узагальнені дані груп не менше k осіб. Окремих відповідей, імен і порівнянь підрозділів немає.</div></section>
+  </>;
+}
+
+/* --- Керування циклом (уповноважений) --- */
+const CST = { draft: ["Чернетка", "p-mute"], open: ["Триває", "p-good"], closed: ["Завершено", "p-info"] };
+function ApiManage() {
+  const [ask, setAsk] = useState(null), [tq, setTq] = useState(null), [tu, setTu] = useState(null), [tn, setTn] = useState(10);
+  if (!apiEnsure("adm", () => apiLoadAdm())) return <Loading t="Керування циклом" />;
+  const A = API.adm; if (A.error) return <Failed e={A.error} />;
+  const c = A.campaigns.find(x => x.id === A.sel);
+  const surveys = c ? A.qs.filter(q => c.questionnaire_ids.includes(q.id) && q.kind !== "checklist") : [];
+  const q = surveys.find(x => x.id === tq) || surveys[0], unit = tu || (c && c.unit_id);
+  const issue = () => apiIssueTokens(c.id, q && q.id, q && q.target_category === "expert" ? null : (A.units.find(u => u.id === unit) || A.units.find(u => !u.parent_id) || A.units[0] || {}).id, +tn);
+  return <>
+    <section className="card c8 rise">
+      {c ? <>
+        <div className="card-h"><h2>{dn(c.title)}</h2><Pill cls={CST[c.status][1]}>{CST[c.status][0]}</Pill><div className="sp" /><span className="lbl">{c.opened_on ? ua(c.opened_on) : "ще не відкрито"} – {c.closed_on ? ua(c.closed_on) : "триває"}</span></div>
+        <div className="rows">{(A.progress ? A.progress.items : []).length ? A.progress.items.map((i, k) => { const n = i.too_few_people ? 30 : Math.max(1, Math.min(30, i.eligible || 30)), on = i.too_few_people || !i.eligible ? 0 : Math.round((i.submitted || 0) / i.eligible * n); return <div key={k} className="row prog-row"><div className="grow"><div className="prog-h"><span className="t">{i.questionnaire_title}</span>{i.too_few_people && <span className="prog-lock" data-tip={`Менше ${c.min_group_size} осіб: кількості приховано`}><Ic n="lock" /></span>}<b className="tnum prog-n">{i.too_few_people ? "приховано" : `${i.submitted} з ${i.eligible}`}</b></div>
+          <div className="ticks" style={{ height: 14, marginTop: 8 }}>{Array.from({ length: n }, (_, j) => <span key={j} style={j < on ? { background: "var(--teal)" } : undefined} />)}</div></div></div>; }) : <div className="lbl">Анкет у хвилі немає.</div>}</div>
+        <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }} id="cActs">
+          {ask === c.id ? <><div className="lbl" style={{ width: "100%" }}>Прийом відповідей зупиниться, система порахує індекс і збереже незмінний знімок. Невикористані посилання стануть недійсними. Скасувати не можна.</div><button className="btn btn-ghost" onClick={() => setAsk(null)}>Скасувати</button><button className="btn btn-danger" onClick={() => { setAsk(null); apiCampaignAct(c.id, "close"); }}>Завершити</button></> : <>
+            {c.status === "draft" && <button className="btn btn-primary" onClick={() => apiCampaignAct(c.id, "open")}><Ic n="ok" />Відкрити хвилю</button>}
+            {c.status === "open" && <button className="btn btn-soft" onClick={() => setAsk(c.id)}><Ic n="lock" />Завершити й порахувати індекс</button>}</>}
+        </div></> : <div className="empty"><b>Хвиль ще немає</b><br />Створіть першу хвилю оцінювання.</div>}
+    </section>
+    <section className="card c4 rise waves-card">
+      <div className="card-h"><h2>Хвилі</h2><div className="sp" /><button className="btn btn-soft" style={{ padding: "6px 12px" }} onClick={apiNewCampaign}><Ic n="plus" />Нова</button></div>
+      <div className="rows">{A.campaigns.map(x => <a key={x.id} className="row click" href="#manage" onClick={e => { e.preventDefault(); setAsk(null); setTq(null); setTu(null); apiAdmReload(x.id); }} style={x.id === A.sel ? { background: "var(--soft)" } : undefined}><div className="grow"><div className="t">{dn(x.title)}</div><div className="s">{x.access_mode === "token" ? "анонімно за посиланнями" : "за обліковими записами"}</div></div><Pill cls={CST[x.status][1]}>{CST[x.status][0]}</Pill></a>)}</div>
+    </section>
+    {c && c.access_mode === "token" && c.status !== "closed" && <section className="card c12 rise">
+      <div className="card-h"><h2>Одноразові посилання</h2></div>
+      <div className="lbl" style={{ marginBottom: 12 }}>Кожне посилання відкриває анкету один раз і без входу. Система зберігає лише хеш і не знає, кому ви його дали. Посилання показуються тільки зараз: збережіть їх.</div>
+      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+        <div className="field" style={{ flex: 2, minWidth: 220 }}><label htmlFor="t-q">Анкета</label><select className="inp" id="t-q" value={q ? q.id : ""} onChange={e => setTq(e.target.value)}>{surveys.map(x => <option key={x.id} value={x.id}>{x.title}</option>)}</select></div>
+        <div className="field" style={{ flex: 1, minWidth: 180 }}><label htmlFor="t-u">Підрозділ</label><UnitCombo id="t-u" units={A.units} value={unit} onChange={setTu} canCreate={false} /></div>
+        <div className="field" style={{ width: 110 }}><label htmlFor="t-n">Кількість</label><input className="inp tnum" id="t-n" type="number" min="1" max="1000" value={tn} onChange={e => setTn(e.target.value)} /></div>
+        <button className="btn btn-primary" onClick={issue}>Видати</button>
+      </div>
+      {A.links && <div className="note-box" style={{ marginTop: 14 }}>{A.links.warning ? <b style={{ color: "var(--amber)" }}>{A.links.warning}</b> : <b>Видано посилань: {A.links.urls.length}</b>}
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "6px 0" }}><button className="btn btn-soft" onClick={apiCopyLinks}><Ic n="copy" />Копіювати всі</button><button className="btn btn-soft" onClick={() => download("links.csv", "﻿link\n" + API.adm.links.urls.join("\n"), "text/csv")}><Ic n="file" />CSV</button></div>
+        <div className="link-list tnum">{A.links.urls.map((u, i) => <div key={u} className="link-row"><span className="link-n">{i + 1}</span><a className="link" href={u} target="_blank" rel="noreferrer">{u}</a><button type="button" className="icon-btn sm" aria-label={`Копіювати посилання ${i + 1}`} data-tip="Копіювати це посилання" onClick={() => apiCopyOne(i)}><Ic n="copy" /></button></div>)}</div></div>}
+      <div style={{ marginTop: 12 }}><button className="btn btn-ghost" onClick={() => apiRevoke(c.id)}>Відкликати всі невикористані</button></div>
+    </section>}
+  </>;
+}
+const MODE_HINT = { login: "Люди входять у систему під своїм логіном. Система знає, хто вже пройшов (щоб не пустити вдруге), але не показує нікому, що саме він відповів.", token: "Кожному видається одноразове посилання без входу в систему. Система не знає навіть, хто пройшов: лише скільки посилань використано." };
+function apiNewCampaign() {
+  const A = API.adm;
+  openDrawer("Нова хвиля оцінювання", () => {
+    const [title, setTitle] = useState(""), [unit, setUnit] = useState(null), [ids, setIds] = useState(A.qs.map(q => q.id)), [mode, setMode] = useState("login"), [k, setK] = useState(S.k), [err, setErr] = useState("");
+    const ok = async () => {
+      if (!title.trim()) return setErr("Вкажіть назву.");
+      if (!ids.length) return setErr("Оберіть хоча б одну анкету.");
+      const u = A.units.find(x => x.id === unit) || A.units.find(x => !x.parent_id) || A.units[0];
+      try { await apiCreateCampaign({ title: title.trim(), unit_id: u ? u.id : "", questionnaire_ids: ids, min_group_size: +k, access_mode: mode }); }
+      catch (e) { setErr(apiErrText(e)); }
+    };
+    return <>
+      <div className="note-box"><span className="lbl">Хвиля це один раунд оцінювання: ви обираєте підрозділ та анкети, відкриваєте хвилю, люди відповідають, потім ви її завершуєте і система рахує індекс.</span></div>
+      <div className="field"><label htmlFor="n-t">Назва</label><input className="inp" id="n-t" placeholder="Хвиля 3 (весна)" value={title} onChange={e => setTitle(e.target.value)} /></div>
+      <div className="field"><label htmlFor="n-u">Підрозділ</label><UnitCombo id="n-u" units={A.units} value={unit} onChange={setUnit} canCreate /><span className="lbl">Оцінювання охопить цей підрозділ і всі його дочірні. Немає потрібного? Введіть назву й оберіть «Створити».</span></div>
+      <div className="field"><label>Анкети</label>{A.qs.map(q => <label key={q.id} className="chk-row"><input type="checkbox" className="n-q" value={q.id} checked={ids.includes(q.id)} onChange={e => setIds(v => e.target.checked ? [...v, q.id] : v.filter(x => x !== q.id))} /><span>{q.title} <span className="lbl">v{q.version}</span></span></label>)}</div>
+      <div className="field"><label>Як проходять</label><div className="seg" id="n-m">{[["login", "За обліковими записами"], ["token", "Анонімно за посиланнями"]].map(([m, n]) => <button key={m} type="button" className={mode === m ? "on" : ""} onClick={() => setMode(m)}>{n}</button>)}</div><span className="lbl" id="n-mh">{MODE_HINT[mode]}</span></div>
+      <div className="field"><label htmlFor="n-k">Мінімальна група k</label><input className="inp tnum" id="n-k" type="number" min="5" value={k} onChange={e => setK(e.target.value)} /><span className="lbl">Якщо відповіли менше цієї кількості людей, результати групи не показуються, щоб нікого не можна було впізнати. Не менше 5.</span></div>
+      <span className="lbl" id="n-err" style={{ color: "var(--red)" }}>{err}</span>
+      <button className="btn btn-primary" id="n-ok" style={{ justifyContent: "center" }} onClick={ok}><Ic n="plus" />Створити чернетку</button>
+    </>;
+  });
+}
+
+/* --- Анкети (укладач) --- */
+function ApiSurveys() {
+  if (!apiEnsure("qs", () => api("/questionnaires"))) return <Loading t="Анкети" />;
+  if (API.qs.error) return <Failed e={API.qs.error} />;
+  const list = [...API.qs].sort((a, b) => a.code.localeCompare(b.code) || b.version - a.version);
+  return <>
+    <section className="c12 rise toolbar"><div className="sp" /><button className="btn btn-primary" onClick={bldNew}><Ic n="plus" />Нова анкета</button></section>
+    {list.map(q => <section key={q.id} className="card c6 rise">
+      <div className="comp-top"><span className="comp-ic" style={{ background: "var(--lime-soft)", color: "var(--teal-deep)" }}><Ic n={q.kind === "checklist" ? "check" : "survey"} /></span><b>{q.title}</b><div className="sp" style={{ flex: 1 }} /><Pill cls={QST[q.status][1]}>{QST[q.status][0]}</Pill></div>
+      <div className="stat4 tnum" style={{ gridTemplateColumns: "repeat(3,1fr)", marginTop: 14 }}><div><small>Група</small><b style={{ fontSize: 14 }}>{q.kind === "checklist" ? "Чек-лист" : QCAT[q.target_category]}</b></div><div><small>Версія</small><b>{q.version}</b></div><div><small>Код</small><b style={{ fontSize: 12 }}>{q.code}</b></div></div>
+      <div className="lbl" style={{ marginTop: 10 }}>Оновлено {ua(q.updated_at.slice(0, 10))}</div><div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end" }}>
+        <button className="btn btn-soft" onClick={() => apiOpenQ(q.id)}><Ic n="eye" />Переглянути</button>
+        {q.status === "draft" ? <><button className="btn btn-soft" onClick={() => bldOpen(q.id)}><Ic n="edit" />Редагувати</button><button className="btn btn-primary" onClick={() => apiQAct(q.id, "publish")}><Ic n="ok" />Опублікувати</button></>
+          : q.status === "published" ? <><button className="btn btn-ghost" onClick={() => apiQAct(q.id, "new-version")}><Ic n="plus" />Нова версія</button><button className="btn btn-ghost" onClick={() => apiQAct(q.id, "archive")}>В архів</button></> : null}</div>
+    </section>)}
+  </>;
+}
+async function apiOpenQ(id) {
+  try {
+    const q = await api(`/questionnaires/${id}`);
+    const nSec = q.sections.length, nQ = q.sections.reduce((a, s) => a + s.questions.length, 0);
+    openDrawer(q.title, () => <>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><Pill cls="p-mute nodot">Версія {q.version}</Pill><Pill cls="p-mute nodot">{q.kind === "checklist" ? "Чек-лист" : QCAT[q.target_category]}</Pill><Pill cls="p-mute nodot">{nSec} {plural(nSec, "розділ", "розділи", "розділів")}, {nQ} {plural(nQ, "питання", "питання", "питань")}</Pill></div>
+      {q.sections.map((s, i) => <section key={i} className="pv-sec">
+        <div className="pv-sec-h"><span className="pv-num">{i + 1}</span><b className="pv-sec-t">{s.title}</b><span className="pv-cnt">{s.questions.length} {plural(s.questions.length, "питання", "питання", "питань")}</span></div>
+        {s.questions.map((x, j) => <div key={j} className="pv-q">
+          <div className="pv-qt"><span className="pv-qn">{j + 1}.</span> {x.text}</div>
+          {x.options.length ? <ul className="pv-opts">{x.options.map((o, k) => <li key={k}><span className="pv-score">{fb(o.score)}</span><span>{o.text}</span></li>)}</ul> : <div className="s">Шкала від {x.scale_min} до {x.scale_max}</div>}
+        </div>)}
+      </section>)}
+    </>);
+  } catch (e) { apiFail(e); }
+}
+// Код анкети з назви: українська транслітерація, лише латиниця, цифри й дефіс
+const BLD_TR = { а: "a", б: "b", в: "v", г: "h", ґ: "g", д: "d", е: "e", є: "ye", ж: "zh", з: "z", и: "y", і: "i", ї: "yi", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p", р: "r", с: "s", т: "t", у: "u", ф: "f", х: "kh", ц: "ts", ч: "ch", ш: "sh", щ: "shch", ь: "", ю: "yu", я: "ya", "'": "", "’": "" };
+const bldSlug = t => t.trim().toLowerCase().replace(/./g, c => BLD_TR[c] ?? c).replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+// Створення нової анкети: коротка форма, далі конструктор
+function bldNew() {
+  openDrawer("Нова анкета", () => {
+    const [title, setTitle] = useState(""), [code, setCode] = useState(""), [touched, setTouched] = useState(false), [g, setG] = useState("working_group"), [kind, setKind] = useState("survey"), [err, setErr] = useState("");
+    const ok = async () => {
+      const t = title.trim(), c = code.trim();
+      if (!t) return setErr("Вкажіть назву.");
+      if (!/^[a-z0-9_.-]+$/.test(c)) return setErr("Код: лише латиниця, цифри, дефіс і крапка.");
+      try { const q = await api("/questionnaires", { method: "POST", body: { code: c, title: t, description: "", kind, target_category: g, sections: [] } }); closeDrawer(); const b = bldFromServer(q); b.sections = [bldNewSec()]; b.dirty = true; ui.bld = { b, n: Date.now() }; render(true); }
+      catch (e) { setErr(apiErrText(e)); }
+    };
+    return <>
+      <div className="field"><label htmlFor="bn-t">Назва</label><input className="inp" id="bn-t" placeholder="Наприклад, Анкета для курсантів" value={title} onChange={e => { setTitle(e.target.value); if (!touched) setCode(bldSlug(e.target.value)); }} /></div>
+      <div className="field"><label htmlFor="bn-c">Код</label><input className="inp" id="bn-c" placeholder="kursanty-survey" value={code} onChange={e => { setCode(e.target.value); setTouched(true); }} /><span className="lbl">Латиницею, цифри, дефіс. За кодом пов'язуються версії анкети.</span></div>
+      <div className="field"><label htmlFor="bn-g">Для кого</label><select className="inp" id="bn-g" value={g} onChange={e => setG(e.target.value)}>{Object.entries(QCAT).map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select></div>
+      <div className="field"><label htmlFor="bn-k">Вид</label><select className="inp" id="bn-k" value={kind} onChange={e => setKind(e.target.value)}><option value="survey">Анкета зрілості</option><option value="checklist">Чек-лист</option></select></div>
+      <span className="lbl" id="bn-err" style={{ color: "var(--red)" }}>{err}</span>
+      <button className="btn btn-primary" id="bn-ok" style={{ justifyContent: "center" }} onClick={ok}><Ic n="plus" />Створити й відкрити конструктор</button>
+    </>;
+  });
+}
+
+/* --- Чек-лист: вносить робоча група, підтверджує укладач --- */
+function ApiChecklist() {
+  if (!apiEnsure("ck", () => apiLoadCk())) return <Loading t="Чек-лист" />;
+  const K = API.ck; if (K.error) return <Failed e={K.error} />;
+  if (!K.camps.length) return <Empty t="Немає хвилі з чек-листом">Чек-лист зʼявиться, коли уповноважений відкриє хвилю з ним.</Empty>;
+  const camp = K.camps.find(c => c.id === K.sel), open = camp && camp.status === "open";
+  const ed = S.role === "checklist_editor" && open, ap = S.role === "commissioner" && open, D = K.data;
+  const head = <section className="c12 rise toolbar">{!(ed || ap) && <span className="lbl">Режим перегляду.</span>}<div className="sp" />
+    {K.camps.length > 1 ? <select className="inp" aria-label="Хвиля" value={K.sel} onChange={e => apiCkReload(e.target.value)}>{K.camps.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select> : <span className="lbl">{camp ? camp.title : ""}</span>}</section>;
+  if (!D) return <>{head}<Empty t="Чек-лист недоступний">{K.err || ""}</Empty></>;
+  const tile = (ic, t, v) => <section className="card rise kpi-tile"><div className="kt-h"><span className="kt-ic"><Ic n={ic} /></span><span className="lbl">{t}</span></div><div className="kt-b"><span className="mid tnum">{v}</span></div></section>;
+  return <>{head}
+    <div className="c12 kpi-row kpi-row-s">{tile("check", "Пунктів", D.total)}{tile("edit", "Внесено", D.filled)}{tile("ok", "Підтверджено", D.confirmed)}</div>
+    <section className="card c12 rise"><div className="tbl-wrap"><table><thead><tr><th>Пункт</th><th>Компонент</th><th>Стан і доказ</th><th>Файли</th><th></th></tr></thead><tbody>
+      {D.items.map(it => <tr key={it.question_id} id={`ck-${it.question_id}`}><td style={{ minWidth: 260 }}><b style={{ fontWeight: 600 }}>{it.number}.</b> {it.text.replace(/^\d+(\.\d+)*\.\s*/, "")}</td>
+        <td>{COMPS.includes(it.component) && <Pill cls="p-mute nodot">{COMP[it.component].n}</Pill>}</td>
+        <td style={{ minWidth: 200 }}>{it.status ? <Pill cls={CKS[it.status][1]}>{CKS[it.status][0]}</Pill> : <Pill cls="p-mute">Не внесено</Pill>} {it.confirmed ? <Pill cls="p-good nodot">Підтверджено</Pill> : it.status ? <Pill cls="p-mute nodot">Не підтверджено</Pill> : null}{it.evidence && <div className="lbl" style={{ marginTop: 4 }}>{it.evidence}</div>}</td>
+        <td className="lbl" style={{ minWidth: 160 }}>{it.files.length ? it.files.map(f => <div key={f.id}><a className="link" href="#checklist" onClick={e => { e.preventDefault(); apiDownload(K.sel, it.question_id, f.id, f.filename); }}>{f.filename}</a> <span className="hash" title={`sha256 ${f.sha256}`}>{f.sha256.slice(0, 10)}</span>{ed && <> <a className="link" href="#checklist" aria-label="Прибрати файл" onClick={e => { e.preventDefault(); apiDelFile(K.sel, it.question_id, f.id); }}>×</a></>}</div>) : "—"}</td>
+        <td style={{ whiteSpace: "nowrap" }}>{ed && <button className="btn btn-soft" style={{ padding: "6px 12px" }} onClick={() => apiEditItem(it.question_id)}><Ic n="edit" />Внести</button>}{ap && it.status ? (it.confirmed ? <button className="btn btn-ghost" style={{ padding: "6px 12px" }} onClick={() => apiConfirm(it.question_id, false)}>Відкликати</button> : <button className="btn btn-primary" style={{ padding: "6px 12px" }} onClick={() => apiConfirm(it.question_id, true)}><Ic n="ok" />Підтвердити</button>) : null}</td></tr>)}
+    </tbody></table></div></section>
+  </>;
+}
+function apiEditItem(qid) {
+  const it = API.ck.data.items.find(x => x.question_id === qid), camp = API.ck.sel;
+  openDrawer("Внести пункт чек-листа", () => {
+    const [st, setSt] = useState(it.status), [ev, setEv] = useState(it.evidence || ""), [cm, setCm] = useState(it.comment || ""), [file, setFile] = useState(null), [err, setErr] = useState("");
+    const ok = async () => {
+      if (!st) return setErr("Оберіть статус.");
+      try {
+        const r = await apiSaveItem(camp, qid, { status: st, evidence: ev.trim(), comment: cm.trim() }, file);
+        toast(r ? `Файл «${r.filename}» додано, sha256 ${r.sha256.slice(0, 12)}…` : `Пункт ${it.number} збережено`);
+        closeDrawer(); apiCkReload(camp);
+      } catch (e) { setErr(apiErrText(e)); }
+    };
+    return <>
+      <div><div className="lbl">Пункт {it.number}</div><div style={{ fontWeight: 600, marginTop: 4 }}>{it.text}</div></div>
+      {it.indicator && <div className="lbl">{it.indicator}</div>}
+      <div className="field"><label>Статус</label><div className="seg" id="e-st">{Object.entries(CKS).map(([k, [n]]) => <button key={k} type="button" className={st === k ? "on" : ""} onClick={() => setSt(k)}>{n}</button>)}</div></div>
+      <div className="field"><label htmlFor="e-ev">Доказ (документ, наказ, посилання)</label><textarea className="inp" id="e-ev" rows="3" value={ev} onChange={e => setEv(e.target.value)} /></div>
+      <div className="field"><label htmlFor="e-cm">Коментар</label><input className="inp" id="e-cm" value={cm} onChange={e => setCm(e.target.value)} /></div>
+      <div className="field"><label htmlFor="e-f">Файл-доказ (PDF, зображення, документ; до {Math.round(API.cfg.evidence.max_bytes / 1048576)} МБ)</label><input className="inp" id="e-f" type="file" accept={API.cfg.evidence.allowed_extensions.map(x => "." + x).join(",")} onChange={e => setFile(e.target.files[0] || null)} /></div>
+      <span className="lbl" id="e-err" style={{ color: "var(--red)" }}>{err}</span>
+      <button className="btn btn-primary" id="e-ok" style={{ justifyContent: "center" }} onClick={ok}><Ic n="send" />Зберегти</button>
+    </>;
+  });
+}
+
+/* --- Журнал --- */
+function ApiAudit() {
+  if (!apiEnsure("log", apiLoadLog)) return <Loading t="Журнал" />;
+  if (API.log.error) return <Failed e={API.log.error} />;
+  const { rows, units, users } = API.log, F = { q: "", ent: "all", who: "all", ...API.logF };
+  const set = (k, v) => { API.logF = { ...(API.logF || {}), [k]: v }; render(true); };
+  const who = id => { const u = users.find(u => u.id === id); return u ? u.display_name : id ? "Користувач …" + String(id).slice(-4) : "Система"; };
+  const act = x => AUDIT_ACT[`${x.entity}:${x.action}`] || `${AUDIT_ENT[x.entity] || x.entity}: ${x.action}`;
+  const fmt = at => new Date(at).toLocaleString("uk-UA", { dateStyle: "short", timeStyle: "short" });
+  const items = rows.map(x => ({ x, a: act(x), w: who(x.actor_id), d: auditDetails(x, units), t: fmt(x.at) }));
+  const q = (F.q || "").trim().toLowerCase();
+  const shown = items.filter(i => (F.ent === "all" || i.x.entity === F.ent) && (F.who === "all" || i.x.actor_id === F.who) && (!q || `${i.a} ${i.w} ${i.d} ${i.t} ${i.x.seq} ${i.x.hash}`.toLowerCase().includes(q)));
+  const groups = []; shown.forEach(i => { const g = groups[groups.length - 1]; if (g && g[0].a === i.a && g[0].w === i.w && g[0].d === i.d) g.push(i); else groups.push([i]); });
+  const ents = [...new Set(rows.map(x => x.entity))].sort((a, b) => (AUDIT_ENT[a] || a).localeCompare(AUDIT_ENT[b] || b, "uk"));
+  const actors = [...new Set(rows.map(x => x.actor_id).filter(Boolean))].map(id => [id, who(id)]).sort((a, b) => a[1].localeCompare(b[1], "uk"));
+  return <section className="card c12 rise">
+    <div className="card-h" style={{ flexWrap: "wrap" }}><h2>Журнал дій</h2><div className="sp" /><span id="chainSt">{API.chain && <Pill cls={API.chain.ok ? "p-good" : "p-bad"}>{API.chain.ok ? `Ланцюг цілісний: перевірено ${API.chain.checked} записів` : `Ланцюг порушено на записі № ${API.chain.broken_seq}`}</Pill>}</span><button className="btn btn-soft" onClick={apiVerify}><Ic n="shield" />Перевірити цілісність</button></div>
+    <div className="lbl" style={{ marginBottom: 10 }}>Хто, коли й що змінив. Кожен запис містить хеш попереднього (sha256), тож тиха правка чи видалення ламає ланцюг. Подань анкет у журналі немає.</div>
+    <div className="toolbar" style={{ marginBottom: 8 }}><label className="search inst-search"><span><Ic n="search" /></span><input id="logQ" placeholder="Дія, хто, підрозділ, дата або хеш" value={F.q || ""} onChange={e => set("q", e.target.value)} /></label>
+      <select className="inp" aria-label="Тип дії" value={F.ent} onChange={e => set("ent", e.target.value)}><option value="all">Усі дії</option>{ents.map(e => <option key={e} value={e}>{AUDIT_ENT[e] || e}</option>)}</select>
+      {actors.length > 0 && <select className="inp" aria-label="Хто" value={F.who} onChange={e => set("who", e.target.value)}><option value="all">Усі користувачі</option>{actors.map(([id, n]) => <option key={id} value={id}>{n}</option>)}</select>}
+      <span className="lbl tnum">Показано {shown.length} з {rows.length}</span></div>
+    {groups.length ? <div className="tl">{groups.map((g, i) => { const f = g[0], l = g[g.length - 1]; return <div key={f.x.seq} className="tl-i rise" style={{ animationDelay: `${Math.min(i, 12) * 40}ms` }}><span className="nd" /><div><div style={{ fontWeight: 500 }}>{f.a}{g.length > 1 && <> <span className="pill p-mute nodot">×{g.length}</span></>}</div><div className="lbl">{f.w} · {g.length > 1 ? `${l.t} – ${f.t}` : f.t}{f.d ? " · " + f.d : ""}</div></div><span className="hash" data-tip={`Запис № ${f.x.seq}`}>{f.x.hash.slice(0, 10)}</span></div>; })}</div> : <div className="empty">Записів за цим запитом немає.</div>}
+  </section>;
+}

@@ -1,7 +1,7 @@
 # Як запустити: база, бекенд, фронтенд
 
-> Фронтенд — `frontend-proto/` (одна сторінка, vanilla JS). У `docker compose` він бере всі дані з бекенду: вхід, індекс,
-> рекомендації, заходи, хвилі, посилання, анкети, чек-лист, журнал. Відкритий як файл (без API) — працює на демо-даних.
+> Фронтенд — `frontend-proto/` (React + Vite). У `docker compose` він бере всі дані з бекенду: вхід, індекс,
+> рекомендації, заходи, хвилі, посилання, анкети, чек-лист, журнал. Без API (`npm run dev`) працює на демо-даних.
 > Старий `frontend/` (React) у compose більше не використовується.
 
 ## Усе через Docker (одна команда)
@@ -23,10 +23,17 @@ docker compose up --build
 Перевірити стенд з кінця в кінець (вхід, хвиля за посиланнями, повтор → 409, файл-доказ із sha256, журнал):
 
 ```bash
+# Окремий проєкт compose: свої томи й БД, демо-стенд не зачіпається. Основний стенд зупиніть (ті самі порти).
+docker compose stop
+SEED_WITH_WAVES=false docker compose -p smoke up -d --build
 python backend/scripts/smoke.py --base http://localhost:8080 --password "$DEMO_PASSWORD"
+docker compose -p smoke down -v      # прибрати разом із даними
+docker compose start                 # повернути демо-стенд
 ```
 
-Скрипт створює демо-хвилю «Smoke …», тож запускайте його на демо-стенді.
+Smoke лише на окремому проєкті (`-p smoke`): він лишає в БД хвилю «Smoke …», файл-доказ і записи журналу,
+які не видаляються (журнал незмінний). Якщо в БД є хвилі «(демо)», скрипт зупиняється з кодом 2;
+`--force` — запустити все одно.
 
 ### За проксі організації
 
@@ -36,18 +43,32 @@ python backend/scripts/smoke.py --base http://localhost:8080 --password "$DEMO_P
   Проксі має сам задавати `X-Remote-User` (і `X-Proxy-Secret`) після автентифікації й не пропускати їх від браузера.
   Фронтенд викликає `POST /api/v1/auth/proxy`, коли `GET /api/v1/config` → `auth.proxy: true`.
   Без `TRUSTED_PROXIES` API з увімкненим входом через проксі не стартує.
+- Реальна IP клієнта для лімітів спроб береться з `X-Forwarded-For` лише від адрес `FORWARDED_PROXIES` (nginx).
+  У compose за замовчуванням це приватні мережі Docker; SSO цим не вмикається. Порт API `8000` опубліковано лише
+  на `127.0.0.1`, щоб ззовні не можна було підробити `X-Forwarded-For` в обхід nginx.
 
 ## Бекенд без Docker
 
 `cd backend`, далі кроки з [`backend/README.md`](../backend/README.md): venv, alembic, seed, uvicorn на порту 8000.
 
+## Усе одним процесом без Docker
+
+API може сам віддавати зібраний фронтенд (`FRONTEND_DIST`): один процес, один порт, без nginx.
+
+```bash
+cp backend/.env.example backend/.env   # DATABASE_URL (PostgreSQL), JWT_SECRET ≥ 32 символи, DEMO_PASSWORD
+./run-local.sh                          # збирає frontend-proto, міграції, seed з демо-хвилями → http://localhost:8000
+```
+
+Сторінки, `/s/<токен>` і `/api/v1` — на тому ж порту, з тими самими заголовками безпеки, що й у nginx. `SKIP_BUILD=1` і `SKIP_SEED=1` пропускають відповідні кроки.
+
 ## Фронтенд
 
-Код — у `frontend-proto/src/`, після правок `python3 frontend-proto/src/build.py` збирає `frontend-proto/index.html`.
+Код — у `frontend-proto/src/` (React + Vite). `npm install`, далі `npm run dev` (http://localhost:5173, `/api` і `/health` проксіюються на `BACKEND_URL`, за замовчуванням http://127.0.0.1:8000) або `npm run build` → `dist/`.
 Сторінка сама визначає режим: якщо `GET /api/v1/config` відповідає — вхід і дані з бекенду, інакше демо-дані.
 
 - Через Docker: `docker compose up --build frontend` перезбирає лише фронтенд.
-- Як файл: відкрити `frontend-proto/index.html` — демо без бекенду, роль перемикається в меню.
+- Без бекенду: `cd frontend-proto && npm run dev` — демо-дані, роль перемикається в меню.
 
 Що бачить кожна роль після входу:
 
@@ -64,14 +85,18 @@ python backend/scripts/smoke.py --base http://localhost:8080 --password "$DEMO_P
 
 ## Асистент (опційно)
 
-Кнопка «Асистент» працює і без моделі (шаблони правил). Щоб підключити модель, задайте в `.env`
-будь-який OpenAI-сумісний `/chat/completions`:
+Кнопка «Асистент» працює і без моделі (шаблони правил). Модель — Gemma на шлюзі кафедри
+(OpenAI-сумісний `/chat/completions`, ключ видає адміністратор шлюзу). У `.env` (не в `.env.example`, він комітиться):
 
 ```bash
-LLM_BASE_URL=http://host.docker.internal:11434/v1   # Ollama; для Groq достатньо LLM_API_KEY
-LLM_API_KEY=
-LLM_MODEL=gemma3:4b
+LLM_BASE_URL=https://api.csit-mitit.com/v1
+LLM_API_KEY=<ключ>
+LLM_MODEL=gemma4-26b
 ```
+
+Перевірено 18.11 на шлюзі кафедри: `gemma4-26b` відповідає українською за 1–3 с і сама викликає інструменти
+бекенду (результати, динаміка, заходи), зокрема коректно відмовляє керівнику підрозділу в даних усієї організації.
+Інша модель — будь-який OpenAI-сумісний сервер (наприклад, своя Ollama: `http://host.docker.internal:11434/v1`).
 
 Бекенд (`/api/assistant`) пускає лише ролі з доступом до результатів і пише в журнал довжину питання, а не його текст.
 
@@ -85,6 +110,12 @@ LLM_MODEL=gemma3:4b
 - «Хвиля 2 (демо)», закрита сьогодні: індекс вищий, рекомендації ще без рішень (їх можна ухвалити на демо).
 
 Повторний старт нічого не дублює: якщо хвилі вже є, історія не додається. Без історії: `SEED_WITH_WAVES=false` у `.env`.
+
+Без демо-даних узагалі (робочий стенд): `SEED_DEMO=false` у `.env` (локально — `python -m app.seed.seed --no-demo`).
+Тоді створюються лише чотири анкети з додатків Б і В і один адміністратор `admin` з паролем `DEMO_PASSWORD`
+(змініть після першого входу); підрозділи й людей заводить він. Каталог заходів (Додаток Д) читається з файлу
+й доступний завжди. `SEED_DEMO=false` вимикає й `SEED_WITH_WAVES`. На вже засіяній базі нічого не видаляє:
+почніть з `docker compose down -v`.
 Локально без Docker: `python -m app.seed.seed --with-waves` (сервер запускати не треба).
 
 Додати ще хвилю до вже засіяної бази (сервер має працювати):
@@ -138,7 +169,7 @@ cd backend && python scripts/gen_docs.py   # тимчасова SQLite-база,
 ## Перевірки
 
 ```bash
-cd backend && pytest                    # бекенд: 164 тестів (на SQLite один тест xmin пропускається)
+cd backend && pytest                    # бекенд: 189 тестів (на SQLite один тест xmin пропускається)
 TEST_DATABASE_URL=postgresql+psycopg://imd:пароль@localhost:5432/imd_test pytest   # те саме на PostgreSQL
 cd frontend && npm run check            # фронтенд: typecheck, lint, тести, збірка
 cd frontend && npm run check:contrast   # контраст кольорів
@@ -148,3 +179,5 @@ cd frontend && npm run check:contrast   # контраст кольорів
 `npx playwright install chromium`). Бекенд для цього не потрібен. Скріншоти лягають у `frontend/artifacts/` (не комітиться).
 
 > Після 5 невдалих спроб входу для пари логін + IP вхід блокується на 5 хвилин (429). Перезапуск сервера скидає лічильник.
+> Анонімні посилання: рахуються лише невірні (5 за 5 хвилин з однієї IP → 429 саме для невірних); дійсне посилання
+> відкривається завжди, навіть з тієї ж адреси.

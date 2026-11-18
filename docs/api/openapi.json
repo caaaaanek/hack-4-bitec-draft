@@ -6691,6 +6691,87 @@
         }
       }
     },
+    "/api/v1/report-templates": {
+      "get": {
+        "tags": [
+          "reports"
+        ],
+        "summary": "Report Template List",
+        "description": "Шаблони звіту хвилі. Код передається в `GET /campaigns/{id}/report?template=`.",
+        "operationId": "report_template_list_api_v1_report_templates_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ReportTemplateOut"
+                  },
+                  "type": "array",
+                  "title": "Response Report Template List Api V1 Report Templates Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/campaigns/{campaign_id}/report": {
       "get": {
         "tags": [
@@ -6744,6 +6825,19 @@
               "title": "Format"
             },
             "description": "json для сторінки; csv, xlsx (Excel) або docx (Word) для завантаження"
+          },
+          {
+            "name": "template",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(appendix_g|brief|measures|dynamics)$",
+              "description": "Шаблон (GET /report-templates). Змінює структуру Word; JSON, CSV і Excel — повні дані",
+              "default": "appendix_g",
+              "title": "Template"
+            },
+            "description": "Шаблон (GET /report-templates). Змінює структуру Word; JSON, CSV і Excel — повні дані"
           }
         ],
         "responses": {
@@ -7146,6 +7240,103 @@
         ]
       }
     },
+    "/api/v1/campaigns/{campaign_id}/what-if": {
+      "post": {
+        "tags": [
+          "what-if"
+        ],
+        "summary": "What If Scenario",
+        "description": "Прогноз індексу, якщо закрити пункти чек-листа, виконати заходи або підтягнути факти.\n\nРозрахунок тією ж `scoring.compute`, що й знімок хвилі. Відповідь: `baseline`, `scenario` (індекс і компоненти\nз `rule` і `explanation`), `delta`, `applied` (що застосовано й чому ні), `levers` (топ-5 важелів із готовим\n`scenario` для повторного запиту), `options` (пункти чек-листа й факти з порогами), `disclaimer`.\nОпитування не моделюються. Чек-лист — лише для всього закладу. Прихований факт (менше k) → 422.",
+        "operationId": "what_if_scenario_api_v1_campaigns__campaign_id__what_if_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WhatIfIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
     "/api/assistant": {
       "get": {
         "tags": [
@@ -7240,6 +7431,93 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/LlmOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/assistant/edit": {
+      "post": {
+        "tags": [
+          "assistant"
+        ],
+        "summary": "Edit",
+        "description": "Редактор звіту: запит до моделі щодо виділеного фрагмента.\n\nМодель або пропонує заміну фрагмента (інструмент `replace_selection` → `action: replace`), або відповідає /\nуточнює (`action: answer`). Документ на сервері не змінюється: фронтенд показує пропозицію, людина приймає її.\nЧисла, яких немає у фрагменті, документі й даних інструментів, повертаються в `warnings`.\n503 — модель не налаштовано, 502 — модель не відповіла.",
+        "operationId": "edit_api_assistant_edit_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EditIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EditOut"
                 }
               }
             }
@@ -9307,6 +9585,114 @@
           "rule"
         ],
         "title": "DynamicsOut"
+      },
+      "EditIn": {
+        "properties": {
+          "selection": {
+            "type": "string",
+            "maxLength": 4000,
+            "minLength": 1,
+            "title": "Selection",
+            "description": "Виділений фрагмент звіту"
+          },
+          "instruction": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "title": "Instruction",
+            "description": "Що зробити: «скороти», «офіційніше», запитання…"
+          },
+          "document": {
+            "type": "string",
+            "maxLength": 20000,
+            "title": "Document",
+            "description": "Текст звіту для контексту і звірки чисел",
+            "default": ""
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "auto",
+              "edit",
+              "ask"
+            ],
+            "title": "Mode",
+            "description": "auto: модель сама вирішує правити чи відповісти; edit: лише правка; ask: лише відповідь",
+            "default": "auto"
+          },
+          "unit_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 64
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "selection",
+          "instruction"
+        ],
+        "title": "EditIn"
+      },
+      "EditOut": {
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": [
+              "replace",
+              "answer"
+            ],
+            "title": "Action",
+            "description": "replace: замінити виділене на text; answer: показати text"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "model": {
+            "type": "string",
+            "title": "Model"
+          },
+          "tools": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Tools"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Warnings",
+            "description": "Напр. числа, яких немає в документі й даних"
+          }
+        },
+        "type": "object",
+        "required": [
+          "action",
+          "text",
+          "model"
+        ],
+        "title": "EditOut"
       },
       "EntryIn": {
         "properties": {
@@ -12224,6 +12610,34 @@
         ],
         "title": "RecommendationsOut"
       },
+      "ReportTemplateOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "audience": {
+            "type": "string",
+            "title": "Audience"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "title",
+          "description",
+          "audience"
+        ],
+        "title": "ReportTemplateOut"
+      },
       "RespondentCategory": {
         "type": "string",
         "enum": [
@@ -13266,6 +13680,59 @@
           "score"
         ],
         "title": "WeakQuestion"
+      },
+      "WhatIfIn": {
+        "properties": {
+          "unit_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Id",
+            "description": "Підрозділ; порожньо — підрозділ хвилі (заклад)"
+          },
+          "measure_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "title": "Measure Ids",
+            "description": "Заходи: кожен закриває свій пункт чек-листа за catalog_number"
+          },
+          "checklist": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "maxProperties": 200,
+            "title": "Checklist",
+            "description": "Пункт чек-листа → full | partial | none (підтверджено)"
+          },
+          "facts": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "maxProperties": 20,
+            "title": "Facts",
+            "description": "Факт → цільовий відсоток 0–100; бал через пороги методики"
+          },
+          "levers": {
+            "type": "boolean",
+            "title": "Levers",
+            "description": "Порахувати топ-5 важелів (≈40 розрахунків)",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "WhatIfIn"
       },
       "Zone": {
         "properties": {

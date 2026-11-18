@@ -2,7 +2,7 @@
 
 Основний фронтенд команди для хакатону BITEC, «Завдання 3. Integrity Management Dashboard». Дедлайн подання — 18.11.2026 10:00.
 
-Це одна HTML-сторінка без збірки (чистий JavaScript і CSS) з власним дизайном. Методика, дані й тексти взяті з фронту колеги:
+Це застосунок на React (Vite, JSX без TypeScript) з власним дизайном. Гілка React-версії — `frontend`; ванільна версія лишилась у гілці `feature/frontend-proto`. Методика, дані й тексти взяті з фронту колеги:
 - сайт: https://integrity-platform-demo.vercel.app;
 - код у репо: `../frontend/`.
 
@@ -30,75 +30,69 @@
   ```bash
   cd ~/hack-4-bitec-draft/frontend-proto && npx --yes vercel@65.16.0 deploy --prod --yes
   ```
-- Якщо Vercel відповідає `DEPLOYMENT_BLOCKED` («commit author doesn't have access»), значить останній коміт зробив хтось поза командою Vercel (наприклад, merge PR на GitHub). Тоді деплоїти копію без git: скопіювати `index.html`, `api/`, `package.json`, `.vercel/`, `.vercelignore` у тимчасову папку й запустити ту саму команду там.
-- `.vercelignore` не пускає на Vercel файли `src/`, `server.mjs`, `start.sh`, `README.md` і `CLAUDE.md`.
+- Прод зараз показує ванільну версію. React-версію з гілки `frontend` деплоїти як preview (та сама команда без `--prod`), на прод — лише з дозволу користувача.
+- Vercel сам збирає проєкт: `vercel.json` задає `npm run build` і каталог `dist/`, функція `api/assistant.js` працює як і раніше.
+- Якщо Vercel відповідає `DEPLOYMENT_BLOCKED` («commit author doesn't have access»), значить останній коміт зробив хтось поза командою Vercel (наприклад, merge PR на GitHub). Тоді деплоїти копію без git: скопіювати `index.html`, `src/`, `api/`, `package.json`, `package-lock.json`, `vite.config.js`, `vercel.json`, `.vercel/`, `.vercelignore` у тимчасову папку й запустити ту саму команду там.
+- `.vercelignore` не пускає на Vercel `server.mjs`, `start.sh`, `README.md`, `CLAUDE.md`, `node_modules`, `dist`, скриншоти й файли Docker.
 - Стара копія в `~/integrity-prototype` більше не робоча. Працювати лише тут.
 
 ## Структура
 
 ```
 frontend-proto/
-├── index.html          зібрана сторінка (CSS + розмітка + <script>), її і деплоїмо
-├── src/                ДЖЕРЕЛА: правити тут, потім збирати
-│   ├── build.py        склеює src/*.js у <script> і extra.css у блок «/* ---- v2:» в index.html
-│   ├── 1-model.js      модель і дані
-│   ├── 2-state.js      стан, ролі, меню, хелпери, графіки, тултіп, drawer
-│   ├── 3-views.js      екрани і пояснювальні панелі
-│   ├── 4-views2.js     решта екранів
-│   ├── 5-ai-router.js  асистент, роутер і обв'язка
-│   └── extra.css       стилі v2 (додаються до базового CSS в index.html)
+├── index.html          оболонка Vite: <div id="root"> і підключення src/main.jsx
+├── src/
+│   ├── main.jsx        стилі, роутер (hashchange), запуск boot()
+│   ├── App.jsx         оболонка: меню, шапка, пошук, доступність, тема, вхід, оверлеї; applyRoute, applyA11y
+│   ├── lib/            логіка без JSX
+│   ├── components/     спільні компоненти
+│   ├── views/          екрани
+│   ├── ai/assistant.jsx асистент
+│   └── styles/         CSS: base.css → extra*.css → base-end.css (порядок задано в main.jsx)
 ├── api/assistant.js    serverless-функція асистента (OpenAI-сумісний /chat/completions)
-├── server.mjs, start.sh  локальний запуск із моделлю Ollama
-├── package.json, .gitignore, .vercelignore, README.md
+├── vite.config.js      dev-проксі /api і /health → BACKEND_URL (за замовчуванням http://127.0.0.1:8000)
+├── vercel.json, Dockerfile, deploy/ (nginx, шрифт), server.mjs, start.sh
 ```
 
-Базовий CSS (токени `:root`, темна тема, `.card`, `.pill`, `.btn` тощо) і HTML-оболонка лежать прямо в `index.html` поза `src/`. Їх правити в `index.html` напряму. `build.py` змінює лише `<script>` і блок extra.css.
+Стан лишився «глобальним», як у ванільній версії: `S` (state.js) і `API` (api.js) — звичайні обʼєкти. Після зміни викликається `render()` зі `lib/store.js`:
+- `render()` — екран монтується заново, анімації появи програються;
+- `render(true)` — тихе оновлення без повторних анімацій.
 
-### Що в кожному файлі `src/`
+Компоненти підписані через `useStore()`. Оверлеї керуються обʼєктом `ui` (store.js): `openDrawer(title, () => JSX)`, `closeDrawer`, `toast`, `openPop(kind, anchor)`, `closePop`, `ui.ai`, `ui.exp`, `ui.bld`. Форми в бічній панелі — компоненти з `useState`. Підказки — атрибут `data-tip` (рядок HTML), їх ловить глобальний обробник (`installTips`). Для тестів `window.S` і `window.API` доступні з консолі.
 
-**`1-model.js` — модель і дані**
-- Іконки `IC`, компоненти `COMPS` і `COMP`, рівні `LEVELS`, `LSHORT`, `LDESC`, межі `BOUNDS`, `CAP = 25`.
-- `TODAY = 2026-11-16`, `CYCLE = 2026-11`.
-- `PERCEPTION` (12 питань), `FACTS` (9 фактів), `credit`, `components`, `trust`, `TRUST`, `FLAGS`.
-- `ALPHA_HISTORY`, `OTHERS`, `buildAlpha`, `buildOther` (seeded `rng`), `inst(id)`, `INSTITUTIONS`.
-- Підрозділи `UNITS`, `resolveUnit` (k-анонімність).
-- Рекомендації: `REC_RULES`, `buildRecs`.
-- Заходи: `BASE_MEASURES`, `M_ST`, `M_NEXT`, `measures()`, `overdueDays`.
+### Що де лежить
 
-**`2-state.js` — стан і хелпери**
-- Анкета `SURVEY`, 8 ролей `ROLE`, меню `NAV` у форматі `[route, label, icon, roles]`, стартові екрани `HOME`, `AI_ROLES`.
-- Стан `S`: localStorage `ii-proto-v2`, функції `persist()` і `resetDemo()`.
-- Журнал із хеш-ланцюгом `fnv`: `addLog`.
-- Хелпери: `$`, `esc`, `fb`, `f1`, `pts`, `numHTML`, `deltaHTML`, `pill`, `lvPill`, `trustPill`, `srcDot`, `toast`.
-- Доступність: кнопка в шапці, `applyA11y` (zoom 100–150 % і підвищений контраст, `S.a11y`). `scaleMedia(z)` множить межі медіазапитів на масштаб, щоб при збільшенні не було горизонтального скролу. Позиції поповерів і підказок рахуються через `Z()`/`zr()`/`placePop`.
-- Тултіп: `showTip(rect, html)` тримає підказку в межах вікна; підказка задається атрибутом `data-tip`.
-- Графіки: `curveChart`, `trendChart`, `radar`, `levelBar`.
-- Бічна панель: `openDrawer(title, html)` і `closeDrawer`.
+**`lib/`**
+- `model.js` — модель і дані: `COMPS`, `COMP`, `LEVELS`, `LDESC`, `BOUNDS`, `CAP = 25`, `TODAY`/`CYCLE` (змінюються через `setClock`), `PERCEPTION`, `FACTS`, `credit`, `components`, `trust`, `FLAGS`, `ALPHA_HISTORY`, `OTHERS`, `inst(id)`, `INSTITUTIONS`, `UNITS`, `resolveUnit`, `buildRecs`, `measures`, `overdueDays`.
+- `state.js` — анкета `SURVEY`, ролі `ROLE`, меню `NAV` (`[route, label, icon, roles]`), `HOME`, `AI_ROLES`, стан `S` (localStorage `ii-proto-v2`), `persist`, `resetDemo`, журнал з хеш-ланцюгом (`fnv`, `addLog`, `logItems`).
+- `api.js` — режим бекенду: `boot`, вхід/вихід, завантаження результатів, рішення, анкети, хвилі й посилання, чек-лист, журнал.
+- `nav.js` — `route()`, `allowed`, `can`, `cur()`, `TITLES`, `isLogin`.
+- `store.js` — `render`, `useStore`, `ui`, панелі, поповер, сповіщення.
+- `format.js` (`fb`, `f1`, `pts`, `ua`, `plural`), `texts.js` (тексти «Чому такий індекс/достовірність»), `util.js` (завантаження файлу, копіювання), `icons.jsx` (`<Ic n="…"/>`).
 
-**`3-views.js` — екрани і пояснювальні панелі**
-- Панелі:
-  - `openWhy()` — клік на картку індексу, відкриває чат «Чому такий індекс?»;
-  - `openTrust()` — картка «Достовірність», відкриває чат «Чому така достовірність?»;
-  - `openHow()` — іконка «i»: як рахується і шкала рівнів.
-  - Якщо ШІ вимкнено, `openWhy()` і `openTrust()` показують ті самі тексти в бічній панелі.
-- `readGuide(title)` — блок «Як читати…» на екранах «Огляд» і «Заклади».
-- Екрани: `V.overview`, `V.explain` (розклад індексу), `V.trends`, `V.recs`, `V.tracker`, `V.sources` («Джерела»), `V.institutions`, `V.compare`.
-- `trendCard`/`drawTrend` — одна картка динаміки з вибором періоду (`openPeriod`, календар місяців) і ліній (індекс можна вимкнути); на «Огляді» й «Динаміці».
-- `openResp` (плашка відповідей), `openItem` (клік на питання в розкладі), `openSource` (синтетичні записи джерел), `openInstMenu`/`openAddInst` (заклади: пошук, додавання з синтетичного реєстру ЄДРПОУ, перейменування, архів).
+**`components/`**
+- `ui.jsx` — `Pill`, `LvPill`, `TrustPill`, `Num` (анімація числа), `Delta`, `LevelBar`, `Ticks`, `useWidth`.
+- `charts.jsx` — `MiniTrend`, `TrendChart`, `Radar` (SVG, ширина з `useWidth`).
+- `overlays.jsx` — підказка (`showTip`/`hideTip`, з урахуванням zoom через `Z()`/`zr()`), `Drawer`, `Pop` + `placePop`, `Toast`.
+- `DatePicker.jsx`, `UnitCombo.jsx`.
 
-**`4-views2.js` — решта екранів**
-- `V.report` — звіт за формою Додатку Г Рекомендацій НУОУ (чорно-білий документ). Кнопка «Експорт» відкриває модальне вікно `openExport` (PDF/друк, HTML, CSV, JSON, копіювати).
-- `V.manage` (цикл і жетони), `V.surveys` (версії анкет), `V.checklist` (правило «чотирьох очей»), `V.audit` (перевірка ланцюга хешів), `V.survey` (опитування за жетоном), `V.me`.
+**`views/`**
+- `results.jsx` — «Огляд», «Розклад індексу», «Динаміка», «Порівняння», `ReadGuide`, вибір періоду (`PeriodPop`).
+- `panels.jsx` — бічні панелі: `openWhy`, `openTrust`, `openHow`, `openResp`, `openItem`, `openApiQ`, `openSource`, `openMeasure`; «i» на картках «Огляду» — `openHow`, `openTrustHow`, `openTrackerHow`, `openRespHow`. Клік на картку індексу чи достовірності одразу показує готовий висновок за правилами (`whyText`, `trustBecause` у `texts.js`), асистента не запускає; обговорити з ним можна кнопкою внизу панелі.
+- `work.jsx` — «Рекомендації» (прийняти/уточнити/відхилити), «Трекер заходів» (таблиця й дошка з перетягуванням), «Джерела», «Заклади».
+- `WhatIf.jsx` — «Що, якщо»: прогноз індексу, якщо підтягнути факти, закрити пункти чек-листа чи виконати заходи. З бекендом рахує `POST /campaigns/{id}/what-if` (нічого не записує), у демо — та сама модель, що й «Огляд». Топ-5 важелів із кнопкою «Додати», пояснення до кожного компонента. Опитування не моделюються. Стилі — `extra-whatif.css`.
+- `Report.jsx` — екран «Звіт»: шаблони, масштаб, редагування, ШІ за виділенням, вікно експорту (PDF/друк, HTML, CSV, JSON, копіювати; з бекендом ще Word за шаблоном і Excel із `GET /campaigns/{id}/report`; Excel завжди повний, тож без `template`).
+  - Шаблони `RT_TPL` (`report-templates.jsx`): Додаток Г, довідка керівнику, стан Плану заходів, динаміка між циклами. Усі з тих самих даних (`cur()`, `buildRecs()`, `measures()`), нових розрахунків немає.
+  - Масштаб 50–200 %: повзунок і −/+, Ctrl/⌘ + коліщатко (крок 10 %), щипок тачпада й двома пальцями, Safari `gesture*`. CSS `zoom`, при друку 100 %.
+  - «Редагувати»: документ `contentEditable`, правки в localStorage окремо для закладу, циклу й шаблону (`ii-rt-edit:…`). «Скинути правки» — натиснути двічі.
+  - ШІ за виділенням (`ReportAi.jsx`): «Запитати ШІ» → `POST /api/assistant/edit`. Заміна лише після «Замінити» (через `insertText`, тож Ctrl/⌘+Z працює); попередження про числа, яких немає у звіті. Без бекенду чи моделі — повідомлення, правити можна вручну.
+- `demo.jsx` — демо-екрани без бекенду: «Керування циклом», «Анкети», «Чек-лист», «Журнал», «Опитування», «Мої результати».
+- `api-views.jsx` — ті самі екрани з даними сервера; `apiView(route)` повертає `null`, якщо треба показати звичайний екран.
+- `Builder.jsx` — конструктор анкети (режим API).
 
-**`5-ai-router.js` — асистент і роутер**
-- Асистент:
-  - `aiCtx` — агреговані дані для моделі;
-  - `aiTemplate(q)` — відповіді за шаблонами правил, вибір за регулярними виразами від питання;
-  - `aiAsk`, `aiOpen(q)`, `aiRender`.
-- Роутер: hash `#route/param`, функції `render()` і `renderNav()`, бейджі, словник заголовків `TITLES`.
-- Пошук у меню: `searchHits(q)` (екрани, компоненти, питання й показники, заклади), підказки в `#pop`, стрілки й Enter.
+**`ai/assistant.jsx`** — `aiTemplate(q)` (шаблони правил, регулярні вирази від питання), `aiAsk`, `aiOpen`, `aiClose`, панель `AiPanel`.
 
-Кожен екран — це `V.<route> = () => html`; опційно `V.<route>.after = () => {...}` для графіків і анімацій. Новий екран додається в `NAV` (2-state.js), `TITLES` (5-ai-router.js) і як `V.x` у 3-views.js.
+Новий екран: компонент у `views/`, пункт у `NAV` (state.js), заголовок у `TITLES` (nav.js), запис у мапі `V` (App.jsx).
 
 ## Методика (з сайту колеги)
 
@@ -128,21 +122,21 @@ frontend-proto/
 
 ## Як робити правку
 
-1. Правити файли в `src/`, а базовий CSS — в `index.html`.
-2. `python3 src/build.py`. Скрипт має надрукувати `built N`.
+1. Правити файли в `src/`. Залежності: `npm install` (один раз).
+2. `npm run build` має пройти без помилок.
 3. Перевірити в Chromium без вікна: playwright-core + `/usr/bin/chromium`. Якщо в scratchpad немає `node_modules`:
    ```bash
    mkdir -p <scratchpad>/pw && cd <scratchpad>/pw && npm i playwright-core@1.48.2
    ```
-   Мінімальний скрипт перевірки:
+   Сторінку віддає `npx vite preview` (http://localhost:4173). Для демо-режиму без бекенду: `BACKEND_URL=http://127.0.0.1:9 npx vite preview`. Мінімальний скрипт перевірки:
    ```js
    import { chromium } from "playwright-core";
    const br = await chromium.launch({ executablePath: "/usr/bin/chromium" }); const errs = [];
    const p = await (await br.newContext({ viewport: { width: 1440, height: 900 } })).newPage();
    p.on("pageerror", e => errs.push(e.message));
-   await p.goto("file:///home/vorgo/hack-4-bitec-draft/frontend-proto/index.html");
-   await p.evaluate(() => localStorage.clear()); await p.reload();
-   await p.selectOption("#role", "leader"); await p.goto(".../index.html#overview"); await p.waitForTimeout(1200);
+   await p.goto("http://localhost:4173/");
+   await p.evaluate(() => localStorage.clear()); await p.reload(); await p.waitForTimeout(800);
+   await p.selectOption("#role", "leader"); await p.evaluate(() => { location.hash = "overview"; }); await p.waitForTimeout(1200);
    await p.screenshot({ path: "shot.png", fullPage: true });
    console.log("ERRORS:", errs.length ? errs : "none"); await br.close();
    ```
@@ -151,15 +145,10 @@ frontend-proto/
    - немає горизонтального скролу: `document.documentElement.scrollWidth > innerWidth` має бути false;
    - немає `pageerror`;
    - на скриншоті все виглядає правильно (переглядати Read).
-4. Задеплоїти (команда вище) і коротко звітувати користувачу російською: що змінено, де подивитися, що перевірено.
+4. Задеплоїти (див. «Деплой») і коротко звітувати користувачу російською: що змінено, де подивитися, що перевірено.
 5. Не комітити й не пушити, доки користувач не попросить.
 
 ## Відкриті питання
 
-- **Плашка «Достовірність» на «Огляді».** Користувач просив «відцентрувати текст відносно іконки». Вимірювання показало, що по вертикалі вони вже по центру. Користувачу запропоновано варіанти:
-  - а) зсунути «C» і рядки під підпис;
-  - б) поставити «C» по центру під іконкою;
-  - в) інше.
-  Відповіді ще немає.
 - **Ще не зроблено для подання:** відео до 3 хв і `docs/ai.md` («Як ми використали ШІ», до 1 сторінки). Робити лише на прохання.
 - **Дообучення локальної моделі** (gemma3:4b через Ollama) відкладено, доки не буде готовий бекенд.

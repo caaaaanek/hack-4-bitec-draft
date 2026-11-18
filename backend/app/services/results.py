@@ -186,17 +186,35 @@ def load_checklist(wave: WaveData, at_root: bool) -> list[scoring.ChecklistItem]
     return items
 
 
-def compute_for(db: Session, campaign: Campaign, unit_id: uuid.UUID | None, wave: WaveData | None = None) -> dict:
-    """Розрахунок за поточною методикою (без збереження)."""
+@dataclass
+class Inputs:
+    """Вхідні дані scoring.compute для підрозділу хвилі (без збереження). Використовує й сценарій «що, якщо»."""
+
+    wave: WaveData
+    scope: uuid.UUID
+    units: set[uuid.UUID]
+    groups: list[scoring.GroupInput]
+    checklist: list[scoring.ChecklistItem] | None
+    facts: list[dict]
+    k: int
+
+
+def load_inputs(db: Session, campaign: Campaign, unit_id: uuid.UUID | None, wave: WaveData | None = None) -> Inputs:
     wave = wave or load_wave(db, campaign)
     scope, units = scope_units(db, campaign, unit_id, wave)
     at_root = scope == campaign.unit_id
-    groups = load_groups(wave, scope, units)
-    checklist = load_checklist(wave, at_root)
     k = campaign.min_group_size
     hidden = facts_service.hidden_indicators(wave.indicator_rows, wave.children, campaign.unit_id, scope, k)
     facts = facts_service.aggregate_rows([r for r in wave.indicator_rows if r.unit_id in units], wave.periods, k, hidden)
-    result = scoring.compute(groups, checklist, facts, k)
+    return Inputs(wave=wave, scope=scope, units=units, groups=load_groups(wave, scope, units),
+                  checklist=load_checklist(wave, at_root), facts=facts, k=k)
+
+
+def compute_for(db: Session, campaign: Campaign, unit_id: uuid.UUID | None, wave: WaveData | None = None) -> dict:
+    """Розрахунок за поточною методикою (без збереження)."""
+    inputs = load_inputs(db, campaign, unit_id, wave)
+    wave, scope, k = inputs.wave, inputs.scope, inputs.k
+    result = scoring.compute(inputs.groups, inputs.checklist, inputs.facts, k)
     return {
         "campaign_id": str(campaign.id),
         "campaign_title": campaign.title,
