@@ -129,12 +129,12 @@ export function ExportDialog() {
 }
 function copyOut(kind, dl) {
   const m = cur(); let txt;
-  if (kind === "html") { const doc = `<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>${RT_TPL[RT.tpl][0]} ${CYCLE}</title><style>body{font:14pt/1.5 "Times New Roman",Times,serif;max-width:800px;margin:40px auto;padding:0 24px;color:#000}table{border-collapse:collapse;width:100%;margin:6px 0 12px}td,th{border:1px solid #000;padding:4px 6px;font-size:12pt;text-align:left;vertical-align:top}th{font-weight:bold}.doc-approve{margin-left:auto;width:300px}.doc-title{text-align:center;font-size:16pt;margin:24px 0 4px}.doc-sub{text-align:center;font-weight:bold}.doc-meta,.doc-note{font-size:11pt}.doc-cap{text-align:right;font-style:italic;margin-bottom:2px}.doc-sign{display:flex;justify-content:space-between;margin-top:36px}.doc-blank{display:inline-block;min-width:140px;border-top:1px solid #000;font-size:10pt;text-align:center}.noprint,svg,button{display:none}p{text-align:justify}</style></head><body>${(document.querySelector(".rt-doc") || document.querySelector(".paper")).innerHTML}</body></html>`; return download(`integrity-report-${m.id}-${CYCLE}.html`, doc, "text/html"); }
+  if (kind === "html") { const doc = `<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>${RT_TPL[RT.tpl][0]} ${CYCLE}</title><style>body{font:14pt/1.5 "Times New Roman",Times,serif;max-width:800px;margin:40px auto;padding:0 24px;color:#000}table{border-collapse:collapse;width:100%;margin:6px 0 12px}td,th{border:1px solid #000;padding:4px 6px;font-size:12pt;text-align:left;vertical-align:top}th{font-weight:bold}.doc-approve{margin-left:auto;width:300px}.doc-title{text-align:center;font-size:16pt;margin:24px 0 4px}.doc-sub{text-align:center;font-weight:bold}.doc-meta,.doc-note{font-size:11pt}.doc-cap{text-align:right;font-style:italic;margin-bottom:2px}.doc-sign{display:flex;justify-content:space-between;margin-top:36px}.doc-blank{display:inline-block;min-width:140px;border-top:1px solid #000;font-size:10pt;text-align:center}.noprint,svg,button{display:none}p{text-align:justify}</style></head><body>${(document.querySelector(".rt-doc") || document.querySelector(".paper")).innerHTML}</body></html>`; return download(`integra-report-${m.id}-${CYCLE}.html`, doc, "text/html"); }
   if (kind === "csv") txt = ["id;component;kind;label;source;weight;value", ...allItems(m).map(x => [x.id, x.c, x.src ? "perception" : "fact", `"${x.t.replace(/"/g, '""')}"`, x.src || x.kind, x.w, fb(x.v)].join(";")), ...m.components.map(c => [c.id, c.id, "component", COMP[c.id].n, "credited", "33.3", fb(c.cr.v)].join(";")), ["index", "", "index", "Індекс доброчесності", "", "100", fb(m.index)].join(";")].join("\n");
   else txt = JSON.stringify({ institution: m.name, cycle: CYCLE, asOf: TODAY, index: m.index, level: m.level, trust: m.trust, delta: m.delta,
     components: Object.fromEntries(m.components.map(c => [c.id, { perception: c.P, facts: c.F, credited: c.cr.v, limited: c.cr.lim }])),
     flags: m.raised.map(f => ({ id: f.id, weight: f.w, title: f.t })), measures: m.id === ALPHA ? measures() : [] }, null, 2);
-  if (dl) return download(`integrity-${m.id}-${CYCLE}.${kind}`, (kind === "csv" ? "﻿" : "") + txt, kind === "csv" ? "text/csv" : "application/json");
+  if (dl) return download(`integra-${m.id}-${CYCLE}.${kind}`, (kind === "csv" ? "﻿" : "") + txt, kind === "csv" ? "text/csv" : "application/json");
   copyText(txt, () => { toast(kind.toUpperCase() + " скопійовано"); addLog(me(), `Експорт звіту (${kind.toUpperCase()})`); });
 }
 
@@ -144,7 +144,7 @@ async function serverExport(fmt) {
     // Шаблон змінює лише Word; Excel завжди з повними даними, тож без шаблону (і без «-brief» у назві файлу)
     const q = new URLSearchParams({ format: fmt }); if (fmt === "docx") q.set("template", RT.tpl); if (API.unitId) q.set("unit_id", API.unitId);
     const r = await api(`/campaigns/${API.campaignId}/report?${q}`, { raw: true });
-    const name = (/filename="([^"]+)"/.exec(r.headers.get("content-disposition") || "") || [])[1] || `integrity-report.${fmt}`;
+    const name = (/filename="([^"]+)"/.exec(r.headers.get("content-disposition") || "") || [])[1] || `integra-report.${fmt}`;
     const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = name; document.body.appendChild(a); a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); toast("Завантажено: " + name);
   } catch (e) { apiFail(e); }

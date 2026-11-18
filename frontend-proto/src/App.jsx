@@ -115,7 +115,7 @@ function Login() {
   const submit = async e => { e.preventDefault(); setBusy(true); setErr(""); try { await login(u.trim(), p); } catch (er) { setErr(apiErrText(er)); setBusy(false); } };
   return <div className="login-wrap c12">
     <section className="card rise login-card">
-      <div className="brand" style={{ padding: "0 0 6px" }}><span className="logo"><Ic n="pulse" size={20} /></span>Integrity<span style={{ color: "var(--muted)", fontWeight: 500 }}>Index</span></div>
+      <div className="brand" style={{ padding: "0 0 6px" }}><span className="logo"><Ic n="pulse" size={20} /></span>Integra</div>
       <h2 style={{ margin: "6px 0 2px", fontSize: 22 }}>Вхід</h2>
       {API.loginMsg && <div className="note-box" style={{ margin: "8px 0" }}><span>{API.loginMsg}</span></div>}
       {a.password && <form id="lf" style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 10 }} onSubmit={submit}>
@@ -196,7 +196,7 @@ export default function App() {
   return <>
     <div className={`app ${login ? "login" : ""} ${anon ? "anon" : ""}`}>
       <aside className={`side ${ui.side ? "on" : ""}`} id="side">
-        <div className="brand"><span className="logo" id="logo"><Ic n="pulse" size={20} /></span><span className="brand-t">Integrity<span style={{ color: "var(--muted)", fontWeight: 500 }}>Index</span></span>
+        <div className="brand"><span className="logo" id="logo"><Ic n="pulse" size={20} /></span><span className="brand-t">Integra</span>
           <button type="button" className="side-btn" id="sideBtn" aria-label={mini ? "Розгорнути меню" : "Згорнути меню"} aria-expanded={!mini} data-tip={mini ? "Розгорнути меню" : "Згорнути меню"} onClick={() => setSide(!mini)}><Ic n={mini ? "chevR" : "chevL"} /></button></div>
         <label className="search" ref={box} onClick={() => { if (html.classList.contains("side-mini")) { setSide(false); setTimeout(() => qRef.current && qRef.current.focus(), 50); } }}>
           <span id="ic-search"><Ic n="search" size={17} /></span>

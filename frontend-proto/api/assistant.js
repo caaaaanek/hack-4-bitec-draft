@@ -12,7 +12,7 @@ const MODEL = process.env.LLM_MODEL || "openai/gpt-oss-120b";
 const CONFIGURED = Boolean(API_KEY || process.env.LLM_BASE_URL);
 const TIMEOUT_MS = Number(process.env.LLM_TIMEOUT_MS) || 25000;
 
-const SYSTEM = `Ти — асистент інформаційно-аналітичної системи оцінювання доброчесності закладу сектору безпеки і оборони.
+const SYSTEM = `Ти — асистент Integra, інформаційно-аналітичної системи оцінювання доброчесності закладу сектору безпеки і оборони.
 Відповідай українською, коротко й по суті: до 120 слів, якщо не просять чернетку звіту (тоді до 200 слів).
 
 Жорсткі правила:
