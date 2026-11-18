@@ -2,7 +2,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Ic } from "./lib/icons.jsx";
 import { S, ROLE, NAV, HOME, AI_ROLES, persist, resetDemo, addLog } from "./lib/state.js";
-import { API, login, loginProxy, logout, apiErrText, retryBoot, startDemo, apiMod, apiModReset, apiNotices } from "./lib/api.js";
+import { API, login, loginProxy, logout, apiErrText, retryBoot, startDemo, apiModReset } from "./lib/api.js";
+import { NotesPop, notesState, markNotesSeen } from "./components/NotesPop.jsx";
 import { COMPS, COMP, INSTITUTIONS, allItems, pendingRecs, measures, overdueDays, clamp, CYCLE } from "./lib/model.js";
 import { useStore, getViewKey, render, toast, ui, openPop, closePop, closeDrawer } from "./lib/store.js";
 import { route, allowed, cur, TITLES, isLogin } from "./lib/nav.js";
@@ -134,25 +135,6 @@ function Login() {
   </div>;
 }
 
-/* ---------- Сповіщення (лише з сервером): нагадування, підсумки хвиль, підсумок чергового ---------- */
-const NOTE_KIND = { opened: "Хвилю відкрито", reminder: "Нагадування", results: "Результати доступні", recommendations: "Рекомендації чекають рішення", digest: "Підсумок чергового" };
-const seenKey = () => "ii-notes-seen:" + (API.user ? API.user.login : "");
-const seenAt = () => { try { return localStorage.getItem(seenKey()) || ""; } catch (e) { return ""; } };
-function notesState() {
-  if (!API.on || !API.user || API.anon) return null;
-  const r = apiMod("notes", apiNotices), list = r && r.data ? r.data : [], seen = seenAt();
-  return { r, list, fresh: list.filter(n => n.created_at > seen).length };
-}
-function NotesPop({ ns }) {
-  const { r, list } = ns;
-  if (!r) return <div className="lbl">Завантажуємо…</div>;
-  if (r.error) return <div className="lbl" role="alert">{r.error} <button type="button" className="link-btn" onClick={() => apiModReset("notes")}>Повторити</button></div>;
-  return <div style={{ width: 340, maxWidth: "80vw", maxHeight: "60vh", overflowY: "auto" }}>
-    <div style={{ fontWeight: 600, marginBottom: 6 }}>Сповіщення за 30 днів</div>
-    {list.length ? <div className="rows">{list.map(n => <div key={n.id} className="row" style={{ alignItems: "flex-start" }}><div className="grow" style={{ minWidth: 0 }}><div className="lbl">{NOTE_KIND[n.kind] || n.kind} · {n.created_at.slice(0, 10).split("-").reverse().join(".")}</div><div style={{ fontWeight: 500, overflowWrap: "anywhere" }}>{n.title}</div><div className="lbl" style={{ overflowWrap: "anywhere" }}>{n.body}</div></div></div>)}</div> : <div className="lbl">Нових сповіщень немає.</div>}
-  </div>;
-}
-
 /* ---------- Сервер недоступний ---------- */
 function ServerDown() {
   return <div className="c12" style={{ display: "flex", justifyContent: "center", paddingTop: 40 }}><section className="card rise login-card" role="alert">
@@ -196,7 +178,7 @@ export default function App() {
     const key = e => {
       const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
       if (((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") || (e.key === "/" && !typing)) { e.preventDefault(); qRef.current && qRef.current.focus(); }
-      if (e.key === "Escape") { closeDrawer(); aiClose(); closePop(); }
+      if (e.key === "Escape") { const back = ui.pop && ui.pop.kind === "notes" && ui.pop.anchor; closeDrawer(); aiClose(); closePop(); if (back) back.focus(); }
     };
     document.addEventListener("keydown", key); return () => document.removeEventListener("keydown", key);
   }, []);
@@ -239,7 +221,7 @@ export default function App() {
           <span className="synthetic hide-m">Синтетичні дані</span>
           <button className="pill-btn hide-m" id="cycleBtn" data-tip="Цикл оцінювання: один повний раунд опитування й збору фактів. Індекс порівнюється з попереднім циклом."><Ic n="cal" />Цикл {CYCLE}</button>
           <button className={`pill-btn ai-btn ${S.aiOn ? "" : "off"}`} id="aiBtn" hidden={!AI_ROLES.includes(S.role)} onClick={() => aiOpen()}><Ic n="spark" /><span className="hide-m">Асистент</span></button>
-          {ns && <button type="button" className="icon-btn" id="notesBtn" aria-label={ns.fresh ? `Сповіщення: нових ${ns.fresh}` : "Сповіщення"} aria-haspopup="dialog" data-tip="Сповіщення" style={{ position: "relative" }} onClick={e => { hideTip(); apiModReset("notes"); try { localStorage.setItem(seenKey(), new Date().toISOString()); } catch (x) { /* немає */ } openPop("notes", e.currentTarget); }}><Ic n="bell" />{ns.fresh > 0 && <span className="badge" style={{ position: "absolute", top: -4, right: -4 }}>{ns.fresh}</span>}</button>}
+          {ns && <button type="button" className="icon-btn" id="notesBtn" aria-label={ns.fresh ? `Сповіщення: нових ${ns.fresh}` : "Сповіщення"} aria-haspopup="dialog" data-tip="Сповіщення" style={{ position: "relative" }} onClick={e => { hideTip(); apiModReset("notes"); markNotesSeen(); openPop("notes", e.currentTarget); }}><Ic n="bell" />{ns.fresh > 0 && <span className="badge" style={{ position: "absolute", top: -4, right: -4 }}>{ns.fresh}</span>}</button>}
           <span className="sr-only" role="status" aria-live="polite">{ns && ns.fresh ? `Нових сповіщень: ${ns.fresh}` : ""}</span>
           <button className="icon-btn" id="a11yBtn" aria-label="Доступність: розмір тексту й контраст" aria-haspopup="dialog" data-tip="Доступність" onClick={e => openPop("a11y", e.currentTarget)}><Ic n="a11y" /></button>
           <button className="icon-btn" id="themeBtn" aria-label="Тема" onClick={() => { html.dataset.theme = isDark() ? "light" : "dark"; try { localStorage.setItem("ii-theme", html.dataset.theme); } catch (e) { /* немає */ } render(true); }}><Ic n={isDark() ? "sun" : "moon"} /></button>
@@ -252,7 +234,7 @@ export default function App() {
     <Drawer />
     <AiPanel />
     <div className="tip" id="tip" />
-    <Pop mode={pk === "search" ? "under" : undefined}>
+    <Pop mode={pk === "search" ? "under" : undefined} cls={pk === "notes" ? "notes-pop" : ""} label={pk === "notes" ? "Сповіщення" : pk === "a11y" ? "Доступність" : "Вибір"}>
       {pk === "period" && <PeriodPop />}
       {pk === "a11y" && <A11yPop />}
       {pk === "notes" && ns && <NotesPop ns={ns} />}
