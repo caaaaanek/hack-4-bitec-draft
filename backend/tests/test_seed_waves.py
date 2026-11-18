@@ -74,3 +74,27 @@ def test_seed_waves_is_idempotent(client):
     assert seed_waves() == ["Хвилі вже є, демо-історію не додаю"]
     with SessionLocal() as db:
         assert db.scalar(select(func.count()).select_from(Campaign)) == 2
+
+
+def test_seed_demo_false_skips_demo_and_waves(client, monkeypatch):
+    """SEED_DEMO=false: лише анкети з додатків Б і В і адміністратор; SEED_WITH_WAVES ігнорується."""
+    from app.db import Base, engine
+    from app.models import Indicator, Questionnaire, Role
+
+    Base.metadata.drop_all(engine)
+    Base.metadata.create_all(engine)
+    monkeypatch.setenv("SEED_DEMO", "false")
+    monkeypatch.setenv("SEED_WITH_WAVES", "true")
+    seed.main([])
+    seed.main([])  # повторний запуск нічого не дублює
+    with SessionLocal() as db:
+        assert db.scalar(select(func.count()).select_from(Campaign)) == 0
+        assert db.scalar(select(func.count()).select_from(Indicator)) == 0
+        assert db.scalar(select(func.count()).select_from(Unit)) == 0
+        assert db.scalars(select(User.login)).all() == ["admin"]
+        assert db.scalar(select(User.role)) == Role.ADMIN
+        assert db.scalar(select(func.count()).select_from(Questionnaire)) == len(seed.QUESTIONNAIRE_FILES)
+    auth(client, "admin")  # адміністратор може увійти й завести підрозділи
+    from app.services.recommendations import catalog
+
+    assert catalog()  # каталог заходів (Додаток Д) читається з файлу, не залежить від seed

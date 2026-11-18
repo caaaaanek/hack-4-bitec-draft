@@ -47,7 +47,7 @@
 | № | Загроза | Захист | Перевірка |
 |---|---|---|---|
 | Г1 | Підбір пароля | 5 невдалих спроб на пару логін + IP за 5 хв → 429 `Retry-After`; однаковий час відповіді для неіснуючого логіна | `test_security_audit.py::test_login_is_throttled_after_failures`, `test_frontend_contract.py::test_session_login_is_throttled` |
-| Г2 | Підбір одноразових посилань | 256 біт; 5 невдалих спроб з IP → 429; у БД лише хеш | `test_tokens.py::test_invalid_token_and_throttle` |
+| Г2 | Підбір одноразових посилань; заблокувати всіх невірними посиланнями | 256 біт; у БД лише хеш; 5 невдалих спроб з IP → 429 лише для невірних, дійсне посилання ліміт не перевіряє; IP клієнта з `X-Forwarded-For` від nginx (`FORWARDED_PROXIES`), а не адреса nginx | `test_tokens.py::test_invalid_token_and_throttle`, `test_valid_token_passes_after_invalid_attempts`, `test_throttle_is_per_client_behind_nginx` |
 | Г3 | Злитий список посилань | `POST /campaigns/{id}/tokens/revoke` (усі, анкета чи анкета + підрозділ); закриття хвилі вимикає всі | `test_tokens.py::test_revoked_and_closed_tokens_stop_working` |
 | Г4 | Підробити заголовок входу через проксі | Заголовок приймається лише від `TRUSTED_PROXIES` (безпосередній співрозмовник TCP, не `X-Forwarded-For`); необов'язковий секрет `X-Proxy-Secret`; nginx фронтенду стирає ці заголовки; без `TRUSTED_PROXIES` API не стартує; користувачі автоматично не створюються | `test_service_proxy.py` |
 | Г5 | Шкідливий файл-доказ (XSS у «PDF», виконуваний файл) | Перелік дозволених типів + сигнатура вмісту; віддача `attachment`, `nosniff`, `CSP: sandbox`; файли не розбираються на сервері | `test_evidence.py::test_rejects_bad_types_and_sizes` |

@@ -1,10 +1,14 @@
-"""Reporting Module: звіт хвилі за структурою Додатку Г у JSON, CSV, Excel (.xlsx) або Word (.docx)."""
+"""Reporting Module: звіт хвилі за структурою Додатку Г у JSON, CSV, Excel (.xlsx) або Word (.docx).
+
+Шаблони звіту (`GET /report-templates`): Додаток Г, довідка керівнику, План заходів, динаміка.
+"""
 
 import csv
 import io
 import uuid
 
 from fastapi import APIRouter, Depends, Query
+from pydantic import BaseModel
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import Response
 from sqlalchemy import select
@@ -16,11 +20,24 @@ from app.models import Measure, User
 from app.routers.recommendations import build, closed_campaign, with_decisions
 from app.security import RESULT_READERS, ensure_unit_access, require_roles
 from app.services import measures as measures_service
-from app.services import report_export, report_g
+from app.services import report_export, report_g, report_templates
 from app.services.safe_export import SafeCsvWriter
 from app.services.units import subtree_ids
 
 router = APIRouter(tags=["reports"])
+
+
+class ReportTemplateOut(BaseModel):
+    code: str
+    title: str
+    description: str
+    audience: str
+
+
+@router.get("/report-templates", response_model=list[ReportTemplateOut])
+def report_template_list(user: User = Depends(require_roles(*RESULT_READERS))):
+    """Шаблони звіту хвилі. Код передається в `GET /campaigns/{id}/report?template=`."""
+    return report_templates.catalog()
 
 
 def report_data(db: Session, campaign, unit_id: uuid.UUID | None) -> dict:
@@ -92,6 +109,8 @@ def campaign_report(
     unit_id: uuid.UUID | None = None,
     format: str = Query(default="json", pattern="^(json|csv|xlsx|docx)$",
                         description="json для сторінки; csv, xlsx (Excel) або docx (Word) для завантаження"),
+    template: str = Query(default=report_templates.DEFAULT_TEMPLATE, pattern=report_templates.TEMPLATE_PATTERN,
+                          description="Шаблон (GET /report-templates). Змінює структуру Word; JSON, CSV і Excel — повні дані"),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*RESULT_READERS)),
 ):
@@ -102,17 +121,24 @@ def campaign_report(
     campaign = closed_campaign(db, campaign_id)
     ensure_unit_access(db, user, unit_id or campaign.unit_id)
     report = report_data(db, campaign, unit_id)
-    log_action(db, user, "export_report", "campaign", campaign.id, {"unit_id": str(unit_id or campaign.unit_id), "format": format})
+    report["template"] = report_templates.describe(template)
+    log_action(db, user, "export_report", "campaign", campaign.id,
+               {"unit_id": str(unit_id or campaign.unit_id), "format": format, "template": template})
     db.commit()
     if format == "json":
         return jsonable_encoder(report)
-    content, media = FILES[format](jsonable_encoder(report))
-    name = f"integrity-report-{report['report']['closed_on']}.{format}"
+    data = jsonable_encoder(report)
+    if format == "docx":
+        content, media = report_templates.DOCX[template](data), DOCX_MEDIA
+    else:
+        content, media = FILES[format](data)
+    suffix = "" if template == report_templates.DEFAULT_TEMPLATE else f"-{template}"
+    name = f"integrity-report{suffix}-{report['report']['closed_on']}.{format}"
     return Response(content=content, media_type=media, headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
 
+DOCX_MEDIA = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 FILES = {
     "csv": lambda r: (to_csv(r), "text/csv; charset=utf-8"),
     "xlsx": lambda r: (report_export.to_xlsx(r), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"),
-    "docx": lambda r: (report_export.to_docx(r), "application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
 }
