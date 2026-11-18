@@ -7240,6 +7240,103 @@
         ]
       }
     },
+    "/api/v1/campaigns/{campaign_id}/what-if": {
+      "post": {
+        "tags": [
+          "what-if"
+        ],
+        "summary": "What If Scenario",
+        "description": "Прогноз індексу, якщо закрити пункти чек-листа, виконати заходи або підтягнути факти.\n\nРозрахунок тією ж `scoring.compute`, що й знімок хвилі. Відповідь: `baseline`, `scenario` (індекс і компоненти\nз `rule` і `explanation`), `delta`, `applied` (що застосовано й чому ні), `levers` (топ-5 важелів із готовим\n`scenario` для повторного запиту), `options` (пункти чек-листа й факти з порогами), `disclaimer`.\nОпитування не моделюються. Чек-лист — лише для всього закладу. Прихований факт (менше k) → 422.",
+        "operationId": "what_if_scenario_api_v1_campaigns__campaign_id__what_if_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WhatIfIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
     "/api/assistant": {
       "get": {
         "tags": [
@@ -13583,6 +13680,59 @@
           "score"
         ],
         "title": "WeakQuestion"
+      },
+      "WhatIfIn": {
+        "properties": {
+          "unit_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Id",
+            "description": "Підрозділ; порожньо — підрозділ хвилі (заклад)"
+          },
+          "measure_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "title": "Measure Ids",
+            "description": "Заходи: кожен закриває свій пункт чек-листа за catalog_number"
+          },
+          "checklist": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "maxProperties": 200,
+            "title": "Checklist",
+            "description": "Пункт чек-листа → full | partial | none (підтверджено)"
+          },
+          "facts": {
+            "additionalProperties": {
+              "type": "number"
+            },
+            "type": "object",
+            "maxProperties": 20,
+            "title": "Facts",
+            "description": "Факт → цільовий відсоток 0–100; бал через пороги методики"
+          },
+          "levers": {
+            "type": "boolean",
+            "title": "Levers",
+            "description": "Порахувати топ-5 важелів (≈40 розрахунків)",
+            "default": true
+          }
+        },
+        "type": "object",
+        "title": "WhatIfIn"
       },
       "Zone": {
         "properties": {
