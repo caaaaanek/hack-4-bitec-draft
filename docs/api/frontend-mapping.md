@@ -64,6 +64,12 @@ npx openapi-typescript ../docs/api/openapi.json -o src/api/schema.d.ts
 | `GET /me` | `GET /me/results` | |
 | `POST /reports`, `GET /reports/{id}`, `.../export` | `GET /campaigns/{id}/report?format=json\|csv\|xlsx\|docx&template=appendix_g\|brief\|measures\|dynamics`, перелік — `GET /report-templates` | звіт будується на льоту зі знімка; `appendix_g` — крос-таблиці, збіги/розбіжності, висновок, пропозиції за Додатком Г; Word/Excel — посилання на завантаження; PDF — print.css |
 | «Що, якщо» (`WhatIf.jsx`) | `POST /campaigns/{id}/what-if` | сценарій «що, якщо»: `baseline` / `scenario` / `delta`, `levers`, `options` для перемикачів і повзунків; див. `docs/backend.md` |
+| «Навчання» (`Learn.jsx`) | `GET /learning/decks`, `GET /learning/decks/{code}`, `POST .../complete`, `GET /learning/stats` | флешкартки (Пробіл, стрілки), охоплення з порогом k; показник `training_coverage` приходить у фактах результатів |
+| «Адвокат диявола» й «Черговий» (`Insights.jsx`) | `GET /campaigns/{id}/devils-advocate`, `GET /agent/digest` | лише читання; позначка «Відповідь підготовлено» зберігається в браузері, ендпоінта прийняти чи відхилити немає |
+| «Автопілот хвилі» (`Autopilot.jsx`) | `GET/PUT /campaigns/{id}/autopilot`, `POST /autopilot/tick`, `GET .../autopilot/report`; координатор бере список хвиль із `GET /admin/overview` | змінює лише `admin` |
+| «Що змінилось» (`Normative.jsx`) | `POST /normative/analyze` (multipart) | документ не зберігається |
+| «Перевірки» (`Checks.jsx`) | `GET /checks/mock/{kind}`, `POST /checks/procurement\|declarations`, `GET /checks/runs`, `GET /checks/findings`, `POST .../review`, `POST /checks/publish` | бекенд пускає лише `admin`, координатору екрана немає |
+| Сповіщення (дзвіночок у шапці) | `GET /me/notifications` | нагадування, підсумки хвиль, підсумок чергового |
 | `GET /audit` | `GET /admin/audit-log` | фільтри й `offset` |
 | `POST /audit/verify` | `POST /admin/audit-log/verify` | |
 | `GET /methodology` | `GET /methodology` | |

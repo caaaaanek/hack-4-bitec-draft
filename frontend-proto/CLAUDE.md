@@ -89,6 +89,7 @@ frontend-proto/
 - `demo.jsx` — демо-екрани без бекенду: «Керування циклом», «Анкети», «Чек-лист», «Журнал», «Опитування», «Мої результати».
 - `api-views.jsx` — ті самі екрани з даними сервера; `apiView(route)` повертає `null`, якщо треба показати звичайний екран. У «Керуванні циклом» картка «QR для зали» і повноекранний QR (`QrScreen`); сам код малює `components/QrCode.jsx` (qrcode-generator, локально).
 - `Builder.jsx` — конструктор анкети (режим API).
+- `Learn.jsx`, `Insights.jsx`, `Autopilot.jsx`, `Normative.jsx`, `Checks.jsx` — модулі автоматизації (див. README). Дані з сервера беруть через `apiMod(ключ, завантажувач)` з `lib/api.js` (кеш у `API.mod`, `apiModReset` для повтору); стани екрана (`Loading`, `Failed`, `Empty`, `NoAccess`, `NeedServer`) у `components/states.jsx`. Тексти правил сервера з довгим тире показуємо через `dsh()`.
 
 **`ai/assistant.jsx`** — `aiTemplate(q)` (шаблони правил, регулярні вирази від питання), `aiAsk`, `aiOpen`, `aiClose`, панель `AiPanel`.
 
@@ -118,7 +119,7 @@ frontend-proto/
 - компоненти зараховано: Культура 57,5, Система 45, Підзвітність 60 (обмежувач: P 80, F 35);
 - інші заклади навмисно покривають усі рівні й варіанти достовірності: «Гамма» 93,2 / рівень 5 / A; «Сигма» 78,7 / 4 / B; «Бета» 30,5 / 2 / «Недостатньо даних» (7 відповідей < k); «Омега» 11,7 / 1 / C (−6,7 за цикл). Задаються в `OTHERS` (`flags`, `responses`, `declining: "all"`).
 
-**Ролі:** admin, commissioner, respondent, leader, observer, checklist_editor, checklist_approver, auditor. Асистента бачать лише leader, observer і auditor.
+**Ролі:** admin, commissioner, respondent, leader, observer, checklist_editor, checklist_approver, auditor, coordinator. Асистента бачать лише leader, observer і auditor.
 
 ## Як робити правку
 

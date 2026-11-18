@@ -68,7 +68,7 @@ cp backend/.env.example backend/.env   # DATABASE_URL (PostgreSQL), JWT_SECRET �
 Сторінка сама визначає режим: якщо `GET /api/v1/config` відповідає — вхід і дані з бекенду, інакше демо-дані.
 
 - Через Docker: `docker compose up --build frontend` перезбирає лише фронтенд.
-- Без бекенду: `cd frontend-proto && npm run dev` — демо-дані, роль перемикається в меню.
+- Без бекенду: `cd frontend-proto && npm run dev` — спершу екран «Сервер недоступний», кнопка «Відкрити демо-режим» дає демо-дані, роль перемикається в меню. Статичний хостинг без `/api` (Vercel) відкриває демо одразу.
 
 Що бачить кожна роль після входу:
 
