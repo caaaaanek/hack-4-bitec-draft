@@ -74,14 +74,18 @@ Smoke лише на окремому проєкті (`-p smoke`): він лиш�
 
 ## Асистент (опційно)
 
-Кнопка «Асистент» працює і без моделі (шаблони правил). Щоб підключити модель, задайте в `.env`
-будь-який OpenAI-сумісний `/chat/completions`:
+Кнопка «Асистент» працює і без моделі (шаблони правил). Модель — Gemma на шлюзі кафедри
+(OpenAI-сумісний `/chat/completions`, ключ видає адміністратор шлюзу). У `.env` (не в `.env.example`, він комітиться):
 
 ```bash
-LLM_BASE_URL=http://host.docker.internal:11434/v1   # Ollama; для Groq достатньо LLM_API_KEY
-LLM_API_KEY=
-LLM_MODEL=gemma3:4b
+LLM_BASE_URL=https://api.csit-mitit.com/v1
+LLM_API_KEY=<ключ>
+LLM_MODEL=gemma4-26b
 ```
+
+Перевірено 18.11 на шлюзі кафедри: `gemma4-26b` відповідає українською за 1–3 с і сама викликає інструменти
+бекенду (результати, динаміка, заходи), зокрема коректно відмовляє керівнику підрозділу в даних усієї організації.
+Інша модель — будь-який OpenAI-сумісний сервер (наприклад, своя Ollama: `http://host.docker.internal:11434/v1`).
 
 Бекенд (`/api/assistant`) пускає лише ролі з доступом до результатів і пише в журнал довжину питання, а не його текст.
 
@@ -154,7 +158,7 @@ cd backend && python scripts/gen_docs.py   # тимчасова SQLite-база,
 ## Перевірки
 
 ```bash
-cd backend && pytest                    # бекенд: 168 тестів (на SQLite один тест xmin пропускається)
+cd backend && pytest                    # бекенд: 189 тестів (на SQLite один тест xmin пропускається)
 TEST_DATABASE_URL=postgresql+psycopg://imd:пароль@localhost:5432/imd_test pytest   # те саме на PostgreSQL
 cd frontend && npm run check            # фронтенд: typecheck, lint, тести, збірка
 cd frontend && npm run check:contrast   # контраст кольорів

@@ -277,3 +277,51 @@ def test_edit_data_tools_run_with_user_rights(client, llm_env, monkeypatch):
 def test_edit_requires_result_role(client, llm_env):
     llm_env(LLM_BASE_URL="http://ollama.local:11434/v1")
     assert client.post("/api/assistant/edit", json=EDIT, headers=auth(client, "staff01")).status_code == 403
+
+
+def test_silent_model_after_tools_is_asked_to_answer(client, llm_env, monkeypatch):
+    """Після відповіді інструмента модель промовчала: бекенд ще раз просить відповісти, без інструментів."""
+    from tests.helpers import full_wave
+
+    full_wave(client)
+    llm_env(LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma4-26b")
+    calls = scripted_model(monkeypatch, [(200, tool_call("get_results")), (200, final("")), (200, final("Індекс 47."))])
+    r = client.post("/api/assistant", json={"question": "Який індекс?"}, headers=auth(client, "leader"))
+    assert r.status_code == 200, r.text
+    assert r.json()["text"] == "Індекс 47."
+    assert "tools" not in calls[2] and llm.FINISH_PROMPT in calls[2]["messages"][-1]["content"]
+
+
+def test_silent_model_gets_clear_message_not_502(client, llm_env, monkeypatch):
+    from tests.helpers import full_wave
+
+    full_wave(client)
+    llm_env(LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma4-26b")
+    scripted_model(monkeypatch, [(200, tool_call("get_results")), (200, final("")), (200, final(""))])
+    r = client.post("/api/assistant", json={"question": "Який індекс?"}, headers=auth(client, "leader"))
+    assert r.status_code == 200 and r.json()["text"] == llm.NO_ANSWER
+
+
+def test_unit_leader_sees_scope_note(client, llm_env, monkeypatch):
+    """Керівник підрозділу: інструмент прямо каже моделі, що дані лише його зони, а не всієї організації."""
+    from tests.helpers import full_wave
+
+    full_wave(client)
+    llm_env(LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma4-26b")
+    calls = scripted_model(monkeypatch, [(200, tool_call("get_results")), (200, final("Лише Підрозділ А."))])
+    r = client.post("/api/assistant", json={"question": "Індекс усієї організації?"}, headers=auth(client, "leader_a"))
+    assert r.status_code == 200, r.text
+    tool_msg = next(m for m in calls[1]["messages"] if m["role"] == "tool")
+    assert "access_scope" in tool_msg["content"] and "Підрозділ А" in tool_msg["content"]
+
+
+def test_unit_can_be_given_by_name(client, llm_env, monkeypatch):
+    from tests.helpers import full_wave
+
+    full_wave(client)
+    llm_env(LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma4-26b")
+    calls = scripted_model(monkeypatch, [(200, tool_call("get_history", '{"unit_id": "підрозділ а"}')), (200, final("Ок."))])
+    r = client.post("/api/assistant", json={"question": "Динаміка Підрозділу А"}, headers=auth(client, "leader"))
+    assert r.status_code == 200, r.text
+    tool_msg = next(m for m in calls[1]["messages"] if m["role"] == "tool")
+    assert '"unit": "Підрозділ А"' in tool_msg["content"] and "error" not in tool_msg["content"]

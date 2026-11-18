@@ -49,7 +49,7 @@ services:
       # Асистент фронтенду (/api/assistant): OpenAI-сумісна модель. Порожньо — відповіді шаблонами правил.
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
-      LLM_MODEL: ${LLM_MODEL:-gemma3:4b}
+      LLM_MODEL: ${LLM_MODEL:-gemma4-26b}
     volumes:
       - evidence:/data/evidence
     ports:

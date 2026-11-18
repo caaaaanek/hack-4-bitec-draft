@@ -55,10 +55,10 @@ class Settings(BaseSettings):
 
     # Асистент фронтенду (frontend-proto, /api/assistant): будь-який OpenAI-сумісний /chat/completions.
     # Порожній LLM_BASE_URL і LLM_API_KEY — асистент вимкнено, фронтенд відповідає шаблонами правил.
-    # Закритий контур: LLM_BASE_URL=http://host.docker.internal:11434/v1 (Ollama), LLM_MODEL=gemma3:4b.
+    # Шлюз кафедри: LLM_BASE_URL=https://api.csit-mitit.com/v1, LLM_MODEL=gemma4-26b (ключ — LLM_API_KEY).
     llm_base_url: str = ""
     llm_api_key: str = ""
-    llm_model: str = "gemma3:4b"
+    llm_model: str = "gemma4-26b"
     llm_timeout_seconds: float = 60.0
 
     # Пароль для синтетичних демо-користувачів, яких створює seed.

@@ -20,7 +20,9 @@ from app.services.units import subtree_ids
 
 MAX_RESULT_CHARS = 12000
 
-_UNIT_PARAM = {"unit_id": {"type": "string", "description": "id підрозділу з list_units; без нього — підрозділ користувача"}}
+_UNIT_PARAM = {"unit_id": {"type": "string", "description": (
+    "Необов'язково. Не передавай, якщо підрозділ не названо: тоді береться підрозділ користувача "
+    "(для керівника підрозділу) або вся організація. Для конкретного підрозділу — id або назва з list_units.")}}
 
 TOOLS = [
     {"type": "function", "function": {
@@ -58,12 +60,17 @@ class ToolError(Exception):
 
 
 def _unit(db: Session, user: User, args: dict) -> uuid.UUID | None:
-    raw = args.get("unit_id")
+    raw = str(args.get("unit_id") or "").strip()
     if raw:
         try:
-            unit_id = uuid.UUID(str(raw))
+            unit_id = uuid.UUID(raw)
         except ValueError:
-            raise ToolError("unit_id має бути id з list_units")
+            # Модель могла передати назву підрозділу замість id — шукаємо за назвою. Порівняння в Python:
+            # lower() у SQLite не знає кирилиці.
+            wanted = raw.casefold()
+            unit_id = next((u.id for u in db.scalars(select(Unit)) if u.name.casefold() == wanted), None)
+            if unit_id is None:
+                raise ToolError(f"Підрозділ «{raw}» не знайдено. Виклич без unit_id або візьми назву з list_units")
     elif user.role == Role.LEADER and user.unit_id is not None:
         unit_id = user.unit_id
     else:
@@ -180,7 +187,14 @@ def run_tool(db: Session, user: User, name: str, arguments) -> str:
         except ValueError:
             arguments = {}
     try:
-        out = _HANDLERS[name](db, user, arguments if isinstance(arguments, dict) else {})
+        args = arguments if isinstance(arguments, dict) else {}
+        out = _HANDLERS[name](db, user, args)
+        if user.role == Role.LEADER and user.unit_id is not None and isinstance(out, dict):
+            # Керівник підрозділу бачить лише свою зону: кажемо це моделі прямо, щоб вона не назвала
+            # дані підрозділу «даними всієї організації».
+            own = db.get(Unit, user.unit_id)
+            out["access_scope"] = (f"Користувач бачить лише «{own.name}» і дочірні підрозділи. Дані інших підрозділів "
+                                   "і всієї організації йому недоступні.")
     except ToolError as e:
         out = {"error": str(e)}
     except HTTPException as e:
