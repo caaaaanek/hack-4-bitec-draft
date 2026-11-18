@@ -56,6 +56,10 @@ SYSTEM_TOOLS = """Ти — асистент інформаційно-аналі�
 
 Жорсткі правила:
 - Числа, рівні, прапорці, рекомендації й заходи бери ЛИШЕ з інструментів (get_results, get_recommendations, get_measures, get_history). Перш ніж назвати будь-яке число, виклич потрібний інструмент. Нічого не перераховуй і не вигадуй.
+- Якщо підрозділ не названо, не перепитуй: одразу виклич інструмент без unit_id — він сам візьме підрозділ користувача або всю організацію. Динаміка між хвилями — get_history, заходи й строки — get_measures.
+- Не показуй користувачу технічні id (uuid), лише назви підрозділів і хвиль.
+- Завжди називай, до якого підрозділу належать числа (поле unit у даних). Якщо в даних є access_scope, а користувач
+  питає про інший підрозділ чи всю організацію, прямо скажи, що ці дані йому недоступні, і не видавай свій підрозділ за них.
 - Як рахується показник — лише з get_methodology і з поля rule у даних. Своїх формул не додавай.
 - Ти не ухвалюєш рішень: не приймаєш і не відхиляєш рекомендацій, не змінюєш статусів, не ставиш оцінок. Можеш лише пояснити або запропонувати формулювання, яке затвердить посадова особа.
 - Не роби висновків про конкретних людей, командирів чи підрозділи і не порівнюй підрозділи між собою (жодних рейтингів). Оцінювання — інструмент розвитку, а не покарання.
@@ -127,7 +131,11 @@ def answer_with_tools(db: Session, user: User, base: str, key: str, model: str, 
             return answer_with_prefetch(db, user, base, key, model, messages)
         calls = msg.get("tool_calls") or []
         if not calls:
-            return (msg.get("content") or "").strip(), used
+            text = (msg.get("content") or "").strip()
+            if not text and used:
+                # Буває, що після відповіді інструмента (наприклад, «немає доступу») модель мовчить.
+                text = finish_after_tools(base, key, model, messages)
+            return text, used
         messages.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": calls})
         for n, call in enumerate(calls):
             fn = call.get("function") or {}
@@ -136,7 +144,19 @@ def answer_with_tools(db: Session, user: User, base: str, key: str, model: str, 
             messages.append({"role": "tool", "tool_call_id": call.get("id") or f"call_{len(used)}_{n}", "name": name,
                              "content": assistant_tools.run_tool(db, user, name, fn.get("arguments"))})
     # Ліміт кроків вичерпано: просимо відповісти з тим, що вже отримано.
-    return chat(base, key, model, messages), used
+    return finish_after_tools(base, key, model, messages), used
+
+
+FINISH_PROMPT = ("Дай відповідь користувачу на основі даних, які вже повернули інструменти. Якщо інструмент "
+                 "повернув error (наприклад, немає доступу до підрозділу), коротко поясни це своїми словами.")
+NO_ANSWER = ("Не вдалося сформувати відповідь на основі доступних вам даних. Спробуйте уточнити запитання "
+             "або подивитися показники на дашборді.")
+
+
+def finish_after_tools(base: str, key: str, model: str, messages: list[dict]) -> str:
+    """Остаточна відповідь без інструментів; якщо модель і далі мовчить — зрозуміле повідомлення замість 502."""
+    text = chat(base, key, model, messages + [{"role": "user", "content": FINISH_PROMPT}])
+    return text or NO_ANSWER
 
 
 def answer_with_prefetch(db: Session, user: User, base: str, key: str, model: str, messages: list[dict]) -> tuple[str, list[str]]:
