@@ -53,6 +53,8 @@ services:
       LLM_MODEL: ${LLM_MODEL:-gemma4-26b}
       LLM_ALLOW_EXTERNAL: ${LLM_ALLOW_EXTERNAL:-false}
       POOL_ENCRYPTION_KEY: ${POOL_ENCRYPTION_KEY:-}
+      # Автопілот хвиль: крок кожні N секунд (0 — лише вручну, POST /api/v1/autopilot/tick)
+      AUTOPILOT_INTERVAL_SECONDS: ${AUTOPILOT_INTERVAL_SECONDS:-300}
     volumes:
       - evidence:/data/evidence
     ports:

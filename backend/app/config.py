@@ -71,6 +71,9 @@ class Settings(BaseSettings):
     # Окремий ключ дозволяє міняти JWT_SECRET, не втрачаючи відповідей відкритих хвиль.
     pool_encryption_key: str = ""
 
+    # Автопілот хвиль (services/autopilot.py): як часто робити крок, у секундах. 0 — лише вручну (POST /autopilot/tick).
+    autopilot_interval_seconds: float = 0
+
     # Пароль для синтетичних демо-користувачів, яких створює seed.
     demo_password: str = ""
 

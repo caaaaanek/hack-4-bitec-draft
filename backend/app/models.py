@@ -26,6 +26,7 @@ from sqlalchemy import (
     Text,
     Index,
     UniqueConstraint,
+    LargeBinary,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -217,6 +218,15 @@ class Campaign(Base):
     closed_on: Mapped[date | None] = mapped_column(Date)
     created_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    # Автопілот (services/autopilot.py): відкриття й закриття за планом, нагадування всім учасникам.
+    autopilot: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    planned_open_on: Mapped[date | None] = mapped_column(Date)
+    planned_close_on: Mapped[date | None] = mapped_column(Date)
+    # Закрити раніше строку, коли в кожній анкеті участь досягла цього відсотка.
+    close_at_percent: Mapped[float | None] = mapped_column(Float)
+    remind_every_days: Mapped[int | None] = mapped_column(Integer)
+    last_reminder_on: Mapped[date | None] = mapped_column(Date)
 
     questionnaire_links: Mapped[list["CampaignQuestionnaire"]] = relationship(cascade="all, delete-orphan")
 
@@ -606,3 +616,70 @@ class CheckFinding(Base):
     comment: Mapped[str] = mapped_column(Text, default="")
     reviewed_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# ---------- Автопілот, сповіщення, згенеровані звіти ----------
+
+class AutopilotEvent(Base):
+    """Крок автопілота або агента-чергового: що зроблено, пропущено чи не вдалося. Без персональних даних."""
+
+    __tablename__ = "autopilot_events"
+    __table_args__ = (Index("ix_autopilot_events_campaign_at", "campaign_id", "at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    campaign_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"))
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    step: Mapped[str] = mapped_column(String(32))
+    status: Mapped[str] = mapped_column(String(16))  # ok | skipped | error
+    message: Mapped[str] = mapped_column(Text, default="")
+    details: Mapped[dict] = mapped_column(JSON, default=dict)
+
+
+class Notice(Base):
+    """Сповіщення для аудиторії (усім учасникам хвилі, керівникам, адміністраторам), не конкретній людині.
+
+    Нагадування йде всім учасникам хвилі, тож воно не розкриває, хто вже пройшов анкету.
+    """
+
+    __tablename__ = "notices"
+    __table_args__ = (Index("ix_notices_created_at", "created_at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    campaign_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"))
+    audience: Mapped[str] = mapped_column(String(16))  # participants | leaders | admins
+    kind: Mapped[str] = mapped_column(String(32))
+    title: Mapped[str] = mapped_column(String(300))
+    body: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class GeneratedReport(Base):
+    """Звіт, який автопілот підготував при закритті хвилі (Word за шаблоном Додатку Г)."""
+
+    __tablename__ = "generated_reports"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    campaign_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), index=True)
+    unit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("units.id"))
+    format: Mapped[str] = mapped_column(String(8))
+    filename: Mapped[str] = mapped_column(String(200))
+    content: Mapped[bytes] = mapped_column(LargeBinary)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# ---------- Навчання: флешкартки ----------
+
+class TrainingCompletion(Base):
+    """Людина пройшла колоду флешкарток. Відповіді на окремі картки не зберігаються.
+
+    Назовні — лише агрегат «пройшли X з Y» з порогом k (services/learning.py), як і для участі в анкетах.
+    """
+
+    __tablename__ = "training_completions"
+    __table_args__ = (UniqueConstraint("user_id", "deck", "completed_on"),
+                      Index("ix_training_completions_deck_on", "deck", "completed_on"))
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    deck: Mapped[str] = mapped_column(String(32))
+    completed_on: Mapped[date] = mapped_column(Date)

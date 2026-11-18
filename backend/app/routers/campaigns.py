@@ -12,7 +12,6 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.audit import log_action
-from app.clock import today
 from app.config import get_settings
 from app.db import get_db
 from app.errors import ApiError
@@ -54,9 +53,8 @@ from app.schemas import (
 )
 from app.security import hash_password, require_roles
 from app.services import tokens as token_service
-from app.services.anonymity import flush_all
+from app.services import lifecycle
 from app.services.eligibility import freeze, frozen_of, is_eligible, participants_of
-from app.services.results import create_snapshots
 from app.services.safe_export import FORMULA_PREFIXES, SafeCsvWriter
 from app.services.units import subtree_ids
 
@@ -176,18 +174,7 @@ def get_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db), _: User 
 @router.post("/{campaign_id}/open", response_model=CampaignOut)
 def open_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db), admin: User = Depends(admin_only)):
     campaign = get_or_404(db, campaign_id)
-    if campaign.status != CampaignStatus.DRAFT:
-        raise HTTPException(status_code=409, detail="Відкрити можна лише хвилю в статусі чернетки")
-    if campaign.explicit_participants and not participants_of(db, campaign):
-        raise ApiError(409, "У хвилі явний склад учасників, але він порожній", code="no_participants",
-                       hint="Додайте учасників або поверніться до складу за категорією й підрозділом.")
-    campaign.status = CampaignStatus.OPEN
-    campaign.opened_on = today()
-    details = {}
-    if campaign.access_mode == AccessMode.LOGIN:
-        # Склад фіксується: від нього рахується участь, і його не змінить блокування чи перенесення людей.
-        details["eligible_frozen"] = freeze(db, campaign)
-    log_action(db, admin, "open", "campaign", campaign.id, details)
+    lifecycle.open_wave(db, campaign, admin)
     db.commit()
     return to_out(campaign)
 
@@ -195,16 +182,7 @@ def open_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db), admin: 
 @router.post("/{campaign_id}/close", response_model=CampaignOut)
 def close_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db), admin: User = Depends(admin_only)):
     campaign = get_or_404(db, campaign_id)
-    if campaign.status != CampaignStatus.OPEN:
-        raise HTTPException(status_code=409, detail="Закрити можна лише відкриту хвилю")
-    campaign.status = CampaignStatus.CLOSED
-    campaign.closed_on = today()
-    # Зашифрований буфер переноситься в Response (перемішано, з узагальненими підрозділами) до розрахунку знімків.
-    moved = flush_all(db, campaign)
-    db.flush()
-    # Знімок результатів фіксується в момент закриття і більше не змінюється.
-    snapshots = create_snapshots(db, campaign)
-    log_action(db, admin, "close", "campaign", campaign.id, {"snapshots": snapshots, "responses_moved": moved})
+    lifecycle.close_wave(db, campaign, admin)
     db.commit()
     return to_out(campaign)
 

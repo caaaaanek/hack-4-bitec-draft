@@ -149,11 +149,14 @@ function apiModel(r, h) {
     const src = (c.sources || []).filter(s => s.score != null && s.effective_weight > 0), tot = src.reduce((a, s) => a + s.effective_weight, 0) || 1;
     return src.map(s => { const [k, t] = CATEGORY_SRC[s.source] || ["wg", s.title]; return { id: `${c.code}-${s.source}`, c: c.code, t, w: r1(s.effective_weight / tot * 100), v: s.score, src: k, kind: "p" }; });
   });
+  // Назви джерел фактів: модулі системи («Перевірки», флешкартки) і зовнішні реєстри.
+  const SRC = { checks: "Модуль «Перевірки»", learning: "Флешкартки (навчання)", atestat: "Кадрова ІС (атестація)",
+    reports: "Канал повідомлень", artemida: "ARTEMIDA", procurement: "Закупівлі", training: "Облік навчання" };
   const fItems = r.components.filter(c => COMPS.includes(c.code)).flatMap(c => {
     const fs = (c.facts || []).filter(f => f.score != null);
     return fs.map(f => ({ id: `${c.code}-f-${f.indicator}`, c: c.code, t: f.title, w: r1(100 / fs.length), v: f.score,
       kind: f.numerator != null && f.denominator ? "pct" : "lvl", val: f.numerator != null && f.denominator ? [f.numerator, f.denominator] : (f.level || 1),
-      from: (f.sources || []).join(", ") || "Дані обліку", rule: f.rule }));
+      from: (f.sources || []).map(s => SRC[s] || s).join(", ") || "Дані обліку", rule: f.rule }));
   });
   const pts = (h && h.points) || [], labels = cycleLabels(pts);
   let series = pts.map((p, i) => ({ cycle: labels[i], index: p.index ?? 0, cr: Object.fromEntries(COMPS.map(c => [c, (p.components || {})[c] ?? 0])) }));

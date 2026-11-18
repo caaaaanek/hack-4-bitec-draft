@@ -72,6 +72,11 @@ flowchart LR
 | Reporting Module | `GET /campaigns/{id}/report?format=json\|csv` | `/reports` |
 | Кабінет учасника — узагальнені результати свого підрозділу | `GET /me/results`, за посиланням `GET /respond/results` | `#me`, `/s/<токен>` після закриття |
 | Інтеграція з іншими системами | `POST /indicators` (ключ на джерело), тема 2: `/integrations/theme2/*`, вхід через проксі організації (`POST /auth/proxy`), `ROOT_PATH` | `/integrations` карта інтеграції |
+| «Адвокат диявола» — питання аудитора до хвилі за правилами | `GET /campaigns/{id}/devils-advocate` | — (API готове) |
+| Агент-черговий — що впало, чому, як виправити | `GET /agent/digest` | — (API готове) |
+| Аналіз нормативки — які пункти зачіпає новий наказ | `POST /normative/analyze` (локальний пошук, без моделей) | — (API готове) |
+| Автопілот хвилі — відкриття, нагадування всім, закриття, звіт | `PUT /campaigns/{id}/autopilot`, `POST /autopilot/tick`, `GET /me/notifications` | — (API готове) |
+| Флешкартки доброчесності — джерело охоплення навчанням | `/learning/*` | — (API готове) |
 | Асистент (опційно, вимкнено) | `POST /assistant/ask`, `/api/assistant` (OpenAI-сумісний, `LLM_*`) | кнопка «Асистент» |
 
 Методика індексу — [`docs/integrity-index.md`](docs/integrity-index.md), ролі й API — [`docs/backend.md`](docs/backend.md).
@@ -97,6 +102,7 @@ cp .env.example .env && docker compose up --build   # PostgreSQL + API + UI → 
 | Dashboard керівника (результат 4) | [`docs/dashboard.md`](docs/dashboard.md) |
 | Рекомендації з прогону (результат 5) і зіставлення з фактами (результат 7) | [`docs/recommendations.md`](docs/recommendations.md), [`docs/cross-check.md`](docs/cross-check.md) |
 | Захист анонімності (результат 6) і аналіз зловживань (результат 10) | [`docs/anonymity.md`](docs/anonymity.md), [`docs/abuse-analysis.md`](docs/abuse-analysis.md) |
+| Модулі підготовки й автоматизації: адвокат диявола, агент-черговий, нормативка, автопілот, флешкартки | [`docs/features.md`](docs/features.md) |
 | Економія часу (результат 8) | [`docs/time-savings.md`](docs/time-savings.md) |
 | Карта інтеграції і концепція екосистеми (результати 9 і 12) | [`docs/integration-map.md`](docs/integration-map.md), [`docs/ecosystem.md`](docs/ecosystem.md) |
 | Як ми використали ШІ (результат 11) | [`docs/ai.md`](docs/ai.md) |

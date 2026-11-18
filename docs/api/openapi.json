@@ -5985,7 +5985,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PublishIn"
+                "$ref": "#/components/schemas/app__schemas_checks__PublishIn"
               }
             }
           },
@@ -5997,7 +5997,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PublishOut"
+                  "$ref": "#/components/schemas/app__schemas_checks__PublishOut"
                 }
               }
             }
@@ -8934,6 +8934,1194 @@
         }
       }
     },
+    "/api/v1/campaigns/{campaign_id}/devils-advocate": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Devils Advocate Questions",
+        "description": "«Адвокат диявола»: найнеприємніші питання аудитора до результатів хвилі, кожне з посиланням на число.",
+        "operationId": "devils_advocate_questions_api_v1_campaigns__campaign_id__devils_advocate_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          },
+          {
+            "name": "unit_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 30,
+              "minimum": 1,
+              "default": 10,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "rephrase",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Перефразувати моделлю (якщо підключена); числа не змінюються",
+              "default": false,
+              "title": "Rephrase"
+            },
+            "description": "Перефразувати моделлю (якщо підключена); числа не змінюються"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdvocateOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/agent/digest": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Agent Digest",
+        "description": "Агент-черговий: що знизилось і чому (за джерелами), технічні збої, що прострочено — і як виправити.\n\nТехнічні пункти (тема 2, джерела фактів, журнал дій, автопілот) бачать адміністратор і координатор.",
+        "operationId": "agent_digest_api_v1_agent_digest_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Unit Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DigestOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/normative/analyze": {
+      "post": {
+        "tags": [
+          "normative"
+        ],
+        "summary": "Analyze",
+        "description": "Які пункти чек-листа, питання анкет, заходи Додатку Д і показники зачіпає документ.\n\nДокумент не зберігається; у журнал дій потрапляють лише назва, розмір і хеш.",
+        "operationId": "analyze_api_v1_normative_analyze_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_analyze_api_v1_normative_analyze_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnalyzeOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/learning/decks": {
+      "get": {
+        "tags": [
+          "learning"
+        ],
+        "summary": "List Decks",
+        "description": "Колоди й мій стан проходження. Свій стан бачить лише сама людина.",
+        "operationId": "list_decks_api_v1_learning_decks_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DecksOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/learning/decks/{code}": {
+      "get": {
+        "tags": [
+          "learning"
+        ],
+        "summary": "Get Deck",
+        "operationId": "get_deck_api_v1_learning_decks__code__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Code"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DeckOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/learning/decks/{code}/complete": {
+      "post": {
+        "tags": [
+          "learning"
+        ],
+        "summary": "Complete Deck",
+        "description": "Позначити колоду пройденою. Зараховується, якщо переглянуто всі картки; відповіді не зберігаються.",
+        "operationId": "complete_deck_api_v1_learning_decks__code__complete_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Code"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CompleteIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompleteOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/learning/stats": {
+      "get": {
+        "tags": [
+          "learning"
+        ],
+        "summary": "Learning Stats",
+        "description": "Скільки людей пройшли навчання (агрегат з порогом k). Імен і поіменних списків немає.",
+        "operationId": "learning_stats_api_v1_learning_stats_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Unit Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/StatsOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/learning/publish": {
+      "post": {
+        "tags": [
+          "learning"
+        ],
+        "summary": "Publish Coverage",
+        "description": "Записати training_coverage за місяць з даних флешкарток (джерело learning). Автопілот робить це щодня.",
+        "operationId": "publish_coverage_api_v1_learning_publish_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/app__routers__learning__PublishIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/app__routers__learning__PublishOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/campaigns/{campaign_id}/autopilot": {
+      "get": {
+        "tags": [
+          "autopilot"
+        ],
+        "summary": "Get Autopilot",
+        "description": "План автопілота хвилі, що він зробить далі, і журнал його кроків.",
+        "operationId": "get_autopilot_api_v1_campaigns__campaign_id__autopilot_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutopilotOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "autopilot"
+        ],
+        "summary": "Set Autopilot",
+        "description": "Увімкнути чи вимкнути автопілот і задати план (дати, поріг участі, частоту нагадувань).",
+        "operationId": "set_autopilot_api_v1_campaigns__campaign_id__autopilot_put",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutopilotIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutopilotOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/autopilot/tick": {
+      "post": {
+        "tags": [
+          "autopilot"
+        ],
+        "summary": "Run Tick",
+        "description": "Виконати крок автопілота зараз (фоново він іде кожні AUTOPILOT_INTERVAL_SECONDS).",
+        "operationId": "run_tick_api_v1_autopilot_tick_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TickOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/campaigns/{campaign_id}/autopilot/report": {
+      "get": {
+        "tags": [
+          "autopilot"
+        ],
+        "summary": "Download Prepared Report",
+        "description": "Word-звіт, який автопілот підготував при закритті хвилі (свіжий звіт: GET /campaigns/{id}/report).",
+        "operationId": "download_prepared_report_api_v1_campaigns__campaign_id__autopilot_report_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/me/notifications": {
+      "get": {
+        "tags": [
+          "autopilot"
+        ],
+        "summary": "My Notifications",
+        "description": "Сповіщення за 30 днів для моєї ролі: нагадування й підсумки хвиль, підсумок агента-чергового.\n\nНагадування адресовані всім учасникам хвилі, а не тим, хто ще не пройшов: так нічого не розкривається.",
+        "operationId": "my_notifications_api_v1_me_notifications_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/NoticeOut"
+                  },
+                  "type": "array",
+                  "title": "Response My Notifications Api V1 Me Notifications Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
     "/api/assistant": {
       "get": {
         "tags": [
@@ -9220,6 +10408,203 @@
         ],
         "title": "AccessMode"
       },
+      "AdvocateOut": {
+        "properties": {
+          "campaign_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Campaign Id"
+          },
+          "campaign_title": {
+            "type": "string",
+            "title": "Campaign Title"
+          },
+          "unit_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Unit Id"
+          },
+          "unit_name": {
+            "type": "string",
+            "title": "Unit Name"
+          },
+          "generated_at": {
+            "type": "string",
+            "title": "Generated At"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/AdvocateQuestion"
+            },
+            "type": "array",
+            "title": "Questions"
+          },
+          "total_found": {
+            "type": "integer",
+            "title": "Total Found"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/RuleOut"
+            },
+            "type": "array",
+            "title": "Rules"
+          },
+          "rephrased_by_model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rephrased By Model",
+            "description": "Модель, яка перефразувала питання, або null"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "campaign_id",
+          "campaign_title",
+          "unit_id",
+          "unit_name",
+          "generated_at",
+          "questions",
+          "total_found",
+          "rules",
+          "note"
+        ],
+        "title": "AdvocateOut"
+      },
+      "AdvocateQuestion": {
+        "properties": {
+          "n": {
+            "type": "integer",
+            "title": "N"
+          },
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "rule_id": {
+            "type": "string",
+            "title": "Rule Id"
+          },
+          "severity": {
+            "type": "integer",
+            "title": "Severity",
+            "description": "Вага правила: що вище, то неприємніше питання"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "question": {
+            "type": "string",
+            "title": "Question"
+          },
+          "original_question": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Original Question",
+            "description": "Текст правила, якщо питання перефразувала модель"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why",
+            "description": "Правило й числа, з яких виникло питання"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            },
+            "type": "array",
+            "title": "Evidence"
+          },
+          "prepare": {
+            "type": "string",
+            "title": "Prepare",
+            "description": "Що підготувати до відповіді"
+          },
+          "link": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Link"
+          }
+        },
+        "type": "object",
+        "required": [
+          "n",
+          "id",
+          "rule_id",
+          "severity",
+          "category",
+          "question",
+          "why",
+          "evidence",
+          "prepare",
+          "link"
+        ],
+        "title": "AdvocateQuestion"
+      },
+      "AnalyzeOut": {
+        "properties": {
+          "document": {
+            "$ref": "#/components/schemas/DocumentInfo"
+          },
+          "matches": {
+            "items": {
+              "$ref": "#/components/schemas/Match"
+            },
+            "type": "array",
+            "title": "Matches"
+          },
+          "by_kind": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "By Kind"
+          },
+          "corpus_size": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Corpus Size"
+          },
+          "method": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Method"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "document",
+          "matches",
+          "by_kind",
+          "corpus_size",
+          "method",
+          "note"
+        ],
+        "title": "AnalyzeOut"
+      },
       "AnswerIn": {
         "properties": {
           "question_id": {
@@ -9504,6 +10889,266 @@
           "proxy"
         ],
         "title": "AuthModes"
+      },
+      "AutopilotEventOut": {
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "step": {
+            "type": "string",
+            "title": "Step"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "details": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Details"
+          }
+        },
+        "type": "object",
+        "required": [
+          "at",
+          "step",
+          "status",
+          "message",
+          "details"
+        ],
+        "title": "AutopilotEventOut"
+      },
+      "AutopilotIn": {
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "planned_open_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned Open On",
+            "description": "Коли відкрити (для чернетки)"
+          },
+          "planned_close_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned Close On",
+            "description": "Коли закрити, якщо участь не набереться раніше"
+          },
+          "close_at_percent": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 100.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Close At Percent",
+            "description": "Закрити раніше, коли в кожній анкеті участь ≥ цього відсотка"
+          },
+          "remind_every_days": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 60.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remind Every Days",
+            "description": "Нагадувати всім учасникам кожні N днів"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "enabled"
+        ],
+        "title": "AutopilotIn"
+      },
+      "AutopilotOut": {
+        "properties": {
+          "campaign_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Campaign Id"
+          },
+          "campaign_title": {
+            "type": "string",
+            "title": "Campaign Title"
+          },
+          "status": {
+            "$ref": "#/components/schemas/CampaignStatus"
+          },
+          "enabled": {
+            "type": "boolean",
+            "title": "Enabled"
+          },
+          "planned_open_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned Open On"
+          },
+          "planned_close_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Planned Close On"
+          },
+          "close_at_percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Close At Percent"
+          },
+          "remind_every_days": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Remind Every Days"
+          },
+          "last_reminder_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Reminder On"
+          },
+          "plan": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Plan",
+            "description": "Що автопілот зробить далі"
+          },
+          "report_ready": {
+            "type": "boolean",
+            "title": "Report Ready",
+            "description": "Чи підготовлено Word-звіт після закриття"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/AutopilotEventOut"
+            },
+            "type": "array",
+            "title": "Events"
+          }
+        },
+        "type": "object",
+        "required": [
+          "campaign_id",
+          "campaign_title",
+          "status",
+          "enabled",
+          "planned_open_on",
+          "planned_close_on",
+          "close_at_percent",
+          "remind_every_days",
+          "last_reminder_on",
+          "plan",
+          "report_ready",
+          "events"
+        ],
+        "title": "AutopilotOut"
+      },
+      "Body_analyze_api_v1_normative_analyze_post": {
+        "properties": {
+          "file": {
+            "anyOf": [
+              {
+                "type": "string",
+                "contentMediaType": "application/octet-stream"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "File",
+            "description": ".txt, .md, .docx або .pdf"
+          },
+          "text": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Text",
+            "description": "Або сам текст документа"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "title": "Body_analyze_api_v1_normative_analyze_post"
       },
       "Body_import_participants_api_v1_campaigns__campaign_id__participants_import_post": {
         "properties": {
@@ -9995,6 +11640,42 @@
         "title": "CampaignUpdate",
         "description": "Зміна хвилі. Лише в статусі чернетки; передані поля замінюються повністю."
       },
+      "Card": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "situation": {
+            "type": "string",
+            "title": "Situation"
+          },
+          "steps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Steps"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why"
+          },
+          "law": {
+            "type": "string",
+            "title": "Law"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "situation",
+          "steps",
+          "why",
+          "law"
+        ],
+        "title": "Card"
+      },
       "ChecklistComponent": {
         "properties": {
           "score": {
@@ -10449,6 +12130,48 @@
           "radar"
         ],
         "title": "CompareOut"
+      },
+      "CompleteIn": {
+        "properties": {
+          "seen": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Seen",
+            "description": "Ідентифікатори переглянутих карток: щоб зарахувати, потрібні всі"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "seen"
+        ],
+        "title": "CompleteIn"
+      },
+      "CompleteOut": {
+        "properties": {
+          "deck": {
+            "type": "string",
+            "title": "Deck"
+          },
+          "completed_on": {
+            "type": "string",
+            "format": "date",
+            "title": "Completed On"
+          },
+          "i_am_trained": {
+            "type": "boolean",
+            "title": "I Am Trained"
+          }
+        },
+        "type": "object",
+        "required": [
+          "deck",
+          "completed_on",
+          "i_am_trained"
+        ],
+        "title": "CompleteOut"
       },
       "ComponentBrief": {
         "properties": {
@@ -11020,6 +12743,143 @@
         ],
         "title": "DecisionOut"
       },
+      "DeckOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "component": {
+            "type": "string",
+            "title": "Component"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required"
+          },
+          "cards": {
+            "items": {
+              "$ref": "#/components/schemas/Card"
+            },
+            "type": "array",
+            "title": "Cards"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "title",
+          "description",
+          "component",
+          "required",
+          "cards"
+        ],
+        "title": "DeckOut"
+      },
+      "DeckSummary": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "component": {
+            "type": "string",
+            "title": "Component"
+          },
+          "cards": {
+            "type": "integer",
+            "title": "Cards"
+          },
+          "required": {
+            "type": "boolean",
+            "title": "Required"
+          },
+          "my_completed_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "My Completed On",
+            "description": "Коли я востаннє пройшов колоду"
+          },
+          "my_valid": {
+            "type": "boolean",
+            "title": "My Valid",
+            "description": "Проходження ще чинне (у межах valid_days)",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "title",
+          "description",
+          "component",
+          "cards",
+          "required"
+        ],
+        "title": "DeckSummary"
+      },
+      "DecksOut": {
+        "properties": {
+          "decks": {
+            "items": {
+              "$ref": "#/components/schemas/DeckSummary"
+            },
+            "type": "array",
+            "title": "Decks"
+          },
+          "required": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Required"
+          },
+          "valid_days": {
+            "type": "integer",
+            "title": "Valid Days"
+          },
+          "i_am_trained": {
+            "type": "boolean",
+            "title": "I Am Trained"
+          },
+          "source": {
+            "type": "string",
+            "title": "Source"
+          }
+        },
+        "type": "object",
+        "required": [
+          "decks",
+          "required",
+          "valid_days",
+          "i_am_trained",
+          "source"
+        ],
+        "title": "DecksOut"
+      },
       "DeclarationItem": {
         "properties": {
           "declaration_id": {
@@ -11181,6 +13041,135 @@
         ],
         "title": "DeclarationsRunIn"
       },
+      "DigestItem": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "category": {
+            "type": "string",
+            "title": "Category",
+            "description": "drop | rise | technical | process"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity",
+            "description": "critical | warning | info"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "what": {
+            "type": "string",
+            "title": "What"
+          },
+          "why": {
+            "type": "string",
+            "title": "Why"
+          },
+          "fix": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Fix"
+          },
+          "link": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Link"
+          },
+          "data": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Data"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "category",
+          "severity",
+          "title",
+          "what",
+          "why",
+          "fix",
+          "link"
+        ],
+        "title": "DigestItem"
+      },
+      "DigestOut": {
+        "properties": {
+          "generated_at": {
+            "type": "string",
+            "title": "Generated At"
+          },
+          "unit_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Id"
+          },
+          "unit_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Name"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status",
+            "description": "ok | attention | critical"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "counts": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Counts"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DigestItem"
+            },
+            "type": "array",
+            "title": "Items"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "generated_at",
+          "unit_id",
+          "unit_name",
+          "status",
+          "summary",
+          "counts",
+          "items",
+          "note"
+        ],
+        "title": "DigestOut"
+      },
       "Discrepancy": {
         "properties": {
           "type": {
@@ -11242,6 +13231,37 @@
           "percent"
         ],
         "title": "DistributionItem"
+      },
+      "DocumentInfo": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "chars": {
+            "type": "integer",
+            "title": "Chars"
+          },
+          "fragments": {
+            "type": "integer",
+            "title": "Fragments"
+          },
+          "top_terms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Top Terms"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "chars",
+          "fragments",
+          "top_terms"
+        ],
+        "title": "DocumentInfo"
       },
       "DynamicsOut": {
         "properties": {
@@ -11580,6 +13600,45 @@
           "request_id"
         ],
         "title": "ErrorOut"
+      },
+      "Evidence": {
+        "properties": {
+          "label": {
+            "type": "string",
+            "title": "Label"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "path": {
+            "type": "string",
+            "title": "Path",
+            "description": "Де це число в результатах хвилі (для переходу на екран)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "label",
+          "value",
+          "text",
+          "path"
+        ],
+        "title": "Evidence"
       },
       "EvidenceFileOut": {
         "properties": {
@@ -12971,6 +15030,91 @@
         ],
         "title": "LoginIn"
       },
+      "Match": {
+        "properties": {
+          "kind": {
+            "type": "string",
+            "title": "Kind",
+            "description": "checklist | question | measure | fact"
+          },
+          "kind_title": {
+            "type": "string",
+            "title": "Kind Title"
+          },
+          "ref": {
+            "type": "string",
+            "title": "Ref"
+          },
+          "number": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Number"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "score": {
+            "type": "number",
+            "title": "Score",
+            "description": "Косинусна схожість 0–1"
+          },
+          "matched_terms": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Matched Terms",
+            "description": "Спільні слова документа й елемента — чому збіг"
+          },
+          "fragment_index": {
+            "type": "integer",
+            "title": "Fragment Index"
+          },
+          "fragment": {
+            "type": "string",
+            "title": "Fragment",
+            "description": "Фрагмент документа, з яким знайдено збіг"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "current_status": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Current Status",
+            "description": "Для пункту чек-листа: стан в останній хвилі"
+          }
+        },
+        "type": "object",
+        "required": [
+          "kind",
+          "kind_title",
+          "ref",
+          "number",
+          "title",
+          "score",
+          "matched_terms",
+          "fragment_index",
+          "fragment",
+          "action"
+        ],
+        "title": "Match"
+      },
       "MeOut": {
         "properties": {
           "id": {
@@ -13654,6 +15798,59 @@
         ],
         "title": "NazkFetchIn"
       },
+      "NoticeOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "campaign_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Id"
+          },
+          "audience": {
+            "type": "string",
+            "title": "Audience"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "body": {
+            "type": "string",
+            "title": "Body"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "campaign_id",
+          "audience",
+          "kind",
+          "title",
+          "body",
+          "created_at"
+        ],
+        "title": "NoticeOut"
+      },
       "OptionIn": {
         "properties": {
           "text": {
@@ -14228,55 +16425,6 @@
           "evidence"
         ],
         "title": "PublicConfig"
-      },
-      "PublishIn": {
-        "properties": {
-          "unit_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Unit Id"
-          },
-          "period": {
-            "type": "string",
-            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
-            "title": "Period",
-            "description": "Місяць у форматі YYYY-MM"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "unit_id",
-          "period"
-        ],
-        "title": "PublishIn"
-      },
-      "PublishOut": {
-        "properties": {
-          "unit_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Unit Id"
-          },
-          "period": {
-            "type": "string",
-            "title": "Period"
-          },
-          "indicators": {
-            "items": {
-              "$ref": "#/components/schemas/PublishedIndicator"
-            },
-            "type": "array",
-            "title": "Indicators"
-          }
-        },
-        "type": "object",
-        "required": [
-          "unit_id",
-          "period",
-          "indicators"
-        ],
-        "title": "PublishOut"
       },
       "PublishedIndicator": {
         "properties": {
@@ -15201,6 +17349,24 @@
         ],
         "title": "Role"
       },
+      "RuleOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "description"
+        ],
+        "title": "RuleOut"
+      },
       "RunOut": {
         "properties": {
           "run_id": {
@@ -15472,6 +17638,94 @@
         ],
         "title": "SourceOut"
       },
+      "StatsOut": {
+        "properties": {
+          "unit_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Unit Id"
+          },
+          "eligible": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Eligible"
+          },
+          "trained": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trained"
+          },
+          "percent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Percent"
+          },
+          "suppressed": {
+            "type": "boolean",
+            "title": "Suppressed"
+          },
+          "by_deck": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": "object",
+            "title": "By Deck"
+          },
+          "required": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Required"
+          },
+          "valid_days": {
+            "type": "integer",
+            "title": "Valid Days"
+          },
+          "rule": {
+            "type": "string",
+            "title": "Rule"
+          }
+        },
+        "type": "object",
+        "required": [
+          "unit_id",
+          "eligible",
+          "trained",
+          "percent",
+          "suppressed",
+          "by_deck",
+          "required",
+          "valid_days",
+          "rule"
+        ],
+        "title": "StatsOut"
+      },
       "StructureIn": {
         "properties": {
           "sections": {
@@ -15593,6 +17847,69 @@
           "pending"
         ],
         "title": "SyncResult"
+      },
+      "TickEvent": {
+        "properties": {
+          "campaign_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Id"
+          },
+          "campaign_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Title"
+          },
+          "step": {
+            "type": "string",
+            "title": "Step"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "campaign_id",
+          "campaign_title",
+          "step",
+          "status",
+          "message"
+        ],
+        "title": "TickEvent"
+      },
+      "TickOut": {
+        "properties": {
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/TickEvent"
+            },
+            "type": "array",
+            "title": "Events"
+          }
+        },
+        "type": "object",
+        "required": [
+          "events"
+        ],
+        "title": "TickOut"
       },
       "TokenFormOut": {
         "properties": {
@@ -16273,6 +18590,53 @@
         ],
         "title": "Zone"
       },
+      "app__routers__learning__PublishIn": {
+        "properties": {
+          "period": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Period",
+            "description": "YYYY-MM, за замовчуванням поточний місяць"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "PublishIn"
+      },
+      "app__routers__learning__PublishOut": {
+        "properties": {
+          "period": {
+            "type": "string",
+            "title": "Period"
+          },
+          "units": {
+            "type": "integer",
+            "title": "Units"
+          },
+          "numerator": {
+            "type": "integer",
+            "title": "Numerator"
+          },
+          "denominator": {
+            "type": "integer",
+            "title": "Denominator"
+          }
+        },
+        "type": "object",
+        "required": [
+          "period",
+          "units",
+          "numerator",
+          "denominator"
+        ],
+        "title": "PublishOut"
+      },
       "app__schemas__QuestionOut": {
         "properties": {
           "id": {
@@ -16352,6 +18716,55 @@
           "options"
         ],
         "title": "QuestionOut"
+      },
+      "app__schemas_checks__PublishIn": {
+        "properties": {
+          "unit_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Unit Id"
+          },
+          "period": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "title": "Period",
+            "description": "Місяць у форматі YYYY-MM"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "unit_id",
+          "period"
+        ],
+        "title": "PublishIn"
+      },
+      "app__schemas_checks__PublishOut": {
+        "properties": {
+          "unit_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Unit Id"
+          },
+          "period": {
+            "type": "string",
+            "title": "Period"
+          },
+          "indicators": {
+            "items": {
+              "$ref": "#/components/schemas/PublishedIndicator"
+            },
+            "type": "array",
+            "title": "Indicators"
+          }
+        },
+        "type": "object",
+        "required": [
+          "unit_id",
+          "period",
+          "indicators"
+        ],
+        "title": "PublishOut"
       },
       "app__schemas_results__QuestionOut": {
         "properties": {

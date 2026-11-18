@@ -17,8 +17,11 @@ from app.routers import (
     checks,
     dashboard,
     indicators,
+    insights,
     integrations,
+    learning,
     measures,
+    normative,
     questionnaires,
     recommendations,
     reports,
@@ -26,7 +29,9 @@ from app.routers import (
     results,
     what_if,
 )
+from app.routers import autopilot as autopilot_router
 from app.routers import config as config_router
+from app.services import autopilot as autopilot_service
 from app.routers import llm as llm_router
 
 API_PREFIX = "/api/v1"
@@ -60,7 +65,9 @@ API_VERSION = "0.3.0"
 async def lifespan(_: FastAPI):
     # Без надійного секрету JWT застосунок не стартує.
     check_settings(get_settings())
+    autopilot_service.start()
     yield
+    autopilot_service.stop()
 
 
 settings = get_settings()
@@ -91,7 +98,8 @@ app.add_middleware(
 )
 
 for module in (config_router, auth, admin, questionnaires, campaigns, respond, checklist, checks, indicators, results,
-               dashboard, recommendations, measures, reports, integrations, assistant, what_if):
+               dashboard, recommendations, measures, reports, integrations, assistant, what_if, insights, normative,
+               learning, autopilot_router):
     app.include_router(module.router, prefix=API_PREFIX, responses=ERROR_RESPONSES)
 
 # /api/assistant — асистент frontend-proto (шлях без /api/v1, як очікує фронтенд).

@@ -122,14 +122,21 @@ def test_review_and_publish(ctx):
     # Показники з'являються в існуючому перегляді фактів.
     facts = client.get(f"{API}/units/{unit}/indicators", params={"end": "2026-10-15"}, headers=admin).json()
     fact = {f["indicator"]: f for f in facts}["procurement_flags_reviewed"]
-    assert fact["denominator"] == len(findings) and fact["numerator"] == done and "checks" in fact["sources"]
+    # Синтетичних закупівель буває різна кількість (залежить від id підрозділу). Менше k знахідок за квартал —
+    # факт приховано порогом анонімності (B3), і чисел не видно.
+    small = len(findings) < get_settings().min_group_size
+    if small:
+        assert fact["status"] == "too_few_people" and fact["denominator"] is None
+    else:
+        assert fact["denominator"] == len(findings) and fact["numerator"] == done and "checks" in fact["sources"]
 
     # Повторна публікація перезаписує, а не дублює.
     client.post(f"{API}/checks/findings/{findings[0]['id']}/review", json={"status": "new"}, headers=admin)
     client.post(f"{API}/checks/publish", json={"unit_id": unit, "period": DONE_PERIOD}, headers=admin)
     facts = client.get(f"{API}/units/{unit}/indicators", params={"end": "2026-10-15"}, headers=admin).json()
     fact = {f["indicator"]: f for f in facts}["procurement_flags_reviewed"]
-    assert fact["numerator"] == done - 1 and fact["denominator"] == len(findings)
+    if not small:
+        assert fact["numerator"] == done - 1 and fact["denominator"] == len(findings)
 
 
 def test_publish_without_data_writes_nothing(ctx):
