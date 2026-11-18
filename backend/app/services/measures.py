@@ -7,7 +7,7 @@ import uuid
 from collections.abc import Callable
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.clock import today, utcnow
@@ -202,4 +202,5 @@ def send_pending(db: Session, sender: Sender | None = None, limit: int = 100) ->
 
 
 def pending_count(db: Session) -> int:
-    return len(db.scalars(select(OutboxMessage.id).where(OutboxMessage.target == THEME2, OutboxMessage.sent_at.is_(None))).all())
+    return db.scalar(select(func.count()).select_from(OutboxMessage)
+                     .where(OutboxMessage.target == THEME2, OutboxMessage.sent_at.is_(None))) or 0

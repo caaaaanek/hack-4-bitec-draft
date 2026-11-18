@@ -111,8 +111,13 @@ def test_unit_drilldown_and_participant_screen(client):
     assert a1["index"]["score"] is None
     assert a1["groups"][0]["eligible"] is None and a1["groups"][0]["n"] is None
 
+    # Перегляди не пишуться в журнал (не блокують голову ланцюжка), перерахунок — пишеться.
     log = client.get(f"{API}/admin/audit-log?entity=campaign", headers=admin).json()
-    assert sum(1 for e in log if e["action"] == "view_results") == 3
+    assert not any(e["action"].startswith("view_") for e in log)
+    r = client.get(f"{API}/campaigns/{campaign_id}/results?recalculate=true", headers=admin)
+    assert r.status_code == 200 and r.json()["source"] == "recalculated"
+    log = client.get(f"{API}/admin/audit-log?entity=campaign", headers=admin).json()
+    assert sum(1 for e in log if e["action"] == "recalculate_results") == 1
 
     [item] = client.get(f"{API}/me/results", headers=auth(client, "staff01")).json()
     assert item["my_unit"]["unit_name"] == "Підрозділ А" and item["my_unit"]["sufficient"] is True

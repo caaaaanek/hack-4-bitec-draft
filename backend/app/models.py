@@ -105,6 +105,8 @@ class User(Base):
     unit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("units.id"), index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # Версія токенів: зростає при зміні пароля чи блокуванні, і всі видані раніше JWT стають недійсними.
+    token_version: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
 
 
 class Questionnaire(Base):
@@ -412,6 +414,29 @@ class AuditLog(Base):
     details: Mapped[dict] = mapped_column(JSON, default=dict)
 
     __table_args__ = (UniqueConstraint("seq", name="uq_audit_log_seq"), Index("ix_audit_log_entity", "entity", "entity_id"))
+
+
+class RevokedToken(Base):
+    """Відкликані JWT (вихід). Зберігаються лише до закінчення строку дії токена."""
+
+    __tablename__ = "revoked_tokens"
+
+    jti: Mapped[str] = mapped_column(String(64), primary_key=True)
+    expires_at: Mapped[float] = mapped_column(Float, index=True)  # unix-час
+
+
+class LoginFailure(Base):
+    """Невдала спроба входу чи анонімного посилання. Спільна для всіх процесів API, переживає перезапуск.
+
+    key — sha256 від (scope, логін, IP): самих логінів і адрес у таблиці немає.
+    """
+
+    __tablename__ = "login_failures"
+
+    id: Mapped[int] = mapped_column(BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True)
+    scope: Mapped[str] = mapped_column(String(16), index=True)
+    key: Mapped[str] = mapped_column(String(64), index=True)
+    at: Mapped[float] = mapped_column(Float, index=True)  # unix-час
 
 
 class AuditHead(Base):

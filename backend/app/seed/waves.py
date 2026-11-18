@@ -2,7 +2,7 @@
 
 Запуск: python -m app.seed.seed --with-waves (або SEED_WITH_WAVES=1).
 
-Усе йде через справжні маршрути API в тому ж процесі (TestClient), тож працюють ті самі перевірки,
+Усе йде через справжні маршрути API в тому ж процесі (app.inprocess, без мережі), тож працюють ті самі перевірки,
 буфер анонімності, знімки й журнал дій, що й у роботі. Сервер запускати не треба.
 Хвиля 1 закривається приблизно пів року тому, хвиля 2 — сьогодні (дату фіксує app.clock.frozen_on).
 Детерміновано, без випадковості в даних (перемішування в буфері анонімності не впливає на бали).
@@ -194,8 +194,7 @@ class _Demo:
 
 def seed_waves(today: date | None = None) -> list[str]:
     """Дві закриті хвилі з рішеннями й заходами. Якщо хвилі вже є, нічого не робить."""
-    from fastapi.testclient import TestClient  # httpx потрібен лише тут
-
+    from app.inprocess import InProcessClient
     from app.main import app
 
     today = today or clock_today()
@@ -204,7 +203,7 @@ def seed_waves(today: date | None = None) -> list[str]:
             return ["Хвилі вже є, демо-історію не додаю"]
         demo = _Demo(db)
     # Сесію закрито до запитів: на SQLite відкрита транзакція читання блокувала б запис.
-    with TestClient(app) as client:
+    with InProcessClient(app) as client:
         demo.client = client
         first_closed = today - timedelta(days=round(WAVE_GAP_MONTHS * 30.4))
         first_id, lines = demo.wave(1, "Хвиля 1 (демо)", first_closed - timedelta(days=WAVE_LENGTH_DAYS), first_closed)

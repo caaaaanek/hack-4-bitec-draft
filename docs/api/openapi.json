@@ -320,7 +320,7 @@
           "auth"
         ],
         "summary": "Delete Session",
-        "description": "Вихід. JWT без стану: сервер нічого не зберігає, клієнт видаляє токен.",
+        "description": "Вихід: цей токен відкликається на сервері до закінчення строку дії (інші сесії користувача діють далі).",
         "operationId": "delete_session_api_v1_auth_session_delete",
         "responses": {
           "204": {
@@ -8109,6 +8109,11 @@
           "explicit_participants": {
             "type": "boolean",
             "title": "Explicit Participants",
+            "default": false
+          },
+          "has_checklist": {
+            "type": "boolean",
+            "title": "Has Checklist",
             "default": false
           }
         },

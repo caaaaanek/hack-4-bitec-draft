@@ -21,6 +21,8 @@ from app.errors import ApiError
 from app.models import User
 from app.schemas import MeOut, SessionOut, TokenOut
 from app.security import (
+    get_token_payload,
+    revoke_token,
     client_ip,
     create_access_token,
     get_current_user,
@@ -92,8 +94,14 @@ def get_session(user: User = Depends(get_current_user)):
 
 
 @router.delete("/session", status_code=status.HTTP_204_NO_CONTENT)
-def delete_session(_: User = Depends(get_current_user)):
-    """Вихід. JWT без стану: сервер нічого не зберігає, клієнт видаляє токен."""
+def delete_session(
+    _: User = Depends(get_current_user),
+    payload: dict = Depends(get_token_payload),
+    db: Session = Depends(get_db),
+):
+    """Вихід: цей токен відкликається на сервері до закінчення строку дії (інші сесії користувача діють далі)."""
+    revoke_token(db, payload)
+    db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

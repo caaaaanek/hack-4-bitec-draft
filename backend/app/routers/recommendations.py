@@ -135,8 +135,6 @@ def list_recommendations(
     ensure_unit_access(db, user, unit_id or campaign.unit_id)
     data, recs = build(db, campaign, unit_id)
     scope = uuid.UUID(data["unit_id"])
-    log_action(db, user, "view_recommendations", "campaign", campaign.id, {"unit_id": str(scope)})
-    db.commit()
     return {"campaign_id": campaign.id, "unit_id": scope, "unit_name": data["unit_name"],
             "methodology_version": data["methodology_version"], "items": with_decisions(db, campaign, scope, recs)}
 

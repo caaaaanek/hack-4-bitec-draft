@@ -1,5 +1,5 @@
+import hashlib
 import ipaddress
-import threading
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -9,11 +9,13 @@ import bcrypt
 import jwt
 from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
+from sqlalchemy import delete, select
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.config import check_settings, get_settings
 from app.db import get_db
-from app.models import Role, User
+from app.models import LoginFailure, RevokedToken, Role, User
 
 # Відносна адреса: працює і під ROOT_PATH (кнопка Authorize у /docs).
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="api/v1/auth/login")
@@ -85,67 +87,133 @@ def verify_password_dummy(password: str) -> None:
 
 
 class LoginThrottle:
-    """Невдалі спроби входу в пам'яті процесу. Для кількох процесів варто винести в Redis чи БД."""
+    """Невдалі спроби входу (чи анонімних посилань) у БД: ліміт спільний для всіх процесів і переживає перезапуск.
 
-    def __init__(self) -> None:
-        self._failures: dict[tuple, list[float]] = {}
-        self._lock = threading.Lock()
+    Ключ зберігається лише як sha256 від (scope, частини ключа), тож логінів і IP у таблиці немає.
+    Старі записи (старші за вікно) прибираються при кожній новій невдалій спробі.
+    """
 
-    def _recent(self, key: tuple, now: float) -> list[float]:
-        window = get_settings().login_window_seconds
-        items = [t for t in self._failures.get(key, []) if now - t < window]
-        self._failures[key] = items
-        return items
+    def __init__(self, scope: str = "login") -> None:
+        self.scope = scope
+
+    def _hash(self, key: tuple) -> str:
+        return hashlib.sha256("\x1f".join([self.scope, *map(str, key)]).encode()).hexdigest()
+
+    @staticmethod
+    def _session() -> Session:
+        from app.db import SessionLocal  # пізній імпорт: тести підміняють DATABASE_URL до імпорту db
+
+        return SessionLocal()
 
     def blocked_for(self, key: tuple) -> int:
         """Скільки секунд ще чекати (0, якщо вхід дозволено)."""
         settings = get_settings()
-        now = time.monotonic()
-        with self._lock:
-            items = self._recent(key, now)
-            if len(items) < settings.login_max_failures:
-                return 0
-            return max(1, int(settings.login_window_seconds - (now - items[0])))
+        now = time.time()
+        with self._session() as db:
+            times = db.scalars(
+                select(LoginFailure.at)
+                .where(LoginFailure.key == self._hash(key), LoginFailure.at > now - settings.login_window_seconds)
+                .order_by(LoginFailure.at)
+            ).all()
+        if len(times) < settings.login_max_failures:
+            return 0
+        return max(1, int(settings.login_window_seconds - (now - times[0])))
 
     def fail(self, key: tuple) -> None:
-        with self._lock:
-            self._recent(key, time.monotonic()).append(time.monotonic())
+        now = time.time()
+        with self._session() as db:
+            db.add(LoginFailure(scope=self.scope, key=self._hash(key), at=now))
+            db.execute(delete(LoginFailure).where(LoginFailure.at < now - get_settings().login_window_seconds))
+            db.commit()
 
     def reset(self, key: tuple | None = None) -> None:
-        with self._lock:
-            if key is None:
-                self._failures.clear()
-            else:
-                self._failures.pop(key, None)
+        query = delete(LoginFailure).where(LoginFailure.scope == self.scope)
+        if key is not None:
+            query = query.where(LoginFailure.key == self._hash(key))
+        with self._session() as db:
+            try:
+                db.execute(query)
+                db.commit()
+            except SQLAlchemyError:  # таблиці ще немає (до міграцій): скидати нічого
+                db.rollback()
 
 
-login_throttle = LoginThrottle()
+login_throttle = LoginThrottle("login")
 
 
 def create_access_token(user: User) -> str:
     settings = get_settings()
     check_settings(settings)
-    expire = datetime.now(timezone.utc) + timedelta(minutes=settings.jwt_expire_minutes)
-    payload = {"sub": str(user.id), "role": user.role.value, "exp": expire, "iat": datetime.now(timezone.utc)}
+    now = datetime.now(timezone.utc)
+    expire = now + timedelta(minutes=settings.jwt_expire_minutes)
+    payload = {
+        "sub": str(user.id),
+        "role": user.role.value,
+        "exp": expire,
+        "iat": now,
+        # jti — щоб вихід відкликав саме цей токен; ver — щоб зміна пароля чи блокування відкликали всі
+        "jti": uuid.uuid4().hex,
+        "ver": user.token_version or 0,
+    }
     return jwt.encode(payload, settings.jwt_secret, algorithm=settings.jwt_algorithm)
 
 
-def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+def decode_token(token: str) -> dict:
     settings = get_settings()
-    check_settings(settings)
-    unauthorized = HTTPException(
+    return jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
+
+
+def revoke_token(db: Session, payload: dict) -> None:
+    """Відкликає токен до закінчення строку його дії (вихід). Прострочені записи прибираються тут же."""
+    jti, exp = payload.get("jti"), payload.get("exp")
+    if not jti or not exp:
+        return
+    now = time.time()
+    db.execute(delete(RevokedToken).where(RevokedToken.expires_at < now))
+    if db.get(RevokedToken, jti) is None:
+        db.add(RevokedToken(jti=jti, expires_at=float(exp)))
+
+
+def revoke_all_tokens(user: User) -> None:
+    """Усі видані користувачу токени стають недійсними (зміна пароля, блокування)."""
+    user.token_version = (user.token_version or 0) + 1
+
+
+def get_token_payload(token: str = Depends(oauth2_scheme)) -> dict:
+    try:
+        return decode_token(token)
+    except jwt.PyJWTError:
+        raise _unauthorized()
+
+
+def _unauthorized() -> HTTPException:
+    return HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Потрібна авторизація",
         headers={"WWW-Authenticate": "Bearer"},
     )
+
+
+def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(get_db)) -> User:
+    """Користувач за JWT. Можна викликати й напряму: get_current_user(token, db) (так робить /indicators)."""
+    check_settings(get_settings())
+    return user_from_payload(get_token_payload(token), db)
+
+
+def user_from_payload(payload: dict, db: Session) -> User:
     try:
-        payload = jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
         user_id = uuid.UUID(payload["sub"])
-    except (jwt.PyJWTError, KeyError, ValueError):
-        raise unauthorized
+    except (KeyError, ValueError, TypeError):
+        raise _unauthorized()
     user = db.get(User, user_id)
     if user is None or not user.is_active:
-        raise unauthorized
+        raise _unauthorized()
+    # Токени, видані до зміни пароля чи блокування, недійсні. Старі токени без ver — це версія 0.
+    if payload.get("ver", 0) != (user.token_version or 0):
+        raise _unauthorized()
+    jti = payload.get("jti")
+    if jti and db.get(RevokedToken, jti) is not None:
+        raise _unauthorized()
     return user
 
 

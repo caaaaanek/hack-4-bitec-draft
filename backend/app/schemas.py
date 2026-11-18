@@ -262,6 +262,8 @@ class CampaignOut(ORM):
     questionnaire_ids: list[uuid.UUID]
     access_mode: AccessMode = AccessMode.LOGIN
     explicit_participants: bool = False
+    # Чи є в хвилі контрольний чек-лист (інакше GET /campaigns/{id}/checklist відповідає 404)
+    has_checklist: bool = False
 
 
 class ParticipantsIn(BaseModel):

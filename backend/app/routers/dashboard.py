@@ -8,7 +8,6 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.audit import log_action
 from app.config import get_settings
 from app.db import get_db
 from app.models import Campaign, CampaignStatus, Role, User
@@ -120,8 +119,6 @@ def dashboard(
          "index_self": s.index_self, "reliability": s.reliability}
         for c, s in results.unit_snapshots(db, scope)
     ]
-    log_action(db, user, "view_dashboard", "campaign", campaign.id, {"unit_id": str(scope)})
-    db.commit()
     return {
         "campaign_id": campaign.id,
         "campaign_title": campaign.title,

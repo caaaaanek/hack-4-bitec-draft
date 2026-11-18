@@ -1,2 +1,4 @@
 -r requirements.txt
 pytest==9.2.0
+# TestClient у Starlette 1.x працює на httpx2 (з httpx — застарілий шлях і попередження)
+httpx2==2.16.2

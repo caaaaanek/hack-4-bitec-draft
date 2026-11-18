@@ -146,7 +146,7 @@ def submit(
 
 TOKEN_HEADER = "X-Response-Token"
 # Невдалі спроби з одного IP: захист від перебору (хоча 256 біт і так не перебрати) і від сміття в логах.
-token_throttle = LoginThrottle()
+token_throttle = LoginThrottle("token")
 
 
 def token_assignment(request: Request, db: Session, token: str | None):

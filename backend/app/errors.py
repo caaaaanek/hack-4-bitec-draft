@@ -97,7 +97,25 @@ def _loc(loc) -> str:
     return ".".join(parts)
 
 
+def _where(request: Request) -> str:
+    # Лише метод і шлях: рядок запиту й заголовки (токени, X-Response-Token) у журнал не потрапляють
+    return f"{request.method} {request.url.path}"
+
+
+def configure_logging() -> None:
+    """Логер app пише в stderr з часом і рівнем, якщо його ще не налаштовано (uvicorn налаштовує лише свої)."""
+    logger = logging.getLogger("app")
+    if logger.handlers:
+        return
+    handler = logging.StreamHandler()
+    handler.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s"))
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
+
+
 def install(app: FastAPI) -> None:
+    configure_logging()
+
     @app.middleware("http")
     async def request_id(request: Request, call_next):
         rid = request.headers.get(REQUEST_ID_HEADER)
@@ -133,6 +151,8 @@ def install(app: FastAPI) -> None:
             detail = DEFAULT_MESSAGES[exc.status_code]
         body = error_body(exc.status_code, detail, code, hint, **extra)
         body["request_id"] = _request_id(request)
+        if exc.status_code >= 500:
+            log.error("%s → %s: %s (request_id=%s)", _where(request), exc.status_code, detail, body["request_id"])
         return JSONResponse(body, status_code=exc.status_code, headers=getattr(exc, "headers", None))
 
     @app.exception_handler(RequestValidationError)
@@ -145,7 +165,9 @@ def install(app: FastAPI) -> None:
     @app.exception_handler(Exception)
     async def unhandled(request: Request, exc: Exception):
         rid = _request_id(request)
-        log.exception("Необроблена помилка, request_id=%s", rid)
+        log.error("Необроблена помилка %s (request_id=%s): %s: %s", _where(request), rid, type(exc).__name__, exc,
+                  exc_info=exc)
         body = error_body(500, DEFAULT_MESSAGES[500])
         body["request_id"] = rid
-        return JSONResponse(body, status_code=500)
+        # Цей обробник працює поза middleware request_id, тож заголовок ставимо тут, щоб клієнт його бачив
+        return JSONResponse(body, status_code=500, headers={REQUEST_ID_HEADER: rid})

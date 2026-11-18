@@ -197,3 +197,13 @@ def test_unit_delete_only_when_unused(client):
     new = client.post(f"{API}/admin/units", json={"name": "Тимчасовий", "parent_id": u[ROOT]}, headers=admin).json()
     assert client.delete(f"{API}/admin/units/{new['id']}", headers=admin).status_code == 204
     assert "Тимчасовий" not in units(client, admin)
+
+
+def test_campaign_reports_has_checklist(client):
+    from tests.helpers import open_campaign
+
+    with_ck, _, admin = open_campaign(client, ("nazk-maturity-staff", "nazk-checklist"), title="З чек-листом")
+    without, _, _ = open_campaign(client, ("nazk-maturity-staff",), title="Без чек-листа")
+    flags = {c["id"]: c["has_checklist"] for c in client.get("/api/v1/campaigns", headers=admin).json()}
+    assert flags[with_ck] is True and flags[without] is False
+    assert client.get(f"/api/v1/campaigns/{without}/checklist", headers=admin).status_code == 404
