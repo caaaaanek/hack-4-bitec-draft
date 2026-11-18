@@ -29,6 +29,7 @@ from app.models import (
     User,
 )
 from app.schemas import QuestionnaireCreate
+from app.seed.system_facts import SYSTEM_FACTS, seed_system_facts
 from app.seed.waves import WAVE_GAP_MONTHS, seed_waves
 from app.security import hash_password
 from app.services.facts import months_back, window
@@ -154,8 +155,9 @@ def seed_questionnaires(db: Session) -> int:
     return created
 
 
-# Джерело кожного факту — та сама система, що й в адаптерах (adapters/sources.py), щоб у демо було видно,
-# звідки береться показник. Тест test_seed_fact_sources_match_adapters стежить за відповідністю.
+# Яка зовнішня система може передати кожен факт (adapters/sources.py). Тест test_seed_fact_sources_match_adapters
+# стежить за відповідністю. У демо-seed чотири з них (SYSTEM_FACTS) рахує сама система: модуль «Перевірки» і
+# флешкартки (app/seed/system_facts.py); з «зовнішніх» лишаються повідомлення й призначення.
 FACT_SOURCES = {
     "coi_reviewed": "artemida",
     "declarations_on_time": "atestat",
@@ -208,6 +210,8 @@ def seed_indicators(db: Session, units: dict[str, Unit], today: date | None = No
         for p_index, period in enumerate(periods):
             patterns = DEMO_FACTS_EARLY if p_index < early else DEMO_FACTS
             for code, pattern in patterns.items():
+                if code in SYSTEM_FACTS:
+                    continue  # рахує сама система: модуль «Перевірки» і флешкартки (app/seed/system_facts.py)
                 numerator, denominator = pattern[(u_index + p_index - early) % len(pattern)]
                 exists = db.scalar(
                     select(Indicator.id).where(Indicator.unit_id == unit.id, Indicator.period == period, Indicator.indicator == code)
@@ -218,6 +222,8 @@ def seed_indicators(db: Session, units: dict[str, Unit], today: date | None = No
                                  denominator=denominator, source=FACT_SOURCES[code],
                                  why="Синтетичні демо-дані (seed)"))
                 created += 1
+    db.flush()
+    created += seed_system_facts(db, units, ROOT_UNIT, periods, early, DEMO_FACTS, DEMO_FACTS_EARLY, current)
     return created
 
 
