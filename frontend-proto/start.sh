@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Локальний запуск: сайт + ШІ-асистент на локальній моделі (Ollama), без хмари.
+# Локальний запуск: збірка сайту + ШІ-асистент на локальній моделі (Ollama), без хмари.
 #   ./start.sh              — модель за замовчуванням
 #   ./start.sh qwen2.5:3b   — інша модель
 set -euo pipefail
@@ -12,6 +12,9 @@ if ! curl -s -m 2 http://localhost:11434/api/version >/dev/null; then
 fi
 ollama list | awk '{print $1}' | grep -qx "$MODEL" || ollama pull "$MODEL"
 echo "Прогріваю $MODEL…"; ollama run "$MODEL" "" >/dev/null 2>&1 || true
+
+[ -d node_modules ] || npm install --no-audit --no-fund
+npm run build
 
 export LLM_BASE_URL="http://localhost:11434/v1"
 export LLM_MODEL="$MODEL"

@@ -1,4 +1,4 @@
-/* Звіт: шаблони, масштаб, редагування, ШІ за виділенням (8-report-tools.js) */
+/* Звіт: шаблони, масштаб, редагування, ШІ за виділенням (views/Report.jsx, views/ReportAi.jsx) */
 .rt-bar .rt-tpl { display: inline-flex; align-items: center; gap: 8px; }
 .rt-zoomctl { display: inline-flex; align-items: center; gap: 6px; background: var(--soft); border-radius: 12px; padding: 3px 6px; }
 .rt-zoomctl .icon-btn { width: 30px; height: 30px; border-radius: 9px; font-size: 16px; font-weight: 600; }

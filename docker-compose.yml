@@ -60,7 +60,7 @@ services:
       db:
         condition: service_healthy
 
-  # Фронтенд: frontend-proto (одна сторінка) через nginx; /api проксіюється на backend.
+  # Фронтенд: frontend-proto (React, збірка Vite) через nginx; /api проксіюється на backend.
   # Моки 5 джерел фактів (ARTEMIDA, атестація, навчання, закупівлі, повідомлення): шлють факти за 12 місяців
   # у POST /indicators, кожне своїм ключем з INTEGRATION_KEYS. Лише на вимогу:
   #   docker compose --profile mocks run --rm mocks
