@@ -7,6 +7,7 @@ docs/
 ├── tools/      скрипти конвертації (html2md, pdf2md, check_words, fixes/)
 ├── api/        openapi.json — контракт API бекенду
 ├── backend.md  архітектура, ролі, модель даних, API
+├── features.md адвокат диявола, агент-черговий, нормативка, автопілот хвилі, флешкартки (API для фронтенду)
 ├── integrity-index.md  методика Integrity Index
 ├── recommendations.md  рекомендації, рішення й заходи з прогону (генерується: backend/scripts/gen_docs.py)
 ├── cross-check.md      зіставлення РГ / ОС / експертів і фактів з прогону (генерується тим самим скриптом)
