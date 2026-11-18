@@ -109,7 +109,7 @@ function ReportBrief({ m }) {
     {pending.length ? <>
       <p className="doc-cap">Таблиця 2. Рекомендації без рішення</p>
       <table className="doc-t"><thead><tr><th>№</th><th>Рекомендація</th><th>Компонент</th><th>Пріоритет</th></tr></thead><tbody>{pending.slice(0, 6).map((r, i) => <tr key={r.id}><td>{i + 1}</td><td>{r.t}</td><td>{COMP[r.c].n}</td><td>{PRI[r.pri][0]}</td></tr>)}</tbody></table>
-      {pending.length > 6 && <p>Ще {pending.length - 6} рекомендацій нижчого пріоритету — на екрані «Рекомендації».</p>}
+      {pending.length > 6 && <p>Ще {pending.length - 6} рекомендацій нижчого пріоритету – на екрані «Рекомендації».</p>}
     </> : <p>Усі рекомендації вже мають рішення.</p>}
     {ms.length > 0 && <><h3>4. План заходів</h3><p>Виконано {done.length} з {ms.length} заходів, прострочено {overdue.length}.{overdue.length ? ` Прострочені: ${overdue.map(x => `«${x.t}» (${x.who})`).join("; ")}.` : ""}</p></>}
     <Foot />
@@ -149,7 +149,7 @@ function ReportDynamics({ m }) {
     <h3>1. Індекс за циклами</h3>
     <p className="doc-cap">Таблиця 1. Індекс доброчесності</p>
     <table className="doc-t"><thead><tr><th>Цикл</th><th>Індекс</th><th>Рівень</th><th>Зміна</th></tr></thead><tbody>
-      {s.map((x, i) => <tr key={i}><td>{x.cycle}</td><td className="tnum">{f1(x.index)}</td><td>{lvT(x.index)}</td><td className="tnum">{i ? dl(r1(x.index - s[i - 1].index)) : "—"}</td></tr>)}</tbody></table>
+      {s.map((x, i) => <tr key={i}><td>{x.cycle}</td><td className="tnum">{f1(x.index)}</td><td>{lvT(x.index)}</td><td className="tnum">{i ? dl(r1(x.index - s[i - 1].index)) : "–"}</td></tr>)}</tbody></table>
     <h3>2. Компоненти: {prev.cycle} → {last.cycle}</h3>
     <p className="doc-cap">Таблиця 2. Зараховані бали компонентів</p>
     <table className="doc-t"><thead><tr><th>Компонент</th><th>{prev.cycle}</th><th>{last.cycle}</th><th>Зміна</th></tr></thead><tbody>

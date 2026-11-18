@@ -205,7 +205,7 @@ function apiRec(x, m, res) {
   // Звʼязок рекомендації з питанням чи показником, з якого вона виникла (код правила: fact:<показник>, question:<питання>)
   const [kind, ref] = x.code.split(":"), links = [];
   if (kind === "fact" && m) { const f = m.fItems.find(i => i.id.endsWith("-f-" + ref)); if (f) links.push({ id: f.id, t: f.t, v: fb(f.v), item: true }); }
-  const qLink = q => ({ id: COMPS.includes(q.component) ? q.component : c, q: q.code, t: `Питання «${q.text}»`, v: q.score != null ? fb(q.score) : "—", item: true });
+  const qLink = q => ({ id: COMPS.includes(q.component) ? q.component : c, q: q.code, t: `Питання «${q.text}»`, v: q.score != null ? fb(q.score) : "–", item: true });
   if (kind === "checklist" && res && res.checklist) { const i = (res.checklist.items || []).find(i => i.number === ref); if (i) links.push({ id: COMPS.includes(i.component) ? i.component : c, ck: i.number, t: `Пункт чек-листа ${i.number}${i.text ? ` «${i.text.replace(/^[\d.]+\s*/, "")}»` : ""}`, v: CK_ST[i.status] || "не заповнено", item: true }); }
   if (kind === "question" && res) { const q = (res.questions || []).find(i => i.code === ref); if (q) links.push(qLink(q)); }
   if (kind === "cut" && m) m.fItems.filter(i => i.c === x.component && i.v < 62.5).slice(0, 2).forEach(f => links.push({ id: f.id, t: f.t, v: fb(f.v), item: true }));

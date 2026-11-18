@@ -73,9 +73,9 @@ export function openTrustHow() {
   openDrawer("Як визначається достовірність", () => <>
     <div><div className="lbl" style={{ marginBottom: 6 }}>Правило</div><ol className="howto">
       <li>Система автоматично перевіряє дані циклу чотирма прапорцями: двома серйозними й двома незначними.</li>
-      <li><b>A</b> — жоден прапорець не спрацював.</li>
-      <li><b>B</b> — спрацювали один або два незначні.</li>
-      <li><b>C</b> — спрацював хоча б один серйозний або три й більше незначних.</li>
+      <li><b>A</b> – жоден прапорець не спрацював.</li>
+      <li><b>B</b> – спрацювали один або два незначні.</li>
+      <li><b>C</b> – спрацював хоча б один серйозний або три й більше незначних.</li>
       <li>Якщо відповідей менше за мінімальну групу k = {S.k}, достовірність не оцінюється.</li></ol></div>
     <div><div className="lbl" style={{ marginBottom: 4 }}>Перевірки</div><div className="rows">{FLAGS.map(f => <div key={f.id} className="row" style={{ alignItems: "flex-start" }}><FlagIc f={f} /><div className="grow"><div style={{ fontWeight: 600 }}>{f.t}</div><div className="lbl">{f.w === "major" ? "Серйозний" : "Незначний"}</div></div></div>)}</div></div>
     <div className="lbl">Прапорець означає напрям для додаткової перевірки даних, а не висновок про людей чи підрозділи.</div>
@@ -89,7 +89,7 @@ export function openTrackerHow() {
       <li>Стани: {["accepted", "inprogress", "done"].map(k => M_ST[k][0].toLowerCase()).join(" → ")}. «Виконано» ставиться лише з доказом.</li>
       <li>Захід прострочено, якщо строк минув, а його ще не виконано.</li>
       <li>Чи дав захід результат, перевіряє наступний цикл оцінювання: показник, на який він спрямований, має покращитися. Тоді стан стає «підтверджено» або «не підтверджено».</li>
-      <li>Відповідальний — посада, а не прізвище.</li></ol>
+      <li>Відповідальний – посада, а не прізвище.</li></ol>
     {route().r !== "tracker" && <Link href="#tracker">Відкрити трекер <Ic n="arrowR" /></Link>}
   </>);
 }
@@ -135,8 +135,8 @@ export function openApiQ(code) {
   openDrawer("Питання анкети", () => <>
     <div style={{ fontWeight: 600, fontSize: 16 }}>{q.text}</div>
     <div className="lbl" style={{ margin: "4px 0 14px" }}>{[q.section, COMP[q.component] ? COMP[q.component].n : q.component].filter((v, i, a) => v && a.indexOf(v) === i).join(" · ")} · код {q.code}</div>
-    <div className="stat4 tnum" style={{ gridTemplateColumns: "1fr 1fr" }}><div><small>Середній бал</small><b>{q.score != null ? fb(q.score) : "—"}</b></div><div><small>Рівень</small><b>{q.score != null ? LSHORT[level(q.score) - 1] : "—"}</b></div></div>
-    {q.by_category.map(g => <div key={g.category} style={{ marginTop: 16 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><b>{grp(g.category)}</b><span className="lbl tnum">{g.n} відп. · бал {g.score != null ? fb(g.score) : "—"}</span></div>
+    <div className="stat4 tnum" style={{ gridTemplateColumns: "1fr 1fr" }}><div><small>Середній бал</small><b>{q.score != null ? fb(q.score) : "–"}</b></div><div><small>Рівень</small><b>{q.score != null ? LSHORT[level(q.score) - 1] : "–"}</b></div></div>
+    {q.by_category.map(g => <div key={g.category} style={{ marginTop: 16 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><b>{grp(g.category)}</b><span className="lbl tnum">{g.n} відп. · бал {g.score != null ? fb(g.score) : "–"}</span></div>
       {g.distribution.map((d, i) => <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 90px 44px", gap: 8, alignItems: "center", marginTop: 6, fontSize: 13 }}><span>{d.option_text}</span><div className="contrib"><i style={{ width: `${d.percent}%`, background: "var(--teal)" }} /></div><span className="lbl tnum" style={{ textAlign: "right" }}>{fb(d.percent)}%</span></div>)}</div>)}
     <Link cls="btn btn-soft" href={`#explain/${q.component}`} style={{ justifyContent: "center", marginTop: 18 }}><Ic n="arrowR" />Компонент у розкладі індексу</Link>
   </>);

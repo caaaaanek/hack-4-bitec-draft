@@ -117,7 +117,7 @@ export function Tracker() {
   const [drag, setDrag] = useState(null), [over, setOver] = useState(null);
   const conf = all.filter(x => x.st === "confirmed").length, chk = all.filter(x => x.st === "done" && x.vf && x.vf[1] === "p-warn").length, wait = all.filter(x => x.st === "done").length - chk, rev = all.filter(x => x.st === "notconfirmed").length;
   const open = (e, id) => { if (!e.target.closest("button")) openMeasure(id); };
-  const actCell = x => x.st === "confirmed" ? <span className="lbl">Змінює наступне оцінювання</span> : edit ? <div className="mv">{M_NEXT[x.st].map(s => <button key={s} className="btn btn-ghost" onClick={() => setMSt(x.id, s)}><Ic n="arrowR" />{M_ST[s][0]}</button>)}</div> : <span className="lbl">—</span>;
+  const actCell = x => x.st === "confirmed" ? <span className="lbl">Змінює наступне оцінювання</span> : edit ? <div className="mv">{M_NEXT[x.st].map(s => <button key={s} className="btn btn-ghost" onClick={() => setMSt(x.id, s)}><Ic n="arrowR" />{M_ST[s][0]}</button>)}</div> : <span className="lbl">–</span>;
   // Дошка: перетягування картки в дозволений стовпець (ті самі переходи, що й кнопки на картці)
   const cols = ["accepted", "inprogress", "done", "confirmed", "notconfirmed", ...(list.some(x => x.st === "cancelled") ? ["cancelled"] : [])];
   const canDrop = st => drag && (M_NEXT[drag.st] || []).includes(st);
