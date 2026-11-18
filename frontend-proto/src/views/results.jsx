@@ -5,10 +5,10 @@ import { S, persist } from "../lib/state.js";
 import { COMPS, COMP, LEVELS, LSHORT, LDESC, BOUNDS, CAP, TRUST, SRC, SCOL, level, status, r1, wmean, clamp, measures, overdueDays, CYCLE } from "../lib/model.js";
 import { fb, f1, f2, pts, esc } from "../lib/format.js";
 import { render, toast, openPop, closePop } from "../lib/store.js";
-import { cur, go } from "../lib/nav.js";
+import { cur, go, can } from "../lib/nav.js";
 import { Pill, LvPill, TrustPill, SrcDot, Num, Delta, LevelBar } from "../components/ui.jsx";
 import { MiniTrend, TrendChart, Radar } from "../components/charts.jsx";
-import { DigestStrip } from "./Insights.jsx";
+import { DigestRows, digestTop, PrepBtn } from "./Insights.jsx";
 import { openWhy, openTrust, openHow, openResp, openItem, openApiQ, openTrustHow, openTrackerHow, openRespHow } from "./panels.jsx";
 
 const enter = f => e => { if (e.key === "Enter") f(e); };
@@ -54,9 +54,10 @@ function DynCard({ m }) {
 /* Огляд */
 export function Overview() {
   const m = cur(), ms = measures(), od = ms.filter(x => overdueDays(x) > 0).length, prev = m.series[m.series.length - 2];
-  const attn = S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX), strong = S.attnAll ? m.strengths : m.strengths.slice(0, LIST_MAX);
+  const attn = S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX), strong = S.attnAll ? m.strengths : m.strengths.slice(0, LIST_MAX), dg = digestTop();
   return <>
     <BackToInst />
+    {can("advocate") && <div className="c12 toolbar rise"><span className="lbl">Що спитає зовнішній аудитор і де в даних відповідь.</span><div className="sp" /><PrepBtn /></div>}
     <div className="c12 kpi-row">
       <Tile ic="gauge" title="Індекс доброчесності" big={<span className="mid tnum"><Num v={m.index} /></span>} act={openWhy} info={openHow}
         sub={<><span data-tip={`Рівень зрілості визначається за індексом<small>${LDESC[m.level - 1]}</small>`}>Рівень зрілості {m.level} з 5: {LSHORT[m.level - 1]}</span><br /><Delta d={m.delta} /></>} />
@@ -69,12 +70,12 @@ export function Overview() {
     <section className="card c8 rise" id="attn">
       <div className="attn-cols"><div>
         <div className="card-h"><h2>Що потребує уваги</h2></div>
-        {m.attention.length ? <div className="rows">{attn.map((a, i) => <a key={i} className="row click" href={`#explain/${a.c}`} onClick={a.q ? e => { e.preventDefault(); openApiQ(a.q); } : undefined} data-tip={a.hint}><span className="dot" style={{ background: SCOL[status(a.v)] }} /><div className="grow"><div className="t">{a.t}</div></div><Pill cls="p-mute nodot">{COMP[a.c].n}</Pill><b className="tnum">{fb(a.v)}</b></a>)}</div> : <div className="lbl">Зауважень немає: нічого не потребує уваги.</div>}
+        {m.attention.length ? <div className="rows">{attn.map((a, i) => <a key={i} className="row click" href={`#explain/${a.c}`} onClick={a.q ? e => { e.preventDefault(); openApiQ(a.q); } : undefined} data-tip={a.hint}><span className="dot" style={{ background: SCOL[status(a.v)] }} /><div className="grow"><div className="t">{a.t}</div></div><Pill cls="p-mute nodot">{COMP[a.c].n}</Pill><b className="tnum">{fb(a.v)}</b></a>)}</div> : dg.length ? null : <div className="lbl">Зауважень немає: нічого не потребує уваги.</div>}
+        <DigestRows items={dg} />
       </div><div>
         <div className="card-h"><h2>Сильні сторони</h2></div>
         {m.strengths.length ? <div className="rows">{strong.map((a, i) => <a key={i} className="row click" href={a.c ? "#explain/" + a.c : "#trends"} data-tip={a.hint}><span className="dot" style={{ background: "var(--teal)" }} /><div className="grow"><div className="t">{a.t}</div></div><b className="tnum">{a.unit ? "+" : ""}{fb(a.v)}</b></a>)}</div> : <div className="lbl">Поки що немає даних про сильні сторони.</div>}
       </div></div>
-      <DigestStrip />
       {(m.attention.length > LIST_MAX || m.strengths.length > LIST_MAX) && <button className="link-btn" style={{ marginTop: 8 }} onClick={() => { S.attnAll = !S.attnAll; render(true); }}>{S.attnAll ? "Згорнути" : `Показати всі (${m.attention.length + m.strengths.length})`}</button>}
     </section>
     <section className="card c4 rise dyn-card"><DynCard m={m} /></section>

@@ -1,4 +1,5 @@
 /* Демо-екрани без бекенду: Керування циклом, Анкети, Чек-лист «чотири ока», Журнал, Опитування, Мої результати. */
+import { LearnCard } from "./Learn.jsx";
 import { useEffect, useRef, useState } from "react";
 import { Ic } from "../lib/icons.jsx";
 import { S, SURVEY, SV, SQ, persist, addLog, me, logItems, fnv } from "../lib/state.js";
@@ -217,6 +218,7 @@ export function Me() {
   return <>
     <section className="c12 rise toolbar"><span className="lbl">Дякуємо, ось що ви допомогли побачити.</span><div className="sp" />
       <label className="lbl">Мій підрозділ <select className="inp" value={S.unit} onChange={e => { S.unit = e.target.value; persist(); render(true); }}>{UNITS.filter(u => u.parent && u.id !== "unit-v").map(u => <option key={u.id} value={u.id}>{u.n}</option>)}</select></label></section>
+    <LearnCard />
     {r.hidden && <section className="card c12 rise"><div className="lock"><Ic n="lock" /><div><b>{r.req.n}: результати приховано</b><div className="lbl">Недостатньо відповідей, щоб показати результати цієї групи ({UNIT_RESP[r.req.id]} з потрібних {S.k}). Нижче дані підрозділу «{r.unit.n}». Це рівень вище, а не ваш підрозділ. Так захищено анонімність учасників.</div></div></div></section>}
     <section className="card c5 rise">
       <div className="lbl">{r.unit.n}: відповіли {r.resp} осіб (потрібно не менше {S.k})</div>

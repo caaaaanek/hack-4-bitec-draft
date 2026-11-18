@@ -12,6 +12,8 @@ import { Loading, Failed, Empty } from "../components/states.jsx";
 import { UnitCombo } from "../components/UnitCombo.jsx";
 import { QrCode, qrAbs } from "../components/QrCode.jsx";
 import { bldFromServer, bldNewSec } from "./Builder.jsx";
+import { AutopilotSection } from "./Autopilot.jsx";
+import { LearnCard } from "./Learn.jsx";
 
 export function apiView(r) {
   if (!API.on) return null;
@@ -83,6 +85,7 @@ function ApiMe() {
     <section className="card c12 rise"><div className="card-h"><h2>Анкети відкритих хвиль</h2></div>
       <div className="rows">{todo.length ? todo.map((a, i) => <div key={i} className="row"><div className="grow"><div className="t">{a.questionnaire_title}</div><div className="s">{a.campaign_title}</div></div>{a.submitted ? <Pill cls="p-good">Пройдено</Pill> : <a className="btn btn-primary" href="#survey">Пройти анкету <Ic n="arrowR" /></a>}</div>) : <div className="lbl">Зараз немає відкритих анкет для вас.</div>}</div>
       {S.role === "checklist_editor" && <div className="lbl" style={{ marginTop: 10 }}>Ви в робочій групі: <a className="link" href="#checklist">заповнити чек-лист</a>.</div>}</section>
+    <LearnCard />
     {latest ? <>
       <section className="c12 rise toolbar"><span className="lbl">{latest.campaign_title}{latest.closed_on ? `, закрито ${ua(latest.closed_on)}` : ""}</span></section>
       {latest.my_unit && <ApiScope sc={latest.my_unit} title={"Мій підрозділ: " + latest.my_unit.unit_name} />}
@@ -144,6 +147,7 @@ function ApiManage() {
           {!l.revoked && c.status !== "closed" && <button className="btn btn-ghost" onClick={() => apiQrRevoke(c.id, l.id)}>Зупинити скани</button>}</div>
       </div>)}</div>}
     </section>}
+    {c && <AutopilotSection key={c.id} id={c.id} kpi />}
     {shown && <QrScreen l={shown} onClose={hideQr} />}
   </>;
 }

@@ -36,6 +36,8 @@ export function applyRoute() {
     if (it && it.kind === "p" && S.mode === "facts") S.mode = "credited";
     const c = COMPS.includes(p) ? p : it && it.c; if (c) S.open[c] = true;
   }
+  // Старі посилання #autopilot у уповноваженого ведуть на розділ автопілота в «Керуванні циклом»
+  if (r === "manage" && location.hash.slice(1).split("/")[0] === "autopilot") ui.scrollTo = "ap";
   const want = "#" + r + (p ? "/" + p : ""); if (location.hash !== want) history.replaceState(null, "", want);
   hideTip();
   if (r !== lastRoute) { closePop(); if (!p) window.scrollTo(0, 0); lastRoute = r; }

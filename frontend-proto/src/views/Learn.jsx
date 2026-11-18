@@ -8,12 +8,18 @@ import { render, toast } from "../lib/store.js";
 import { fb, ua, dsh } from "../lib/format.js";
 import { Pill, Num, Ticks } from "../components/ui.jsx";
 import { Loading, Failed, NeedServer } from "../components/states.jsx";
+import { ModHead } from "../components/modkit.jsx";
 import { DEMO_LEARN } from "../lib/flashcards-demo.js";
 
 const STAT_ROLES = ["admin", "coordinator", "commissioner", "leader", "auditor", "observer"];
 const demoDone = {}; // демо-режим: пройдені колоди живуть до перезавантаження сторінки
 const today = () => new Date().toISOString().slice(0, 10);
 const COMP_N = { culture: "Культура", system: "Система", accountability: "Підзвітність" };
+// Де людина зупинилась у колоді: лише в її браузері, сервер бачить тільки факт проходження
+const pKey = code => `ii-learn:${API.user ? API.user.login : "demo"}:${code}`;
+export function getProg(code) { try { const v = JSON.parse(localStorage.getItem(pKey(code))); return v && Array.isArray(v.seen) ? v : { i: 0, seen: [] }; } catch (e) { return { i: 0, seen: [] }; } }
+const setProg = (code, v) => { try { localStorage.setItem(pKey(code), JSON.stringify(v)); } catch (e) { /* сховище недоступне */ } };
+const clearProg = code => { try { localStorage.removeItem(pKey(code)); } catch (e) { /* сховище недоступне */ } };
 
 function useDecks() {
   if (!API.on) {
@@ -63,7 +69,8 @@ function DeckList() {
 }
 
 function Study({ code }) {
-  const key = "deck:" + code, [i, setI] = useState(0), [flip, setFlip] = useState(false), [seen, setSeen] = useState({}), [busy, setBusy] = useState(false);
+  const key = "deck:" + code, init = getProg(code), [i, setI] = useState(init.i || 0), [flip, setFlip] = useState(false), [seen, setSeen] = useState(() => Object.fromEntries(init.seen.map(x => [x, true]))), [busy, setBusy] = useState(false);
+  useEffect(() => { if (Object.keys(seen).length) setProg(code, { i, seen: Object.keys(seen) }); }, [i, seen, code]);
   const r = API.on ? apiMod(key, () => apiDeck(code)) : { data: DEMO_LEARN.decks.find(x => x.code === code) };
   const cards = r && r.data ? r.data.cards : [], c = cards[i], last = i === cards.length - 1, all = cards.length > 0 && cards.every(x => seen[x.id]);
   const turn = () => { if (!c) return; setFlip(f => !f); setSeen(s => ({ ...s, [c.id]: true })); };
@@ -82,6 +89,7 @@ function Study({ code }) {
     setBusy(true);
     try {
       if (API.on) { await apiDeckDone(code, cards.map(x => x.id)); apiModReset("decks", "lstats"); } else { demoDone[code] = today(); }
+      clearProg(code);
       toast("Колоду зараховано"); go("learn");
     } catch (e) { apiFail(e); setBusy(false); } finally { render(true); }
   };
@@ -107,6 +115,21 @@ function Study({ code }) {
       <div className="lbl" style={{ marginTop: 10 }}>Клавіатура: Пробіл перевертає картку, стрілки ліворуч і праворуч перемикають. Відповіді на картки не зберігаються, лише факт проходження.</div>
     </section>
   </>;
+}
+
+/* Картка «Навчання» в «Мої результати»: поточна колода, прогрес, «Продовжити» */
+export function LearnCard() {
+  const r = useDecks();
+  if (!r) return <section className="card c12 rise" role="status"><div className="lbl">Завантажуємо навчання…</div></section>;
+  if (r.error) return <Failed e={r.error} onRetry={() => apiModReset("decks")} />;
+  const d = r.data, done = d.decks.filter(k => k.my_valid).length, next = d.decks.find(k => k.required && !k.my_valid) || d.decks.find(k => !k.my_valid), pr = next ? getProg(next.code) : null;
+  return <section className="card c12 rise"><ModHead ic="book" tone="teal" title="Навчання"><Pill cls={d.i_am_trained ? "p-good" : "p-warn"}>{d.i_am_trained ? "Навчання пройдено" : "Навчання не завершено"}</Pill></ModHead>
+    <div className="lbl">Пройдено колод: {done} з {d.decks.length}</div>
+    <Ticks n={d.decks.length} on={done} color="var(--teal)" h={10} step={0} />
+    {next ? <div className="chk-row" style={{ marginTop: 12, flexWrap: "wrap" }}><div className="grow" style={{ minWidth: 200 }}><b className="txt">{dsh(next.title)}</b><div className="lbl">{pr.seen.length ? `Переглянуто ${pr.seen.length} з ${next.cards}` : `${next.cards} карток${next.required ? ", обовʼязкова" : ""}`}</div></div>
+      <button type="button" className="btn btn-primary" onClick={() => go("learn/" + next.code)}><Ic n="book" />{pr.seen.length ? "Продовжити" : "Почати"}</button></div>
+      : <div className="chk-row" style={{ marginTop: 12 }}><span className="lbl grow">Усі колоди пройдено.</span><a className="btn btn-soft" href="#learn">До колод</a></div>}
+  </section>;
 }
 
 export function Learn() { const { p } = route(); return p ? <Study key={p} code={p} /> : <DeckList />; }
