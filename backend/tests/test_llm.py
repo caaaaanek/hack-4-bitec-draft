@@ -78,7 +78,7 @@ def test_v1_assistant_uses_same_self_hosted_model_with_key(client, llm_env, monk
     from tests.helpers import full_wave
 
     campaign_id, _, _ = full_wave(client)
-    llm_env(ASSISTANT_ENABLED="true", LLM_BASE_URL="https://llm.example.test/v1", LLM_API_KEY="secret-key-123",
+    llm_env(ASSISTANT_ENABLED="true", LLM_ALLOW_EXTERNAL="true", LLM_BASE_URL="https://llm.example.test/v1", LLM_API_KEY="secret-key-123",
             LLM_MODEL="gemma3:27b")
     seen = {}
 
@@ -102,7 +102,7 @@ def test_v1_assistant_reports_unavailable_model(client, llm_env, monkeypatch):
     from tests.helpers import full_wave
 
     campaign_id, _, _ = full_wave(client)
-    llm_env(ASSISTANT_ENABLED="true", LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma3:27b")
+    llm_env(ASSISTANT_ENABLED="true", LLM_ALLOW_EXTERNAL="true", LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma3:27b")
 
     def unauthorized(url, headers, json, timeout):
         return httpx.Response(401, json={"error": "bad key"}, request=httpx.Request("POST", url))
@@ -139,7 +139,7 @@ def test_model_calls_backend_tools(client, llm_env, monkeypatch):
     from tests.helpers import full_wave
 
     full_wave(client)
-    llm_env(LLM_BASE_URL="https://llm.example.test/v1", LLM_API_KEY="k", LLM_MODEL="gemma3:27b")
+    llm_env(LLM_ALLOW_EXTERNAL="true", LLM_BASE_URL="https://llm.example.test/v1", LLM_API_KEY="k", LLM_MODEL="gemma3:27b")
     calls = scripted_model(monkeypatch, [(200, tool_call("get_results")), (200, tool_call("get_methodology", call_id="c2")),
                                          (200, final("Підзвітність обмежено правилом реальності."))])
     r = client.post("/api/assistant", json={"question": "Чому Підзвітність низька?"}, headers=auth(client, "leader"))
@@ -159,7 +159,7 @@ def test_tools_respect_unit_access(client, llm_env, monkeypatch):
     from tests.helpers import full_wave
 
     _, _, root = full_wave(client)
-    llm_env(LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma3:27b")
+    llm_env(LLM_ALLOW_EXTERNAL="true", LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma3:27b")
     calls = scripted_model(monkeypatch, [(200, tool_call("get_results", f'{{"unit_id": "{root}"}}')), (200, final("Немає доступу."))])
     r = client.post("/api/assistant", json={"question": "Покажи всю організацію"}, headers=auth(client, "leader_a"))
     assert r.status_code == 200, r.text
@@ -171,7 +171,7 @@ def test_model_without_tools_gets_prefetched_data(client, llm_env, monkeypatch):
     from tests.helpers import full_wave
 
     full_wave(client)
-    llm_env(LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma3:27b")
+    llm_env(LLM_ALLOW_EXTERNAL="true", LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma3:27b")
     calls = scripted_model(monkeypatch, [(400, {"error": "model does not support tools"}), (200, final("Індекс пояснено."))])
     r = client.post("/api/assistant", json={"question": "Який індекс?"}, headers=auth(client, "leader"))
     assert r.status_code == 200, r.text
@@ -284,7 +284,7 @@ def test_silent_model_after_tools_is_asked_to_answer(client, llm_env, monkeypatc
     from tests.helpers import full_wave
 
     full_wave(client)
-    llm_env(LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma4-26b")
+    llm_env(LLM_ALLOW_EXTERNAL="true", LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma4-26b")
     calls = scripted_model(monkeypatch, [(200, tool_call("get_results")), (200, final("")), (200, final("Індекс 47."))])
     r = client.post("/api/assistant", json={"question": "Який індекс?"}, headers=auth(client, "leader"))
     assert r.status_code == 200, r.text
@@ -296,7 +296,7 @@ def test_silent_model_gets_clear_message_not_502(client, llm_env, monkeypatch):
     from tests.helpers import full_wave
 
     full_wave(client)
-    llm_env(LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma4-26b")
+    llm_env(LLM_ALLOW_EXTERNAL="true", LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma4-26b")
     scripted_model(monkeypatch, [(200, tool_call("get_results")), (200, final("")), (200, final(""))])
     r = client.post("/api/assistant", json={"question": "Який індекс?"}, headers=auth(client, "leader"))
     assert r.status_code == 200 and r.json()["text"] == llm.NO_ANSWER
@@ -307,7 +307,7 @@ def test_unit_leader_sees_scope_note(client, llm_env, monkeypatch):
     from tests.helpers import full_wave
 
     full_wave(client)
-    llm_env(LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma4-26b")
+    llm_env(LLM_ALLOW_EXTERNAL="true", LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma4-26b")
     calls = scripted_model(monkeypatch, [(200, tool_call("get_results")), (200, final("Лише Підрозділ А."))])
     r = client.post("/api/assistant", json={"question": "Індекс усієї організації?"}, headers=auth(client, "leader_a"))
     assert r.status_code == 200, r.text
@@ -319,9 +319,38 @@ def test_unit_can_be_given_by_name(client, llm_env, monkeypatch):
     from tests.helpers import full_wave
 
     full_wave(client)
-    llm_env(LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma4-26b")
+    llm_env(LLM_ALLOW_EXTERNAL="true", LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma4-26b")
     calls = scripted_model(monkeypatch, [(200, tool_call("get_history", '{"unit_id": "підрозділ а"}')), (200, final("Ок."))])
     r = client.post("/api/assistant", json={"question": "Динаміка Підрозділу А"}, headers=auth(client, "leader"))
     assert r.status_code == 200, r.text
     tool_msg = next(m for m in calls[1]["messages"] if m["role"] == "tool")
     assert '"unit": "Підрозділ А"' in tool_msg["content"] and "error" not in tool_msg["content"]
+
+
+def test_key_without_url_does_not_enable_external_cloud(client, llm_env, monkeypatch):
+    """Лише ключ без адреси: асистент вимкнено, нікуди нічого не відправляється."""
+    llm_env(LLM_API_KEY="some-key")
+    monkeypatch.setattr(llm.httpx, "post", lambda *a, **k: pytest.fail("модель викликано без адреси"))
+    assert client.get("/api/assistant").json() == {"live": False, "model": None}
+    r = client.post("/api/assistant", json={"question": "Чому індекс такий?"}, headers=auth(client, "leader"))
+    assert r.status_code == 503
+
+
+def test_external_model_needs_explicit_permission(client, llm_env, monkeypatch):
+    """Закритий контур: зовнішня адреса без LLM_ALLOW_EXTERNAL=true не викликається."""
+    llm_env(LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma4-26b")
+    monkeypatch.setattr(llm.httpx, "post", lambda *a, **k: pytest.fail("зовнішню модель викликано без дозволу"))
+    assert client.get("/api/assistant").json()["live"] is False
+    r = client.post("/api/assistant", json={"question": "Чому індекс такий?"}, headers=auth(client, "leader"))
+    assert r.status_code == 503 and "контур" in r.json()["message"]
+
+
+@pytest.mark.parametrize("url,internal", [
+    ("http://localhost:11434/v1", True), ("http://127.0.0.1:8080/v1", True), ("http://10.0.0.7/v1", True),
+    ("http://ollama:11434/v1", True), ("http://host.docker.internal:11434/v1", True),
+    ("http://gpu.lab.local/v1", True), ("https://api.example.com/v1", False), ("https://8.8.8.8/v1", False),
+])
+def test_internal_host_detection(url, internal):
+    from app.routers.assistant import is_internal_host
+
+    assert is_internal_host(url) is internal

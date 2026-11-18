@@ -11,6 +11,8 @@ from tests.helpers import API, ROOT, units
 
 KEY = {"X-Integration-Key": "test-integration-key"}
 PERIOD = "2026-11"
+# Факти показуються лише цілими завершеними кварталами (B3), тож публікацію перевіряємо на III кварталі.
+DONE_PERIOD = "2026-08"
 
 
 @pytest.fixture()
@@ -19,8 +21,8 @@ def ctx(client):
     return client, admin, units(client, admin)[ROOT]
 
 
-def mock_body(client, admin, unit_id, kind):
-    r = client.get(f"{API}/checks/mock/{kind}", params={"unit_id": unit_id, "period": PERIOD}, headers=admin)
+def mock_body(client, admin, unit_id, kind, period=PERIOD):
+    r = client.get(f"{API}/checks/mock/{kind}", params={"unit_id": unit_id, "period": period}, headers=admin)
     assert r.status_code == 200, r.text
     return r.json()
 
@@ -97,8 +99,8 @@ def test_access(ctx):
 
 def test_review_and_publish(ctx):
     client, admin, unit = ctx
-    client.post(f"{API}/checks/procurement", json=mock_body(client, admin, unit, "procurement"), headers=admin)
-    client.post(f"{API}/checks/declarations", json=mock_body(client, admin, unit, "declarations"), headers=admin)
+    client.post(f"{API}/checks/procurement", json=mock_body(client, admin, unit, "procurement", DONE_PERIOD), headers=admin)
+    client.post(f"{API}/checks/declarations", json=mock_body(client, admin, unit, "declarations", DONE_PERIOD), headers=admin)
     findings = client.get(f"{API}/checks/findings", params={"kind": "procurement"}, headers=admin).json()
     assert findings
     url = f"{API}/checks/findings/{findings[0]['id']}/review"
@@ -109,7 +111,7 @@ def test_review_and_publish(ctx):
         client.post(f"{API}/checks/findings/{findings[1]['id']}/review", json={"status": "dismissed"}, headers=admin)
     assert client.post(f"{API}/checks/findings/{unit}/review", json={"status": "new"}, headers=admin).status_code == 404
 
-    r = client.post(f"{API}/checks/publish", json={"unit_id": unit, "period": PERIOD}, headers=admin)
+    r = client.post(f"{API}/checks/publish", json={"unit_id": unit, "period": DONE_PERIOD}, headers=admin)
     assert r.status_code == 200, r.text
     by_name = {i["indicator"]: i for i in r.json()["indicators"]}
     done = 2 if len(findings) > 1 else 1
@@ -118,14 +120,14 @@ def test_review_and_publish(ctx):
     assert by_name["declarations_on_time"]["denominator"] > 0
 
     # Показники з'являються в існуючому перегляді фактів.
-    facts = client.get(f"{API}/units/{unit}/indicators", params={"end": "2026-11-30"}, headers=admin).json()
+    facts = client.get(f"{API}/units/{unit}/indicators", params={"end": "2026-10-15"}, headers=admin).json()
     fact = {f["indicator"]: f for f in facts}["procurement_flags_reviewed"]
     assert fact["denominator"] == len(findings) and fact["numerator"] == done and "checks" in fact["sources"]
 
     # Повторна публікація перезаписує, а не дублює.
     client.post(f"{API}/checks/findings/{findings[0]['id']}/review", json={"status": "new"}, headers=admin)
-    client.post(f"{API}/checks/publish", json={"unit_id": unit, "period": PERIOD}, headers=admin)
-    facts = client.get(f"{API}/units/{unit}/indicators", params={"end": "2026-11-30"}, headers=admin).json()
+    client.post(f"{API}/checks/publish", json={"unit_id": unit, "period": DONE_PERIOD}, headers=admin)
+    facts = client.get(f"{API}/units/{unit}/indicators", params={"end": "2026-10-15"}, headers=admin).json()
     fact = {f["indicator"]: f for f in facts}["procurement_flags_reviewed"]
     assert fact["numerator"] == done - 1 and fact["denominator"] == len(findings)
 

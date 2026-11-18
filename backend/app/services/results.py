@@ -32,7 +32,7 @@ from app.services import methodology as m
 from app.services import scoring
 from app.services.anonymity import suppressed_nodes
 from app.services import tokens as token_service
-from app.services.eligibility import is_eligible, participants_of
+from app.services.eligibility import frozen_of, is_eligible, participants_of
 from app.services.units import Children, subtree_from, unit_tree
 
 
@@ -55,6 +55,10 @@ class WaveData:
     # Явний склад учасників (None — за правилом) і посилання для хвилі access_mode = token.
     participants: set[uuid.UUID] | None = None
     tokens: list[AccessToken] = field(default_factory=list)
+    # Склад, зафіксований при відкритті: questionnaire_id -> {user_id: (unit_id, category)}. None — за правилом.
+    frozen: dict | None = None
+    # Кеш вторинного приховування фактів: показник -> підрозділи, де його приховано.
+    fact_hidden: dict | None = None
 
     def subtree(self, unit_id: uuid.UUID) -> set[uuid.UUID]:
         return subtree_from(self.children, unit_id)
@@ -64,7 +68,7 @@ def load_wave(db: Session, campaign: Campaign) -> WaveData:
     children, _ = unit_tree(db)
     campaign_units = subtree_from(children, campaign.unit_id)
     end = campaign.closed_on or today()
-    periods = facts_service.months_back(end, m.FACTS_WINDOW_MONTHS)
+    periods = facts_service.window(end, m.FACTS_WINDOW_MONTHS)
     wave = WaveData(
         campaign=campaign,
         children=children,
@@ -81,6 +85,7 @@ def load_wave(db: Session, campaign: Campaign) -> WaveData:
         unit_names={u.id: u.name for u in db.scalars(select(Unit).where(Unit.id.in_(campaign_units)))},
         participants=participants_of(db, campaign),
         tokens=token_service.load(db, campaign.id) if campaign.access_mode == AccessMode.TOKEN else [],
+        frozen=frozen_of(db, campaign),
     )
     k = campaign.min_group_size
     for link in campaign.questionnaire_links:
@@ -129,6 +134,16 @@ def load_groups(wave: WaveData, scope: uuid.UUID, units: set[uuid.UUID]) -> list
             # Анонімна хвиля: «мали пройти» = видані посилання, «пройшли» = використані.
             eligible, submitted = token_service.counts(
                 wave.tokens, questionnaire.id, lambda unit: in_scope(questionnaire.target_category, unit))
+        elif wave.frozen is not None:
+            # Склад зафіксовано при відкритті: «мали пройти» і підрозділ — на той момент.
+            members = wave.frozen.get(questionnaire.id, {})
+            eligible = sum(1 for unit, category in members.values() if in_scope(category, unit))
+            submitted = sum(
+                1 for p in wave.participations
+                if p.questionnaire_id == questionnaire.id
+                and (m := members.get(p.user_id)) is not None
+                and in_scope(m[1], m[0])
+            )
         else:
             eligible = sum(1 for u in wave.users
                            if is_eligible(u, questionnaire, wave.campaign_units, wave.participants)
@@ -150,10 +165,10 @@ def load_groups(wave: WaveData, scope: uuid.UUID, units: set[uuid.UUID]) -> list
                 elif a.value is not None:
                     item.values[a.question_id] = a.value
             data.append(item)
-        # Вторинне приховування: група сама не менша за k, але її показ дозволив би
-        # обчислити різницею меншу сусідню групу.
+        # Вторинне приховування: група сама не менша за k, але її показ дозволив би обчислити різницею
+        # меншу сусідню групу (або її відповіді при зберіганні узагальнено до вищого підрозділу разом з такою).
         suppressed = (not at_root and scope in wave.hidden_groups.get(questionnaire.id, set())
-                      and len(data) >= campaign.min_group_size)
+                      and (len(data) >= campaign.min_group_size or submitted >= campaign.min_group_size))
         groups.append(scoring.GroupInput(questionnaire=questionnaire, responses=[] if suppressed else data,
                                          eligible=eligible, submitted=submitted, suppressed=suppressed))
     return groups
@@ -180,7 +195,8 @@ def load_checklist(wave: WaveData, at_root: bool) -> list[scoring.ChecklistItem]
                 score = m.CHECKLIST_STATUS_SCORES[e.status.value]
                 if e.status == ChecklistStatus.FULL and e.confirmed_by_id is None:
                     score = m.UNCONFIRMED_FULL_SCORE
-            items.append(scoring.ChecklistItem(code=q.code, number=number, component=m.checklist_component(number),
+            items.append(scoring.ChecklistItem(code=q.code, number=number,
+                                               component=m.item_component(q.code, section.component),
                                                score=score, confirmed=bool(e and e.confirmed_by_id),
                                                text=q.text, status=e.status.value if e else None))
     return items
@@ -204,7 +220,10 @@ def load_inputs(db: Session, campaign: Campaign, unit_id: uuid.UUID | None, wave
     scope, units = scope_units(db, campaign, unit_id, wave)
     at_root = scope == campaign.unit_id
     k = campaign.min_group_size
-    hidden = facts_service.hidden_indicators(wave.indicator_rows, wave.children, campaign.unit_id, scope, k)
+    if wave.fact_hidden is None:  # один раз на хвилю: при закритті рахуються знімки всіх підрозділів
+        wave.fact_hidden = facts_service.hidden_map(wave.indicator_rows, wave.children, campaign.unit_id, k)
+    hidden = facts_service.hidden_indicators(wave.indicator_rows, wave.children, campaign.unit_id, scope, k,
+                                             wave.fact_hidden)
     facts = facts_service.aggregate_rows([r for r in wave.indicator_rows if r.unit_id in units], wave.periods, k, hidden)
     return Inputs(wave=wave, scope=scope, units=units, groups=load_groups(wave, scope, units),
                   checklist=load_checklist(wave, at_root), facts=facts, k=k)

@@ -92,7 +92,11 @@ cp backend/.env.example backend/.env   # DATABASE_URL (PostgreSQL), JWT_SECRET �
 LLM_BASE_URL=https://api.csit-mitit.com/v1
 LLM_API_KEY=<ключ>
 LLM_MODEL=gemma4-26b
+LLM_ALLOW_EXTERNAL=true   # шлюз поза закритим контуром: без цього бекенд дані туди не відправить
 ```
+
+За замовчуванням (`LLM_ALLOW_EXTERNAL=false`) модель приймається лише за внутрішньою адресою: localhost, приватна
+мережа, ім'я сервісу compose, `*.local`, `host.docker.internal`. Ключ без `LLM_BASE_URL` асистента не вмикає.
 
 Перевірено 18.11 на шлюзі кафедри: `gemma4-26b` відповідає українською за 1–3 с і сама викликає інструменти
 бекенду (результати, динаміка, заходи), зокрема коректно відмовляє керівнику підрозділу в даних усієї організації.

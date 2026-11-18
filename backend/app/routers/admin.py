@@ -36,6 +36,7 @@ from app.schemas import (
     UserUpdate,
 )
 from app.routers.campaigns import progress as campaign_progress
+from app.services.eligibility import open_frozen_campaigns_of
 from app.services.units import subtree_from, subtree_ids, unit_tree
 from app.security import hash_password, require_roles, revoke_all_tokens
 
@@ -100,6 +101,14 @@ def update_user(
         raise HTTPException(status_code=422, detail="Не можна зняти роль адміна чи заблокувати самого себе")
 
     changes = data.model_dump(exclude_unset=True)
+    structural = [f for f in ("unit_id", "category", "role") if f in changes and changes[f] != getattr(user, f)]
+    if structural:
+        busy = open_frozen_campaigns_of(db, user.id)
+        if busy:
+            # Інакше посеред хвилі зміниться склад груп і знаменник участі (див. docs/abuse-analysis.md).
+            raise ApiError(409, "Людина в складі відкритої хвилі: " + ", ".join(c.title for c in busy),
+                           code="campaign_open",
+                           hint="Підрозділ, категорію чи роль можна змінити після закриття хвилі. Заблокувати можна й зараз.")
     password = changes.pop("password", None)
     for field, value in changes.items():
         setattr(user, field, value)

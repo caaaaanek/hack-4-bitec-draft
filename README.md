@@ -3,6 +3,8 @@
 Integrity Management Dashboard — завдання 3 хакатону BITEC: цифрова система оцінювання доброчесності у вищому військовому
 навчальному закладі за Рекомендаціями НУОУ і Моделлю зрілості НАЗК. Лише синтетичні дані, без ШІ в розрахунках, працює в закритому контурі.
 
+![Головний екран: огляд закладу для керівника](docs/img/dashboard-overview.png)
+
 ## Архітектура
 
 ```
@@ -27,7 +29,7 @@ hack-4-bitec-draft/
 │   └── docs/                дизайн-система, бриф, відомі обмеження, пропозиція API-контракту
 ├── docs/
 │   ├── backend.md           ролі, модель даних, API
-│   ├── integrity-index.md   методика Integrity Index v2
+│   ├── integrity-index.md   методика Integrity Index v2.1
 │   ├── run.md               запуск і перевірки
 │   ├── anonymity.md         як забезпечено анонімність, модель загроз, залишкові ризики
 │   ├── abuse-analysis.md    зловживання й протидія
@@ -68,7 +70,7 @@ flowchart LR
 | Recommendations Tracker — відповідальний, строк, статус | `routers/measures.py`, синхронізація з темою 2 (`routers/integrations.py`) | `/tracker`, `lib/measures.ts` |
 | Audit Trail — журнал дій | `audit.py` (ланцюжок хешів), `GET /admin/audit-log`, `POST /admin/audit-log/verify` | `#audit` з перевіркою |
 | Reporting Module | `GET /campaigns/{id}/report?format=json\|csv` | `/reports` |
-| Кабінет учасника — узагальнені результати свого підрозділу | `GET /me/results` | `/me` |
+| Кабінет учасника — узагальнені результати свого підрозділу | `GET /me/results`, за посиланням `GET /respond/results` | `#me`, `/s/<токен>` після закриття |
 | Інтеграція з іншими системами | `POST /indicators` (ключ на джерело), тема 2: `/integrations/theme2/*`, вхід через проксі організації (`POST /auth/proxy`), `ROOT_PATH` | `/integrations` карта інтеграції |
 | Асистент (опційно, вимкнено) | `POST /assistant/ask`, `/api/assistant` (OpenAI-сумісний, `LLM_*`) | кнопка «Асистент» |
 
@@ -90,6 +92,13 @@ cp .env.example .env && docker compose up --build   # PostgreSQL + API + UI → 
 |---|---|
 | Умова завдання й Рекомендації НУОУ (Markdown) | [`docs/README.md`](docs/README.md) |
 | Бекенд: ролі, модель даних, API | [`docs/backend.md`](docs/backend.md), [`backend/README.md`](backend/README.md) |
+| Демонстраційний сценарій (результат 2) | [`docs/demo-scenario.md`](docs/demo-scenario.md) |
+| Методика й приклад розрахунку Integrity Index (результат 3) | [`docs/integrity-index.md`](docs/integrity-index.md) |
+| Dashboard керівника (результат 4) | [`docs/dashboard.md`](docs/dashboard.md) |
+| Рекомендації з прогону (результат 5) і зіставлення з фактами (результат 7) | [`docs/recommendations.md`](docs/recommendations.md), [`docs/cross-check.md`](docs/cross-check.md) |
+| Захист анонімності (результат 6) і аналіз зловживань (результат 10) | [`docs/anonymity.md`](docs/anonymity.md), [`docs/abuse-analysis.md`](docs/abuse-analysis.md) |
+| Економія часу (результат 8) | [`docs/time-savings.md`](docs/time-savings.md) |
 | Карта інтеграції і концепція екосистеми (результати 9 і 12) | [`docs/integration-map.md`](docs/integration-map.md), [`docs/ecosystem.md`](docs/ecosystem.md) |
+| Як ми використали ШІ (результат 11) | [`docs/ai.md`](docs/ai.md) |
 | Фронтенд: дизайн-система, відомі обмеження | [`frontend/docs/DESIGN_SYSTEM.md`](frontend/docs/DESIGN_SYSTEM.md), [`frontend/docs/KNOWN_ISSUES.md`](frontend/docs/KNOWN_ISSUES.md) |
 | Правила роботи з репозиторієм: гілки, коміти | [`AGENTS.md`](AGENTS.md) |

@@ -2,6 +2,7 @@
 
 from datetime import date
 
+from app.services.facts import last_full_quarter_end
 from tests.conftest import auth
 
 API = "/api/v1"
@@ -54,7 +55,8 @@ def fill_checklist(client, campaign_id, status="full", evidence="Наказ №1
 
 
 def post_fact(client, unit_id, indicator, numerator, denominator, period=None):
-    period = period or f"{date.today():%Y-%m}"
+    # За замовчуванням — останній завершений квартал: саме він потрапляє в період фактів хвилі.
+    period = period or f"{last_full_quarter_end(date.today()):%Y-%m}"
     r = client.post(
         f"{API}/indicators",
         json={"unit_id": unit_id, "period": period, "indicator": indicator, "numerator": numerator,

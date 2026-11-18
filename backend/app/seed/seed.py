@@ -31,7 +31,7 @@ from app.models import (
 from app.schemas import QuestionnaireCreate
 from app.seed.waves import WAVE_GAP_MONTHS, seed_waves
 from app.security import hash_password
-from app.services.facts import months_back
+from app.services.facts import months_back, window
 from app.services.methodology import FACTS_WINDOW_MONTHS
 from app.services.questionnaires import build_sections, publish, validate_for_publish
 
@@ -192,12 +192,15 @@ DEMO_FACTS_EARLY = {
 
 def seed_indicators(db: Session, units: dict[str, Unit], today: date | None = None,
                     months: int = FACTS_WINDOW_MONTHS) -> int:
-    """Факти за `months` місяців для всіх підрозділів, крім кореневого. Детерміновано, без випадковості.
+    """Факти за `months` місяців (плюс квартал запасу) для всіх підрозділів, крім кореневого. Детерміновано.
 
-    Останні 12 місяців — DEMO_FACTS, старші — DEMO_FACTS_EARLY.
+    Період фактів хвилі — цілі завершені квартали (методика v2.1), тож місяці від початку періоду поточної
+    хвилі (4 квартали до сьогодні) і далі — DEMO_FACTS, старші — DEMO_FACTS_EARLY. Квартал запасу потрібен, щоб і
+    період хвилі пів року тому був заповнений повністю.
     """
-    periods = months_back(today or clock_today(), months)
-    early = len(periods) - FACTS_WINDOW_MONTHS
+    current = today or clock_today()
+    periods = months_back(current, months + 3)
+    early = periods.index(window(current, FACTS_WINDOW_MONTHS)[0])
     created = 0
     for u_index, (name, unit) in enumerate(units.items()):
         if name == ROOT_UNIT:

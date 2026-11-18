@@ -52,7 +52,7 @@ from app.schemas import (
 from app.security import hash_password, require_roles
 from app.services import tokens as token_service
 from app.services.anonymity import flush_all
-from app.services.eligibility import is_eligible, participants_of
+from app.services.eligibility import freeze, frozen_of, is_eligible, participants_of
 from app.services.results import create_snapshots
 from app.services.safe_export import FORMULA_PREFIXES, SafeCsvWriter
 from app.services.units import subtree_ids
@@ -180,7 +180,11 @@ def open_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db), admin: 
                        hint="Додайте учасників або поверніться до складу за категорією й підрозділом.")
     campaign.status = CampaignStatus.OPEN
     campaign.opened_on = today()
-    log_action(db, admin, "open", "campaign", campaign.id)
+    details = {}
+    if campaign.access_mode == AccessMode.LOGIN:
+        # Склад фіксується: від нього рахується участь, і його не змінить блокування чи перенесення людей.
+        details["eligible_frozen"] = freeze(db, campaign)
+    log_action(db, admin, "open", "campaign", campaign.id, details)
     db.commit()
     return to_out(campaign)
 
@@ -192,7 +196,7 @@ def close_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db), admin:
         raise HTTPException(status_code=409, detail="Закрити можна лише відкриту хвилю")
     campaign.status = CampaignStatus.CLOSED
     campaign.closed_on = today()
-    # Залишок буфера відповідей переноситься в Response до розрахунку знімків.
+    # Зашифрований буфер переноситься в Response (перемішано, з узагальненими підрозділами) до розрахунку знімків.
     moved = flush_all(db, campaign)
     db.flush()
     # Знімок результатів фіксується в момент закриття і більше не змінюється.
@@ -214,7 +218,8 @@ def progress(campaign_id: uuid.UUID, db: Session = Depends(get_db), _: User = De
     token_rows = token_service.load(db, campaign.id) if campaign.access_mode == AccessMode.TOKEN else []
     users = []
     participants = None
-    if campaign.access_mode == AccessMode.LOGIN:
+    frozen = frozen_of(db, campaign)
+    if campaign.access_mode == AccessMode.LOGIN and frozen is None:
         users = db.scalars(select(User).where(User.role == Role.RESPONDENT, User.is_active.is_(True))).all()
         participants = participants_of(db, campaign)
 
@@ -226,7 +231,8 @@ def progress(campaign_id: uuid.UUID, db: Session = Depends(get_db), _: User = De
         if campaign.access_mode == AccessMode.TOKEN:
             eligible, submitted = token_service.counts(token_rows, questionnaire.id)
         else:
-            eligible = sum(1 for u in users if is_eligible(u, questionnaire, units, participants))
+            eligible = (len(frozen.get(questionnaire.id, {})) if frozen is not None
+                        else sum(1 for u in users if is_eligible(u, questionnaire, units, participants)))
             submitted = db.scalar(
                 select(func.count()).select_from(Participation).where(
                     Participation.campaign_id == campaign.id,
@@ -455,10 +461,13 @@ async def import_participants(
         credentials.append(ImportedCredential(login=user.login, password=password))
         created += 1
     if campaign.status == CampaignStatus.DRAFT or campaign.explicit_participants:
-        # У відкритій хвилі зі складом «за правилом» нові облікові записи й так підпадають під правило.
         db.add_all(CampaignParticipant(campaign_id=campaign.id, user_id=i) for i in dict.fromkeys(to_add))
         added = len(set(to_add))
         campaign.explicit_participants = True
+    if campaign.status == CampaignStatus.OPEN and campaign.eligible_frozen:
+        # Відкрита хвиля: склад зафіксовано, тож нових людей додаємо до нього явно.
+        db.flush()
+        freeze(db, campaign, list(db.scalars(select(User).where(User.id.in_(set(to_add))))) if to_add else [])
     log_action(db, admin, "import_participants", "campaign", campaign.id,
                {"rows": len(rows), "created_users": created, "added": added})
     db.commit()

@@ -9,11 +9,13 @@ from app.models import (
     Option,
     Question,
     Questionnaire,
+    QuestionnaireKind,
     QuestionnaireStatus,
     QuestionType,
     Section,
 )
 from app.schemas import SectionIn, ValidationIssue
+from app.services import methodology as m
 
 CHOICE_TYPES = {QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE}
 
@@ -60,12 +62,21 @@ def validate_for_publish(questionnaire: Questionnaire) -> list[ValidationIssue]:
         issues.append(ValidationIssue(path="sections", message="Анкета не має жодного розділу"))
 
     seen_codes: set[str] = set()
+    survey_components = set(m.COMPONENTS) | {m.DECLARED_COMPONENT}
     for s in questionnaire.sections:
         s_path = f"sections[{s.position}]"
         if not s.questions:
             issues.append(ValidationIssue(path=s_path, message="Розділ не має жодного питання"))
+        if questionnaire.kind == QuestionnaireKind.SURVEY and s.component not in survey_components:
+            issues.append(ValidationIssue(
+                path=s_path, message=f"Компонент розділу «{s.component}» невідомий методиці (можна: "
+                                     f"{', '.join(sorted(survey_components))}): відповіді не потраплять в індекс"))
         for q in s.questions:
             q_path = f"{s_path}.questions[{q.position}]"
+            if questionnaire.kind == QuestionnaireKind.CHECKLIST and m.item_component(q.code, s.component) is None:
+                issues.append(ValidationIssue(
+                    path=q_path, message=f"Пункт «{q.code}» не належить жодному компоненту: задайте розділу компонент "
+                                         "culture, system чи accountability (або код пункту додатка Б checklist.N.N)"))
             if q.code in seen_codes:
                 issues.append(ValidationIssue(path=q_path, message=f"Код питання '{q.code}' повторюється"))
             seen_codes.add(q.code)

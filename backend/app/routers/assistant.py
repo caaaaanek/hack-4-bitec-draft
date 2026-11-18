@@ -8,6 +8,7 @@
 - система повністю працює з вимкненим асистентом.
 """
 
+import ipaddress
 import json
 import urllib.error
 import urllib.request
@@ -53,6 +54,21 @@ class AskOut(BaseModel):
     context_keys: list[str]
 
 
+def is_internal_host(url: str) -> bool:
+    """Адреса в закритому контурі: localhost, приватні й службові IP, імена без домену (сервіс docker compose),
+    .local / .internal / .lan і host.docker.internal. DNS не запитується."""
+    host = (urlparse(url).hostname or "").lower().rstrip(".")
+    if not host:
+        return False
+    try:
+        addr = ipaddress.ip_address(host)
+        return addr.is_private or addr.is_loopback or addr.is_link_local
+    except ValueError:
+        pass
+    return ("." not in host or host == "localhost" or host == "host.docker.internal"
+            or host.endswith((".local", ".internal", ".lan", ".localhost")))
+
+
 def check_allowed(url: str, model: str) -> None:
     host = (urlparse(url).hostname or "").lower()
     name = model.lower()
@@ -63,6 +79,10 @@ def check_allowed(url: str, model: str) -> None:
             hit = marker in host or marker in name
         if hit:
             raise HTTPException(status_code=503, detail="Налаштована модель або сервіс заборонені політикою використання ШІ")
+    # Закритий контур: дані з системи не йдуть у зовнішню мережу, якщо це явно не дозволено.
+    if not is_internal_host(url) and not get_settings().llm_allow_external:
+        raise HTTPException(status_code=503, detail="Модель поза закритим контуром: зовнішні сервіси вимкнено "
+                                                    "(LLM_ALLOW_EXTERNAL=false). Решта системи працює без асистента")
 
 
 def build_context(result: dict, recs: list[dict]) -> dict:
