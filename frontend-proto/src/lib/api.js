@@ -108,7 +108,14 @@ async function bootToken(token) {
   location.hash = "survey";
   S.survey = freshSurvey();
   try { API.survey = apiSurveyModel(await api("/respond/form", { auth: false, headers: { "X-Response-Token": token } }), "token"); }
-  catch (e) { API.survey = null; API.surveyMsg = e.code === "token_used" ? "used" : e.code === "campaign_not_open" ? "closed" : "invalid"; }
+  catch (e) {
+    API.survey = null; API.surveyMsg = e.code === "token_used" ? "used" : e.code === "campaign_not_open" ? "closed" : "invalid";
+    // Після закриття хвилі те саме посилання показує узагальнені результати (GET /respond/results).
+    if (API.surveyMsg !== "invalid") {
+      try { API.tokenResults = await api("/respond/results", { auth: false, headers: { "X-Response-Token": token } }); }
+      catch (e2) { API.tokenResults = null; }
+    }
+  }
   render();
 }
 
@@ -233,9 +240,10 @@ export async function apiDecide(code, decision, comment, measure) {
   await apiReloadResults();
 }
 // Зміна статусу заходу на сервері; для «Виконано» потрібен доказ
-export async function apiSendMSt(id, st, evidence) {
-  // done_on не передаємо: сервер ставить сьогоднішню дату за своїм часовим поясом (TIMEZONE), а не за UTC браузера
-  await api(`/measures/${id}`, { method: "PATCH", body: { status: MEAS_BACK[st] || "in_progress", ...(st === "done" ? { evidence } : {}) } });
+export async function apiSendMSt(id, st, evidence, reason) {
+  // done_on не передаємо: сервер ставить сьогоднішню дату за своїм часовим поясом (TIMEZONE), а не за UTC браузера.
+  // reason: обов'язкова причина повернення виконаного заходу (сервер пише її в журнал дій).
+  await api(`/measures/${id}`, { method: "PATCH", body: { status: MEAS_BACK[st] || "in_progress", ...(st === "done" ? { evidence } : {}), ...(reason ? { reason } : {}) } });
   await apiReloadResults();
 }
 

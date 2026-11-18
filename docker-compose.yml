@@ -51,6 +51,8 @@ services:
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-gemma4-26b}
+      LLM_ALLOW_EXTERNAL: ${LLM_ALLOW_EXTERNAL:-false}
+      POOL_ENCRYPTION_KEY: ${POOL_ENCRYPTION_KEY:-}
     volumes:
       - evidence:/data/evidence
     ports:

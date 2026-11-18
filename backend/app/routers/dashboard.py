@@ -8,7 +8,6 @@ from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
 from app.db import get_db
 from app.models import Campaign, CampaignStatus, Role, User
 from app.routers.indicators import RiskSignal
@@ -110,8 +109,8 @@ def dashboard(
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     scope = uuid.UUID(data["unit_id"])
-    k = get_settings().min_group_size
-    signals = facts.risk_signals(db, scope, 3, campaign.closed_on, k)
+    # Той самий поріг k, що й в індексі хвилі (а не загальний за замовчуванням).
+    signals = facts.risk_signals(db, scope, 3, campaign.closed_on, campaign.min_group_size)
     recs = recommend(data, signals)
     dyn = data.get("dynamics")
     trend = [

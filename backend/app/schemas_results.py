@@ -99,6 +99,7 @@ class GroupOut(BaseModel):
     computed_level: int | None
     flags: list[str]
     suppressed: bool = False  # приховано вторинним приховуванням (див. docs/backend.md)
+    hidden_questions: int = 0  # питань, на які відповіли менше k людей: бал і розподіл не показано
 
 
 class ChecklistComponent(BaseModel):

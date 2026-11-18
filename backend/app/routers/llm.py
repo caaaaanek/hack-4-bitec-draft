@@ -32,7 +32,6 @@ from app.services import assistant_tools
 
 router = APIRouter(tags=["assistant"])
 
-GROQ_URL = "https://api.groq.com/openai/v1"
 MAX_CONTEXT = 30000
 
 SYSTEM = """Ти — асистент інформаційно-аналітичної системи оцінювання доброчесності закладу сектору безпеки і оборони.
@@ -169,8 +168,10 @@ def answer_with_prefetch(db: Session, user: User, base: str, key: str, model: st
 
 
 def endpoint() -> tuple[str, str, str] | None:
+    """(адреса, ключ, модель) або None. Адреса задається лише явно (LLM_BASE_URL): сам ключ без адреси
+    нікуди дані не відправляє (раніше в такому разі неявно бралася зовнішня хмара)."""
     s = get_settings()
-    base = (s.llm_base_url or (GROQ_URL if s.llm_api_key else "")).rstrip("/")
+    base = s.llm_base_url.rstrip("/")
     if not base:
         return None
     return base, s.llm_api_key, s.llm_model
@@ -180,7 +181,13 @@ def endpoint() -> tuple[str, str, str] | None:
 def status():
     """Чи доступна модель. Без секретів і без входу (фронтенд показує перемикач режиму)."""
     ep = endpoint()
-    return LlmStatus(live=ep is not None, model=ep[2] if ep else None)
+    if ep is None:
+        return LlmStatus(live=False, model=None)
+    try:
+        check_allowed(ep[0], ep[2])
+    except HTTPException:
+        return LlmStatus(live=False, model=None)  # заборонена чи зовнішня без дозволу: фронтенд відповідає шаблонами
+    return LlmStatus(live=True, model=ep[2])
 
 
 @router.post("/api/assistant", response_model=LlmOut)

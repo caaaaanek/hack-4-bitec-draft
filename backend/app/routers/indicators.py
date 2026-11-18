@@ -191,7 +191,8 @@ def check_unit(db: Session, unit_id: uuid.UUID, user: User) -> Unit:
 def unit_facts(
     unit_id: uuid.UUID,
     months: int = Query(default=12, description="3, 6 або 12"),
-    end: date | None = Query(default=None, description="Останній місяць періоду, за замовчуванням поточний"),
+    end: date | None = Query(default=None, description="Дата, не пізніше сьогодні (за замовчуванням сьогодні). Період закінчується останнім "
+                             "завершеним кварталом перед нею: місяць окремо не запитати"),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*RESULT_READERS)),
 ):
@@ -199,7 +200,8 @@ def unit_facts(
     if months not in (3, 6, 12):
         raise HTTPException(status_code=422, detail="months: 3, 6 або 12")
     check_unit(db, unit_id, user)
-    periods = facts.months_back(end or today(), months)
+    # Не пізніше сьогодні: майбутній end захопив би поточний незавершений квартал.
+    periods = facts.window(min(end or today(), today()), months)
     return facts.aggregate_for_unit(db, unit_id, periods, get_settings().min_group_size)
 
 
@@ -207,7 +209,7 @@ def unit_facts(
 def risk_signals(
     unit_id: uuid.UUID,
     months: int = Query(default=3, description="3, 6 або 12"),
-    end: date | None = None,
+    end: date | None = Query(default=None, description="Дата, не пізніше сьогодні; період закінчується останнім завершеним кварталом перед нею"),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*RESULT_READERS)),
 ):
@@ -218,4 +220,4 @@ def risk_signals(
     if months not in (3, 6, 12):
         raise HTTPException(status_code=422, detail="months: 3, 6 або 12")
     check_unit(db, unit_id, user)
-    return facts.risk_signals(db, unit_id, months, end or today(), get_settings().min_group_size)
+    return facts.risk_signals(db, unit_id, months, min(end or today(), today()), get_settings().min_group_size)

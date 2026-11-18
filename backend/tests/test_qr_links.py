@@ -107,3 +107,15 @@ def test_admin_only_and_token_has_no_link_to_answer(client):
         cols = {c.name for c in AccessToken.__table__.columns}
         assert not cols & {"user_id", "created_at", "used_at", "ip"}
         assert db.scalar(select(Campaign.id)) is not None
+
+
+def test_qr_codes_are_redacted_in_access_log():
+    import logging
+
+    from app.main import RedactTokenPaths
+
+    for path in ("/q/abc123", "/api/v1/respond/qr/abc123", "/s/tok456"):
+        record = logging.LogRecord("uvicorn.access", logging.INFO, "", 0, '%s - "%s %s HTTP/%s" %d',
+                                   ("1.2.3.4", "POST", path, "1.1", 201), None)
+        RedactTokenPaths().filter(record)
+        assert "abc123" not in record.getMessage() and "tok456" not in record.getMessage()

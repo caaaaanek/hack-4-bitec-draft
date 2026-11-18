@@ -6608,10 +6608,10 @@
                   "type": "null"
                 }
               ],
-              "description": "Останній місяць періоду, за замовчуванням поточний",
+              "description": "Дата, не пізніше сьогодні (за замовчуванням сьогодні). Період закінчується останнім завершеним кварталом перед нею: місяць окремо не запитати",
               "title": "End"
             },
-            "description": "Останній місяць періоду, за замовчуванням поточний"
+            "description": "Дата, не пізніше сьогодні (за замовчуванням сьогодні). Період закінчується останнім завершеним кварталом перед нею: місяць окремо не запитати"
           }
         ],
         "responses": {
@@ -6732,8 +6732,10 @@
                   "type": "null"
                 }
               ],
+              "description": "Дата, не пізніше сьогодні; період закінчується останнім завершеним кварталом перед нею",
               "title": "End"
-            }
+            },
+            "description": "Дата, не пізніше сьогодні; період закінчується останнім завершеним кварталом перед нею"
           }
         ],
         "responses": {
@@ -7007,7 +7009,7 @@
           "results"
         ],
         "summary": "List Units",
-        "description": "Дерево підрозділів (id, name, parent_id) для вибору області перегляду.",
+        "description": "Дерево підрозділів (id, name, parent_id) для вибору області перегляду.\n\nКерівник, прив'язаний до підрозділу, бачить лише своє піддерево (як і в результатах).",
         "operationId": "list_units_api_v1_units_get",
         "responses": {
           "200": {
@@ -7359,6 +7361,97 @@
             "OAuth2PasswordBearer": []
           }
         ]
+      }
+    },
+    "/api/v1/respond/results": {
+      "get": {
+        "tags": [
+          "results",
+          "respond"
+        ],
+        "summary": "Token Results",
+        "description": "Екран учасника анонімної хвилі: те саме, що /me/results, але за одноразовим посиланням (X-Response-Token).\n\nДоступно після закриття хвилі з тим самим посиланням (використаним чи ні): лише узагальнені\nрезультати закладу і групи посилання, з тими самими порогами k. Нічого не записується.",
+        "operationId": "token_results_api_v1_respond_results_get",
+        "parameters": [
+          {
+            "name": "X-Response-Token",
+            "in": "header",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Response-Token"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ParticipantResultOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
       }
     },
     "/api/v1/dashboard": {
@@ -8102,7 +8195,7 @@
           "measures"
         ],
         "summary": "Patch Measure",
-        "description": "Зміна заходу. Позначити виконаним можна лише з доказом виконання.",
+        "description": "Зміна заходу. Виконаним — лише з доказом; переходи статусів — за TRANSITIONS; скасування й повернення\nз «виконано» чи «скасовано» — з причиною, яка йде в журнал дій.",
         "operationId": "patch_measure_api_v1_measures__measure_id__patch",
         "security": [
           {
@@ -12158,6 +12251,11 @@
             "type": "boolean",
             "title": "Suppressed",
             "default": false
+          },
+          "hidden_questions": {
+            "type": "integer",
+            "title": "Hidden Questions",
+            "default": 0
           }
         },
         "type": "object",
@@ -13369,6 +13467,19 @@
               }
             ],
             "title": "Evidence"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason",
+            "description": "Причина: обов'язкова для скасування і повернення з done чи cancelled"
           }
         },
         "additionalProperties": false,

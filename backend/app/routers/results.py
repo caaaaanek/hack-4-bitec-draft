@@ -2,18 +2,20 @@
 
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.audit import log_action
 from app.db import get_db
+from app.errors import ApiError
 from app.models import Campaign, CampaignStatus, Role, Unit, User
 from app.schemas import UnitOut
 from app.schemas_results import CampaignResultsOut, CompareOut, HistoryOut, ParticipantResultOut
-from app.security import RESULT_READERS, ensure_unit_access, get_current_user, require_roles
-from app.services import methodology, results
-from app.services.eligibility import is_eligible, participants_of
+from app.routers.respond import TOKEN_HEADER, token_throttle
+from app.security import RESULT_READERS, client_ip, ensure_unit_access, get_current_user, require_roles
+from app.services import methodology, results, tokens
+from app.services.eligibility import frozen_of, is_eligible, participants_of
 from app.services.units import subtree_ids
 
 router = APIRouter(tags=["results"])
@@ -62,9 +64,15 @@ def campaign_results(
 
 
 @router.get("/units", response_model=list[UnitOut])
-def list_units(db: Session = Depends(get_db), _: User = Depends(can_view)):
-    """Дерево підрозділів (id, name, parent_id) для вибору області перегляду."""
-    return db.scalars(select(Unit).order_by(Unit.name)).all()
+def list_units(db: Session = Depends(get_db), user: User = Depends(can_view)):
+    """Дерево підрозділів (id, name, parent_id) для вибору області перегляду.
+
+    Керівник, прив'язаний до підрозділу, бачить лише своє піддерево (як і в результатах).
+    """
+    query = select(Unit).order_by(Unit.name)
+    if user.role == Role.LEADER and user.unit_id is not None:
+        query = query.where(Unit.id.in_(subtree_ids(db, user.unit_id)))
+    return db.scalars(query).all()
 
 
 def unit_or_404(db: Session, unit_id: uuid.UUID, user: User | None = None) -> Unit:
@@ -142,6 +150,24 @@ def brief(data: dict) -> dict:
     }
 
 
+def participant_result(db: Session, campaign: Campaign, unit_id: uuid.UUID | None, units: set[uuid.UUID]) -> dict:
+    """Узагальнені результати хвилі для учасника: заклад і (якщо інший) свій підрозділ, без деталей відповідей."""
+    whole = results.results_for(db, campaign, None)
+    my_unit = None
+    if unit_id and unit_id != campaign.unit_id and unit_id in units:
+        my_unit = brief(results.results_for(db, campaign, unit_id))
+    dyn = whole["dynamics"]
+    return {
+        "campaign_id": campaign.id,
+        "campaign_title": campaign.title,
+        "closed_on": campaign.closed_on,
+        "institution": brief(whole),
+        "my_unit": my_unit,
+        "index_delta": dyn["index_delta"] if dyn else None,
+        "summary": whole["summary"][:2],
+    }
+
+
 @router.get("/me/results", response_model=list[ParticipantResultOut])
 def my_results(db: Session = Depends(get_db), user: User = Depends(require_roles(Role.RESPONDENT))):
     """Екран учасника: узагальнені результати хвилі і свого підрозділу, без деталей відповідей."""
@@ -150,20 +176,35 @@ def my_results(db: Session = Depends(get_db), user: User = Depends(require_roles
     for campaign in closed:
         units = subtree_ids(db, campaign.unit_id)
         participants = participants_of(db, campaign)
-        if not any(is_eligible(user, link.questionnaire, units, participants) for link in campaign.questionnaire_links):
+        frozen = frozen_of(db, campaign)
+        member = (any(user.id in members for members in frozen.values()) if frozen is not None else
+                  any(is_eligible(user, link.questionnaire, units, participants) for link in campaign.questionnaire_links))
+        if not member:
             continue
-        whole = results.results_for(db, campaign, None)
-        my_unit = None
-        if user.unit_id and user.unit_id != campaign.unit_id and user.unit_id in units:
-            my_unit = brief(results.results_for(db, campaign, user.unit_id))
-        dyn = whole["dynamics"]
-        out.append({
-            "campaign_id": campaign.id,
-            "campaign_title": campaign.title,
-            "closed_on": campaign.closed_on,
-            "institution": brief(whole),
-            "my_unit": my_unit,
-            "index_delta": dyn["index_delta"] if dyn else None,
-            "summary": whole["summary"][:2],
-        })
+        out.append(participant_result(db, campaign, user.unit_id, units))
     return out
+
+
+@router.get("/respond/results", response_model=ParticipantResultOut, tags=["respond"])
+def token_results(request: Request, db: Session = Depends(get_db),
+                  x_response_token: str | None = Header(default=None, alias=TOKEN_HEADER)):
+    """Екран учасника анонімної хвилі: те саме, що /me/results, але за одноразовим посиланням (X-Response-Token).
+
+    Доступно після закриття хвилі з тим самим посиланням (використаним чи ні): лише узагальнені
+    результати закладу і групи посилання, з тими самими порогами k. Нічого не записується.
+    """
+    row = tokens.find(db, x_response_token or "")
+    if row is None:
+        key = ("token", client_ip(request))
+        retry_after = token_throttle.blocked_for(key)
+        if retry_after:
+            raise ApiError(429, "Забагато спроб з невірним посиланням", hint=f"Спробуйте через {retry_after} с.",
+                           headers={"Retry-After": str(retry_after)})
+        token_throttle.fail(key)
+        raise ApiError(404, "Посилання недійсне", code="token_invalid",
+                       hint="Перевірте, що посилання скопійовано повністю.")
+    campaign = db.get(Campaign, row.campaign_id)
+    if campaign.status != CampaignStatus.CLOSED:
+        raise ApiError(409, "Результати з'являться після закриття опитування", code="campaign_not_closed",
+                       hint="Відкрийте це саме посилання після завершення опитування.")
+    return participant_result(db, campaign, row.unit_id, subtree_ids(db, campaign.unit_id))

@@ -2,9 +2,10 @@
 
 Головне правило анонімності: таблиця Participation (хто пройшов) і таблиця
 Response (що відповіли) не мають спільного ключа. Response не зберігає ні
-користувача, ні часу, ні дати. Відповідь спершу потрапляє в ResponsePool і
-переноситься в Response пачкою щонайменше з k перемішаних анкет, тож системні
-поля БД (порядок вставки, xmin транзакції) не вказують на конкретне подання.
+користувача, ні часу, ні дати. Відповідь спершу потрапляє в ResponsePool
+зашифрованою і переноситься в Response при закритті хвилі однією транзакцією,
+перемішаною, з узагальненим підрозділом (≥ k відповідей на підрозділ зберігання),
+тож ні системні поля БД (порядок вставки, xmin), ні підрозділ не вказують на людину.
 """
 
 import uuid
@@ -210,6 +211,8 @@ class Campaign(Base):
                                                     server_default=AccessMode.LOGIN.value)
     # True: проходять лише явно додані учасники (CampaignParticipant), а не всі за категорією й підрозділом.
     explicit_participants: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    # True: склад учасників зафіксовано при відкритті (CampaignEligible), знаменник участі рахується від нього.
+    eligible_frozen: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
     opened_on: Mapped[date | None] = mapped_column(Date)
     closed_on: Mapped[date | None] = mapped_column(Date)
     created_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
@@ -234,6 +237,24 @@ class CampaignParticipant(Base):
 
     campaign_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+
+
+class CampaignEligible(Base):
+    """Склад учасників, зафіксований при відкритті хвилі за обліковими записами: хто мав пройти анкету
+    і в якому підрозділі був на той момент. Лише склад, без відповідей і без позначки «пройшов».
+
+    Від нього рахується знаменник участі: блокування чи перенесення людей після подання
+    не змінює «мали пройти», а проходити можуть лише ті, хто в складі.
+    """
+
+    __tablename__ = "campaign_eligible"
+    __table_args__ = (Index("ix_campaign_eligible_user_id", "user_id"),)
+
+    campaign_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), primary_key=True)
+    questionnaire_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("questionnaires.id"), primary_key=True)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    unit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("units.id"))
+    category: Mapped[RespondentCategory] = mapped_column(str_enum(RespondentCategory))
 
 
 class AccessToken(Base):
@@ -289,10 +310,11 @@ class Participation(Base):
 
 
 class ResponsePool(Base):
-    """Буфер анонімних відповідей до перенесення в Response.
+    """Зашифрований буфер анонімних відповідей до закриття хвилі.
 
-    Немає користувача, часу й дати. Рядок живе, доки в буфері анкети не назбирається
-    2k відповідей (або до закриття хвилі), потім переноситься в Response пачкою.
+    Немає користувача, часу й дати. Відповіді й підрозділ лежать в answers зашифрованими
+    (services/anonymity.seal): {"v": 1, "n": nonce, "c": шифротекст}. unit_id лишився для
+    старих рядків і для нових порожній. При закритті все переноситься в Response.
     """
 
     __tablename__ = "response_pool"
@@ -302,12 +324,15 @@ class ResponsePool(Base):
     questionnaire_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("questionnaires.id"))
     category: Mapped[RespondentCategory] = mapped_column(str_enum(RespondentCategory))
     unit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("units.id"))
-    # [{"question_id": "...", "option_id": "..." | null, "value": float | null}, ...]
-    answers: Mapped[list] = mapped_column(JSON)
+    # Зашифрований конверт; старі рядки — [{"question_id", "option_id", "value"}, ...]
+    answers: Mapped[dict | list] = mapped_column(JSON)
 
 
 class Response(Base):
-    """Анонімна відповідь. Немає користувача, часу й дати, ID випадковий."""
+    """Анонімна відповідь. Немає користувача, часу й дати, ID випадковий.
+
+    unit_id — підрозділ зберігання (узагальнений): під ним щонайменше k відповідей анкети.
+    """
 
     __tablename__ = "responses"
 

@@ -88,6 +88,16 @@ function noteRec(id, kind) {
 function setMSt(id, st) {
   const x = measures().find(m => m.id === id); if (!x || !M_NEXT[x.st].includes(st)) return;
   if (API.on) {
+    // Повернення виконаного заходу в роботу — лише з причиною (сервер пише її в журнал дій).
+    if (st !== "done" && ["done", "confirmed", "notconfirmed"].includes(x.st)) return openDrawer("Повернути захід у роботу", () => {
+      const [t, setT] = useState(""), [err, setErr] = useState("");
+      const ok = () => { const v = t.trim(); if (v.length < 3) return setErr("Вкажіть причину."); apiSendMSt(id, st, undefined, v).then(() => { closeDrawer(); toast(`Статус заходу змінено на «${M_ST[st][0]}».`); }, apiFail); };
+      return <>
+        <div style={{ fontWeight: 600 }}>{x.t}</div>
+        <div className="field"><label htmlFor="f-why">Причина</label><textarea className="inp" id="f-why" rows="4" value={t} onChange={e => setT(e.target.value)} /><Err t={err} hint="Чому виконаний захід повертається в роботу: причина потрапить у журнал дій." /></div>
+        <button className="btn btn-primary" id="f-ok" style={{ justifyContent: "center" }} onClick={ok}><Ic n="ok" />Повернути</button>
+      </>;
+    });
     if (st !== "done") return apiSendMSt(id, st).then(() => toast(`Статус заходу змінено на «${M_ST[st][0]}».`), apiFail);
     return openDrawer("Позначити захід виконаним", () => {
       const [t, setT] = useState(""), [err, setErr] = useState("");

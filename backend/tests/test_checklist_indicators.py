@@ -75,7 +75,7 @@ def test_unconfirmed_checklist_lowers_reliability(client):
 # ---------- Факти ----------
 
 def fact(unit_id, **extra):
-    return {"unit_id": unit_id, "period": "2026-10", "indicator": "coi_reviewed",
+    return {"unit_id": unit_id, "period": "2026-07", "indicator": "coi_reviewed",
             "numerator": 15, "denominator": 20, "source": "artemida", **extra}
 
 
@@ -107,7 +107,7 @@ def test_indicator_upsert_and_x_of_y(client):
     client.post(f"{API}/indicators", json=fact(root, extra_counts={"pending": 5}), headers=KEY)
     client.post(f"{API}/indicators", json=fact(root, numerator=16, extra_counts={"pending": 4}), headers=KEY)  # оновлення
 
-    data = client.get(f"{API}/units/{root}/indicators", params={"months": 3, "end": "2026-11-15"}, headers=admin).json()
+    data = client.get(f"{API}/units/{root}/indicators", params={"months": 3, "end": "2026-10-15"}, headers=admin).json()
     [coi] = data
     assert coi["numerator"] == 16 and coi["denominator"] == 20 and coi["percent"] == 80.0
     assert coi["label"] == "Можливі конфлікти інтересів розібрано вчасно: знайдено можливих 20 · розібрано вчасно 16 · чекають 4 (80%)"
@@ -117,9 +117,9 @@ def test_indicator_upsert_and_x_of_y(client):
 def test_small_denominator_rolls_up_to_parent(client):
     admin = auth(client, "admin")
     u = units(client, admin)
-    post_fact(client, u["Підрозділ А-1"], "hiring_checks", 2, 3, period="2026-10")
-    post_fact(client, u["Підрозділ А-2"], "hiring_checks", 3, 3, period="2026-10")
-    params = {"months": 3, "end": "2026-11-01"}
+    post_fact(client, u["Підрозділ А-1"], "hiring_checks", 2, 3, period="2026-07")
+    post_fact(client, u["Підрозділ А-2"], "hiring_checks", 3, 3, period="2026-07")
+    params = {"months": 3, "end": "2026-10-01"}
 
     small = client.get(f"{API}/units/{u['Підрозділ А-1']}/indicators", params=params, headers=admin).json()[0]
     assert small["status"] == "too_few_people" and small["numerator"] is None
@@ -132,9 +132,62 @@ def test_small_denominator_rolls_up_to_parent(client):
 def test_risk_signals_show_raw_counts(client):
     admin = auth(client, "admin")
     root = units(client, admin)[ROOT]
-    post_fact(client, root, "procurement_flags_reviewed", 4, 10, period="2026-10")
-    post_fact(client, root, "procurement_flags_reviewed", 3, 6, period="2026-07")
-    signals = client.get(f"{API}/units/{root}/risk-signals", params={"months": 3, "end": "2026-11-01"}, headers=admin).json()
+    post_fact(client, root, "procurement_flags_reviewed", 4, 10, period="2026-07")
+    post_fact(client, root, "procurement_flags_reviewed", 3, 6, period="2026-04")
+    signals = client.get(f"{API}/units/{root}/risk-signals", params={"months": 3, "end": "2026-10-01"}, headers=admin).json()
     [proc] = signals
     assert proc["found"] == 10 and proc["handled"] == 4 and proc["pending"] == 6
     assert proc["previous_found"] == 6 and proc["change"] == 4
+
+
+def test_facts_use_whole_quarters_and_block_month_differencing(client):
+    """Місяць зі знаменником < k не обчислити різницею вікон: періоди — лише цілі завершені квартали,
+    а k перевіряється в кожному кварталі."""
+    admin = auth(client, "admin")
+    unit = units(client, admin)["Підрозділ А"]
+    for period, num in (("2026-01", 2), ("2026-02", 2), ("2026-03", 2), ("2026-04", 3)):
+        post_fact(client, unit, "declarations_on_time", num, 3, period=period)
+
+    def get(end, months=3):
+        r = client.get(f"{API}/units/{unit}/indicators", params={"months": months, "end": end}, headers=admin)
+        assert r.status_code == 200, r.text
+        return r.json()[0]
+
+    # Будь-який день II кварталу дає той самий період: I квартал (січ–бер).
+    a, b, c = get("2026-04-01"), get("2026-05-20"), get("2026-06-30")
+    assert a == b == c and a["periods"] == "з 2026-01 по 2026-03"
+    assert a["numerator"] == 6 and a["denominator"] == 9
+    # II квартал має лише квітень (3 < k): прихований, і 6 місяців теж (бо квартал у ньому малий).
+    assert get("2026-07-01")["status"] == "too_few_people"
+    six = get("2026-07-01", months=6)
+    assert six["status"] == "too_few_people" and "2026-Q2" in six["rule"]
+    # Місяць окремо не запитати.
+    assert client.get(f"{API}/units/{unit}/indicators", params={"months": 1}, headers=admin).status_code == 422
+
+
+def test_quarter_secondary_suppression_in_each_quarter(client):
+    """Квартали окремо: у I кварталі А-1 = 3 < k, тож А-2 приховано й у 6-місячному вікні."""
+    admin = auth(client, "admin")
+    u = units(client, admin)
+    post_fact(client, u["Підрозділ А-1"], "hiring_checks", 3, 3, period="2026-02")
+    post_fact(client, u["Підрозділ А-2"], "hiring_checks", 5, 6, period="2026-02")
+    post_fact(client, u["Підрозділ А-1"], "hiring_checks", 9, 9, period="2026-05")
+    post_fact(client, u["Підрозділ А-2"], "hiring_checks", 9, 9, period="2026-05")
+    params = {"months": 6, "end": "2026-07-01"}
+    a2 = client.get(f"{API}/units/{u['Підрозділ А-2']}/indicators", params=params, headers=admin).json()[0]
+    assert a2["status"] == "too_few_people" and a2["numerator"] is None
+    parent = client.get(f"{API}/units/{u['Підрозділ А']}/indicators", params=params, headers=admin).json()[0]
+    assert parent["status"] == "ok" and parent["denominator"] == 27
+
+
+def test_future_end_cannot_reach_current_quarter(client):
+    """end у майбутньому не відкриває поточний незавершений квартал: вікно не пізніше сьогодні."""
+    from app.clock import today
+    from app.services.facts import window
+    admin = auth(client, "admin")
+    root = units(client, admin)[ROOT]
+    current = f"{today():%Y-%m}"
+    post_fact(client, root, "coi_reviewed", 15, 20, period=current)
+    far = client.get(f"{API}/units/{root}/indicators", params={"months": 3, "end": "2099-12-31"}, headers=admin).json()
+    assert far == client.get(f"{API}/units/{root}/indicators", params={"months": 3}, headers=admin).json()
+    assert current not in window(today(), 3)

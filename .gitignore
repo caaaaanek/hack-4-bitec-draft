@@ -103,3 +103,7 @@ backend/data/
 
 # Демо-режим фронтенду: не секрет, лише VITE_DEMO=true
 !frontend/.env.demo
+
+Claude outputs/
+
+Claude outputs/
