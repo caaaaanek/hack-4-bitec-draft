@@ -1,15 +1,15 @@
 /* Екрани з даними сервера (null — показати звичайний екран). */
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Ic } from "../lib/icons.jsx";
 import { S } from "../lib/state.js";
-import { API, api, apiEnsure, apiRetry, apiLoadForm, apiFail, apiErrText, RESULT_VIEWS, dn, apiLoadAdm, apiAdmReload, apiCreateCampaign, apiCampaignAct, apiIssueTokens, apiCopyOne, apiCopyLinks, apiRevoke,
+import { API, api, apiEnsure, apiRetry, apiLoadForm, apiFail, apiErrText, RESULT_VIEWS, dn, apiLoadAdm, apiAdmReload, apiCreateCampaign, apiCampaignAct, apiQrCreate, apiQrRevoke, apiQrTick,
   QST, QCAT, apiQAct, bldOpen, CKS, apiLoadCk, apiCkReload, apiSaveItem, apiConfirm, apiDelFile, apiDownload, AUDIT_ENT, AUDIT_ACT, apiLoadLog, auditDetails, apiVerify } from "../lib/api.js";
 import { COMPS, COMP, level } from "../lib/model.js";
 import { fb, ua, plural } from "../lib/format.js";
 import { render, toast, openDrawer, closeDrawer, ui } from "../lib/store.js";
-import { download } from "../lib/util.js";
 import { Pill, LvPill, Num, LevelBar, Ticks } from "../components/ui.jsx";
 import { UnitCombo } from "../components/UnitCombo.jsx";
+import { QrCode, qrAbs } from "../components/QrCode.jsx";
 import { bldFromServer, bldNewSec } from "./Builder.jsx";
 
 const Loading = ({ t }) => <section className="card c12 rise"><div className="empty"><b>{t}</b><br />Завантажуємо дані з сервера…</div></section>;
@@ -34,6 +34,8 @@ function apiSurveyView() {
     if (API.surveyMsg && !API.survey) {
       const [t, d] = API.surveyMsg === "used" ? ["Цю анкету вже заповнено", "Повторно відповісти за цим посиланням не можна: так ми захищаємо анонімність і не допускаємо подвоєних відповідей. Дякуємо за участь."]
         : API.surveyMsg === "closed" ? ["Опитування зараз не приймає відповіді", "Хвилю оцінювання ще не відкрито або вже закрито. Перевірте строки в того, хто надіслав вам посилання."]
+        : API.surveyMsg === "qr_limit" ? ["Для цього QR відкрито забагато форм", "Зверніться до організатора опитування: він може показати новий QR."]
+        : API.surveyMsg === "qr_invalid" ? ["QR недійсний або застарів", "Відскануйте QR ще раз або попросіть організатора показати актуальний."]
         : ["Посилання недійсне або застаріле", "Перевірте, чи адресу скопійовано повністю. Якщо не допомогло, попросіть нове посилання в того, хто надіслав вам анкету."];
       return <div className="survey c12"><section className="card rise" style={{ padding: 32, textAlign: "center" }}><div className="done-ic" style={{ background: "var(--soft)", color: "var(--muted)" }}><Ic n="lock" /></div><h2 style={{ margin: "18px 0 6px", fontSize: 22, fontWeight: 600 }}>{t}</h2><p className="lbl" style={{ maxWidth: 480, margin: "0 auto" }}>{d}</p></section></div>;
     }
@@ -86,50 +88,87 @@ function ApiMe() {
 /* --- Керування циклом (уповноважений) --- */
 const CST = { draft: ["Чернетка", "p-mute"], open: ["Триває", "p-good"], closed: ["Завершено", "p-info"] };
 function ApiManage() {
-  const [ask, setAsk] = useState(null), [tq, setTq] = useState(null), [tu, setTu] = useState(null), [tn, setTn] = useState(10);
+  const [ask, setAsk] = useState(null), [tq, setTq] = useState(null), [tu, setTu] = useState(null), [tn, setTn] = useState(30), [show, setShow] = useState(null);
+  useEffect(() => { const t = setInterval(apiQrTick, 4000); return () => clearInterval(t); }, []);
+  const hideQr = useCallback(() => setShow(null), []);
   if (!apiEnsure("adm", () => apiLoadAdm())) return <Loading t="Керування циклом" />;
   const A = API.adm; if (A.error) return <Failed e={A.error} />;
   const c = A.campaigns.find(x => x.id === A.sel);
   const surveys = c ? A.qs.filter(q => c.questionnaire_ids.includes(q.id) && q.kind !== "checklist") : [];
   const q = surveys.find(x => x.id === tq) || surveys[0], unit = tu || (c && c.unit_id);
-  const issue = () => apiIssueTokens(c.id, q && q.id, q && q.target_category === "expert" ? null : (A.units.find(u => u.id === unit) || A.units.find(u => !u.parent_id) || A.units[0] || {}).id, +tn);
+  const createQr = async () => {
+    try { const l = await apiQrCreate(c.id, q && q.id, q && q.target_category === "expert" ? null : (A.units.find(u => u.id === unit) || A.units.find(u => !u.parent_id) || A.units[0] || {}).id, +tn); setShow(l.id); }
+    catch (e) { apiFail(e); }
+  };
+  const qrs = c ? A.qr || [] : [], shown = qrs.find(l => l.id === show);
   return <>
     <section className="card c8 rise">
       {c ? <>
         <div className="card-h"><h2>{dn(c.title)}</h2><Pill cls={CST[c.status][1]}>{CST[c.status][0]}</Pill><div className="sp" /><span className="lbl">{c.opened_on ? ua(c.opened_on) : "ще не відкрито"} – {c.closed_on ? ua(c.closed_on) : "триває"}</span></div>
         <div className="rows">{(A.progress ? A.progress.items : []).length ? A.progress.items.map((i, k) => { const n = i.too_few_people ? 30 : Math.max(1, Math.min(30, i.eligible || 30)), on = i.too_few_people || !i.eligible ? 0 : Math.round((i.submitted || 0) / i.eligible * n); return <div key={k} className="row prog-row"><div className="grow"><div className="prog-h"><span className="t">{i.questionnaire_title}</span>{i.too_few_people && <span className="prog-lock" data-tip={`Менше ${c.min_group_size} осіб: кількості приховано`}><Ic n="lock" /></span>}<b className="tnum prog-n">{i.too_few_people ? "приховано" : `${i.submitted} з ${i.eligible}`}</b></div>
-          <div className="ticks" style={{ height: 14, marginTop: 8 }}>{Array.from({ length: n }, (_, j) => <span key={j} style={j < on ? { background: "var(--teal)" } : undefined} />)}</div></div></div>; }) : <div className="lbl">Анкет у хвилі немає.</div>}</div>
+          <div className="ticks" style={{ height: 14, marginTop: 8 }}>{Array.from({ length: n }, (_, j) => <span key={j} style={j < on ? { background: "var(--teal)" } : undefined} />)}</div>
+          {i.over_expected && <QrOver />}</div></div>; }) : <div className="lbl">Анкет у хвилі немає.</div>}</div>
         <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }} id="cActs">
-          {ask === c.id ? <><div className="lbl" style={{ width: "100%" }}>Прийом відповідей зупиниться, система порахує індекс і збереже незмінний знімок. Невикористані посилання стануть недійсними. Скасувати не можна.</div><button className="btn btn-ghost" onClick={() => setAsk(null)}>Скасувати</button><button className="btn btn-danger" onClick={() => { setAsk(null); apiCampaignAct(c.id, "close"); }}>Завершити</button></> : <>
+          {ask === c.id ? <><div className="lbl" style={{ width: "100%" }}>Прийом відповідей зупиниться, система порахує індекс і збереже незмінний знімок. Відкриті, але не подані форми стануть недійсними. Скасувати не можна.</div><button className="btn btn-ghost" onClick={() => setAsk(null)}>Скасувати</button><button className="btn btn-danger" onClick={() => { setAsk(null); apiCampaignAct(c.id, "close"); }}>Завершити</button></> : <>
             {c.status === "draft" && <button className="btn btn-primary" onClick={() => apiCampaignAct(c.id, "open")}><Ic n="ok" />Відкрити хвилю</button>}
             {c.status === "open" && <button className="btn btn-soft" onClick={() => setAsk(c.id)}><Ic n="lock" />Завершити й порахувати індекс</button>}</>}
         </div></> : <div className="empty"><b>Хвиль ще немає</b><br />Створіть першу хвилю оцінювання.</div>}
     </section>
     <section className="card c4 rise waves-card">
       <div className="card-h"><h2>Хвилі</h2><div className="sp" /><button className="btn btn-soft" style={{ padding: "6px 12px" }} onClick={apiNewCampaign}><Ic n="plus" />Нова</button></div>
-      <div className="rows">{A.campaigns.map(x => <a key={x.id} className="row click" href="#manage" onClick={e => { e.preventDefault(); setAsk(null); setTq(null); setTu(null); apiAdmReload(x.id); }} style={x.id === A.sel ? { background: "var(--soft)" } : undefined}><div className="grow"><div className="t">{dn(x.title)}</div><div className="s">{x.access_mode === "token" ? "анонімно за посиланнями" : "за обліковими записами"}</div></div><Pill cls={CST[x.status][1]}>{CST[x.status][0]}</Pill></a>)}</div>
+      <div className="rows">{A.campaigns.map(x => <a key={x.id} className="row click" href="#manage" onClick={e => { e.preventDefault(); setAsk(null); setTq(null); setTu(null); apiAdmReload(x.id); }} style={x.id === A.sel ? { background: "var(--soft)" } : undefined}><div className="grow"><div className="t">{dn(x.title)}</div><div className="s">{x.access_mode === "token" ? "анонімно за QR" : "за обліковими записами"}</div></div><Pill cls={CST[x.status][1]}>{CST[x.status][0]}</Pill></a>)}</div>
     </section>
-    {c && c.access_mode === "token" && c.status !== "closed" && <section className="card c12 rise">
-      <div className="card-h"><h2>Одноразові посилання</h2></div>
-      <div className="lbl" style={{ marginBottom: 12 }}>Кожне посилання відкриває анкету один раз і без входу. Система зберігає лише хеш і не знає, кому ви його дали. Посилання показуються тільки зараз: збережіть їх.</div>
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
-        <div className="field" style={{ flex: 2, minWidth: 220 }}><label htmlFor="t-q">Анкета</label><select className="inp" id="t-q" value={q ? q.id : ""} onChange={e => setTq(e.target.value)}>{surveys.map(x => <option key={x.id} value={x.id}>{x.title}</option>)}</select></div>
-        <div className="field" style={{ flex: 1, minWidth: 180 }}><label htmlFor="t-u">Підрозділ</label><UnitCombo id="t-u" units={A.units} value={unit} onChange={setTu} canCreate={false} /></div>
-        <div className="field" style={{ width: 110 }}><label htmlFor="t-n">Кількість</label><input className="inp tnum" id="t-n" type="number" min="1" max="1000" value={tn} onChange={e => setTn(e.target.value)} /></div>
-        <button className="btn btn-primary" onClick={issue}>Видати</button>
-      </div>
-      {A.links && <div className="note-box" style={{ marginTop: 14 }}>{A.links.warning ? <b style={{ color: "var(--amber)" }}>{A.links.warning}</b> : <b>Видано посилань: {A.links.urls.length}</b>}
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "6px 0" }}><button className="btn btn-soft" onClick={apiCopyLinks}><Ic n="copy" />Копіювати всі</button><button className="btn btn-soft" onClick={() => download("links.csv", "﻿link\n" + API.adm.links.urls.join("\n"), "text/csv")}><Ic n="file" />CSV</button></div>
-        <div className="link-list tnum">{A.links.urls.map((u, i) => <div key={u} className="link-row"><span className="link-n">{i + 1}</span><a className="link" href={u} target="_blank" rel="noreferrer">{u}</a><button type="button" className="icon-btn sm" aria-label={`Копіювати посилання ${i + 1}`} data-tip="Копіювати це посилання" onClick={() => apiCopyOne(i)}><Ic n="copy" /></button></div>)}</div></div>}
-      <div style={{ marginTop: 12 }}><button className="btn btn-ghost" onClick={() => apiRevoke(c.id)}>Відкликати всі невикористані</button></div>
+    {c && c.access_mode === "token" && (c.status !== "closed" || qrs.length > 0) && <section className="card c12 rise">
+      <div className="card-h"><h2>QR для зали</h2></div>
+      <div className="lbl" style={{ marginBottom: 12 }}>Одне посилання на групу. Кожен скан відкриває нову одноразову форму, завершена форма це одна відповідь. Закрили форму без подання й відсканували знову: нова форма, попередня нічого не рахує. Вкажіть, скільки людей у групі: від цього рахується участь, а відповіді понад це число позначаються як можлива накрутка.</div>
+      {c.status !== "closed" && <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+        <div className="field" style={{ flex: 2, minWidth: 220 }}><label htmlFor="qr-q">Анкета</label><select className="inp" id="qr-q" value={q ? q.id : ""} onChange={e => setTq(e.target.value)}>{surveys.map(x => <option key={x.id} value={x.id}>{x.title}</option>)}</select></div>
+        <div className="field" style={{ flex: 1, minWidth: 180 }}><label htmlFor="qr-u">Підрозділ</label><UnitCombo id="qr-u" units={A.units} value={unit} onChange={setTu} canCreate={false} /></div>
+        <div className="field" style={{ width: 130 }}><label htmlFor="qr-n">Людей у групі</label><input className="inp tnum" id="qr-n" type="number" min="1" max="100000" value={tn} onChange={e => setTn(e.target.value)} /></div>
+        <button className="btn btn-primary" onClick={createQr}><Ic n="qr" />Створити QR</button>
+      </div>}
+      {qrs.length > 0 && <div className="rows" style={{ marginTop: 14 }}>{qrs.map(l => <div key={l.id} className="row qr-row">
+        <QrCode className="qr-mini" text={qrAbs(l.link)} />
+        <div className="grow"><div className="t">{l.questionnaire_title}{l.revoked && <span className="lbl"> (скани зупинено)</span>}</div>
+          <div className="s">{dn((A.units.find(u => u.id === l.unit_id) || {}).name || "усі підрозділи")}</div>
+          <QrCounters l={l} /></div>
+        <div className="qr-acts"><button className="btn btn-soft" onClick={() => setShow(l.id)}><Ic n="qr" />Показати QR</button>
+          {!l.revoked && c.status !== "closed" && <button className="btn btn-ghost" onClick={() => apiQrRevoke(c.id, l.id)}>Зупинити скани</button>}</div>
+      </div>)}</div>}
     </section>}
+    {shown && <QrScreen l={shown} onClose={hideQr} />}
   </>;
 }
-const MODE_HINT = { login: "Люди входять у систему під своїм логіном. Система знає, хто вже пройшов (щоб не пустити вдруге), але не показує нікому, що саме він відповів.", token: "Кожному видається одноразове посилання без входу в систему. Система не знає навіть, хто пройшов: лише скільки посилань використано." };
+const MODE_HINT = { login: "Люди входять у систему під своїм логіном. Система знає, хто вже пройшов (щоб не пустити вдруге), але не показує нікому, що саме він відповів.", token: "Ви показуєте QR групі, кожен скан відкриває нову одноразову форму без входу. Система не знає навіть, хто пройшов: лише скільки форм завершено." };
+
+/* --- QR для зали: лише кількості, хто відкрив форму, система не зберігає --- */
+const QrOver = () => <span className="qr-over" role="alert"><Ic n="lock" />Відповідей більше, ніж людей у групі: можлива накрутка</span>;
+function QrCounters({ l }) {
+  return <div className="qr-cnt"><span>Завершено: <b className="tnum">{l.completed}</b> з <span className="tnum">{l.expected}</span></span>
+    <span className="lbl">Відкрито форм: <span className="tnum">{l.opened}</span>, не завершено: <span className="tnum">{l.opened - l.completed}</span></span>
+    {l.completed > l.expected && <QrOver />}</div>;
+}
+// Повноекранний QR для проєктора; лічильники під ним оновлюються разом з екраном
+function QrScreen({ l, onClose }) {
+  useEffect(() => {
+    const f = e => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", f); document.querySelector(".qr-x").focus();
+    return () => document.removeEventListener("keydown", f);
+  }, [onClose]);
+  const url = qrAbs(l.link);
+  return <div className="qr-screen" role="dialog" aria-modal="true" aria-label="QR для проходження опитування">
+    <button type="button" className="icon-btn qr-x" aria-label="Закрити" onClick={onClose}><Ic n="x" /></button>
+    <h2>Скануйте, щоб пройти опитування</h2><div className="lbl">{l.questionnaire_title}</div>
+    <QrCode className="qr-big" text={url} label="QR-код" />
+    <div className="qr-url tnum">{url}</div>
+    <QrCounters l={l} />
+    <div className="lbl" style={{ maxWidth: 520, textAlign: "center" }}>Анонімно: система не знає, хто відсканував. Форму, закриту без подання, не враховано.</div>
+  </div>;
+}
 function apiNewCampaign() {
   const A = API.adm;
   openDrawer("Нова хвиля оцінювання", () => {
-    const [title, setTitle] = useState(""), [unit, setUnit] = useState(null), [ids, setIds] = useState(A.qs.map(q => q.id)), [mode, setMode] = useState("login"), [k, setK] = useState(S.k), [err, setErr] = useState("");
+    const [title, setTitle] = useState(""), [unit, setUnit] = useState(null), [ids, setIds] = useState(A.qs.map(q => q.id)), [mode, setMode] = useState("token"), [k, setK] = useState(S.k), [err, setErr] = useState("");
     const ok = async () => {
       if (!title.trim()) return setErr("Вкажіть назву.");
       if (!ids.length) return setErr("Оберіть хоча б одну анкету.");
@@ -142,7 +181,7 @@ function apiNewCampaign() {
       <div className="field"><label htmlFor="n-t">Назва</label><input className="inp" id="n-t" placeholder="Хвиля 3 (весна)" value={title} onChange={e => setTitle(e.target.value)} /></div>
       <div className="field"><label htmlFor="n-u">Підрозділ</label><UnitCombo id="n-u" units={A.units} value={unit} onChange={setUnit} canCreate /><span className="lbl">Оцінювання охопить цей підрозділ і всі його дочірні. Немає потрібного? Введіть назву й оберіть «Створити».</span></div>
       <div className="field"><label>Анкети</label>{A.qs.map(q => <label key={q.id} className="chk-row"><input type="checkbox" className="n-q" value={q.id} checked={ids.includes(q.id)} onChange={e => setIds(v => e.target.checked ? [...v, q.id] : v.filter(x => x !== q.id))} /><span>{q.title} <span className="lbl">v{q.version}</span></span></label>)}</div>
-      <div className="field"><label>Як проходять</label><div className="seg" id="n-m">{[["login", "За обліковими записами"], ["token", "Анонімно за посиланнями"]].map(([m, n]) => <button key={m} type="button" className={mode === m ? "on" : ""} onClick={() => setMode(m)}>{n}</button>)}</div><span className="lbl" id="n-mh">{MODE_HINT[mode]}</span></div>
+      <div className="field"><label>Як проходять</label><div className="seg" id="n-m">{[["token", "Анонімно за QR"], ["login", "За обліковими записами"]].map(([m, n]) => <button key={m} type="button" className={mode === m ? "on" : ""} onClick={() => setMode(m)}>{n}</button>)}</div><span className="lbl" id="n-mh">{MODE_HINT[mode]}</span></div>
       <div className="field"><label htmlFor="n-k">Мінімальна група k</label><input className="inp tnum" id="n-k" type="number" min="5" value={k} onChange={e => setK(e.target.value)} /><span className="lbl">Якщо відповіли менше цієї кількості людей, результати групи не показуються, щоб нікого не можна було впізнати. Не менше 5.</span></div>
       <span className="lbl" id="n-err" style={{ color: "var(--red)" }}>{err}</span>
       <button className="btn btn-primary" id="n-ok" style={{ justifyContent: "center" }} onClick={ok}><Ic n="plus" />Створити чернетку</button>

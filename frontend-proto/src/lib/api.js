@@ -1,6 +1,6 @@
 /* ---------- Підключення до бекенду ----------
  * Якщо поруч є API (GET /api/v1/config відповідає), сторінка працює з даними сервера: вхід, результати,
- * рекомендації й рішення, заходи, анкети (за обліковим записом і анонімно за посиланням /s/<токен>),
+ * рекомендації й рішення, заходи, анкети (за обліковим записом і анонімно: QR /q/<код> → посилання /s/<токен>),
  * чек-лист із файлами-доказами, хвилі й посилання, журнал. Без API (відкрито з файлу, Vercel) — демо-дані
  * в браузері. Решта коду бере дані через гачки: inst(), buildRecs(), measures(), SV()/SQ() і екрани в views/Api*.
  */
@@ -8,7 +8,6 @@ import { S, NAV, HOME, freshSurvey } from "./state.js";
 import { COMPS, COMP, ALPHA, r1, finish, setClock } from "./model.js";
 import { fb } from "./format.js";
 import { render, toast, closeDrawer, ui } from "./store.js";
-import { copyText } from "./util.js";
 
 export const API = {
   on: false, booting: true, base: "/api/v1", cfg: null, user: null, anon: false, token: null, loginMsg: null,
@@ -69,6 +68,8 @@ export async function boot() {
   NAV.find(n => n[0] === "survey")[1] = "Пройти анкету";
   const tm = location.pathname.match(/^\/s\/([^/?#]+)/);
   if (tm) return bootToken(decodeURIComponent(tm[1]));
+  const qm = location.pathname.match(/^\/q\/([^/?#]+)/);
+  if (qm) return bootQr(decodeURIComponent(qm[1]));
   if (apiToken()) {
     try { const me = await api("/auth/session"); return afterLogin(me); } catch (e) { apiSetToken(null); }
   }
@@ -109,6 +110,20 @@ async function bootToken(token) {
   try { API.survey = apiSurveyModel(await api("/respond/form", { auth: false, headers: { "X-Response-Token": token } }), "token"); }
   catch (e) { API.survey = null; API.surveyMsg = e.code === "token_used" ? "used" : e.code === "campaign_not_open" ? "closed" : "invalid"; }
   render();
+}
+
+/* --- Скан QR /q/<код>: свіжий одноразовий токен → /s/<токен>. Лише POST, щоб превʼю месенджера не витрачали форми. --- */
+async function bootQr(code) {
+  API.anon = true; S.role = "respondent";
+  try {
+    const r = await api(`/respond/qr/${encodeURIComponent(code)}`, { method: "POST", auth: false });
+    history.replaceState(null, "", "/s/" + encodeURIComponent(r.token));
+    return bootToken(r.token);
+  } catch (e) {
+    API.survey = null; location.hash = "survey";
+    API.surveyMsg = e.code === "qr_limit" ? "qr_limit" : e.code === "campaign_not_open" ? "closed" : "qr_invalid";
+    render();
+  }
 }
 
 /* --- Результати: остання закрита хвиля --- */
@@ -279,8 +294,12 @@ export const dn = t => String(t || "").replace(/\s*\(демо\)/gi, "");
 export async function apiLoadAdm(sel) {
   const [campaigns, units, qs] = await Promise.all([api("/campaigns"), api("/admin/units"), api("/questionnaires?status=published")]);
   const cur = sel || (API.adm && API.adm.sel) || (campaigns.find(c => c.status !== "closed") || campaigns[0] || {}).id;
-  const progress = cur ? await api(`/campaigns/${cur}/progress`).catch(() => null) : null;
-  return { campaigns, units, qs, sel: cur, progress, links: API.adm && API.adm.sel === cur ? API.adm.links : null };
+  const c = campaigns.find(x => x.id === cur);
+  const [progress, qr] = cur ? await Promise.all([
+    api(`/campaigns/${cur}/progress`).catch(() => null),
+    c.access_mode === "token" ? api(`/campaigns/${cur}/qr-links`).catch(() => []) : [],
+  ]) : [null, []];
+  return { campaigns, units, qs, sel: cur, progress, qr };
 }
 export function apiAdmReload(sel) { API.adm = null; API.loading.adm = true; render(true); apiLoadAdm(sel).then(v => { API.adm = v; }, e => { API.adm = { error: apiErrText(e) }; }).finally(() => { API.loading.adm = false; render(true); }); }
 export async function apiCreateUnit(name, parentId) {
@@ -295,16 +314,25 @@ export async function apiCampaignAct(id, act) {
   try { await api(`/campaigns/${id}/${act}`, { method: "POST" }); toast(act === "open" ? "Хвилю відкрито: респонденти бачать анкети" : "Хвилю закрито: знімок результатів збережено"); if (act === "close") API.model = null; apiAdmReload(id); }
   catch (e) { apiFail(e); }
 }
-export async function apiIssueTokens(id, questionnaireId, unitId, count) {
-  try {
-    const r = await api(`/campaigns/${id}/tokens`, { method: "POST", body: { questionnaire_id: questionnaireId, unit_id: unitId, count } });
-    API.adm.links = { urls: r.tokens.map(t => t.link.startsWith("/") ? location.origin + t.link : t.link), warning: r.warning };
-    toast(`Видано посилань: ${r.tokens.length}`); render(true);
-  } catch (e) { apiFail(e); }
+// QR для зали: одне посилання на групу (анкета + підрозділ), expected — скільки людей у групі
+export async function apiQrCreate(id, questionnaireId, unitId, expected) {
+  const l = await api(`/campaigns/${id}/qr-links`, { method: "POST", body: { questionnaire_id: questionnaireId, unit_id: unitId, expected } });
+  API.adm.qr = [...(API.adm.qr || []), l]; render(true); return l;
 }
-export function apiCopyOne(i) { const t = API.adm.links.urls[i]; copyText(t, () => toast(`Посилання ${i + 1} скопійовано`)); }
-export function apiCopyLinks() { copyText(API.adm.links.urls.join("\n"), () => toast("Посилання скопійовано")); }
-export async function apiRevoke(id) { try { const r = await api(`/campaigns/${id}/tokens/revoke`, { method: "POST", body: {} }); toast(`Відкликано невикористаних посилань: ${r.revoked}`); } catch (e) { apiFail(e); } }
+export async function apiQrRevoke(cid, id) {
+  try { const l = await api(`/campaigns/${cid}/qr-links/${id}/revoke`, { method: "POST" }); API.adm.qr = API.adm.qr.map(x => x.id === id ? l : x); toast("Нові скани зупинено"); render(true); }
+  catch (e) { apiFail(e); }
+}
+// Живі лічильники відкритої анонімної хвилі: лише кількості, без перемонтування екрана
+export async function apiQrTick() {
+  const A = API.adm, c = A && A.campaigns && A.campaigns.find(x => x.id === A.sel);
+  if (!c || c.status !== "open" || c.access_mode !== "token" || document.hidden) return;
+  try {
+    const [qr, progress] = await Promise.all([api(`/campaigns/${c.id}/qr-links`), api(`/campaigns/${c.id}/progress`)]);
+    if (API.adm !== A || A.sel !== c.id) return;
+    A.qr = qr; A.progress = progress; render(true);
+  } catch (e) { /* наступна спроба за кілька секунд */ }
+}
 
 /* --- Анкети (укладач) --- */
 export const QST = { draft: ["Чернетка", "p-warn"], published: ["Опубліковано", "p-good"], archived: ["В архіві", "p-mute"] };
@@ -360,6 +388,7 @@ export const AUDIT_ACT = {
   "campaign:create": "Створено хвилю", "campaign:update": "Змінено хвилю", "campaign:open": "Відкрито хвилю", "campaign:close": "Закрито хвилю, збережено знімок результатів",
   "campaign:set_participants": "Змінено учасників хвилі", "campaign:clear_participants": "Очищено учасників хвилі", "campaign:import_participants": "Імпортовано учасників",
   "campaign:issue_tokens": "Видано одноразові посилання", "campaign:import_tokens": "Імпортовано посилання", "campaign:revoke_tokens": "Відкликано посилання",
+  "campaign:create_qr_link": "Створено QR для зали", "campaign:revoke_qr_link": "Зупинено скани QR",
   "campaign:export_report": "Експортовано звіт", "campaign:view_dashboard": "Переглянуто огляд закладу", "campaign:view_recommendations": "Переглянуто рекомендації", "campaign:view_results": "Переглянуто результати", "campaign:recalculate_results": "Перераховано результати за поточною методикою",
   "checklist_entry:set": "Внесено пункт чек-листа", "checklist_entry:confirm": "Підтверджено пункт чек-листа", "checklist_entry:revoke_confirm": "Відкликано підтвердження пункту чек-листа",
   "evidence_file:upload": "Додано файл-доказ", "evidence_file:download": "Завантажено файл-доказ", "evidence_file:delete": "Видалено файл-доказ", "evidence_file:integrity_fail": "Файл-доказ не пройшов перевірку цілісності",
@@ -385,7 +414,8 @@ export function auditDetails(x, units) {
   if (d.unit_name) out.push(dn(d.unit_name));
   if (d.title) out.push(`«${dn(d.title)}»`);
   if (d.recalculate === true) out.push("з перерахунком");
-  if (d.access_mode) out.push(d.access_mode === "token" ? "анонімно за посиланнями" : "за обліковими записами");
+  if (d.access_mode) out.push(d.access_mode === "token" ? "анонімно за QR" : "за обліковими записами");
+  if (d.expected != null) out.push(`людей у групі: ${d.expected}`);
   if (d.count != null) out.push(`кількість: ${d.count}`);
   if (d.ok != null) out.push(d.ok ? "ланцюг цілий" : "ланцюг порушено");
   if (d.checked != null) out.push(`перевірено записів: ${d.checked}`);
