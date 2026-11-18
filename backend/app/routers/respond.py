@@ -183,13 +183,14 @@ def qr_open(code: str, request: Request, db: Session = Depends(get_db)):
     Хто відкрив форму, не зберігається: у БД лише sha256 токена без часу й IP. Закрив форму
     без подання — токен просто лишається невикористаним, наступний скан дає нову форму.
     """
-    key = ("token", client_ip(request))
-    retry_after = token_throttle.blocked_for(key)
-    if retry_after:
-        raise ApiError(429, "Забагато спроб з невірним посиланням", hint=f"Спробуйте через {retry_after} с.",
-                       headers={"Retry-After": str(retry_after)})
+    # Як і для посилань: дійсний QR не впирається в ліміт невдалих спроб (уся зала за одним NAT).
     link = tokens.find_qr(db, code)
     if link is None or link.revoked:
+        key = ("token", client_ip(request))
+        retry_after = token_throttle.blocked_for(key)
+        if retry_after:
+            raise ApiError(429, "Забагато спроб з невірним посиланням", hint=f"Спробуйте через {retry_after} с.",
+                           headers={"Retry-After": str(retry_after)})
         token_throttle.fail(key)
         raise ApiError(404, "Посилання недійсне", code="qr_invalid",
                        hint="Відскануйте QR ще раз або попросіть організатора показати актуальний.")
@@ -200,7 +201,7 @@ def qr_open(code: str, request: Request, db: Session = Depends(get_db)):
     token = tokens.open_by_scan(db, link)
     if token is None:
         raise ApiError(429, "Для цього QR відкрито забагато форм", code="qr_limit",
-                       hint="Звернися до організатора: лімітом є 3 × очікувана кількість учасників.")
+                       hint="Зверніться до організатора: лімітом є 3 × очікувана кількість учасників.")
     db.commit()
     return QrOpenOut(token=token)
 

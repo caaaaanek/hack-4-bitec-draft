@@ -3,8 +3,8 @@
 - qr_links: код, очікувана кількість учасників, анкета й підрозділ;
 - access_tokens.qr_link_id: токен, виданий скануванням (у знаменник участі не входить).
 
-Revision ID: 0005
-Revises: 0004
+Revision ID: 0007
+Revises: 0006
 Create Date: 2026-11-18 12:00:00
 """
 from typing import Sequence, Union
@@ -12,8 +12,8 @@ from typing import Sequence, Union
 import sqlalchemy as sa
 from alembic import op
 
-revision: str = "0005"
-down_revision: Union[str, None] = "0004"
+revision: str = "0007"
+down_revision: Union[str, None] = "0006"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
