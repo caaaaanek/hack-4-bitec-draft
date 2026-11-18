@@ -14,6 +14,7 @@ from app.clock import today
 from app.config import get_settings
 from app.db import get_db
 from app.models import Measure, MeasureStatus, Role, User
+from app.routers.measures import check_transition
 from app.security import require_roles
 from app.services import measures as service
 
@@ -89,12 +90,15 @@ def theme2_status_webhook(
     measure = db.scalar(select(Measure).where(or_(*conditions)))
     if measure is None:
         raise HTTPException(status_code=404, detail="Захід не знайдено")
-    if data.status == MeasureStatus.DONE and not (data.evidence or measure.evidence):
+    if data.status == MeasureStatus.DONE and not ((data.evidence or "").strip() or (measure.evidence or "").strip()):
         raise HTTPException(status_code=422, detail="Виконання підтверджується доказом (evidence)")
+    check_transition(measure.status, data.status)  # ті самі переходи, що й у трекері
+    old_status = measure.status
     measure.status = data.status
     if data.evidence:
         measure.evidence = data.evidence
     measure.done_on = (data.done_on or today()) if data.status == MeasureStatus.DONE else None
-    log_action(db, None, "external_status", "measure", measure.id, {"source": "theme2", "status": data.status.value})
+    log_action(db, None, "external_status", "measure", measure.id,
+               {"source": "theme2", "status": data.status.value, "from_status": old_status.value})
     db.commit()
     return {"id": str(measure.id), "status": measure.status.value}

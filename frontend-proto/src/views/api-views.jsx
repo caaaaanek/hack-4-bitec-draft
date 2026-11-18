@@ -31,6 +31,16 @@ export function apiView(r) {
 
 function apiSurveyView() {
   if (API.anon) {
+    if (API.surveyMsg && !API.survey && API.tokenResults) {
+      const r = API.tokenResults;
+      return <>
+        <section className="c12 rise toolbar"><span className="lbl">{r.campaign_title}{r.closed_on ? `, закрито ${ua(r.closed_on)}` : ""}. Відповіді анонімні: посилання не повʼязане з вашою відповіддю.</span></section>
+        {r.my_unit && <ApiScope sc={r.my_unit} title={"Ваша група: " + r.my_unit.unit_name} />}
+        <ApiScope sc={r.institution} title={"Заклад: " + r.institution.unit_name} />
+        {r.summary && r.summary.length > 0 && <section className="card c12 rise"><div className="card-h"><h2>Коротко</h2></div><div className="rows">{r.summary.map(t => <div key={t} className="row"><span className="dot" style={{ background: "var(--teal)" }} /><div className="grow">{t}</div></div>)}</div></section>}
+        <section className="c12 rise"><div className="lbl" style={{ textAlign: "center" }}>Тут лише узагальнені дані груп не менше k осіб. Окремих відповідей, імен і порівнянь підрозділів немає.</div></section>
+      </>;
+    }
     if (API.surveyMsg && !API.survey) {
       const [t, d] = API.surveyMsg === "used" ? ["Цю анкету вже заповнено", "Повторно відповісти за цим посиланням не можна: так ми захищаємо анонімність і не допускаємо подвоєних відповідей. Дякуємо за участь."]
         : API.surveyMsg === "closed" ? ["Опитування зараз не приймає відповіді", "Хвилю оцінювання ще не відкрито або вже закрито. Перевірте строки в того, хто надіслав вам посилання."]

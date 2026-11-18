@@ -10,10 +10,9 @@ from sqlalchemy.orm import Session
 
 from app.audit import log_action
 from app.clock import today, utcnow
-from app.config import get_settings
 from app.db import get_db
 from app.models import Campaign, CampaignStatus, Measure, RecommendationDecision, RecommendationDecisionType, Role, User
-from app.routers.measures import MeasureIn, MeasureOut, create_measure
+from app.routers.measures import MeasureIn, MeasureOut, check_owner, create_measure
 from app.security import RESULT_READERS, ensure_unit_access, require_roles
 from app.services import facts, results
 from app.services import measures as measures_service
@@ -68,6 +67,11 @@ class MeasureDraft(BaseModel):
     catalog_number: str | None = None
     description: str = ""
 
+    @model_validator(mode="after")
+    def owner_is_position(self):
+        check_owner(self.owner)
+        return self
+
 
 class DecisionIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
@@ -102,7 +106,7 @@ def build(db: Session, campaign: Campaign, unit_id: uuid.UUID | None) -> tuple[d
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     scope = uuid.UUID(data["unit_id"])
-    signals = facts.risk_signals(db, scope, 3, campaign.closed_on or today(), get_settings().min_group_size)
+    signals = facts.risk_signals(db, scope, 3, campaign.closed_on or today(), campaign.min_group_size)
     return data, recommend(data, signals)
 
 

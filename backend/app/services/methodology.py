@@ -10,7 +10,7 @@
 
 import re
 
-METHODOLOGY_VERSION = "2.0"
+METHODOLOGY_VERSION = "2.1"
 
 # 1 рівень зрілості = 25 балів шкали 0-100.
 POINTS_PER_LEVEL = 25.0
@@ -117,7 +117,8 @@ FACTS: dict[str, dict] = {
     },
 }
 
-# Для індексу хвилі беруться факти за стільки місяців до закриття хвилі (включно).
+# Для індексу хвилі беруться факти за стільки місяців: цілі квартали, що закінчуються останнім
+# завершеним кварталом перед закриттям хвилі (v2.1; у v2.0 — 12 місяців до місяця закриття включно).
 FACTS_WINDOW_MONTHS = 12
 
 # ---------- Крок 3. Правило реальності ----------
@@ -188,6 +189,16 @@ def checklist_component(item_number: str) -> str | None:
 def checklist_item_number(question_code: str) -> str | None:
     match = re.fullmatch(r"checklist\.([\d.]+)", question_code)
     return match.group(1) if match else None
+
+
+def item_component(question_code: str, section_component: str | None) -> str | None:
+    """Компонент пункту чек-листа: для пунктів додатка Б (код checklist.N.N) — за таблицею
+    CHECKLIST_COMPONENTS, для інших чек-листів (конструктор, інший орган) — компонент розділу."""
+    number = checklist_item_number(question_code)
+    component = checklist_component(number) if number else None
+    if component is None and section_component in COMPONENTS:
+        component = section_component
+    return component
 
 
 def survey_component(section_component: str) -> str | None:
@@ -291,6 +302,6 @@ def as_dict() -> dict:
             "7. Integrity Index = середнє трьох компонентів. Загальний рівень не вищий за рівень найслабшого компонента + 1.",
             "8. Достовірність: A без прапорців, B з 1-2 незначними, C з серйозним або 3+ незначними. Достовірність індексу: найгірша серед компонентів.",
             "9. Зміна між хвилями менша за 5 балів: 'в межах похибки'. Якщо одна з хвиль має достовірність C: 'перевірити дані'.",
-            "10. Кількості фактів показуються й враховуються лише тоді, коли знаменник не менший за k.",
+            "10. Факти беруться за 4 останні завершені квартали до закриття хвилі. Кількості показуються й враховуються, лише коли знаменник не менший за k і в періоді, і в кожному кварталі окремо.",
         ],
     }

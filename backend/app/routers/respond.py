@@ -28,8 +28,7 @@ from app.models import (
 from app.schemas import AssignmentOut, FormOut, SubmissionIn, SubmissionOut, TokenFormOut
 from app.security import LoginThrottle, client_ip, require_roles
 from app.services import tokens
-from app.services.anonymity import flush_pool
-from app.services.eligibility import is_eligible, participants_of
+from app.services.eligibility import can_answer, frozen_of, participants_of
 from app.services.responses import pool_answers, save_submission, validate_submission
 from app.services.units import subtree_ids
 
@@ -68,7 +67,8 @@ def load_assignment(db: Session, user: User, campaign_id: uuid.UUID, questionnai
     if campaign.access_mode == AccessMode.TOKEN:
         raise ApiError(409, "Ця хвиля проходиться за одноразовими посиланнями", code="token_only",
                        hint="Скористайтеся посиланням, яке ви отримали.")
-    if not is_eligible(user, questionnaire, subtree_ids(db, campaign.unit_id), participants_of(db, campaign)):
+    if not can_answer(user, questionnaire, subtree_ids(db, campaign.unit_id), participants_of(db, campaign),
+                      frozen_of(db, campaign)):
         raise HTTPException(status_code=403, detail="Ця анкета призначена іншій категорії або підрозділу")
     return campaign, questionnaire
 
@@ -80,9 +80,12 @@ def my_assignments(db: Session = Depends(get_db), user: User = Depends(responden
                                                       Campaign.access_mode == AccessMode.LOGIN)):
         units = subtree_ids(db, campaign.unit_id)
         participants = participants_of(db, campaign)
+        frozen = frozen_of(db, campaign)
         for link in campaign.questionnaire_links:
             questionnaire: Questionnaire = link.questionnaire
-            if is_eligible(user, questionnaire, units, participants):
+            # Чек-лист не має складу учасників (вносить робоча група): за правилом.
+            fixed = None if questionnaire.kind == QuestionnaireKind.CHECKLIST else frozen
+            if can_answer(user, questionnaire, units, participants, fixed):
                 result.append(
                     AssignmentOut(
                         campaign_id=campaign.id,
@@ -135,10 +138,8 @@ def submit(
     # Подання респондента навмисно не пишемо в журнал дій: запис із часом і
     # користувачем дозволив би зіставити його з відповіддю.
     submitted_on = save_submission(db, campaign, questionnaire, user, data.answers)
+    # Відповідь лишається в зашифрованому буфері до закриття хвилі (services/anonymity.py).
     db.commit()
-    # Окрема транзакція: відповіді переносяться з буфера пачкою щонайменше з k анкет.
-    if flush_pool(db, campaign, questionnaire.id):
-        db.commit()
     return SubmissionOut(submitted_on=submitted_on)
 
 
@@ -207,6 +208,4 @@ def token_submit(data: SubmissionIn, request: Request, db: Session = Depends(get
                        hint="Кожне посилання діє один раз.")
     pool_answers(db, campaign, questionnaire, row.unit_id, data.answers)
     db.commit()
-    if flush_pool(db, campaign, questionnaire.id):
-        db.commit()
     return SubmissionOut(submitted_on=None)

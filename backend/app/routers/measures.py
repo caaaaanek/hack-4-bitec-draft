@@ -1,5 +1,6 @@
 """Recommendations Tracker: заходи з відповідальним (посада), строком, статусом і доказом виконання."""
 
+import re
 import uuid
 from datetime import date, datetime
 
@@ -11,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.audit import log_action
 from app.clock import today
 from app.db import get_db
+from app.errors import ApiError
 from app.models import Campaign, Measure, MeasureStatus, Role, Unit, User
 from app.security import RESULT_READERS, ensure_unit_access, require_roles
 from app.services import measures as service
@@ -20,6 +22,38 @@ from app.services.units import subtree_ids
 router = APIRouter(prefix="/measures", tags=["measures"])
 readers = require_roles(*RESULT_READERS)
 leader_only = require_roles(Role.LEADER)
+
+
+# Відповідальний — посада чи підрозділ, а не людина: «Прізвище І. Б.» чи «І. Б. Прізвище» не приймаються.
+_UP, _LOW = "А-ЯІЇЄҐA-Z", "а-яіїєґa-z'’ʼ-"
+PERSON_NAME = re.compile(
+    rf"[{_UP}][{_LOW}]+\s+[{_UP}]\.\s?[{_UP}]\.|(?<![{_UP}{_LOW}])[{_UP}]\.\s?[{_UP}]\.\s?[{_UP}][{_LOW}]+")
+
+
+def check_owner(value: str | None) -> str | None:
+    if value is not None and PERSON_NAME.search(value):
+        raise ValueError("owner: вкажіть посаду чи підрозділ відповідального, без ПІБ (оцінюється система, а не люди)")
+    return value
+
+
+# Дозволені переходи статусу заходу. Повернення з «виконано» чи «скасовано» і скасування — лише з причиною (reason).
+TRANSITIONS: dict[MeasureStatus, set[MeasureStatus]] = {
+    MeasureStatus.PLANNED: {MeasureStatus.IN_PROGRESS, MeasureStatus.DONE, MeasureStatus.CANCELLED},
+    MeasureStatus.IN_PROGRESS: {MeasureStatus.PLANNED, MeasureStatus.DONE, MeasureStatus.CANCELLED},
+    MeasureStatus.DONE: {MeasureStatus.IN_PROGRESS},
+    MeasureStatus.CANCELLED: {MeasureStatus.PLANNED},
+}
+
+
+def needs_reason(old: MeasureStatus, new: MeasureStatus) -> bool:
+    return old in (MeasureStatus.DONE, MeasureStatus.CANCELLED) or new == MeasureStatus.CANCELLED
+
+
+def check_transition(old: MeasureStatus, new: MeasureStatus) -> None:
+    if new != old and new not in TRANSITIONS[old]:
+        allowed = ", ".join(sorted(x.value for x in TRANSITIONS[old])) or "—"
+        raise ApiError(409, f"Зі статусу {old.value} не можна перейти в {new.value}", code="bad_transition",
+                       hint=f"Дозволено: {allowed}.")
 
 
 class MeasureIn(BaseModel):
@@ -39,6 +73,7 @@ class MeasureIn(BaseModel):
     def known_component(self):
         if self.component is not None and self.component not in m.COMPONENTS:
             raise ValueError(f"component: одне з {', '.join(m.COMPONENTS)}")
+        check_owner(self.owner)
         return self
 
 
@@ -52,6 +87,13 @@ class MeasureUpdate(BaseModel):
     status: MeasureStatus | None = None
     done_on: date | None = None
     evidence: str | None = Field(default=None, max_length=2000)
+    reason: str | None = Field(default=None, max_length=1000,
+                               description="Причина: обов'язкова для скасування і повернення з done чи cancelled")
+
+    @model_validator(mode="after")
+    def owner_is_position(self):
+        check_owner(self.owner)
+        return self
 
 
 class MeasureVerification(BaseModel):
@@ -165,28 +207,40 @@ def post_measure(data: MeasureIn, db: Session = Depends(get_db), user: User = De
 
 @router.patch("/{measure_id}", response_model=MeasureOut)
 def patch_measure(measure_id: uuid.UUID, data: MeasureUpdate, db: Session = Depends(get_db), user: User = Depends(leader_only)):
-    """Зміна заходу. Позначити виконаним можна лише з доказом виконання."""
+    """Зміна заходу. Виконаним — лише з доказом; переходи статусів — за TRANSITIONS; скасування й повернення
+    з «виконано» чи «скасовано» — з причиною, яка йде в журнал дій."""
     measure = get_or_404(db, measure_id, user)
     changes = data.model_dump(exclude_unset=True)
+    reason = (changes.pop("reason", None) or "").strip()
+    old_status = measure.status
+    new_status = changes.get("status")
+    if new_status is not None and new_status != old_status:
+        check_transition(old_status, new_status)
+        if needs_reason(old_status, new_status) and len(reason) < 3:
+            raise ApiError(422, "Вкажіть причину зміни статусу (reason)", code="reason_required",
+                           hint="Скасування і повернення виконаного чи скасованого заходу фіксуються з причиною.")
     for field in ("title", "description", "owner", "due_date", "evidence"):
         if field in changes and changes[field] is not None:
             setattr(measure, field, changes[field].strip() if isinstance(changes[field], str) else changes[field])
 
-    new_status = changes.get("status")
-    if new_status == MeasureStatus.DONE:
-        if not measure.evidence:
-            raise HTTPException(status_code=422, detail="Щоб позначити захід виконаним, додайте доказ виконання (evidence)")
+    if (new_status or measure.status) == MeasureStatus.DONE and not (measure.evidence or "").strip():
+        raise HTTPException(status_code=422, detail="Щоб позначити захід виконаним, додайте доказ виконання (evidence)")
+    if new_status == MeasureStatus.DONE and old_status != MeasureStatus.DONE:
         done_on = changes.get("done_on") or today()
         if done_on > today():
             raise HTTPException(status_code=422, detail="Дата виконання не може бути в майбутньому")
         measure.done_on = done_on
-    elif new_status is not None:
+    elif new_status is not None and new_status != MeasureStatus.DONE:
         measure.done_on = None
     if new_status is not None:
         measure.status = new_status
 
     service.enqueue_measure(db, measure)
-    log_action(db, user, "update", "measure", measure.id,
-               {k: (v.value if hasattr(v, "value") else str(v)) for k, v in changes.items() if k != "description"})
+    logged = {k: (v.value if hasattr(v, "value") else str(v)) for k, v in changes.items() if k != "description"}
+    if new_status is not None and new_status != old_status:
+        logged["from_status"] = old_status.value
+    if reason:
+        logged["reason"] = reason
+    log_action(db, user, "update", "measure", measure.id, logged)
     db.commit()
     return service.to_dicts(db, [measure])[0]

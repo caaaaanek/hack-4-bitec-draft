@@ -54,15 +54,22 @@ class Settings(BaseSettings):
     assistant_timeout_seconds: float = 30.0
 
     # Асистент фронтенду (frontend-proto, /api/assistant): будь-який OpenAI-сумісний /chat/completions.
-    # Порожній LLM_BASE_URL і LLM_API_KEY — асистент вимкнено, фронтенд відповідає шаблонами правил.
-    # Шлюз кафедри: LLM_BASE_URL=https://api.csit-mitit.com/v1, LLM_MODEL=gemma4-26b (ключ — LLM_API_KEY).
+    # Порожній LLM_BASE_URL — асистент вимкнено, фронтенд відповідає шаблонами правил (ключ без адреси нічого не вмикає).
+    # Шлюз кафедри: LLM_BASE_URL=https://api.csit-mitit.com/v1, LLM_MODEL=gemma4-26b, LLM_API_KEY, і, бо адреса
+    # зовнішня, LLM_ALLOW_EXTERNAL=true.
     llm_base_url: str = ""
+    # Закритий контур: модель лише за внутрішньою адресою (localhost, приватна мережа, сервіс compose).
+    # true — дозволити зовнішню адресу (наприклад, шлюз кафедри); дані агреговані, але вийдуть за контур.
+    llm_allow_external: bool = False
     llm_api_key: str = ""
     llm_model: str = "gemma4-26b"
     llm_timeout_seconds: float = 60.0
 
     # Живі запити модуля «Перевірки» до відкритих API (Prozorro, НАЗК). Закритий контур: false.
     external_fetch_enabled: bool = False
+    # Ключ шифрування буфера відповідей (до закриття хвилі). Порожньо: похідний від JWT_SECRET.
+    # Окремий ключ дозволяє міняти JWT_SECRET, не втрачаючи відповідей відкритих хвиль.
+    pool_encryption_key: str = ""
 
     # Пароль для синтетичних демо-користувачів, яких створює seed.
     demo_password: str = ""
@@ -70,7 +77,7 @@ class Settings(BaseSettings):
     # Підшлях, під яким застосунок стоїть за зворотним проксі (наприклад "/imd"). Порожньо: корінь.
     root_path: str = ""
     # Публічна адреса фронтенду для посилань на анонімне проходження (наприклад "https://imd.example").
-    # Порожньо: посилання відносні ("/s#<токен>").
+    # Порожньо: посилання відносні ("/s/<токен>").
     public_url: str = ""
     # Каталог зібраного фронтенду (frontend-proto/dist). Якщо задано, API сам віддає сторінки на тому ж порту:
     # один процес без nginx і Docker. Порожньо: фронтенд віддає nginx (docker compose) або Vite.

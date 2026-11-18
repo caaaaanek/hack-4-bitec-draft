@@ -3,7 +3,17 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Campaign, CampaignParticipant, Questionnaire, RespondentCategory, Role, User
+from app.models import (
+    Campaign,
+    CampaignEligible,
+    CampaignParticipant,
+    CampaignStatus,
+    Questionnaire,
+    QuestionnaireKind,
+    RespondentCategory,
+    Role,
+    User,
+)
 
 
 def participants_of(db: Session, campaign: Campaign) -> set[uuid.UUID] | None:
@@ -35,3 +45,61 @@ def is_eligible(
     if user.category == RespondentCategory.EXPERT:
         return True
     return user.unit_id in campaign_units
+
+
+# ---------- Склад, зафіксований при відкритті хвилі ----------
+
+def frozen_of(db: Session, campaign: Campaign) -> dict[uuid.UUID, dict[uuid.UUID, tuple]] | None:
+    """questionnaire_id -> {user_id: (unit_id, category)} або None, якщо склад не зафіксовано
+    (хвиля за посиланнями, чернетка або хвиля, відкрита до міграції 0007)."""
+    if not campaign.eligible_frozen:
+        return None
+    result: dict[uuid.UUID, dict[uuid.UUID, tuple]] = {
+        link.questionnaire_id: {} for link in campaign.questionnaire_links}
+    for row in db.scalars(select(CampaignEligible).where(CampaignEligible.campaign_id == campaign.id)):
+        result.setdefault(row.questionnaire_id, {})[row.user_id] = (row.unit_id, row.category)
+    return result
+
+
+def freeze(db: Session, campaign: Campaign, users: list[User] | None = None) -> int:
+    """Фіксує склад: кожен, хто зараз за правилом (чи явним складом) має проходити анкету.
+
+    users: додати лише цих людей (імпорт у відкриту хвилю), інакше всіх активних респондентів.
+    """
+    from app.services.units import subtree_ids  # уникаємо циклічного імпорту
+
+    if users is None:
+        users = list(db.scalars(select(User).where(User.role == Role.RESPONDENT, User.is_active.is_(True))))
+    units = subtree_ids(db, campaign.unit_id)
+    participants = participants_of(db, campaign)
+    existing = {(r.questionnaire_id, r.user_id) for r in db.scalars(
+        select(CampaignEligible).where(CampaignEligible.campaign_id == campaign.id))}
+    added = 0
+    for link in campaign.questionnaire_links:
+        q = link.questionnaire
+        if q.kind == QuestionnaireKind.CHECKLIST:
+            continue
+        for user in users:
+            if (q.id, user.id) in existing or not is_eligible(user, q, units, participants):
+                continue
+            db.add(CampaignEligible(
+                campaign_id=campaign.id, questionnaire_id=q.id, user_id=user.id, category=user.category,
+                unit_id=None if user.category == RespondentCategory.EXPERT else user.unit_id))
+            added += 1
+    campaign.eligible_frozen = True
+    return added
+
+
+def can_answer(user: User, questionnaire: Questionnaire, campaign_units: set[uuid.UUID],
+               participants: set[uuid.UUID] | None, frozen: dict | None) -> bool:
+    """Чи може людина проходити анкету: за зафіксованим складом, якщо він є, інакше за правилом."""
+    if frozen is None:
+        return is_eligible(user, questionnaire, campaign_units, participants)
+    return user.is_active and user.role == Role.RESPONDENT and user.id in frozen.get(questionnaire.id, {})
+
+
+def open_frozen_campaigns_of(db: Session, user_id: uuid.UUID) -> list[Campaign]:
+    """Відкриті хвилі, у зафіксованому складі яких є ця людина."""
+    return list(db.scalars(
+        select(Campaign).join(CampaignEligible, CampaignEligible.campaign_id == Campaign.id)
+        .where(CampaignEligible.user_id == user_id, Campaign.status == CampaignStatus.OPEN).distinct()))

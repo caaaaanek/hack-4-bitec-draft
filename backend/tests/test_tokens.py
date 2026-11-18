@@ -5,7 +5,7 @@ import uuid
 from sqlalchemy import inspect, select
 
 from app.db import SessionLocal, engine
-from app.models import AccessToken, Response, ResponsePool
+from app.models import AccessToken, Response, ResponsePool, Unit
 from app.services.tokens import hash_token
 from tests.conftest import auth
 from tests.helpers import API, ROOT, close, questionnaire_ids, results, units
@@ -237,10 +237,18 @@ def test_person_cannot_be_found_from_token(client):
         assert len(responses) == 7
         assert db.scalar(select(ResponsePool).where(ResponsePool.campaign_id == uuid.UUID(campaign_id))) is None
         # 4. Для кожного посилання множина відповідей, сумісних з усім, що про нього відомо, ≥ k.
+        #    Відповідь зберігається під підрозділом посилання або під одним з його вищих підрозділів.
+        parents = {u.id: u.parent_id for u in db.scalars(select(Unit))}
+
+        def ancestors(unit):
+            while unit is not None:
+                yield unit
+                unit = parents.get(unit)
+
         for t in handed_out:
             row = next(r for r in rows if r.token_hash == hash_token(t))
             candidates = [r for r in responses
-                          if r.questionnaire_id == row.questionnaire_id and r.unit_id == row.unit_id]
+                          if r.questionnaire_id == row.questionnaire_id and r.unit_id in set(ancestors(row.unit_id))]
             assert len(candidates) >= 5, f"{handed_out[t]}: лише {len(candidates)} кандидатів"
         # 5. Порядок ID відповідей не повторює порядок подання (ID випадкові, пачка перемішана).
         # Перевіряємо, що жодне поле Response не містить значень, похідних від токена.

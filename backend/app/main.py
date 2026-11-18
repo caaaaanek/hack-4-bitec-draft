@@ -1,3 +1,5 @@
+import logging
+import re
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -28,6 +30,28 @@ from app.routers import config as config_router
 from app.routers import llm as llm_router
 
 API_PREFIX = "/api/v1"
+
+_TOKEN_PATH = re.compile(r"(/s/)[^/?#\s]+")
+
+
+class RedactTokenPaths(logging.Filter):
+    """Одноразові посилання /s/<токен> не потрапляють у журнал uvicorn (як і в журнал nginx: access_log off).
+
+    Потрібно, коли сторінки віддає сам API (FRONTEND_DIST, run-local.sh). Запит до API токен несе
+    лише в заголовку X-Response-Token, який uvicorn не журналює.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if isinstance(record.args, tuple) and len(record.args) >= 3 and isinstance(record.args[2], str):
+            args = list(record.args)
+            args[2] = _TOKEN_PATH.sub(r"\1***", args[2])
+            record.args = tuple(args)
+        elif isinstance(record.msg, str) and "/s/" in record.msg:
+            record.msg = _TOKEN_PATH.sub(r"\1***", record.msg)
+        return True
+
+
+logging.getLogger("uvicorn.access").addFilter(RedactTokenPaths())
 API_VERSION = "0.3.0"
 
 

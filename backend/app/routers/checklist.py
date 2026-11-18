@@ -38,6 +38,7 @@ from app.models import (
 from app.security import get_current_user, require_roles
 from app.services import evidence as storage
 from app.services import methodology as m
+from app.services.units import subtree_ids
 
 router = APIRouter(prefix="/campaigns/{campaign_id}/checklist", tags=["checklist"])
 
@@ -91,9 +92,16 @@ def is_working_group(user: User) -> bool:
     return user.role == Role.RESPONDENT and user.category == RespondentCategory.WORKING_GROUP and user.is_active
 
 
-def can_view(user: User) -> bool:
-    # Аудитор лише читає: бачить пункти й завантажує докази.
-    return user.role in (Role.ADMIN, Role.COMMISSIONER, Role.AUDITOR) or is_working_group(user)
+def wg_of_campaign(db: Session, user: User, campaign: Campaign) -> bool:
+    """Член робочої групи цієї хвилі: його підрозділ входить у підрозділ хвилі."""
+    return is_working_group(user) and user.unit_id is not None and user.unit_id in subtree_ids(db, campaign.unit_id)
+
+
+def ensure_view(db: Session, user: User, campaign: Campaign) -> None:
+    # Аудитор лише читає: бачить пункти й завантажує докази. Робоча група — лише чек-лист своєї хвилі.
+    if user.role in (Role.ADMIN, Role.COMMISSIONER, Role.AUDITOR) or wg_of_campaign(db, user, campaign):
+        return
+    raise HTTPException(status_code=403, detail="Недостатньо прав")
 
 
 def item_score(entry: ChecklistEntry | None) -> float | None:
@@ -110,7 +118,7 @@ def to_item(question, entry: ChecklistEntry | None, files: list[EvidenceFile] | 
         question_id=question.id,
         code=question.code,
         number=number,
-        component=m.checklist_component(number),
+        component=m.item_component(question.code, question.section.component if question.section else None),
         text=question.text,
         indicator=question.help_text,
         status=entry.status if entry else None,
@@ -157,9 +165,8 @@ def entry_of(db: Session, campaign_id, question_id) -> ChecklistEntry | None:
 
 @router.get("", response_model=ChecklistOut)
 def get_checklist(campaign_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
-    if not can_view(user):
-        raise HTTPException(status_code=403, detail="Недостатньо прав")
     campaign, questionnaire = checklist_of(db, campaign_id)
+    ensure_view(db, user, campaign)
     entries = {
         e.question_id: e for e in db.scalars(select(ChecklistEntry).where(ChecklistEntry.campaign_id == campaign.id))
     }
@@ -187,9 +194,9 @@ def set_entry(
     user: User = Depends(get_current_user),
 ):
     """Член робочої групи вносить або змінює статус пункту. Зміна знімає підтвердження."""
-    if not is_working_group(user):
-        raise HTTPException(status_code=403, detail="Вносити чек-лист може лише член робочої групи")
     campaign, questionnaire = checklist_of(db, campaign_id)
+    if not wg_of_campaign(db, user, campaign):
+        raise HTTPException(status_code=403, detail="Вносити чек-лист може лише член робочої групи цієї хвилі")
     if campaign.status != CampaignStatus.OPEN:
         raise HTTPException(status_code=409, detail="Хвиля не відкрита")
     question = find_question(questionnaire, question_id)
@@ -273,9 +280,9 @@ def unconfirm(db: Session, campaign_id, question_id) -> bool:
 
 
 def editable_item(db: Session, campaign_id: uuid.UUID, question_id: uuid.UUID, user: User):
-    if not is_working_group(user):
-        raise HTTPException(status_code=403, detail="Додавати докази може лише член робочої групи")
     campaign, questionnaire = checklist_of(db, campaign_id)
+    if not wg_of_campaign(db, user, campaign):
+        raise HTTPException(status_code=403, detail="Додавати докази може лише член робочої групи цієї хвилі")
     if campaign.status != CampaignStatus.OPEN:
         raise HTTPException(status_code=409, detail="Хвиля не відкрита: докази закритої хвилі не змінюються")
     return campaign, find_question(questionnaire, question_id)
@@ -284,9 +291,8 @@ def editable_item(db: Session, campaign_id: uuid.UUID, question_id: uuid.UUID, u
 @router.get("/{question_id}/files", response_model=list[EvidenceFileOut])
 def list_files(campaign_id: uuid.UUID, question_id: uuid.UUID, db: Session = Depends(get_db),
                user: User = Depends(get_current_user)):
-    if not can_view(user):
-        raise HTTPException(status_code=403, detail="Недостатньо прав")
     campaign, questionnaire = checklist_of(db, campaign_id)
+    ensure_view(db, user, campaign)
     find_question(questionnaire, question_id)
     return files_of(db, campaign.id, question_id)
 
@@ -334,8 +340,8 @@ def file_or_404(db: Session, campaign_id, question_id, file_id) -> EvidenceFile:
 def download_file(campaign_id: uuid.UUID, question_id: uuid.UUID, file_id: uuid.UUID,
                   db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Завантажити доказ. Перед віддачею вміст звіряється з sha256 із БД."""
-    if not can_view(user):
-        raise HTTPException(status_code=403, detail="Недостатньо прав")
+    campaign, _ = checklist_of(db, campaign_id)
+    ensure_view(db, user, campaign)
     record = file_or_404(db, campaign_id, question_id, file_id)
     if not storage.verify_on_disk(record.sha256):
         log_action(db, user, "integrity_fail", "evidence_file", record.id, {"sha256": record.sha256})

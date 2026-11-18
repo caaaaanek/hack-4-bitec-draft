@@ -127,11 +127,13 @@ def score_group(group: GroupInput, k: int) -> dict:
         "suppressed": group.suppressed,
         "components": {},
         "questions": [],
+        "hidden_questions": 0,
     }
     if group.suppressed:
         result["flags"].append("suppressed")
         return result
-    if participation < m.PARTICIPATION_MIN_PERCENT:
+    # Без знаменника (посилань ще не видано, склад порожній) участь не оцінюється.
+    if group.eligible > 0 and participation < m.PARTICIPATION_MIN_PERCENT:
         result["flags"].append("low_participation")
     if not sufficient:
         result["flags"].append("insufficient_data")
@@ -141,7 +143,10 @@ def score_group(group: GroupInput, k: int) -> dict:
     declared_raw: list[float] = []
     for section, question in questions:
         raws = [x for r in group.responses if (x := raw_answer(question, r)) is not None]
-        if not raws:
+        if len(raws) < k:
+            # Необов'язкове питання, на яке відповіли менше k людей: ні балу, ні розподілу.
+            if raws:
+                result["hidden_questions"] = result.get("hidden_questions", 0) + 1
             continue
         score = fmean(normalize(question, x) for x in raws)
         component = m.survey_component(section.component)

@@ -14,6 +14,7 @@ from app.models import (
     User,
 )
 from app.schemas import AnswerIn, ValidationIssue
+from app.services.anonymity import seal
 
 
 def validate_submission(questionnaire: Questionnaire, answers_in: list[AnswerIn]) -> list[ValidationIssue]:
@@ -59,7 +60,11 @@ def pool_answers(
     unit_id,
     answers_in: list[AnswerIn],
 ) -> None:
-    """Кладе відповіді в буфер: без користувача, часу й способу входу (логін чи посилання)."""
+    """Кладе відповіді в буфер: без користувача, часу й способу входу (логін чи посилання).
+
+    Відповіді й підрозділ шифруються (services/anonymity.seal): у відкритому вигляді лишаються
+    лише хвиля, анкета й категорія.
+    """
     answers = []
     for a in answers_in:
         if a.option_ids:
@@ -71,8 +76,8 @@ def pool_answers(
             campaign_id=campaign.id,
             questionnaire_id=questionnaire.id,
             category=questionnaire.target_category,
-            unit_id=unit_id,
-            answers=answers,
+            unit_id=None,
+            answers=seal({"unit_id": str(unit_id) if unit_id else None, "answers": answers}),
         )
     )
 
