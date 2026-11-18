@@ -6,19 +6,16 @@ const SEC_ABOUT = {
   accountability: "Розділ оцінює практичні механізми контролю та реагування: прозорість рішень, оприлюднення результатів перевірок, контроль виконання заходів.",
 };
 const GRP = { wg: "РГ", os: "ОС", experts: "Експерти" };
-V.report = () => {
-  const m = cur(), recs = m.id === ALPHA ? buildRecs(m) : [], ms = m.id === ALPHA ? measures() : [], gs = respGroups(m);
+// Шаблон «Додаток Г». Тулбар, інші шаблони, масштаб і редагування — у 8-report-tools.js
+function reportG(m) {
+  const recs = m.id === ALPHA ? buildRecs(m) : [], ms = m.id === ALPHA ? measures() : [], gs = respGroups(m);
   const g = k => gs.filter(x => k === "wg" ? x.n === "Робоча група" : k === "ex" ? x.n === "Експерти" : x.n !== "Робоча група" && x.n !== "Експерти").reduce((a, x) => a + x.resp, 0);
   const lvT = v => `${level(v)}. ${LEVELS[level(v) - 1]}`;
   const best = [...m.components].filter(c => !c.cr.lim).sort((a, b) => b.cr.v - a.cr.v), low = [...m.components].sort((a, b) => a.cr.v - b.cr.v).filter(c => c.cr.v < 65 || c.cr.lim);
   const weakItems = [...allItems(m)].sort((a, b) => a.v - b.v).slice(0, 3);
   const props = recs.filter(r => r.st !== "rejected");
-  return `${backToInst()}
-  <div class="c12 rise toolbar"><span class="lbl">Форма звіту відповідає Додатку Г Рекомендацій НУОУ.</span><div class="sp"></div>
-    ${S.aiOn && AI_ROLES.includes(S.role) ? `<button class="btn btn-soft" onclick="aiOpen('Підготуй чернетку опису результатів для звіту')">${IC.spark}Чернетка опису</button>` : ""}
-    <button class="btn btn-primary" onclick="openExport()">${IC.download}Експорт</button>
-  </div>
-  <article class="paper doc c12 rise">
+  return `
+  <article class="paper doc rise">
     <div class="doc-approve">ЗАТВЕРДЖУЮ<br>Голова робочої групи<br><span class="doc-blank">військове звання</span><br><span class="doc-blank">Імʼя ПРІЗВИЩЕ</span><br>«___» ____________ 2026 року</div>
     <h2 class="doc-title">ЗВІТ</h2>
     <p class="doc-sub">про результати опитувань з визначення поточного рівня зрілості доброчесності<br>${esc(m.name)}</p>
@@ -63,7 +60,7 @@ V.report = () => {
     <p class="doc-note">Усі бали, рівні й перевірки розраховано явними правилами методики v1.0. Окремих відповідей, імен і порівнянь підрозділів у звіті немає.</p>
     <div class="doc-sign"><span>Секретар робочої групи</span><span class="doc-blank">підпис</span><span class="doc-blank">Імʼя ПРІЗВИЩЕ</span></div>
   </article>`;
-};
+}
 // Експорт: одна кнопка, формат обирається у вікні
 function openExport() {
   const opts = [["print", IC.print, "PDF або друк", "Звіт у форматі документа. У вікні друку оберіть «Зберегти як PDF»."], ["html", IC.file, "Документ HTML", "Відкривається в будь-якому браузері, можна відкрити в Word."], ["csv", IC.table, "Таблиця CSV", "Усі питання й показники з балами. Для Excel."], ["json", IC.file, "Дані JSON", "Для інших систем і бекенду."], ["copy", IC.copy, "Копіювати CSV", "У буфер обміну, щоб вставити в таблицю."]];
