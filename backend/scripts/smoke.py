@@ -4,7 +4,9 @@
 
 Перевіряє: /health з БД, /config, вхід, хвилю за посиланнями від створення до закриття,
 повтор посилання (409), файл-доказ із sha256, журнал і його цілісність.
-Створює в БД демо-хвилю «Smoke …»: запускайте на демо-стенді, не на робочому.
+Створює в БД хвилю «Smoke …», файл-доказ і записи журналу, які не видаляються. Тому запускайте його
+на окремому проєкті compose (docker compose -p smoke …), не на демо-стенді й не на робочому.
+Якщо в БД є хвилі «(демо)», скрипт відмовляється працювати без --force.
 """
 
 import argparse
@@ -56,6 +58,8 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--base", default="http://localhost:8080")
     ap.add_argument("--password", required=True, help="DEMO_PASSWORD")
+    ap.add_argument("--force", action="store_true",
+                    help="Запускати навіть на стенді з демо-хвилями (лишить у БД хвилю «Smoke …»)")
     args = ap.parse_args()
     api = Api(args.base)
     failures = []
@@ -74,6 +78,16 @@ def main() -> int:
     if s != 200:
         return 1
     api.token = body["access_token"]
+
+    s, campaigns, _ = api.call("GET", "/api/v1/campaigns")
+    demo = [c["title"] for c in (campaigns if s == 200 and isinstance(campaigns, list) else []) if "(демо)" in c["title"]]
+    if demo and not args.force:
+        print(f"\nСтоп: у БД є демо-хвилі ({', '.join(demo)}). Smoke лишить свою хвилю, доказ і записи журналу,\n"
+              "і вони з'являться на демо. Запустіть на окремому проєкті:\n"
+              "  docker compose -p smoke up -d --build   # окремі томи й БД\n"
+              "  (у .env проєкту smoke: SEED_WITH_WAVES=false, інші порти або зупинений основний стенд)\n"
+              "або додайте --force, якщо слід на цьому стенді не заважає.")
+        return 2
 
     units = {u["name"]: u["id"] for u in api.call("GET", "/api/v1/admin/units")[1]}
     qs = {q["code"]: q["id"] for q in api.call("GET", "/api/v1/questionnaires")[1]}
