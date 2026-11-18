@@ -2,22 +2,20 @@
 import { useState, useEffect, useCallback } from "react";
 import { Ic } from "../lib/icons.jsx";
 import { S } from "../lib/state.js";
-import { API, api, apiEnsure, apiRetry, apiLoadForm, apiFail, apiErrText, RESULT_VIEWS, dn, apiLoadAdm, apiAdmReload, apiCreateCampaign, apiCampaignAct, apiQrCreate, apiQrRevoke, apiQrTick,
+import { API, api, apiEnsure, apiRetry, apiRetryResults, apiLoadForm, apiFail, apiErrText, RESULT_VIEWS, dn, apiLoadAdm, apiAdmReload, apiCreateCampaign, apiCampaignAct, apiQrCreate, apiQrRevoke, apiQrTick,
   QST, QCAT, apiQAct, bldOpen, CKS, apiLoadCk, apiCkReload, apiSaveItem, apiConfirm, apiDelFile, apiDownload, AUDIT_ENT, AUDIT_ACT, apiLoadLog, auditDetails, apiVerify } from "../lib/api.js";
 import { COMPS, COMP, level } from "../lib/model.js";
 import { fb, ua, plural } from "../lib/format.js";
 import { render, toast, openDrawer, closeDrawer, ui } from "../lib/store.js";
 import { Pill, LvPill, Num, LevelBar, Ticks } from "../components/ui.jsx";
+import { Loading, Failed, Empty } from "../components/states.jsx";
 import { UnitCombo } from "../components/UnitCombo.jsx";
 import { QrCode, qrAbs } from "../components/QrCode.jsx";
 import { bldFromServer, bldNewSec } from "./Builder.jsx";
 
-const Loading = ({ t }) => <section className="card c12 rise"><div className="empty"><b>{t}</b><br />Завантажуємо дані з сервера…</div></section>;
-const Failed = ({ e }) => <section className="card c12 rise"><div className="empty"><b>Не вдалося завантажити дані</b><br />{e}<br /><br /><button className="btn btn-soft" onClick={apiRetry}>Спробувати ще раз</button></div></section>;
-const Empty = ({ t, children }) => <section className="card c12 rise"><div className="empty"><b>{t}</b><br />{children}</div></section>;
-
 export function apiView(r) {
   if (!API.on) return null;
+  if (RESULT_VIEWS.includes(r) && r !== "sources" && !API.model && API.resErr) return <Failed e={API.resErr} onRetry={apiRetryResults} />;
   if (RESULT_VIEWS.includes(r) && r !== "sources" && !API.model)
     return API.empty ? <Empty t="Ще немає закритої хвилі оцінювання">Результати зʼявляться, коли уповноважений закриє хвилю: система порахує індекс і збереже незмінний знімок.</Empty> : <Loading t="Результати" />;
   if (r === "survey") return apiSurveyView();

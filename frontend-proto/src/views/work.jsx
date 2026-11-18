@@ -171,7 +171,7 @@ export function Sources() {
         {SOURCES.map(([a, b, mo, age, ex], i) => <tr key={a} className="tr-click" tabIndex={0} onClick={() => openSource(i)} onKeyDown={enter(() => openSource(i))}><td><b style={{ fontWeight: 600 }}>{a}</b></td><td>{b}</td><td><Pill cls={MODE[mo][1]}>{MODE[mo][0]}</Pill></td><td className="lbl" style={{ minWidth: 150 }}>{age}</td><td className="lbl" style={{ minWidth: 260 }}>{ex}</td></tr>)}
       </tbody></table></div></section>
     <section className="c12 rise"><div className="card-h" style={{ margin: "6px 0 0" }}><h2>Карта інтеграцій</h2></div></section>
-    {INTEG.map(([n, mo, why, how, ic], i) => { const go = () => openSource([0, 1, 2, 3, 4, 6][i]); return <section key={n} className={`card c4 rise integ ${mo}`} role="button" tabIndex={0} onClick={go} onKeyDown={enter(go)}><div className="comp-top"><span className="comp-ic" style={{ background: "var(--soft)" }}><Ic n={ic} /></span><b>{n}</b><div className="sp" style={{ flex: 1 }} /><Pill cls={MODE[mo][1]}>{MODE[mo][0]}</Pill></div>
+    {INTEG.map(([n, mo, why, how, ic], i) => { const go = () => openSource([0, 1, 2, 3, 4, 7][i]); return <section key={n} className={`card c4 rise integ ${mo}`} role="button" tabIndex={0} onClick={go} onKeyDown={enter(go)}><div className="comp-top"><span className="comp-ic" style={{ background: "var(--soft)" }}><Ic n={ic} /></span><b>{n}</b><div className="sp" style={{ flex: 1 }} /><Pill cls={MODE[mo][1]}>{MODE[mo][0]}</Pill></div>
       <div style={{ marginTop: 12 }}><span className="lbl">Навіщо</span><div>{why}</div></div><div style={{ marginTop: 8 }}><span className="lbl">Метод</span><div>{how}</div></div></section>; })}
   </>;
 }

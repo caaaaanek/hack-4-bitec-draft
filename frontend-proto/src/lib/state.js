@@ -38,6 +38,7 @@ export const ROLE = {
   checklist_editor: ["Вносить дані чек-листа", "ВД"],
   checklist_approver: ["Підтверджує дані чек-листа", "ПД"],
   auditor: ["Внутрішній аудит", "ВА"],
+  coordinator: ["Координатор", "К"],
 };
 export const NAV = [
   ["institutions", "Заклади", "building", ["observer"]],
@@ -49,15 +50,21 @@ export const NAV = [
   ["recs", "Рекомендації", "bulb", ["leader"]],
   ["tracker", "Трекер", "target", ["leader", "auditor"]],
   ["sources", "Джерела", "plug", ["leader", "observer", "auditor"]],
+  ["watch", "Черговий", "eye", ["leader", "observer", "auditor", "admin", "commissioner", "coordinator"]],
+  ["advocate", "Адвокат диявола", "scale", ["leader", "observer", "auditor", "admin", "commissioner"]],
   ["report", "Звіт", "file", ["leader", "observer"]],
   ["manage", "Керування циклом", "sliders", ["admin"]],
+  ["autopilot", "Автопілот хвилі", "bolt", ["admin", "coordinator", "auditor"]],
+  ["checks", "Перевірки", "shield", ["admin"]],
   ["surveys", "Анкети", "survey", ["commissioner"]],
   ["checklist", "Чек-лист", "check", ["checklist_editor", "checklist_approver"]],
+  ["normative", "Що змінилось", "layers", ["leader", "observer", "auditor", "admin", "commissioner", "coordinator"]],
   ["audit", "Журнал", "history", ["admin", "auditor"]],
   ["survey", "Пройти опитування", "survey", ["respondent"]],
   ["me", "Мої результати", "user", ["respondent"]],
+  ["learn", "Навчання", "book", ["respondent", "checklist_editor", "checklist_approver", "leader", "observer", "auditor", "admin", "commissioner", "coordinator"]],
 ];
-export const HOME = { admin: "manage", commissioner: "surveys", respondent: "me", leader: "overview", observer: "institutions", checklist_editor: "checklist", checklist_approver: "checklist", auditor: "overview" };
+export const HOME = { admin: "manage", commissioner: "surveys", respondent: "me", leader: "overview", observer: "institutions", checklist_editor: "checklist", checklist_approver: "checklist", auditor: "overview", coordinator: "watch" };
 export const AI_ROLES = ["leader", "observer", "auditor"];
 
 /* ---------- Стан ---------- */

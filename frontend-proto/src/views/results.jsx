@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Ic } from "../lib/icons.jsx";
 import { S, persist } from "../lib/state.js";
 import { COMPS, COMP, LEVELS, LSHORT, LDESC, BOUNDS, CAP, TRUST, SRC, SCOL, level, status, r1, wmean, clamp, measures, overdueDays, CYCLE } from "../lib/model.js";
-import { fb, f1, f2, pts } from "../lib/format.js";
+import { fb, f1, f2, pts, esc } from "../lib/format.js";
 import { render, toast, openPop, closePop } from "../lib/store.js";
 import { cur, go } from "../lib/nav.js";
 import { Pill, LvPill, TrustPill, SrcDot, Num, Delta, LevelBar } from "../components/ui.jsx";
@@ -266,7 +266,7 @@ export function Compare() {
     <div className="c7 cmp-stack">
       <section className="card rise">
         <div className="card-h"><h2>Обʼєктивні показники</h2><div className="sp" /><a className="pill-btn" href="#sources"><Ic n="plug" />Джерела</a></div>
-        <div className="kpis">{pctFacts.map(f => { const sh = f.val[1] ? f.val[0] / f.val[1] * 100 : f.v, sc = Math.abs(sh - f.v) >= 0.5; return <a key={f.id} className="kpi" href={`#explain/${f.id}`} style={{ textDecoration: "none", color: "inherit" }}><span className="kpi-t">{f.t}</span><div className="ring"><Ring f={f} /><span className="mid tnum" style={{ fontSize: 24 }}><Num v={sh} d={sc ? 1 : 0} /><span className="dec">%</span></span></div><span className="lbl tnum">{f.val[0]} з {f.val[1]}{sc && <><br /><span data-tip={f.rule || undefined}>Бал методики: <b>{fb(f.v)}</b></span></>}<br />{COMP[f.c].n}</span></a>; })}</div>
+        <div className="kpis">{pctFacts.map(f => { const sh = f.val[1] ? f.val[0] / f.val[1] * 100 : f.v, sc = Math.abs(sh - f.v) >= 0.5; return <a key={f.id} className="kpi" href={`#explain/${f.id}`} style={{ textDecoration: "none", color: "inherit" }}><span className="kpi-t">{f.t}</span><div className="ring"><Ring f={f} /><span className="mid tnum" style={{ fontSize: 24 }}><Num v={sh} d={sc ? 1 : 0} /><span className="dec">%</span></span></div><span className="lbl tnum">{f.val[0]} з {f.val[1]}{sc && <><br /><span data-tip={f.rule ? esc(f.rule) : undefined}>Бал методики: <b>{fb(f.v)}</b></span></>}<br />{COMP[f.c].n}</span></a>; })}</div>
       </section>
       <section className="card rise">
         <div className="card-h"><h2>Достовірність</h2><div className="sp" /><TrustPill g={m.trust} /></div>

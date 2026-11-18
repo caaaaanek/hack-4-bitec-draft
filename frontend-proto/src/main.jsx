@@ -12,6 +12,7 @@ import "./styles/extra-survey.css";
 import "./styles/extra-report.css";
 import "./styles/extra-whatif.css";
 import "./styles/extra-qr.css";
+import "./styles/extra-modules.css";
 import "./styles/base-end.css";
 import { S } from "./lib/state.js";
 import { API, boot } from "./lib/api.js";

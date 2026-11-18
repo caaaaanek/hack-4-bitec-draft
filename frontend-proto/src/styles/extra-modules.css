@@ -1,0 +1,20 @@
+/* Нові модулі: флешкартки, питання аудитора, черговий, автопілот, нормативка, перевірки. Лише розкладка; кольори з токенів base.css. */
+.fc { display: flex; flex-direction: column; gap: 14px; min-height: 260px; padding: 22px; border: 1px solid var(--line); border-radius: 16px; background: var(--panel); cursor: pointer; outline-offset: 3px; }
+.fc:hover { border-color: var(--teal-pale); }
+.fc-q { font-size: 18px; line-height: 1.45; font-weight: 600; overflow-wrap: anywhere; }
+.fc ol { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 6px; }
+.fc-nav { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.fc-nav .sp { flex: 1; }
+.txt { overflow-wrap: anywhere; white-space: normal; line-height: 1.45; }
+.sev { border-left: 3px solid var(--line); padding-left: 12px; }
+.sev.critical { border-left-color: var(--red); }
+.sev.warning { border-left-color: var(--amber); }
+.sev.info { border-left-color: var(--blue); }
+.qa-list { display: flex; flex-direction: column; gap: 14px; }
+.qa-item { display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 14px; }
+.qa-item.done { opacity: .72; }
+.mod-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 14px; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; }
+.chk-row { display: flex; gap: 8px; align-items: center; }
+.drop { border: 1.5px dashed var(--line); border-radius: 14px; padding: 18px; text-align: center; }
+.drop:focus-within, .drop.on { border-color: var(--teal); }

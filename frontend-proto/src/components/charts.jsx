@@ -21,7 +21,7 @@ export function MiniTrend({ rows, alt }) {
     <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} aria-hidden="true"><Defs />
       {n > 1 && <path d={`${smooth(p)} L${X(last)},${h} L${X(0)},${h}Z`} className="area-fill reveal" />}
       <path d={n > 1 ? smooth(p) : ""} className="line-teal draw" style={{ strokeDasharray: 3000, "--len": 3000 }} />
-      {p.map(([x, y], i) => <circle key={i} cx={x} cy={y} r={i === last || i === 0 ? 4.5 : 3} fill="var(--panel)" stroke="var(--teal)" strokeWidth="2.2" className="pop" data-tip={`Індекс ${f1(vals[i])}<small>Цикл ${rows[i].cycle}</small>`} />)}
+      {p.map(([x, y], i) => <circle key={i} cx={x} cy={y} r={i === last || i === 0 ? 4.5 : 3} fill="var(--panel)" stroke="var(--teal)" strokeWidth="2.2" className="pop" data-tip={`Індекс ${f1(vals[i])}<small>Цикл ${esc2(rows[i].cycle)}</small>`} />)}
       {lab(0, "start", -4)}{n > 1 && lab(last, "end", 4)}
     </svg></div>;
 }
@@ -54,11 +54,11 @@ export function TrendChart({ rows, lines, events, showIdx = true }) {
       <text x={L - 8} y={T - 12} textAnchor="end" className="ax">0–100</text>{wide && <text x={w - Rr + 8} y={T - 12} className="ax">Рівень зрілості</text>}
       {n > 1 && showIdx && <path d={`${smooth(p)} L${X(n - 1)},${Y(0)} L${X(0)},${Y(0)}Z`} className="area-fill reveal" />}
       {showIdx && <><path d={n > 1 ? smooth(p) : ""} className="line-teal draw" style={{ strokeDasharray: 3000, "--len": 3000 }} />
-        {p.map(([x, y], i) => <circle key={i} cx={x} cy={y} r="5" fill="var(--panel)" stroke="var(--teal)" strokeWidth="2.5" className="pop" style={{ animationDelay: `${500 + i * 120}ms` }} data-tip={`Індекс ${f1(rows[i].index)} · рівень ${level(rows[i].index)}<small>Цикл ${rows[i].cycle}</small>`} />)}</>}
-      {lines.map(c => { const q = rows.map((r, i) => [X(i), Y(r.cr[c])]); return <g key={c}><path d={n > 1 ? smooth(q) : ""} fill="none" stroke={COMP[c].c} strokeWidth="2" strokeDasharray="6 5" className="draw" style={{ "--len": 3000 }} />{q.map(([x, y], i) => <rect key={i} x={x - 4} y={y - 4} width="8" height="8" rx="2" fill={COMP[c].c} className="pop" data-tip={`${COMP[c].n}: ${fb(rows[i].cr[c])}<small>Цикл ${rows[i].cycle}</small>`} />)}</g>; })}
+        {p.map(([x, y], i) => <circle key={i} cx={x} cy={y} r="5" fill="var(--panel)" stroke="var(--teal)" strokeWidth="2.5" className="pop" style={{ animationDelay: `${500 + i * 120}ms` }} data-tip={`Індекс ${f1(rows[i].index)} · рівень ${level(rows[i].index)}<small>Цикл ${esc2(rows[i].cycle)}</small>`} />)}</>}
+      {lines.map(c => { const q = rows.map((r, i) => [X(i), Y(r.cr[c])]); return <g key={c}><path d={n > 1 ? smooth(q) : ""} fill="none" stroke={COMP[c].c} strokeWidth="2" strokeDasharray="6 5" className="draw" style={{ "--len": 3000 }} />{q.map(([x, y], i) => <rect key={i} x={x - 4} y={y - 4} width="8" height="8" rx="2" fill={COMP[c].c} className="pop" data-tip={`${COMP[c].n}: ${fb(rows[i].cr[c])}<small>Цикл ${esc2(rows[i].cycle)}</small>`} />)}</g>; })}
       {labels}
       {rows.map((r, i) => <text key={i} x={X(i)} y={h - B + 6} textAnchor="middle" className="ax" style={{ dominantBaseline: "hanging" }}>{r.cycle}</text>)}
-      {events.map((e, k) => { const i = rows.findIndex(r => r.cycle === e.after); if (i < 0 || i >= n - 1) return null; const x = (X(i) + X(i + 1)) / 2, y = h - B + 21; return <g key={k} className="pop" data-tip={`${esc2(e.t)}<small>Після циклу ${e.after}</small>`}><rect x={x - 6} y={y - 6} width="12" height="12" fill="var(--panel)" stroke="var(--fg)" strokeWidth="1.6" transform={`rotate(45 ${x} ${y})`} /></g>; })}
+      {events.map((e, k) => { const i = rows.findIndex(r => r.cycle === e.after); if (i < 0 || i >= n - 1) return null; const x = (X(i) + X(i + 1)) / 2, y = h - B + 21; return <g key={k} className="pop" data-tip={`${esc2(e.t)}<small>Після циклу ${esc2(e.after)}</small>`}><rect x={x - 6} y={y - 6} width="12" height="12" fill="var(--panel)" stroke="var(--fg)" strokeWidth="1.6" transform={`rotate(45 ${x} ${y})`} /></g>; })}
     </svg></div>;
 }
 const esc2 = t => String(t).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
