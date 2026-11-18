@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Integrity Management Dashboard API",
+    "title": "Integra API",
     "description": "Опитувальники, конструктор анкет, ролі, хвилі оцінювання, Integrity Index, рекомендації, трекер заходів, журнал дій з ланцюжком хешів.\n\nПомилки мають вигляд `{code, message, hint, detail, errors?, request_id}`. Поля відповідей у `snake_case`.",
     "version": "0.3.0"
   },

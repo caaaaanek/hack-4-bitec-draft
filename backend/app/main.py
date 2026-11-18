@@ -73,7 +73,7 @@ async def lifespan(_: FastAPI):
 settings = get_settings()
 
 app = FastAPI(
-    title="Integrity Management Dashboard API",
+    title="Integra API",
     version=API_VERSION,
     description="Опитувальники, конструктор анкет, ролі, хвилі оцінювання, Integrity Index, "
     "рекомендації, трекер заходів, журнал дій з ланцюжком хешів.\n\n"
