@@ -52,11 +52,11 @@ class Run:
     """Дані одного прогону: хвилі, результати, рекомендації, заходи — усе через API."""
 
     def __init__(self, as_of: date):
-        from fastapi.testclient import TestClient
         from sqlalchemy import select
 
         from app.clock import frozen_on
         from app.db import Base, SessionLocal, engine
+        from app.inprocess import InProcessClient
         from app.main import app
         from app.models import User
         from app.security import create_access_token
@@ -76,7 +76,7 @@ class Run:
             with SessionLocal() as db:
                 self.h = {u.login: {"Authorization": f"Bearer {create_access_token(u)}"}
                           for u in db.scalars(select(User).where(User.login.in_(("admin", "leader"))))}
-            with TestClient(app) as client:
+            with InProcessClient(app) as client:
                 self.client = client
                 self._collect()
 

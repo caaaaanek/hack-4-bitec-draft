@@ -22,7 +22,7 @@ const SESSION_KEY = "ii-session";
 function apiToken() { try { return sessionStorage.getItem(SESSION_KEY); } catch (e) { return null; } }
 function apiSetToken(t) { try { if (t) sessionStorage.setItem(SESSION_KEY, t); else sessionStorage.removeItem(SESSION_KEY); } catch (e) { /* сховище недоступне */ } }
 export const apiAuth = () => { const t = apiToken(); return t ? { Authorization: "Bearer " + t } : {}; };
-export class ApiErr extends Error { constructor(status, body) { super((body && body.message) || "Сервер не відповів"); this.status = status; this.code = body && body.code; this.hint = (body && body.hint) || ""; } }
+export class ApiErr extends Error { constructor(status, body, requestId) { super((body && body.message) || "Сервер не відповів"); this.status = status; this.code = body && body.code; this.hint = (body && body.hint) || ""; this.requestId = (body && body.request_id) || requestId || null; } }
 export async function api(path, { method = "GET", body, headers = {}, auth = true, raw = false } = {}) {
   const h = { Accept: "application/json", ...(auth ? apiAuth() : {}), ...headers };
   let b;
@@ -33,13 +33,14 @@ export async function api(path, { method = "GET", body, headers = {}, auth = tru
   if (!r.ok) {
     const j = await r.json().catch(() => null);
     if (r.status === 401 && auth && apiToken() && API.user) { apiSetToken(null); API.user = null; showLogin("Сесія завершилась. Увійдіть знову."); }
-    throw new ApiErr(r.status, j);
+    throw new ApiErr(r.status, j, r.headers.get("X-Request-ID"));
   }
   if (raw) return r;
   if (r.status === 204) return null;
   return (r.headers.get("content-type") || "").includes("json") ? r.json() : r.text();
 }
-export const apiErrText = e => e instanceof ApiErr ? `${e.message}${e.hint ? ". " + e.hint : ""}` : "Не вдалося виконати дію";
+// Для збоїв сервера (5xx) додаємо код запиту: за ним адміністратор знайде запис у журналі сервера
+export const apiErrText = e => e instanceof ApiErr ? `${e.message}${e.hint ? ". " + e.hint : ""}${e.status >= 500 && e.requestId ? ` Код запиту: ${e.requestId}` : ""}` : "Не вдалося виконати дію";
 export const apiFail = e => toast(apiErrText(e));
 
 /* --- Ролі: обліковий запис → роль інтерфейсу --- */
@@ -199,7 +200,7 @@ async function apiLoadResults() {
   API.campaignId = d.campaign_id; API.unitId = d.unit_id;
   const q = d.unit_id ? `?unit_id=${d.unit_id}` : "";
   const [r, h, recs, ms] = await Promise.all([
-    api(`/campaigns/${d.campaign_id}/results${q}`), api(`/units/${d.unit_id}/history`).catch(() => api(`/units/${d.unit_id}/history`)).catch(() => null), // один повтор: сервер іноді відповідає 500
+    api(`/campaigns/${d.campaign_id}/results${q}`), api(`/units/${d.unit_id}/history`).catch(() => api(`/units/${d.unit_id}/history`)).catch(() => null), // один повтор на випадок короткого збою мережі чи сервера (код запиту збою — у журналі сервера)
     api(`/campaigns/${d.campaign_id}/recommendations${q}`).catch(() => ({ items: [] })), api(`/measures${q}`).catch(() => []),
   ]);
   API.model = apiModel(r, h);
@@ -327,7 +328,8 @@ export const CKS = { full: ["Впроваджено повністю", "p-good"]
 export async function apiLoadCk(sel) {
   let camps;
   if (S.role === "checklist_editor") camps = (await api("/me/assignments")).filter(a => a.kind === "checklist").map(a => ({ id: a.campaign_id, title: a.campaign_title, status: "open" }));
-  else camps = (await api("/campaigns")).filter(c => c.status !== "draft").map(c => ({ id: c.id, title: c.title, status: c.status }));
+  // Лише хвилі з чек-листом (has_checklist від сервера; старий сервер без поля — показуємо всі)
+  else camps = (await api("/campaigns")).filter(c => c.status !== "draft" && c.has_checklist !== false).map(c => ({ id: c.id, title: c.title, status: c.status }));
   const cur = sel || (camps.find(c => c.status === "open") || camps[0] || {}).id;
   let data = null, err = null;
   if (cur) { try { data = await api(`/campaigns/${cur}/checklist`); } catch (e) { err = apiErrText(e); } }
@@ -358,7 +360,7 @@ export const AUDIT_ACT = {
   "campaign:create": "Створено хвилю", "campaign:update": "Змінено хвилю", "campaign:open": "Відкрито хвилю", "campaign:close": "Закрито хвилю, збережено знімок результатів",
   "campaign:set_participants": "Змінено учасників хвилі", "campaign:clear_participants": "Очищено учасників хвилі", "campaign:import_participants": "Імпортовано учасників",
   "campaign:issue_tokens": "Видано одноразові посилання", "campaign:import_tokens": "Імпортовано посилання", "campaign:revoke_tokens": "Відкликано посилання",
-  "campaign:export_report": "Експортовано звіт", "campaign:view_dashboard": "Переглянуто огляд закладу", "campaign:view_recommendations": "Переглянуто рекомендації", "campaign:view_results": "Переглянуто результати",
+  "campaign:export_report": "Експортовано звіт", "campaign:view_dashboard": "Переглянуто огляд закладу", "campaign:view_recommendations": "Переглянуто рекомендації", "campaign:view_results": "Переглянуто результати", "campaign:recalculate_results": "Перераховано результати за поточною методикою",
   "checklist_entry:set": "Внесено пункт чек-листа", "checklist_entry:confirm": "Підтверджено пункт чек-листа", "checklist_entry:revoke_confirm": "Відкликано підтвердження пункту чек-листа",
   "evidence_file:upload": "Додано файл-доказ", "evidence_file:download": "Завантажено файл-доказ", "evidence_file:delete": "Видалено файл-доказ", "evidence_file:integrity_fail": "Файл-доказ не пройшов перевірку цілісності",
   "indicator:upsert": "Передано факт із зовнішньої системи",

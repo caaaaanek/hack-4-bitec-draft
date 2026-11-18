@@ -36,7 +36,7 @@ from app.schemas import (
     UserUpdate,
 )
 from app.services.units import subtree_from, subtree_ids, unit_tree
-from app.security import hash_password, require_roles
+from app.security import hash_password, require_roles, revoke_all_tokens
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 admin_only = require_roles(Role.ADMIN)
@@ -104,6 +104,8 @@ def update_user(
         setattr(user, field, value)
     if password:
         user.password_hash = hash_password(password)
+    if password or changes.get("is_active") is False:
+        revoke_all_tokens(user)  # старі сесії з попереднім паролем чи після блокування більше не діють
     check_respondent_fields(user.role, user.category, user.unit_id, db)
 
     logged = {k: (v.value if hasattr(v, "value") else str(v)) for k, v in changes.items()}

@@ -53,9 +53,11 @@ def campaign_results(
         data = results.results_for(db, campaign, unit_id, recalculate)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
-    log_action(db, user, "view_results", "campaign", campaign.id,
-               {"unit_id": data["unit_id"], "recalculate": recalculate})
-    db.commit()
+    # Звичайні перегляди не журналюються: кожен запис блокує голову ланцюжка (AuditHead FOR UPDATE), і паралельні
+    # читання ставали б у чергу, а журнал засмічувався б переглядами. Перерахунок за поточною методикою — дія, її пишемо.
+    if recalculate:
+        log_action(db, user, "recalculate_results", "campaign", campaign.id, {"unit_id": data["unit_id"]})
+        db.commit()
     return data
 
 
@@ -80,6 +82,7 @@ def unit_history(unit_id: uuid.UUID, db: Session = Depends(get_db), user: User =
     unit = unit_or_404(db, unit_id, user)
     points = []
     previous = None
+    subtree = results.unit_subtree(db, unit_id)  # дерево один раз на всю історію, а не на кожну точку
     for campaign, snap in results.unit_snapshots(db, unit_id):
         payload = snap.payload
         d = results.delta(snap.index_score, previous.index_score) if previous else None
@@ -94,13 +97,11 @@ def unit_history(unit_id: uuid.UUID, db: Session = Depends(get_db), user: User =
             "reliability": snap.reliability,
             "components": {c["code"]: c["score"] for c in payload["components"]},
             "measures_done": results.measures_done_between(
-                db, unit_id, previous.closed_on if previous else None, snap.closed_on),
+                db, unit_id, previous.closed_on if previous else None, snap.closed_on, subtree),
             "delta": d,
             "significance": sig,
         })
         previous = snap
-    log_action(db, user, "view_history", "unit", unit.id)
-    db.commit()
     return {"unit_id": unit.id, "unit_name": unit.name, "points": points}
 
 
@@ -120,8 +121,6 @@ def compare_waves(
         raise HTTPException(status_code=404, detail="Для цього підрозділу немає знімка однієї з хвиль")
     data = results.compare_payloads(before.payload, after.payload)
     prev_c = {c["code"]: c["score"] for c in before.payload["components"]}
-    log_action(db, user, "compare", "unit", unit_id, {"from": str(from_campaign), "to": str(to_campaign)})
-    db.commit()
     return {
         **data,
         "current_campaign_id": after.payload["campaign_id"],

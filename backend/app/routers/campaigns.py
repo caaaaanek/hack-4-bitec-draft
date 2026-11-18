@@ -9,7 +9,7 @@ import uuid
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import PlainTextResponse
 from sqlalchemy import delete, func, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.audit import log_action
 from app.clock import today
@@ -75,6 +75,8 @@ def to_out(campaign: Campaign) -> CampaignOut:
         questionnaire_ids=[link.questionnaire_id for link in campaign.questionnaire_links],
         access_mode=campaign.access_mode,
         explicit_participants=campaign.explicit_participants,
+        has_checklist=any(link.questionnaire.kind == QuestionnaireKind.CHECKLIST
+                          for link in campaign.questionnaire_links),
     )
 
 
@@ -87,7 +89,10 @@ def get_or_404(db: Session, campaign_id: uuid.UUID) -> Campaign:
 
 @router.get("", response_model=list[CampaignOut])
 def list_campaigns(db: Session = Depends(get_db), _: User = Depends(can_read)):
-    return [to_out(c) for c in db.scalars(select(Campaign).order_by(Campaign.created_at.desc()))]
+    query = (select(Campaign)
+             .options(selectinload(Campaign.questionnaire_links).selectinload(CampaignQuestionnaire.questionnaire))
+             .order_by(Campaign.created_at.desc()))
+    return [to_out(c) for c in db.scalars(query)]
 
 
 @router.post("", response_model=CampaignOut, status_code=status.HTTP_201_CREATED)

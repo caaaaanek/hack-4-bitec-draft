@@ -4,7 +4,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import date
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.clock import today
@@ -335,12 +335,23 @@ def results_for(db: Session, campaign: Campaign, unit_id: uuid.UUID | None, reca
     return {**payload, "source": source, "dynamics": dyn, "summary": scoring.management_summary(payload, dyn)}
 
 
-def measures_done_between(db: Session, unit_id: uuid.UUID, after: date | None, until: date) -> int:
-    """Скільки заходів підрозділу (з дочірніми) виконано між двома хвилями."""
+def unit_subtree(db: Session, unit_id: uuid.UUID) -> set[uuid.UUID]:
+    """Підрозділ з усіма дочірніми (одним запитом до дерева)."""
     children, _ = unit_tree(db)
-    units = subtree_from(children, unit_id)
-    query = select(Measure).where(Measure.unit_id.in_(units), Measure.status == MeasureStatus.DONE,
-                                  Measure.done_on.is_not(None), Measure.done_on <= until)
+    return subtree_from(children, unit_id)
+
+
+def measures_done_between(db: Session, unit_id: uuid.UUID, after: date | None, until: date,
+                          units: set[uuid.UUID] | None = None) -> int:
+    """Скільки заходів підрозділу (з дочірніми) виконано між двома хвилями.
+
+    units — заздалегідь пораховане піддерево: для історії з кількох точок дерево будується один раз.
+    """
+    if units is None:
+        units = unit_subtree(db, unit_id)
+    query = select(func.count()).select_from(Measure).where(
+        Measure.unit_id.in_(units), Measure.status == MeasureStatus.DONE,
+        Measure.done_on.is_not(None), Measure.done_on <= until)
     if after is not None:
         query = query.where(Measure.done_on > after)
-    return len(db.scalars(query).all())
+    return db.scalar(query) or 0
