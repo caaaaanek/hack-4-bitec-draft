@@ -11,6 +11,7 @@ from app.clock import today
 from app.models import (
     AccessMode,
     AccessToken,
+    QrLink,
     Campaign,
     CampaignStatus,
     ChecklistEntry,
@@ -55,6 +56,7 @@ class WaveData:
     # Явний склад учасників (None — за правилом) і посилання для хвилі access_mode = token.
     participants: set[uuid.UUID] | None = None
     tokens: list[AccessToken] = field(default_factory=list)
+    qr_links: list[QrLink] = field(default_factory=list)
     # Склад, зафіксований при відкритті: questionnaire_id -> {user_id: (unit_id, category)}. None — за правилом.
     frozen: dict | None = None
     # Кеш вторинного приховування фактів: показник -> підрозділи, де його приховано.
@@ -85,6 +87,7 @@ def load_wave(db: Session, campaign: Campaign) -> WaveData:
         unit_names={u.id: u.name for u in db.scalars(select(Unit).where(Unit.id.in_(campaign_units)))},
         participants=participants_of(db, campaign),
         tokens=token_service.load(db, campaign.id) if campaign.access_mode == AccessMode.TOKEN else [],
+        qr_links=token_service.load_qr_links(db, campaign.id) if campaign.access_mode == AccessMode.TOKEN else [],
         frozen=frozen_of(db, campaign),
     )
     k = campaign.min_group_size
@@ -133,7 +136,8 @@ def load_groups(wave: WaveData, scope: uuid.UUID, units: set[uuid.UUID]) -> list
         if campaign.access_mode == AccessMode.TOKEN:
             # Анонімна хвиля: «мали пройти» = видані посилання, «пройшли» = використані.
             eligible, submitted = token_service.counts(
-                wave.tokens, questionnaire.id, lambda unit: in_scope(questionnaire.target_category, unit))
+                wave.tokens, questionnaire.id, lambda unit: in_scope(questionnaire.target_category, unit),
+                wave.qr_links)
         elif wave.frozen is not None:
             # Склад зафіксовано при відкритті: «мали пройти» і підрозділ — на той момент.
             members = wave.frozen.get(questionnaire.id, {})

@@ -1,0 +1,15 @@
+/* QR для зали */
+.qr-row { align-items: center; gap: 14px; }
+.qr-mini { width: 64px; height: 64px; flex: none; background: #fff; border-radius: 8px; padding: 3px; }
+.qr-mini svg, .qr-big svg { width: 100%; height: 100%; display: block; }
+.qr-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+.qr-cnt { display: flex; flex-wrap: wrap; gap: 4px 18px; margin-top: 6px; font-size: 14px; }
+.qr-over { display: inline-flex; align-items: center; gap: 6px; color: var(--amber); font-weight: 600; font-size: 13px; margin-top: 6px; }
+.qr-over svg { width: 14px; height: 14px; flex: none; }
+.qr-screen { position: fixed; inset: 0; z-index: 200; background: var(--bg, #fff); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; padding: 24px 16px; overflow: auto; }
+.qr-screen h2 { margin: 0; font-size: 26px; font-weight: 600; text-align: center; }
+.qr-big { width: min(70vh, 86vw); height: min(70vh, 86vw); background: #fff; border-radius: 16px; padding: 12px; }
+.qr-url { font-size: 13px; color: var(--muted); word-break: break-all; text-align: center; }
+.qr-screen .qr-cnt { justify-content: center; font-size: 18px; }
+.qr-x { position: absolute; top: 16px; right: 16px; }
+@media (max-width: 640px) { .qr-row { flex-wrap: wrap; } }

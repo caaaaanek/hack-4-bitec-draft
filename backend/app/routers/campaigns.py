@@ -24,6 +24,7 @@ from app.models import (
     CampaignQuestionnaire,
     CampaignStatus,
     Participation,
+    QrLink,
     Questionnaire,
     QuestionnaireKind,
     QuestionnaireStatus,
@@ -44,6 +45,8 @@ from app.schemas import (
     ParticipantsIn,
     ParticipantsOut,
     ProgressItem,
+    QrLinkIn,
+    QrLinkOut,
     TokensIn,
     TokensOut,
     TokensRevokeIn,
@@ -216,6 +219,7 @@ def progress(campaign_id: uuid.UUID, db: Session = Depends(get_db), _: User = De
     campaign = get_or_404(db, campaign_id)
     units = subtree_ids(db, campaign.unit_id)
     token_rows = token_service.load(db, campaign.id) if campaign.access_mode == AccessMode.TOKEN else []
+    qr_links = token_service.load_qr_links(db, campaign.id) if campaign.access_mode == AccessMode.TOKEN else []
     users = []
     participants = None
     frozen = frozen_of(db, campaign)
@@ -229,7 +233,7 @@ def progress(campaign_id: uuid.UUID, db: Session = Depends(get_db), _: User = De
         if questionnaire.kind == QuestionnaireKind.CHECKLIST:
             continue  # стан чек-листа: GET /campaigns/{id}/checklist
         if campaign.access_mode == AccessMode.TOKEN:
-            eligible, submitted = token_service.counts(token_rows, questionnaire.id)
+            eligible, submitted = token_service.counts(token_rows, questionnaire.id, qr_links=qr_links)
         else:
             eligible = (len(frozen.get(questionnaire.id, {})) if frozen is not None
                         else sum(1 for u in users if is_eligible(u, questionnaire, units, participants)))
@@ -249,6 +253,7 @@ def progress(campaign_id: uuid.UUID, db: Session = Depends(get_db), _: User = De
                 submitted=submitted if visible else None,
                 percent=(round(100 * submitted / eligible, 1) if eligible else 0.0) if visible else None,
                 too_few_people=not visible,
+                over_expected=visible and submitted > eligible,
             )
         )
     return CampaignProgress(campaign_id=campaign.id, status=campaign.status, items=items)
@@ -538,6 +543,27 @@ def token_link(token: str) -> str:
     return f"{get_settings().public_url.rstrip('/')}/s/{token}"
 
 
+def token_target(db: Session, campaign: Campaign, questionnaire_id: uuid.UUID,
+                 unit_id: uuid.UUID | None) -> tuple[Questionnaire, uuid.UUID | None]:
+    """Перевірки спільні для видачі посилань і QR: режим хвилі, анкета, підрозділ."""
+    if campaign.access_mode != AccessMode.TOKEN:
+        raise ApiError(409, "Хвиля проходиться за обліковими записами", code="login_mode",
+                       hint="Створіть хвилю з access_mode = token або змініть чернетку.")
+    if campaign.status not in (CampaignStatus.DRAFT, CampaignStatus.OPEN):
+        raise ApiError(409, "Хвилю закрито", code="not_editable")
+    link = db.get(CampaignQuestionnaire, (campaign.id, questionnaire_id))
+    if link is None or link.questionnaire.kind == QuestionnaireKind.CHECKLIST:
+        raise HTTPException(status_code=422, detail="Анкета не входить у хвилю або це чек-лист")
+    questionnaire = link.questionnaire
+    if questionnaire.target_category == RespondentCategory.EXPERT:
+        return questionnaire, None  # експерти зовнішні: їхні відповіді рахуються лише на рівні всієї хвилі
+    if unit_id is None:
+        raise HTTPException(status_code=422, detail="Для цієї анкети потрібен підрозділ (unit_id)")
+    if unit_id not in subtree_ids(db, campaign.unit_id):
+        raise HTTPException(status_code=422, detail="Підрозділ не входить у хвилю")
+    return questionnaire, unit_id
+
+
 @router.post("/{campaign_id}/tokens", response_model=TokensOut, status_code=status.HTTP_201_CREATED,
              responses={201: {"content": {"text/csv": {}}}})
 def issue_tokens(campaign_id: uuid.UUID, data: TokensIn,
@@ -549,23 +575,7 @@ def issue_tokens(campaign_id: uuid.UUID, data: TokensIn,
     система не знає. Посилання відкриває анкету без входу; токен фронтенд передає в X-Response-Token.
     """
     campaign = get_or_404(db, campaign_id)
-    if campaign.access_mode != AccessMode.TOKEN:
-        raise ApiError(409, "Хвиля проходиться за обліковими записами", code="login_mode",
-                       hint="Створіть хвилю з access_mode = token або змініть чернетку.")
-    if campaign.status not in (CampaignStatus.DRAFT, CampaignStatus.OPEN):
-        raise ApiError(409, "Хвилю закрито", code="not_editable")
-    link = db.get(CampaignQuestionnaire, (campaign.id, data.questionnaire_id))
-    if link is None or link.questionnaire.kind == QuestionnaireKind.CHECKLIST:
-        raise HTTPException(status_code=422, detail="Анкета не входить у хвилю або це чек-лист")
-    questionnaire = link.questionnaire
-    unit_id = data.unit_id
-    if questionnaire.target_category == RespondentCategory.EXPERT:
-        unit_id = None  # експерти зовнішні: їхні відповіді рахуються лише на рівні всієї хвилі
-    else:
-        if unit_id is None:
-            raise HTTPException(status_code=422, detail="Для цієї анкети потрібен підрозділ (unit_id)")
-        if unit_id not in subtree_ids(db, campaign.unit_id):
-            raise HTTPException(status_code=422, detail="Підрозділ не входить у хвилю")
+    questionnaire, unit_id = token_target(db, campaign, data.questionnaire_id, data.unit_id)
     if data.count > get_settings().token_batch_max:
         raise HTTPException(status_code=422, detail=f"Не більше {get_settings().token_batch_max} за раз")
 
@@ -610,3 +620,56 @@ def revoke_tokens(campaign_id: uuid.UUID, data: TokensRevokeIn, db: Session = De
                 "unit_id": str(data.unit_id) if data.unit_id else None, "revoked": revoked})
     db.commit()
     return TokensRevokeOut(revoked=revoked)
+
+
+# ---------- QR для зали ----------
+
+def qr_out(db: Session, link: QrLink) -> QrLinkOut:
+    opened, completed = token_service.qr_stats(db, link.id)
+    questionnaire = db.get(Questionnaire, link.questionnaire_id)
+    return QrLinkOut(id=link.id, questionnaire_id=link.questionnaire_id, questionnaire_title=questionnaire.title,
+                     unit_id=link.unit_id, expected=link.expected, code=link.code, link=qr_link(link.code),
+                     revoked=link.revoked, opened=opened, completed=completed)
+
+
+def qr_link(code: str) -> str:
+    return f"{get_settings().public_url.rstrip('/')}/q/{code}"
+
+
+@router.post("/{campaign_id}/qr-links", response_model=QrLinkOut, status_code=status.HTTP_201_CREATED)
+def create_qr_link(campaign_id: uuid.UUID, data: QrLinkIn, db: Session = Depends(get_db),
+                   admin: User = Depends(admin_only)):
+    """Одне посилання (QR) на анкету для групи: кожне відкриття дає свіжу одноразову форму.
+
+    Завершена форма — одна відповідь; покинута нічого не рахує. Участь рахується від expected,
+    а відповіді понад expected видно в /progress як ознаку накрутки. Відкрити форм можна не більше
+    ніж у 3 рази більше за expected.
+    """
+    campaign = get_or_404(db, campaign_id)
+    questionnaire, unit_id = token_target(db, campaign, data.questionnaire_id, data.unit_id)
+    link = token_service.issue_qr_link(db, campaign, questionnaire.id, unit_id, data.expected)
+    log_action(db, admin, "create_qr_link", "campaign", campaign.id,
+               {"questionnaire_id": str(questionnaire.id), "unit_id": str(unit_id) if unit_id else None,
+                "expected": data.expected})
+    db.commit()
+    return qr_out(db, link)
+
+
+@router.get("/{campaign_id}/qr-links", response_model=list[QrLinkOut])
+def list_qr_links(campaign_id: uuid.UUID, db: Session = Depends(get_db), _: User = Depends(admin_only)):
+    campaign = get_or_404(db, campaign_id)
+    return [qr_out(db, link) for link in token_service.load_qr_links(db, campaign.id)]
+
+
+@router.post("/{campaign_id}/qr-links/{qr_id}/revoke", response_model=QrLinkOut)
+def revoke_qr_link(campaign_id: uuid.UUID, qr_id: uuid.UUID, db: Session = Depends(get_db),
+                   admin: User = Depends(admin_only)):
+    """Зупинити нові скани. Вже відкриті форми можна дописати; очікувана кількість лишається в участі."""
+    campaign = get_or_404(db, campaign_id)
+    link = db.get(QrLink, qr_id)
+    if link is None or link.campaign_id != campaign.id:
+        raise HTTPException(status_code=404, detail="QR-посилання не знайдено")
+    link.revoked = True
+    log_action(db, admin, "revoke_qr_link", "campaign", campaign.id, {"qr_link_id": str(link.id)})
+    db.commit()
+    return qr_out(db, link)
