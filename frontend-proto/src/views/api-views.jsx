@@ -2,22 +2,22 @@
 import { useState, useEffect, useCallback } from "react";
 import { Ic } from "../lib/icons.jsx";
 import { S } from "../lib/state.js";
-import { API, api, apiEnsure, apiRetry, apiLoadForm, apiFail, apiErrText, RESULT_VIEWS, dn, apiLoadAdm, apiAdmReload, apiCreateCampaign, apiCampaignAct, apiQrCreate, apiQrRevoke, apiQrTick,
+import { API, api, apiEnsure, apiRetry, apiRetryResults, apiLoadForm, apiFail, apiErrText, RESULT_VIEWS, dn, apiLoadAdm, apiAdmReload, apiCreateCampaign, apiCampaignAct, apiQrCreate, apiQrRevoke, apiQrTick,
   QST, QCAT, apiQAct, bldOpen, CKS, apiLoadCk, apiCkReload, apiSaveItem, apiConfirm, apiDelFile, apiDownload, AUDIT_ENT, AUDIT_ACT, apiLoadLog, auditDetails, apiVerify } from "../lib/api.js";
 import { COMPS, COMP, level } from "../lib/model.js";
 import { fb, ua, plural } from "../lib/format.js";
 import { render, toast, openDrawer, closeDrawer, ui } from "../lib/store.js";
 import { Pill, LvPill, Num, LevelBar, Ticks } from "../components/ui.jsx";
+import { Loading, Failed, Empty } from "../components/states.jsx";
 import { UnitCombo } from "../components/UnitCombo.jsx";
 import { QrCode, qrAbs } from "../components/QrCode.jsx";
 import { bldFromServer, bldNewSec } from "./Builder.jsx";
-
-const Loading = ({ t }) => <section className="card c12 rise"><div className="empty"><b>{t}</b><br />Завантажуємо дані з сервера…</div></section>;
-const Failed = ({ e }) => <section className="card c12 rise"><div className="empty"><b>Не вдалося завантажити дані</b><br />{e}<br /><br /><button className="btn btn-soft" onClick={apiRetry}>Спробувати ще раз</button></div></section>;
-const Empty = ({ t, children }) => <section className="card c12 rise"><div className="empty"><b>{t}</b><br />{children}</div></section>;
+import { AutopilotSection } from "./Autopilot.jsx";
+import { LearnCard } from "./Learn.jsx";
 
 export function apiView(r) {
   if (!API.on) return null;
+  if (RESULT_VIEWS.includes(r) && r !== "sources" && !API.model && API.resErr) return <Failed e={API.resErr} onRetry={apiRetryResults} />;
   if (RESULT_VIEWS.includes(r) && r !== "sources" && !API.model)
     return API.empty ? <Empty t="Ще немає закритої хвилі оцінювання">Результати зʼявляться, коли уповноважений закриє хвилю: система порахує індекс і збереже незмінний знімок.</Empty> : <Loading t="Результати" />;
   if (r === "survey") return apiSurveyView();
@@ -85,6 +85,7 @@ function ApiMe() {
     <section className="card c12 rise"><div className="card-h"><h2>Анкети відкритих хвиль</h2></div>
       <div className="rows">{todo.length ? todo.map((a, i) => <div key={i} className="row"><div className="grow"><div className="t">{a.questionnaire_title}</div><div className="s">{a.campaign_title}</div></div>{a.submitted ? <Pill cls="p-good">Пройдено</Pill> : <a className="btn btn-primary" href="#survey">Пройти анкету <Ic n="arrowR" /></a>}</div>) : <div className="lbl">Зараз немає відкритих анкет для вас.</div>}</div>
       {S.role === "checklist_editor" && <div className="lbl" style={{ marginTop: 10 }}>Ви в робочій групі: <a className="link" href="#checklist">заповнити чек-лист</a>.</div>}</section>
+    <LearnCard />
     {latest ? <>
       <section className="c12 rise toolbar"><span className="lbl">{latest.campaign_title}{latest.closed_on ? `, закрито ${ua(latest.closed_on)}` : ""}</span></section>
       {latest.my_unit && <ApiScope sc={latest.my_unit} title={"Мій підрозділ: " + latest.my_unit.unit_name} />}
@@ -115,6 +116,7 @@ function ApiManage() {
     <section className="card c8 rise">
       {c ? <>
         <div className="card-h"><h2>{dn(c.title)}</h2><Pill cls={CST[c.status][1]}>{CST[c.status][0]}</Pill><div className="sp" /><span className="lbl">{c.opened_on ? ua(c.opened_on) : "ще не відкрито"} – {c.closed_on ? ua(c.closed_on) : "триває"}</span></div>
+        {c.status === "open" && <div className="lbl" style={{ marginBottom: 8 }}>Склад учасників зафіксовано під час відкриття: нові облікові записи в хвилю не потрапляють, а переведення між підрозділами заблоковано до закриття.</div>}
         <div className="rows">{(A.progress ? A.progress.items : []).length ? A.progress.items.map((i, k) => { const n = i.too_few_people ? 30 : Math.max(1, Math.min(30, i.eligible || 30)), on = i.too_few_people || !i.eligible ? 0 : Math.round((i.submitted || 0) / i.eligible * n); return <div key={k} className="row prog-row"><div className="grow"><div className="prog-h"><span className="t">{i.questionnaire_title}</span>{i.too_few_people && <span className="prog-lock" data-tip={`Менше ${c.min_group_size} осіб: кількості приховано`}><Ic n="lock" /></span>}<b className="tnum prog-n">{i.too_few_people ? "приховано" : `${i.submitted} з ${i.eligible}`}</b></div>
           <div className="ticks" style={{ height: 14, marginTop: 8 }}>{Array.from({ length: n }, (_, j) => <span key={j} style={j < on ? { background: "var(--teal)" } : undefined} />)}</div>
           {i.over_expected && <QrOver />}</div></div>; }) : <div className="lbl">Анкет у хвилі немає.</div>}</div>
@@ -146,6 +148,7 @@ function ApiManage() {
           {!l.revoked && c.status !== "closed" && <button className="btn btn-ghost" onClick={() => apiQrRevoke(c.id, l.id)}>Зупинити скани</button>}</div>
       </div>)}</div>}
     </section>}
+    {c && <AutopilotSection key={c.id} id={c.id} kpi />}
     {shown && <QrScreen l={shown} onClose={hideQr} />}
   </>;
 }
@@ -274,7 +277,7 @@ function ApiChecklist() {
       {D.items.map(it => <tr key={it.question_id} id={`ck-${it.question_id}`}><td style={{ minWidth: 260 }}><b style={{ fontWeight: 600 }}>{it.number}.</b> {it.text.replace(/^\d+(\.\d+)*\.\s*/, "")}</td>
         <td>{COMPS.includes(it.component) && <Pill cls="p-mute nodot">{COMP[it.component].n}</Pill>}</td>
         <td style={{ minWidth: 200 }}>{it.status ? <Pill cls={CKS[it.status][1]}>{CKS[it.status][0]}</Pill> : <Pill cls="p-mute">Не внесено</Pill>} {it.confirmed ? <Pill cls="p-good nodot">Підтверджено</Pill> : it.status ? <Pill cls="p-mute nodot">Не підтверджено</Pill> : null}{it.evidence && <div className="lbl" style={{ marginTop: 4 }}>{it.evidence}</div>}</td>
-        <td className="lbl" style={{ minWidth: 160 }}>{it.files.length ? it.files.map(f => <div key={f.id}><a className="link" href="#checklist" onClick={e => { e.preventDefault(); apiDownload(K.sel, it.question_id, f.id, f.filename); }}>{f.filename}</a> <span className="hash" title={`sha256 ${f.sha256}`}>{f.sha256.slice(0, 10)}</span>{ed && <> <a className="link" href="#checklist" aria-label="Прибрати файл" onClick={e => { e.preventDefault(); apiDelFile(K.sel, it.question_id, f.id); }}>×</a></>}</div>) : "—"}</td>
+        <td className="lbl" style={{ minWidth: 160 }}>{it.files.length ? it.files.map(f => <div key={f.id}><a className="link" href="#checklist" onClick={e => { e.preventDefault(); apiDownload(K.sel, it.question_id, f.id, f.filename); }}>{f.filename}</a> <span className="hash" title={`sha256 ${f.sha256}`}>{f.sha256.slice(0, 10)}</span>{ed && <> <a className="link" href="#checklist" aria-label="Прибрати файл" onClick={e => { e.preventDefault(); apiDelFile(K.sel, it.question_id, f.id); }}>×</a></>}</div>) : "–"}</td>
         <td style={{ whiteSpace: "nowrap" }}>{ed && <button className="btn btn-soft" style={{ padding: "6px 12px" }} onClick={() => apiEditItem(it.question_id)}><Ic n="edit" />Внести</button>}{ap && it.status ? (it.confirmed ? <button className="btn btn-ghost" style={{ padding: "6px 12px" }} onClick={() => apiConfirm(it.question_id, false)}>Відкликати</button> : <button className="btn btn-primary" style={{ padding: "6px 12px" }} onClick={() => apiConfirm(it.question_id, true)}><Ic n="ok" />Підтвердити</button>) : null}</td></tr>)}
     </tbody></table></div></section>
   </>;

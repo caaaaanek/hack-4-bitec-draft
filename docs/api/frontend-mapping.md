@@ -64,6 +64,14 @@ npx openapi-typescript ../docs/api/openapi.json -o src/api/schema.d.ts
 | `GET /me` | `GET /me/results` | |
 | `POST /reports`, `GET /reports/{id}`, `.../export` | `GET /campaigns/{id}/report?format=json\|csv\|xlsx\|docx&template=appendix_g\|brief\|measures\|dynamics`, перелік — `GET /report-templates` | звіт будується на льоту зі знімка; `appendix_g` — крос-таблиці, збіги/розбіжності, висновок, пропозиції за Додатком Г; Word/Excel — посилання на завантаження; PDF — print.css |
 | «Що, якщо» (`WhatIf.jsx`) | `POST /campaigns/{id}/what-if` | сценарій «що, якщо»: `baseline` / `scenario` / `delta`, `levers`, `options` для перемикачів і повзунків; див. `docs/backend.md` |
+| «Навчання» (`Learn.jsx`), картка в «Мої результати» | `GET /learning/decks`, `GET /learning/decks/{code}`, `POST .../complete`, `GET /learning/stats` | стос карток із перегортанням (Пробіл, стрілки); де людина зупинилась, зберігається лише в браузері; охоплення з порогом k; `training_coverage` приходить у фактах результатів |
+| «Адвокат диявола» (`Insights.jsx`): повний екран і панель «Підготуватися до перевірки» на «Огляді» та у «Звіті» | `GET /campaigns/{id}/devils-advocate` | лише читання; «До числа» веде за `evidence[].path` на розклад, порівняння чи динаміку; позначка «Відповідь підготовлено» зберігається в браузері |
+| «Черговий» (`Insights.jsx`): повний екран і пункти в «Що потребує уваги» | `GET /agent/digest` | на «Огляді» лише критичні й попередження, до трьох |
+| Автопілот (`Autopilot.jsx`): розділ хвилі в «Керуванні циклом», окремий екран для координатора й аудитора | `GET/PUT /campaigns/{id}/autopilot`, `POST /autopilot/tick`, `GET .../autopilot/report`; координатор бере список хвиль із `GET /admin/overview` | змінює лише `admin` |
+| «Нормативка» (`Normative.jsx`) | `POST /normative/analyze` (multipart) | документ не зберігається |
+| «Перевірки» (`Checks.jsx`) | `GET /checks/mock/{kind}`, `POST /checks/procurement\|declarations`, `GET /checks/runs`, `GET /checks/findings`, `POST .../review`, `POST /checks/publish` | бекенд пускає лише `admin`, координатору екрана немає |
+| Сповіщення (`components/NotesPop.jsx`, дзвіночок у шапці) | `GET /me/notifications` | рядки «• …» тіла показуються списком |
+| Період фактів у «Порівнянні» | поле `periods` фактів у `GET /campaigns/{id}/results` | показується кварталами («4 кв. 2025 – 3 кв. 2026»): факти рахуються лише цілими завершеними кварталами |
 | `GET /audit` | `GET /admin/audit-log` | фільтри й `offset` |
 | `POST /audit/verify` | `POST /admin/audit-log/verify` | |
 | `GET /methodology` | `GET /methodology` | |

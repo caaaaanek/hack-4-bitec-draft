@@ -54,6 +54,9 @@ const P = {
   reset: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/>',
   print: '<path d="M6 9V3h12v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M6 14h12v7H6z"/>',
   compare: '<path d="M8 3v18M16 3v18"/><path d="M3 8h5M16 16h5M3 16h5M16 8h5"/>',
+  bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 21h4"/>',
+  book: '<path d="M4 5a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 2z"/><path d="M4 19V5M9 8h6M9 12h6"/>',
+  bolt: '<path d="M13 3L5 14h6l-1 7 8-11h-6z"/>',
   diamond: '<path d="M12 3l9 9-9 9-9-9z"/>',
 };
 const W = { up: 2.4, down: 2.4, flat: 2.4, dots: 2.4, ok: 2.6, send: 2.2, pulse: 2.2 };

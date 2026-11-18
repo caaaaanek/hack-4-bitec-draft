@@ -50,14 +50,14 @@ export function placePop(p, anchor, mode) {
   p.style.width = ""; const w = p.offsetWidth;
   p.style.left = Math.max(8, Math.min(r.right - w, vw - w - 8)) + "px"; p.style.top = (r.bottom + 6) + "px";
 }
-export function Pop({ children, mode }) {
+export function Pop({ children, mode, cls = "", label = "Вибір" }) {
   const ref = useRef(null), pop = ui.pop;
   useLayoutEffect(() => { if (pop) placePop(ref.current, pop.anchor, mode); });
   useEffect(() => {
     const f = e => { const p = ref.current; if (ui.pop && p && !p.contains(e.target) && !(ui.pop.anchor && ui.pop.anchor.contains(e.target))) closePop(); };
     document.addEventListener("click", f, true); return () => document.removeEventListener("click", f, true);
   }, []);
-  return <div className={`popover ${pop ? "on" : ""}`} id="pop" role="dialog" aria-label="Вибір" ref={ref}>{pop ? children : null}</div>;
+  return <div className={`popover ${cls} ${pop ? "on" : ""}`} id="pop" role="dialog" aria-label={label} ref={ref}>{pop ? children : null}</div>;
 }
 
 export function Toast() {

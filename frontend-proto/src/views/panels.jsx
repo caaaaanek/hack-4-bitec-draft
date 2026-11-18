@@ -73,9 +73,9 @@ export function openTrustHow() {
   openDrawer("Як визначається достовірність", () => <>
     <div><div className="lbl" style={{ marginBottom: 6 }}>Правило</div><ol className="howto">
       <li>Система автоматично перевіряє дані циклу чотирма прапорцями: двома серйозними й двома незначними.</li>
-      <li><b>A</b> — жоден прапорець не спрацював.</li>
-      <li><b>B</b> — спрацювали один або два незначні.</li>
-      <li><b>C</b> — спрацював хоча б один серйозний або три й більше незначних.</li>
+      <li><b>A</b> – жоден прапорець не спрацював.</li>
+      <li><b>B</b> – спрацювали один або два незначні.</li>
+      <li><b>C</b> – спрацював хоча б один серйозний або три й більше незначних.</li>
       <li>Якщо відповідей менше за мінімальну групу k = {S.k}, достовірність не оцінюється.</li></ol></div>
     <div><div className="lbl" style={{ marginBottom: 4 }}>Перевірки</div><div className="rows">{FLAGS.map(f => <div key={f.id} className="row" style={{ alignItems: "flex-start" }}><FlagIc f={f} /><div className="grow"><div style={{ fontWeight: 600 }}>{f.t}</div><div className="lbl">{f.w === "major" ? "Серйозний" : "Незначний"}</div></div></div>)}</div></div>
     <div className="lbl">Прапорець означає напрям для додаткової перевірки даних, а не висновок про людей чи підрозділи.</div>
@@ -89,7 +89,7 @@ export function openTrackerHow() {
       <li>Стани: {["accepted", "inprogress", "done"].map(k => M_ST[k][0].toLowerCase()).join(" → ")}. «Виконано» ставиться лише з доказом.</li>
       <li>Захід прострочено, якщо строк минув, а його ще не виконано.</li>
       <li>Чи дав захід результат, перевіряє наступний цикл оцінювання: показник, на який він спрямований, має покращитися. Тоді стан стає «підтверджено» або «не підтверджено».</li>
-      <li>Відповідальний — посада, а не прізвище.</li></ol>
+      <li>Відповідальний – посада, а не прізвище.</li></ol>
     {route().r !== "tracker" && <Link href="#tracker">Відкрити трекер <Ic n="arrowR" /></Link>}
   </>);
 }
@@ -135,8 +135,8 @@ export function openApiQ(code) {
   openDrawer("Питання анкети", () => <>
     <div style={{ fontWeight: 600, fontSize: 16 }}>{q.text}</div>
     <div className="lbl" style={{ margin: "4px 0 14px" }}>{[q.section, COMP[q.component] ? COMP[q.component].n : q.component].filter((v, i, a) => v && a.indexOf(v) === i).join(" · ")} · код {q.code}</div>
-    <div className="stat4 tnum" style={{ gridTemplateColumns: "1fr 1fr" }}><div><small>Середній бал</small><b>{q.score != null ? fb(q.score) : "—"}</b></div><div><small>Рівень</small><b>{q.score != null ? LSHORT[level(q.score) - 1] : "—"}</b></div></div>
-    {q.by_category.map(g => <div key={g.category} style={{ marginTop: 16 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><b>{grp(g.category)}</b><span className="lbl tnum">{g.n} відп. · бал {g.score != null ? fb(g.score) : "—"}</span></div>
+    <div className="stat4 tnum" style={{ gridTemplateColumns: "1fr 1fr" }}><div><small>Середній бал</small><b>{q.score != null ? fb(q.score) : "–"}</b></div><div><small>Рівень</small><b>{q.score != null ? LSHORT[level(q.score) - 1] : "–"}</b></div></div>
+    {q.by_category.map(g => <div key={g.category} style={{ marginTop: 16 }}><div style={{ display: "flex", justifyContent: "space-between", gap: 8 }}><b>{grp(g.category)}</b><span className="lbl tnum">{g.n} відп. · бал {g.score != null ? fb(g.score) : "–"}</span></div>
       {g.distribution.map((d, i) => <div key={i} style={{ display: "grid", gridTemplateColumns: "minmax(0,1fr) 90px 44px", gap: 8, alignItems: "center", marginTop: 6, fontSize: 13 }}><span>{d.option_text}</span><div className="contrib"><i style={{ width: `${d.percent}%`, background: "var(--teal)" }} /></div><span className="lbl tnum" style={{ textAlign: "right" }}>{fb(d.percent)}%</span></div>)}</div>)}
     <Link cls="btn btn-soft" href={`#explain/${q.component}`} style={{ justifyContent: "center", marginTop: 18 }}><Ic n="arrowR" />Компонент у розкладі індексу</Link>
   </>);
@@ -150,8 +150,16 @@ export const SOURCES = [
   ["Конфлікти інтересів", "Рішення з попереднього хакатону", "approval", "Немає даних: потрібне погодження власника рішення", "Рішення може підказувати випадки для перевірки. Використання потребує погодження."],
   ["Закупівлі", "Інший проєкт команди з оцінки закупівель", "planned", "Немає даних: інтеграцію ще не підключено", "Результати оцінки закупівель можуть стати фактами для компонента Підзвітність."],
   ["Скарги й звернення", "Журнал звернень закладу", "manual", "Внесено 12.11.2026", "Кількість звернень і розглянутих у строк вносить уповноважений."],
+  ["Охоплення навчанням", "Флешкартки доброчесності платформи", "auto", "Оновлюється щодня за історією проходження колод", "Скільки учасників пройшли всі обовʼязкові колоди за рік. Лише частка, без імен; групи менші за k приховані."],
   ["Звітування за заходами", "Система суміжної команди", "approval", "Немає даних: інтеграцію ще не погоджено", "Автоматичне оновлення статусів заходів планується. Поки статуси змінюють вручну в трекері."],
 ];
+// З сервером показники декларацій, конфліктів інтересів і закупівель рахує модуль «Перевірки» (docs/features.md, розділ 6)
+const SERVER_SRC = {
+  2: ["Модуль «Перевірки»", "auto", "Рахує система за правилами", "Строк подання декларацій перевіряє модуль «Перевірки». Показник потрапляє в екран «Порівняння»."],
+  3: ["Модуль «Перевірки»", "auto", "Рахує система за правилами", "Правила конфлікту інтересів знаходять випадки, а уповноважений розглядає їх. Показник потрапляє в «Порівняння»."],
+  4: ["Модуль «Перевірки»", "auto", "Рахує система за правилами", "Правила червоних прапорців перевіряють закупівлі. Показник потрапляє в «Порівняння»."],
+};
+export const srcRows = () => SOURCES.map((r, i) => API.on && SERVER_SRC[i] ? [r[0], ...SERVER_SRC[i]] : r);
 export const MODE = { auto: ["Автоматично", "p-good"], manual: ["Ручний ввід", "p-info"], planned: ["Планується", "p-mute"], approval: ["Потребує погодження", "p-warn"] };
 const SRC_DATA = {
   decl: { n: 100, ok: 45, rows: [["Керівний склад", 12, 10], ["Науково-педагогічні працівники", 38, 19], ["Посадові особи служб забезпечення", 30, 11], ["Інші зобовʼязані особи", 20, 5]] },
@@ -162,17 +170,19 @@ const SRC_DATA = {
 const Tbl = ({ hs, rows }) => <div className="tbl-wrap"><table><thead><tr>{hs.map(h => <th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{c}</td>)}</tr>)}</tbody></table></div>;
 const N = ({ children, style }) => <span className="tnum" style={style}>{children}</span>;
 export function openSource(i) {
-  const [name, from, mo, age] = SOURCES[i];
+  const [name, from, mo, age] = srcRows()[i];
   openDrawer(name, () => {
     const m = cur();
     const synth = <div className="lbl">Записи синтетичні, для демонстрації. {mo === "planned" || mo === "approval" ? "Після підключення інтеграції дані надходитимуть автоматично." : ""}</div>;
     let body;
-    if (i === 0) body = <><div className="lbl">Агреговані результати за питаннями. Окремих відповідей немає.</div><Tbl hs={["Питання", "Група", "Бал"]} rows={m.pItems.map(x => [x.t, SRC[x.src][0].replace("Сприйняття ", ""), <b className="tnum">{fb(x.v)}</b>])} /><Link href="#explain">Відкрити в розкладі індексу <Ic n="arrowR" /></Link></>;
+    if (API.on && SERVER_SRC[i]) body = <><div className="lbl">Записи окремих закупівель і декларацій тут не показуються: у модулі зберігаються лише знахідки з публічними ідентифікаторами.</div>{can("checks") && <Link cls="btn btn-soft" href="#checks"><Ic n="shield" />Відкрити «Перевірки»</Link>}</>;
+    else if (i === 0) body = <><div className="lbl">Агреговані результати за питаннями. Окремих відповідей немає.</div><Tbl hs={["Питання", "Група", "Бал"]} rows={m.pItems.map(x => [x.t, SRC[x.src][0].replace("Сприйняття ", ""), <b className="tnum">{fb(x.v)}</b>])} /><Link href="#explain">Відкрити в розкладі індексу <Ic n="arrowR" /></Link></>;
     else if (i === 1) body = <Tbl hs={["Показник", "Дані", "Ким внесено"]} rows={m.fItems.map(x => [x.t, <N>{x.kind === "pct" ? `${x.val[0]} з ${x.val[1]}` : `рівень ${x.val} з 5`}</N>, (FACT_META[x.id] || ["10.11.2026", "Вносить дані чек-листа"]).join(", ") + ". Підтверджено"])} />;
     else if (i === 2) { const d = SRC_DATA.decl; body = <><div className="stat4 tnum" style={{ gridTemplateColumns: "repeat(3,1fr)" }}><div><small>Зобовʼязані</small><b>{d.n}</b></div><div><small>Подали вчасно</small><b>{d.ok}</b></div><div><small>Частка</small><b>{d.ok} %</b></div></div><Tbl hs={["Категорія", "Зобовʼязані", "Вчасно"]} rows={d.rows.map(r => [r[0], <N>{r[1]}</N>, <N>{r[2]}</N>])} />{synth}</>; }
     else if (i === 3) body = <><div className="lbl">Повідомлення про потенційні конфлікти інтересів і висновки уповноваженого. Імена не показуються.</div><Tbl hs={["Номер", "Суть", "Статус", "Дата"]} rows={SRC_DATA.coi.map(r => [<N>{r[0]}</N>, r[1], <Pill cls={r[2].includes("у строк") ? "p-good nodot" : r[2].includes("запізн") ? "p-bad nodot" : "p-mute nodot"}>{r[2]}</Pill>, <N>{r[3]}</N>])} />{synth}</>;
     else if (i === 4) body = <><div className="lbl">Закупівлі закладу з ознаками ризику з проєкту оцінки закупівель.</div><Tbl hs={["Ідентифікатор", "Предмет", "Ознака", "Ризик"]} rows={SRC_DATA.proc.map(r => [<N style={{ fontSize: 12 }}>{r[0]}</N>, r[1], r[2], <Pill cls={r[3] === "Високий" ? "p-bad nodot" : r[3] === "Середній" ? "p-warn nodot" : "p-good nodot"}>{r[3]}</Pill>])} />{synth}</>;
     else if (i === 5) { const c = SRC_DATA.comp, t = c.reduce((a, r) => a + r[1], 0), ok = c.reduce((a, r) => a + r[2], 0); body = <><div className="stat4 tnum" style={{ gridTemplateColumns: "repeat(3,1fr)" }}><div><small>Звернень</small><b>{t}</b></div><div><small>Розглянуто в строк</small><b>{ok}</b></div><div><small>Частка</small><b>{Math.round(ok / t * 100)} %</b></div></div><Tbl hs={["Тема", "Звернень", "У строк"]} rows={c.map(r => [r[0], <N>{r[1]}</N>, <N>{r[2]}</N>])} />{synth}</>; }
+    else if (i === 6) body = <><div className="lbl">Показник «Охоплення навчанням» рахується з проходження флешкарток. Результат потрапляє в «Обʼєктивні показники» екрана «Порівняння» як частка пройшовших.</div><Link cls="btn btn-soft" href="#learn"><Ic n="book" />Відкрити «Навчання»</Link></>;
     else body = <><div className="lbl">Поки статуси заходів змінюють вручну.</div>{can("tracker") ? <Link cls="btn btn-soft" href="#tracker"><Ic n="target" />Відкрити трекер заходів</Link> : <div className="lbl">Заходів за цикл: {measures().length}.</div>}</>;
     return <><div><div className="lbl">{from}</div><div style={{ display: "flex", gap: 8, alignItems: "center", marginTop: 6, flexWrap: "wrap" }}><Pill cls={MODE[mo][1]}>{MODE[mo][0]}</Pill><span className="lbl">{age}</span></div></div>{body}</>;
   });

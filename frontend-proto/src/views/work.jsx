@@ -9,7 +9,7 @@ import { render, toast, openDrawer, closeDrawer } from "../lib/store.js";
 import { can } from "../lib/nav.js";
 import { Pill, LvPill, TrustPill, Num, Delta } from "../components/ui.jsx";
 import { DatePicker } from "../components/DatePicker.jsx";
-import { openApiQ, openMeasure, openSource, SOURCES, MODE } from "./panels.jsx";
+import { openApiQ, openMeasure, openSource, srcRows, MODE } from "./panels.jsx";
 import { ReadGuide } from "./results.jsx";
 
 const enter = f => e => { if (e.key === "Enter") f(e); };
@@ -59,7 +59,7 @@ function acceptRec(id) {
       <div><div className="lbl">{COMP[r.c].n}</div><div style={{ fontSize: 16, fontWeight: 600, marginTop: 4 }}>{r.t}</div></div>
       <div className="field"><label htmlFor="f-who">Відповідальна посада</label><select id="f-who" className="inp" value={who} onChange={e => setWho(e.target.value)}>{POSITIONS.map(w => <option key={w}>{w}</option>)}</select></div>
       <div className="field"><label htmlFor="f-due">Строк виконання</label><DatePicker id="f-due" value={due} min={TODAY} onChange={setDue} /><span className="err lbl" id="f-err">{err}</span></div>
-      <div className="note-box"><span className="lbl">Після прийняття в трекері зʼявиться захід із цією посадою й строком. Посаду і строк можна буде уточнити пізніше.</span></div>
+      <div className="note-box"><span className="lbl">Після прийняття в трекері зʼявиться захід із цією посадою й строком. Посада і строк зберігаються в заході разом із рішенням.</span></div>
       <div style={{ display: "flex", gap: 8 }}><button className="btn btn-ghost" style={{ flex: 1, justifyContent: "center" }} onClick={closeDrawer}>Скасувати</button><button className="btn btn-primary" id="f-ok" style={{ flex: 2, justifyContent: "center" }} disabled={busy} onClick={ok}><Ic n="ok" />Прийняти й створити захід</button></div>
     </>;
   });
@@ -117,7 +117,7 @@ export function Tracker() {
   const [drag, setDrag] = useState(null), [over, setOver] = useState(null);
   const conf = all.filter(x => x.st === "confirmed").length, chk = all.filter(x => x.st === "done" && x.vf && x.vf[1] === "p-warn").length, wait = all.filter(x => x.st === "done").length - chk, rev = all.filter(x => x.st === "notconfirmed").length;
   const open = (e, id) => { if (!e.target.closest("button")) openMeasure(id); };
-  const actCell = x => x.st === "confirmed" ? <span className="lbl">Змінює наступне оцінювання</span> : edit ? <div className="mv">{M_NEXT[x.st].map(s => <button key={s} className="btn btn-ghost" onClick={() => setMSt(x.id, s)}><Ic n="arrowR" />{M_ST[s][0]}</button>)}</div> : <span className="lbl">—</span>;
+  const actCell = x => x.st === "confirmed" ? <span className="lbl">Змінює наступне оцінювання</span> : edit ? <div className="mv">{M_NEXT[x.st].map(s => <button key={s} className="btn btn-ghost" onClick={() => setMSt(x.id, s)}><Ic n="arrowR" />{M_ST[s][0]}</button>)}</div> : <span className="lbl">–</span>;
   // Дошка: перетягування картки в дозволений стовпець (ті самі переходи, що й кнопки на картці)
   const cols = ["accepted", "inprogress", "done", "confirmed", "notconfirmed", ...(list.some(x => x.st === "cancelled") ? ["cancelled"] : [])];
   const canDrop = st => drag && (M_NEXT[drag.st] || []).includes(st);
@@ -168,10 +168,10 @@ export function Sources() {
   return <>
     <section className="card c12 rise"><div className="card-h"><h2>Джерела даних за метриками</h2><div className="sp" /><span className="lbl">Клацніть на рядок, щоб переглянути дані</span></div>
       <div className="tbl-wrap"><table><thead><tr><th>Метрика</th><th>Джерело</th><th>Режим</th><th>Вік даних</th><th>Пояснення</th></tr></thead><tbody>
-        {SOURCES.map(([a, b, mo, age, ex], i) => <tr key={a} className="tr-click" tabIndex={0} onClick={() => openSource(i)} onKeyDown={enter(() => openSource(i))}><td><b style={{ fontWeight: 600 }}>{a}</b></td><td>{b}</td><td><Pill cls={MODE[mo][1]}>{MODE[mo][0]}</Pill></td><td className="lbl" style={{ minWidth: 150 }}>{age}</td><td className="lbl" style={{ minWidth: 260 }}>{ex}</td></tr>)}
+        {srcRows().map(([a, b, mo, age, ex], i) => <tr key={a} className="tr-click" tabIndex={0} onClick={() => openSource(i)} onKeyDown={enter(() => openSource(i))}><td><b style={{ fontWeight: 600 }}>{a}</b></td><td>{b}</td><td><Pill cls={MODE[mo][1]}>{MODE[mo][0]}</Pill></td><td className="lbl" style={{ minWidth: 150 }}>{age}</td><td className="lbl" style={{ minWidth: 260 }}>{ex}</td></tr>)}
       </tbody></table></div></section>
     <section className="c12 rise"><div className="card-h" style={{ margin: "6px 0 0" }}><h2>Карта інтеграцій</h2></div></section>
-    {INTEG.map(([n, mo, why, how, ic], i) => { const go = () => openSource([0, 1, 2, 3, 4, 6][i]); return <section key={n} className={`card c4 rise integ ${mo}`} role="button" tabIndex={0} onClick={go} onKeyDown={enter(go)}><div className="comp-top"><span className="comp-ic" style={{ background: "var(--soft)" }}><Ic n={ic} /></span><b>{n}</b><div className="sp" style={{ flex: 1 }} /><Pill cls={MODE[mo][1]}>{MODE[mo][0]}</Pill></div>
+    {INTEG.map(([n, mo, why, how, ic], i) => { const go = () => openSource([0, 1, 2, 3, 4, 7][i]); return <section key={n} className={`card c4 rise integ ${mo}`} role="button" tabIndex={0} onClick={go} onKeyDown={enter(go)}><div className="comp-top"><span className="comp-ic" style={{ background: "var(--soft)" }}><Ic n={ic} /></span><b>{n}</b><div className="sp" style={{ flex: 1 }} /><Pill cls={MODE[mo][1]}>{MODE[mo][0]}</Pill></div>
       <div style={{ marginTop: 12 }}><span className="lbl">Навіщо</span><div>{why}</div></div><div style={{ marginTop: 8 }}><span className="lbl">Метод</span><div>{how}</div></div></section>; })}
   </>;
 }

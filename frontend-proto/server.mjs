@@ -35,6 +35,6 @@ http.createServer(async (req, res) => {
   try { const html = await fs.readFile(path.join(dist, "index.html")); res.writeHead(200, { "content-type": TYPES[".html"] }); return res.end(html); }
   catch { return res.writeHead(500).end("Немає збірки: виконайте npm run build"); }
 }).listen(port, host, () => {
-  console.log(`Integrity Index: http://${host === "0.0.0.0" ? "localhost" : host}:${port}`);
+  console.log(`Integra: http://${host === "0.0.0.0" ? "localhost" : host}:${port}`);
   console.log(`Модель: ${process.env.LLM_MODEL} через ${process.env.LLM_BASE_URL}`);
 });
