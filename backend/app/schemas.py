@@ -326,6 +326,29 @@ class TokensOut(BaseModel):
     warning: str | None = None
 
 
+class QrLinkIn(BaseModel):
+    questionnaire_id: uuid.UUID
+    unit_id: uuid.UUID | None = Field(default=None, description="Підрозділ людей; для експертів не потрібен")
+    expected: int = Field(ge=1, le=100000, description="Скільки людей у групі: від цього рахується участь")
+
+
+class QrLinkOut(BaseModel):
+    id: uuid.UUID
+    questionnaire_id: uuid.UUID
+    questionnaire_title: str
+    unit_id: uuid.UUID | None
+    expected: int
+    code: str
+    link: str
+    revoked: bool
+    opened: int = Field(description="Скільки форм відкрито скануванням")
+    completed: int = Field(description="Скільки з них завершено; різниця — покинуті форми")
+
+
+class QrOpenOut(BaseModel):
+    token: str
+
+
 class TokensRevokeIn(BaseModel):
     questionnaire_id: uuid.UUID | None = None
     unit_id: uuid.UUID | None = None
@@ -350,6 +373,7 @@ class ProgressItem(BaseModel):
     submitted: int | None
     percent: float | None
     too_few_people: bool = False  # група менша за поріг: кількості приховано
+    over_expected: bool = False  # відповідей більше, ніж людей у групі: ознака накрутки
 
 
 class CampaignProgress(BaseModel):

@@ -25,7 +25,7 @@ from app.models import (
     Role,
     User,
 )
-from app.schemas import AssignmentOut, FormOut, SubmissionIn, SubmissionOut, TokenFormOut
+from app.schemas import AssignmentOut, FormOut, QrOpenOut, SubmissionIn, SubmissionOut, TokenFormOut
 from app.security import LoginThrottle, client_ip, require_roles
 from app.services import tokens
 from app.services.anonymity import flush_pool
@@ -173,6 +173,36 @@ def token_assignment(request: Request, db: Session, token: str | None):
     if link is None:
         raise ApiError(404, "Посилання недійсне", code="token_invalid")
     return row, campaign, link.questionnaire
+
+
+@router.post("/respond/qr/{code}", response_model=QrOpenOut, status_code=status.HTTP_201_CREATED)
+def qr_open(code: str, request: Request, db: Session = Depends(get_db)):
+    """Скан QR: свіжий одноразовий токен для нової форми. Подання лише через POST: GET могли б
+    «натиснути» превʼю месенджера чи антивірус, і форми розтратилися б.
+
+    Хто відкрив форму, не зберігається: у БД лише sha256 токена без часу й IP. Закрив форму
+    без подання — токен просто лишається невикористаним, наступний скан дає нову форму.
+    """
+    key = ("token", client_ip(request))
+    retry_after = token_throttle.blocked_for(key)
+    if retry_after:
+        raise ApiError(429, "Забагато спроб з невірним посиланням", hint=f"Спробуйте через {retry_after} с.",
+                       headers={"Retry-After": str(retry_after)})
+    link = tokens.find_qr(db, code)
+    if link is None or link.revoked:
+        token_throttle.fail(key)
+        raise ApiError(404, "Посилання недійсне", code="qr_invalid",
+                       hint="Відскануйте QR ще раз або попросіть організатора показати актуальний.")
+    campaign = db.get(Campaign, link.campaign_id)
+    if campaign.status != CampaignStatus.OPEN:
+        raise ApiError(409, "Опитування зараз не приймає відповіді", code="campaign_not_open",
+                       hint="Перевірте строки опитування.")
+    token = tokens.open_by_scan(db, link)
+    if token is None:
+        raise ApiError(429, "Для цього QR відкрито забагато форм", code="qr_limit",
+                       hint="Звернися до організатора: лімітом є 3 × очікувана кількість учасників.")
+    db.commit()
+    return QrOpenOut(token=token)
 
 
 @router.get("/respond/form", response_model=TokenFormOut)

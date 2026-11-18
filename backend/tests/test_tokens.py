@@ -227,7 +227,8 @@ def test_person_cannot_be_found_from_token(client):
         assert not fks & {"users", "access_tokens", "participations"}, (table, fks)
     # 2. У таблиці посилань немає ні людини, ні часу, ні відповіді.
     token_cols = {c["name"] for c in insp.get_columns("access_tokens")}
-    assert token_cols == {"id", "campaign_id", "questionnaire_id", "unit_id", "token_hash", "used", "revoked"}
+    assert token_cols == {"id", "campaign_id", "questionnaire_id", "unit_id", "token_hash", "used", "revoked",
+                          "qr_link_id"}
 
     with SessionLocal() as db:
         # 3. Сам токен у БД не зберігається, лише хеш.

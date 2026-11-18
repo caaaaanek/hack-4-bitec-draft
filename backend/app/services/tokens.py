@@ -13,12 +13,15 @@ import secrets
 import uuid
 from collections.abc import Callable, Iterable
 
-from sqlalchemy import select, update
+from sqlalchemy import case, func, select, update
 from sqlalchemy.orm import Session
 
-from app.models import AccessToken, Campaign
+from app.models import AccessToken, Campaign, QrLink
 
 TOKEN_BYTES = 32
+QR_CODE_BYTES = 12
+# Скільки форм можна відкрити скануванням на одного очікуваного учасника: решта — це не люди, а скрипт.
+QR_OPEN_FACTOR = 3
 
 
 def hash_token(token: str) -> str:
@@ -34,6 +37,40 @@ def issue(db: Session, campaign: Campaign, questionnaire_id: uuid.UUID, unit_id:
         for t in tokens
     )
     return tokens
+
+
+def issue_qr_link(db: Session, campaign: Campaign, questionnaire_id: uuid.UUID, unit_id: uuid.UUID | None,
+                  expected: int) -> QrLink:
+    link = QrLink(campaign_id=campaign.id, questionnaire_id=questionnaire_id, unit_id=unit_id, expected=expected,
+                  code=secrets.token_urlsafe(QR_CODE_BYTES))
+    db.add(link)
+    return link
+
+
+def open_by_scan(db: Session, link: QrLink) -> str | None:
+    """Свіжий одноразовий токен для того, хто відсканував QR. None — ліміт відкритих форм вичерпано."""
+    opened = db.scalar(select(func.count()).select_from(AccessToken).where(AccessToken.qr_link_id == link.id)) or 0
+    if opened >= link.expected * QR_OPEN_FACTOR:
+        return None
+    token = secrets.token_urlsafe(TOKEN_BYTES)
+    db.add(AccessToken(campaign_id=link.campaign_id, questionnaire_id=link.questionnaire_id, unit_id=link.unit_id,
+                       token_hash=hash_token(token), qr_link_id=link.id))
+    return token
+
+
+def find_qr(db: Session, code: str) -> QrLink | None:
+    if not code or len(code) > 64:
+        return None
+    return db.scalar(select(QrLink).where(QrLink.code == code))
+
+
+def qr_stats(db: Session, link_id: uuid.UUID) -> tuple[int, int]:
+    """(відкрито форм, завершено). Покинуті форми — різниця; ні на кого вони не вказують."""
+    rows = db.execute(
+        select(func.count(), func.coalesce(func.sum(case((AccessToken.used.is_(True), 1), else_=0)), 0))
+        .where(AccessToken.qr_link_id == link_id)
+    ).one()
+    return int(rows[0]), int(rows[1])
 
 
 def find(db: Session, token: str) -> AccessToken | None:
@@ -79,15 +116,29 @@ def load(db: Session, campaign_id: uuid.UUID) -> list[AccessToken]:
 
 
 def counts(rows: Iterable[AccessToken], questionnaire_id: uuid.UUID,
-           in_scope: Callable[[uuid.UUID | None], bool] = lambda _: True) -> tuple[int, int]:
-    """(видано й не відкликано, використано) для анкети в межах області."""
+           in_scope: Callable[[uuid.UUID | None], bool] = lambda _: True,
+           qr_links: Iterable[QrLink] = ()) -> tuple[int, int]:
+    """(мали пройти, використано) для анкети в межах області.
+
+    Звичайні посилання: видані й не відкликані. Посилання зі сканування QR у «мали пройти» не йдуть
+    (їх відкрито стільки, скільки було сканів): замість них очікувана кількість із самого QR.
+    Використані завжди рахуються, тож перевищення очікуваного видно як участь понад 100 %.
+    """
     eligible = submitted = 0
     for t in rows:
         if t.questionnaire_id != questionnaire_id or not in_scope(t.unit_id):
             continue
         if t.used:
             submitted += 1
+            if t.qr_link_id is None:
+                eligible += 1
+        elif not t.revoked and t.qr_link_id is None:
             eligible += 1
-        elif not t.revoked:
-            eligible += 1
+    for link in qr_links:
+        if link.questionnaire_id == questionnaire_id and in_scope(link.unit_id):
+            eligible += link.expected
     return eligible, submitted
+
+
+def load_qr_links(db: Session, campaign_id: uuid.UUID) -> list[QrLink]:
+    return list(db.scalars(select(QrLink).where(QrLink.campaign_id == campaign_id)))
