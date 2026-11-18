@@ -18,7 +18,7 @@ hack-4-bitec-draft/
 │   ├── migrations/          Alembic
 │   ├── scripts/demo_wave.py повна демо-хвиля одним запуском
 │   └── tests/               pytest (за замовчуванням на SQLite)
-├── frontend-proto/          UI (використовується): одна сторінка, vanilla JS, src/ → build.py → index.html, nginx у Docker
+├── frontend-proto/          UI (використовується): React + Vite, src/ → npm run build → dist/, nginx у Docker
 ├── frontend/                попередній UI на React (у compose не використовується)
 │   ├── src/pages/           екрани (див. таблицю нижче)
 │   ├── src/components/      ui/ базові, dashboard/ графіки й картки, layout/ оболонка й навігація
@@ -78,7 +78,7 @@ flowchart LR
 
 ```bash
 cp .env.example .env && docker compose up --build   # PostgreSQL + API + UI → http://localhost:8080 (API: :8000/docs)
-# без Docker: відкрити frontend-proto/index.html — UI на демо-даних
+# без Docker: cd frontend-proto && npm install && npm run dev — UI на демо-даних
 ```
 
 Деталі, демо-хвилі, логіни й перевірки — [`docs/run.md`](docs/run.md).

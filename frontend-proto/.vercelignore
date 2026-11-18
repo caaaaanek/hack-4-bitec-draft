@@ -1,5 +1,9 @@
 server.mjs
 start.sh
 README.md
-src/
 CLAUDE.md
+node_modules
+dist
+*.png
+Dockerfile
+deploy

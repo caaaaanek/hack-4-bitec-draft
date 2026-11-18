@@ -1,0 +1,394 @@
+/* ---------- Підключення до бекенду ----------
+ * Якщо поруч є API (GET /api/v1/config відповідає), сторінка працює з даними сервера: вхід, результати,
+ * рекомендації й рішення, заходи, анкети (за обліковим записом і анонімно за посиланням /s/<токен>),
+ * чек-лист із файлами-доказами, хвилі й посилання, журнал. Без API (відкрито з файлу, Vercel) — демо-дані
+ * в браузері. Решта коду бере дані через гачки: inst(), buildRecs(), measures(), SV()/SQ() і екрани в views/Api*.
+ */
+import { S, NAV, HOME, freshSurvey } from "./state.js";
+import { COMPS, COMP, ALPHA, r1, finish, setClock } from "./model.js";
+import { fb } from "./format.js";
+import { render, toast, closeDrawer, ui } from "./store.js";
+import { copyText } from "./util.js";
+
+export const API = {
+  on: false, booting: true, base: "/api/v1", cfg: null, user: null, anon: false, token: null, loginMsg: null,
+  model: null, empty: false, recs: [], ms: [], campaignId: null, unitId: null, res: null,
+  survey: null, surveyUsed: false, surveyMsg: null, surveyTarget: null, formError: null,
+  my: null, assignments: null, adm: null, qs: null, ck: null, log: null, logF: null, chain: null, loading: {},
+};
+const SESSION_KEY = "ii-session";
+
+/* --- Запити --- */
+function apiToken() { try { return sessionStorage.getItem(SESSION_KEY); } catch (e) { return null; } }
+function apiSetToken(t) { try { if (t) sessionStorage.setItem(SESSION_KEY, t); else sessionStorage.removeItem(SESSION_KEY); } catch (e) { /* сховище недоступне */ } }
+export const apiAuth = () => { const t = apiToken(); return t ? { Authorization: "Bearer " + t } : {}; };
+export class ApiErr extends Error { constructor(status, body) { super((body && body.message) || "Сервер не відповів"); this.status = status; this.code = body && body.code; this.hint = (body && body.hint) || ""; } }
+export async function api(path, { method = "GET", body, headers = {}, auth = true, raw = false } = {}) {
+  const h = { Accept: "application/json", ...(auth ? apiAuth() : {}), ...headers };
+  let b;
+  if (body instanceof FormData) b = body; else if (body !== undefined) { h["Content-Type"] = "application/json"; b = JSON.stringify(body); }
+  let r;
+  try { r = await fetch(path.startsWith("/api/") ? path : API.base + path, { method, headers: h, body: b }); }
+  catch (e) { throw new ApiErr(0, { message: "Немає зв’язку із сервером", hint: "Перевірте мережу." }); }
+  if (!r.ok) {
+    const j = await r.json().catch(() => null);
+    if (r.status === 401 && auth && apiToken() && API.user) { apiSetToken(null); API.user = null; showLogin("Сесія завершилась. Увійдіть знову."); }
+    throw new ApiErr(r.status, j);
+  }
+  if (raw) return r;
+  if (r.status === 204) return null;
+  return (r.headers.get("content-type") || "").includes("json") ? r.json() : r.text();
+}
+export const apiErrText = e => e instanceof ApiErr ? `${e.message}${e.hint ? ". " + e.hint : ""}` : "Не вдалося виконати дію";
+export const apiFail = e => toast(apiErrText(e));
+
+/* --- Ролі: обліковий запис → роль інтерфейсу --- */
+function frontRole(u) {
+  if (!u) return "respondent";
+  if (["admin", "commissioner", "leader", "auditor"].includes(u.role)) return u.role;
+  return u.category === "working_group" ? "checklist_editor" : "respondent";
+}
+const RESULT_ROLES = ["leader", "auditor", "admin", "commissioner"];
+export const allowed = r => NAV.some(n => n[0] === r && n[3].includes(S.role)) && (!API.anon || r === "survey");
+
+/* --- Старт --- */
+export async function boot() {
+  let cfg = null;
+  try {
+    const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 4000);
+    const r = await fetch("/api/v1/config", { signal: ctl.signal }); clearTimeout(t);
+    if (r.ok && (r.headers.get("content-type") || "").includes("json")) cfg = await r.json();
+  } catch (e) { /* демо-режим */ }
+  API.booting = false;
+  if (!cfg) { render(); return; }
+  API.on = true; API.cfg = cfg; S.k = cfg.min_group_size;
+  // Розподіл прав як на бекенді: укладач підтверджує чек-лист, робоча група ще й проходить анкету.
+  NAV.find(n => n[0] === "checklist")[3].push("commissioner", "auditor");
+  for (const r of ["survey", "me"]) NAV.find(n => n[0] === r)[3].push("checklist_editor");
+  NAV.find(n => n[0] === "survey")[1] = "Пройти анкету";
+  const tm = location.pathname.match(/^\/s\/([^/?#]+)/);
+  if (tm) return bootToken(decodeURIComponent(tm[1]));
+  if (apiToken()) {
+    try { const me = await api("/auth/session"); return afterLogin(me); } catch (e) { apiSetToken(null); }
+  }
+  if (cfg.auth.proxy && !cfg.auth.password) {
+    try { const s = await api("/auth/proxy", { method: "POST", auth: false }); apiSetToken(s.access_token); return afterLogin(s.user); } catch (e) { /* далі форма входу */ }
+  }
+  showLogin();
+}
+
+export function showLogin(msg) {
+  API.loginMsg = msg || null; ui.drawer = null; ui.ai = false; render();
+}
+export async function login(loginName, password) {
+  const s = await api("/auth/session", { method: "POST", auth: false, body: { login: loginName, password } });
+  apiSetToken(s.access_token); await afterLogin(s.user);
+}
+export async function loginProxy() {
+  try { const s = await api("/auth/proxy", { method: "POST", auth: false }); apiSetToken(s.access_token); await afterLogin(s.user); } catch (err) { toast(apiErrText(err)); }
+}
+export async function logout() {
+  try { await api("/auth/session", { method: "DELETE" }); } catch (e) { /* сесія вже закрита */ }
+  apiSetToken(null); API.user = null; API.model = null; history.replaceState(null, "", "/"); showLogin();
+}
+
+async function afterLogin(user) {
+  API.user = user; S.role = frontRole(user); API.my = API.assignments = API.adm = API.qs = API.ck = API.log = API.logF = API.chain = null; API.survey = null; API.formError = null; API.loginMsg = null;
+  if (RESULT_ROLES.includes(S.role)) await apiLoadResults();
+  if (!allowed((location.hash || "").slice(1).split("/")[0])) location.hash = HOME[S.role];
+  render();
+}
+
+/* --- Анонімне проходження за посиланням /s/<токен> --- */
+async function bootToken(token) {
+  API.anon = true; API.token = token; S.role = "respondent";
+  API.surveyTarget = { kind: "token", token };
+  location.hash = "survey";
+  S.survey = freshSurvey();
+  try { API.survey = apiSurveyModel(await api("/respond/form", { auth: false, headers: { "X-Response-Token": token } }), "token"); }
+  catch (e) { API.survey = null; API.surveyMsg = e.code === "token_used" ? "used" : e.code === "campaign_not_open" ? "closed" : "invalid"; }
+  render();
+}
+
+/* --- Результати: остання закрита хвиля --- */
+export const CATEGORY_SRC = { staff: ["os", "Особовий склад (анкета 2)"], working_group: ["wg", "Робоча група (анкета 1)"], expert: ["experts", "Зовнішні експерти (анкета 3)"], checklist: ["wg", "Контрольний чек-лист (робоча група)"] };
+const GROUP_FLAG = { low_participation: ["minor", "Низька участь", "Відповіла менша частка запрошених."], suspiciously_perfect: ["major", "Підозріло однакові «ідеальні» відповіді", "Значна частка анкет з однаковими найвищими відповідями."], insufficient_data: ["minor", "Недостатньо відповідей", "У групі замало відповідей для висновку."] };
+const GRADE = { A: "A", B: "B", C: "C", insufficient_data: "insufficient" };
+function cycleLabels(points) { const used = {}; return points.map(p => { const b = p.closed_on ? p.closed_on.slice(0, 7) : p.campaign_title; used[b] = (used[b] || 0) + 1; return used[b] === 1 ? b : `${b} (${used[b]})`; }); }
+
+function apiModel(r, h) {
+  const comps = COMPS.map(id => {
+    const c = r.components.find(x => x.code === id) || {};
+    const v = c.score ?? c.self_score ?? 0, P = c.self_score ?? v, F = c.facts_score ?? P;
+    return { id, P, F, cr: { v, lim: !!c.cut_by_facts, reason: c.cut_by_facts ? c.rule : undefined } };
+  });
+  const pItems = r.components.filter(c => COMPS.includes(c.code)).flatMap(c => {
+    const src = (c.sources || []).filter(s => s.score != null && s.effective_weight > 0), tot = src.reduce((a, s) => a + s.effective_weight, 0) || 1;
+    return src.map(s => { const [k, t] = CATEGORY_SRC[s.source] || ["wg", s.title]; return { id: `${c.code}-${s.source}`, c: c.code, t, w: r1(s.effective_weight / tot * 100), v: s.score, src: k, kind: "p" }; });
+  });
+  const fItems = r.components.filter(c => COMPS.includes(c.code)).flatMap(c => {
+    const fs = (c.facts || []).filter(f => f.score != null);
+    return fs.map(f => ({ id: `${c.code}-f-${f.indicator}`, c: c.code, t: f.title, w: r1(100 / fs.length), v: f.score,
+      kind: f.numerator != null && f.denominator ? "pct" : "lvl", val: f.numerator != null && f.denominator ? [f.numerator, f.denominator] : (f.level || 1),
+      from: (f.sources || []).join(", ") || "Дані обліку", rule: f.rule }));
+  });
+  const pts = (h && h.points) || [], labels = cycleLabels(pts);
+  let series = pts.map((p, i) => ({ cycle: labels[i], index: p.index ?? 0, cr: Object.fromEntries(COMPS.map(c => [c, (p.components || {})[c] ?? 0])) }));
+  const at = pts.findIndex(p => p.campaign_id === r.campaign_id);
+  if (at >= 0) series = series.slice(0, at + 1);
+  else series.push({ cycle: r.closed_on ? r.closed_on.slice(0, 7) : r.campaign_title, index: r.index.score ?? 0, cr: Object.fromEntries(comps.map(c => [c.id, c.cr.v])) });
+  if (series.length === 1) series = [series[0], series[0]];
+  const events = pts.flatMap((p, i) => i > 0 && p.measures_done > 0 ? [{ after: labels[i - 1], n: p.measures_done, t: `Виконано заходів між циклами: ${p.measures_done}` }] : []);
+  const flags = [];
+  for (const c of r.components) for (const f of c.flags || []) flags.push({ id: `${f.code}:${c.code}`, w: f.severity === "serious" ? "major" : "minor", t: `${c.title}: ${f.title}`, ex: c.rule || f.title, raised: true });
+  for (const g of r.groups) for (const code of g.flags || []) if (GROUP_FLAG[code]) flags.push({ id: `${code}:${g.category}`, w: GROUP_FLAG[code][0], t: `${g.title}: ${GROUP_FLAG[code][1]}`, ex: GROUP_FLAG[code][2], raised: true });
+  const responses = r.groups.reduce((a, g) => a + (g.submitted || 0), 0);
+  const m = finish({ id: ALPHA, name: r.unit_name, components: comps, pItems, fItems, series, events, flags, responses });
+  m.trust = GRADE[r.index.reliability] || "insufficient";
+  m.index = r.index.score ?? m.index; m.level = (r.index.level && r.index.level.level) || m.level; m.delta = r1(m.index - m.prevIndex);
+  if (!h) { m.noHistory = true; m.delta = null; m.prevIndex = null; } // попередніх циклів не отримано: зміна невідома
+  if (r.index.reliability_reasons && r.index.reliability_reasons[0]) m.summary = r.index.reliability_reasons[0];
+  m.groups = r.groups; m.rule = r.index.rule;
+  const sorted = [...comps].sort((a, b) => a.cr.v - b.cr.v), top = sorted[sorted.length - 1];
+  // «Що потребує уваги» і «Сильні сторони» — з сервера (problems, weakest_questions, strengths за зонами методики)
+  const byCode = Object.fromEntries(comps.map(c => [c.id, c])), qComp = code => (code || "").split(".")[0];
+  m.attention = [
+    ...(r.problems || []).filter(p => byCode[p.code]).map(p => ({ t: byCode[p.code].cr.lim ? `${COMP[p.code].n}: підтвердити фактами` : `${COMP[p.code].n}: підсилити напрям`, c: p.code, v: p.score ?? byCode[p.code].cr.v, hint: `Зараховане значення компонента ${COMP[p.code].n}, 0-100.` })),
+    ...(r.weakest_questions || []).filter(q => q.score != null && q.score < 62.5 && COMPS.includes(qComp(q.code))).slice(0, 3).map(q => ({ t: q.text, c: qComp(q.code), v: q.score, q: q.code, hint: `Середній бал питання ${q.code}, 0-100.` })),
+  ];
+  m.strengths = (r.strengths || []).filter(s => byCode[s.code]).map(s => ({ t: `Сильний компонент: ${COMP[s.code].n}`, c: s.code, v: s.score ?? byCode[s.code].cr.v, hint: `Зараховане значення компонента ${COMP[s.code].n}, 0-100.` }));
+  if (!m.strengths.length && !m.attention.some(a => a.c === top.id && !a.q)) m.strengths = [{ t: `Найвищий результат у компоненті ${COMP[top.id].n}`, c: top.id, v: top.cr.v, hint: `Зараховане значення компонента ${COMP[top.id].n}, 0-100.` }];
+  if (m.index > series[0].index) m.strengths.push({ t: "Зростання індексу з першого циклу", v: r1(m.index - series[0].index), hint: "Сумарна зміна індексу з першого закритого циклу, у пунктах.", unit: "пт" });
+  return m;
+}
+
+const CK_ST = { full: "впроваджено повністю", partial: "частково", none: "не впроваджено" };
+const DEC_ST = { accepted: "accepted", clarify: "clarified", rejected: "rejected" };
+const BASIS = { self_score: "Самооцінка", facts_score: "Факти", score: "Зараховано", percent: "Відсоток", confirmed: "Підтверджено пунктів", total: "Усього", found: "Знайдено", pending: "Не розглянуто", change: "Зміна", level: "Рівень" };
+function apiRec(x, m, res) {
+  const c = COMPS.includes(x.component) ? x.component : "system", st = x.decision ? DEC_ST[x.decision.decision] || "proposed" : "proposed", cm = x.decision && x.decision.comment || "";
+  // Звʼязок рекомендації з питанням чи показником, з якого вона виникла (код правила: fact:<показник>, question:<питання>)
+  const [kind, ref] = x.code.split(":"), links = [];
+  if (kind === "fact" && m) { const f = m.fItems.find(i => i.id.endsWith("-f-" + ref)); if (f) links.push({ id: f.id, t: f.t, v: fb(f.v), item: true }); }
+  const qLink = q => ({ id: COMPS.includes(q.component) ? q.component : c, q: q.code, t: `Питання «${q.text}»`, v: q.score != null ? fb(q.score) : "—", item: true });
+  if (kind === "checklist" && res && res.checklist) { const i = (res.checklist.items || []).find(i => i.number === ref); if (i) links.push({ id: COMPS.includes(i.component) ? i.component : c, ck: i.number, t: `Пункт чек-листа ${i.number}${i.text ? ` «${i.text.replace(/^[\d.]+\s*/, "")}»` : ""}`, v: CK_ST[i.status] || "не заповнено", item: true }); }
+  if (kind === "question" && res) { const q = (res.questions || []).find(i => i.code === ref); if (q) links.push(qLink(q)); }
+  if (kind === "cut" && m) m.fItems.filter(i => i.c === x.component && i.v < 62.5).slice(0, 2).forEach(f => links.push({ id: f.id, t: f.t, v: fb(f.v), item: true }));
+  if (kind === "weakest" && res) (res.questions || []).filter(q => q.component === x.component && q.score != null).sort((a, b) => a.score - b.score).slice(0, 2).forEach(q => links.push(qLink(q)));
+  return { id: x.code, t: x.title, c, pri: ["high", "medium", "low"].includes(x.priority) ? x.priority : "medium", items: links.filter(l => !l.q).map(l => l.id), links,
+    why: `${x.description} Правило: ${x.rule}`, acts: (x.suggested_measures || []).slice(0, 4).map(s => s.catalog_number ? `${s.catalog_number}. ${s.title}` : s.title),
+    evidence: [...links, ...Object.entries(x.basis || {}).filter(([k, v]) => typeof v === "number" && BASIS[k] && !(links.length && k === "score")).slice(0, 4 - links.length).map(([k, v]) => ({ id: COMPS.includes(x.component) ? x.component : "", t: BASIS[k], v: fb(v), item: true }))],
+    st, note: st === "rejected" ? { reason: cm } : st === "clarified" ? { comment: cm } : {} };
+}
+const MEAS_ST = { planned: "accepted", in_progress: "inprogress", done: "done", cancelled: "cancelled" };
+// Перевірка наступною хвилею (бекенд, services/measures.verify): зріс компонент заходу — підтверджено; не зріс — потрібен перегляд
+const VERIFY_ST = { improved: "confirmed", worsened: "notconfirmed", within_error: "notconfirmed" };
+function apiMeasure(x, titles) {
+  const v = x.verification || {}, st = x.status === "done" && VERIFY_ST[v.status] ? VERIFY_ST[v.status] : MEAS_ST[x.status] || "accepted";
+  const d = v.delta != null ? ` (${v.delta > 0 ? "+" : ""}${fb(v.delta)})` : "";
+  const vf = x.status === "done" ? (st === "confirmed" ? [`Підтверджено: компонент зріс${d}`, "p-good"] : st === "notconfirmed" ? [`Не підтверджено: ${v.title || "без змін"}${d}`, "p-bad"] : v.status === "check_data" ? ["Перевірити дані: достовірність C", "p-warn"] : ["Очікує наступного оцінювання", "p-info"]) : null;
+  return { id: x.id, rec: titles[x.recommendation_code] || (x.recommendation_code ? "попередньої хвилі" : "окремий захід"), t: x.title, who: x.owner, due: x.due_date, st, ind: x.component, vf, vrule: v.rule };
+}
+const MEAS_BACK = { accepted: "planned", inprogress: "in_progress", done: "done" };
+
+async function apiLoadResults() {
+  API.model = null; API.empty = false; API.recs = []; API.ms = [];
+  let d;
+  try { d = await api("/dashboard"); }
+  catch (e) { if (e.status === 404 || e.status === 409) { API.empty = true; return; } throw e; }
+  API.campaignId = d.campaign_id; API.unitId = d.unit_id;
+  const q = d.unit_id ? `?unit_id=${d.unit_id}` : "";
+  const [r, h, recs, ms] = await Promise.all([
+    api(`/campaigns/${d.campaign_id}/results${q}`), api(`/units/${d.unit_id}/history`).catch(() => api(`/units/${d.unit_id}/history`)).catch(() => null), // один повтор: сервер іноді відповідає 500
+    api(`/campaigns/${d.campaign_id}/recommendations${q}`).catch(() => ({ items: [] })), api(`/measures${q}`).catch(() => []),
+  ]);
+  API.model = apiModel(r, h);
+  API.res = r; API.recs = recs.items.map(x => apiRec(x, API.model, r));
+  const titles = Object.fromEntries(recs.items.map(x => [x.code, x.title]));
+  API.ms = ms.map(x => apiMeasure(x, titles));
+  setClock(new Date().toISOString().slice(0, 10), API.model.series[API.model.series.length - 1].cycle);
+  const n = API.model.series.length;
+  S.trend = { from: 0, to: n - 1, lines: [] }; S.cmp = { a: Math.max(0, n - 2), b: n - 1 };
+}
+export async function apiReloadResults() { try { await apiLoadResults(); } catch (e) { apiFail(e); } render(true); }
+
+export async function apiDecide(code, decision, comment, measure) {
+  await api(`/campaigns/${API.campaignId}/recommendations/${encodeURIComponent(code)}/decision`, { method: "POST", body: { unit_id: API.unitId, decision, comment, ...(measure ? { measure: { ...measure, description: "" } } : {}) } });
+  await apiReloadResults();
+}
+// Зміна статусу заходу на сервері; для «Виконано» потрібен доказ
+export async function apiSendMSt(id, st, evidence) {
+  await api(`/measures/${id}`, { method: "PATCH", body: { status: MEAS_BACK[st] || "in_progress", ...(st === "done" ? { evidence, done_on: new Date().toISOString().slice(0, 10) } : {}) } });
+  await apiReloadResults();
+}
+
+/* --- Анкета: форма сервера → модель proto --- */
+function apiSurveyModel(form, kind, category) {
+  const CAT = { working_group: "Робоча група", staff: "Особовий склад", expert: "Зовнішні експерти" };
+  const guess = t => /культур/i.test(t) ? "culture" : /систем/i.test(t) ? "system" : /підзвітн/i.test(t) ? "accountability" : null;
+  const opt = {};
+  const sections = form.sections.map(s => {
+    const id = s.component || guess(s.title) || "overall"; // компонент з сервера (culture/system/accountability/overall); за назвою лише для старих відповідей
+    return { id, t: s.title, about: COMPS.includes(id) ? { culture: "про ставлення до доброчесності", system: "про процедури й канали звернень", accountability: "про прозорість рішень і виконання заходів" }[id] : id === "overall" ? "" : "за темою розділу",
+      q: s.questions.map(q => {
+        if (q.type === "scale" && !q.options.length) { const vals = []; for (let v = q.scale_min; v <= q.scale_max; v++) vals.push(v); opt[q.id] = vals.map(v => ({ value: v })); return [q.id, q.text, vals.map(String)]; }
+        opt[q.id] = q.options.map(o => ({ id: o.id })); return [q.id, q.text, q.options.map(o => o.text)];
+      }) };
+  });
+  return { title: form.title, cat: CAT[category] || "Анонімне опитування", sections, opt, kind, campaignId: form.campaign_id, questionnaireId: form.questionnaire_id, k: form.min_group_size };
+}
+export async function apiSubmitSurvey() {
+  const sv = API.survey, answers = Object.entries(S.survey.a).filter(([qid]) => sv.opt[qid]).map(([qid, i]) => { const o = sv.opt[qid][i]; return o.id ? { question_id: qid, option_ids: [o.id] } : { question_id: qid, option_ids: [], value: o.value }; });
+  try {
+    if (sv.kind === "token") await api("/respond/responses", { method: "POST", auth: false, headers: { "X-Response-Token": API.token }, body: { answers } });
+    else await api(`/campaigns/${sv.campaignId}/questionnaires/${sv.questionnaireId}/responses`, { method: "POST", body: { answers } });
+  } catch (e) {
+    if (e.code === "token_used" || e.status === 409) { API.surveyUsed = true; API.surveyMsg = "used"; render(); return; }
+    toast(apiErrText(e)); return;
+  }
+  S.survey = { phase: "done", sec: 0, a: {}, miss: false }; API.surveyUsed = sv.kind === "token";
+  try { localStorage.removeItem("ii-survey-draft"); } catch (e) { /* немає */ }
+  if (sv.kind !== "token") { sv.submitted = true; API.assignments = null; API.my = null; }
+  render();
+}
+export function apiLoadForm(next) {
+  if (API.loading.form || API.formError) return;
+  API.loading.form = true;
+  api(`/campaigns/${next.campaign_id}/questionnaires/${next.questionnaire_id}/form`)
+    .then(f => { API.survey = apiSurveyModel(f, "account", API.user.category); S.survey = freshSurvey(); }, e => { API.formError = apiErrText(e); })
+    .finally(() => { API.loading.form = false; render(true); });
+}
+
+/* --- Підвантаження даних екрана: true, якщо дані є --- */
+export function apiEnsure(key, loader) {
+  if (API[key] !== null && API[key] !== undefined) return true;
+  if (!API.loading[key]) {
+    API.loading[key] = true;
+    // асинхронно, щоб не змінювати стан під час малювання
+    Promise.resolve().then(loader).then(v => { API[key] = v; }, e => { API[key] = { error: apiErrText(e) }; }).finally(() => { API.loading[key] = false; render(true); });
+  }
+  return false;
+}
+export function apiRetry() { API.adm = API.qs = API.ck = API.log = API.my = API.assignments = API.formError = null; render(); }
+export const RESULT_VIEWS = ["overview", "explain", "trends", "compare", "recs", "tracker", "report", "sources"];
+
+/* --- Керування циклом (уповноважений) --- */
+export const dn = t => String(t || "").replace(/\s*\(демо\)/gi, "");
+export async function apiLoadAdm(sel) {
+  const [campaigns, units, qs] = await Promise.all([api("/campaigns"), api("/admin/units"), api("/questionnaires?status=published")]);
+  const cur = sel || (API.adm && API.adm.sel) || (campaigns.find(c => c.status !== "closed") || campaigns[0] || {}).id;
+  const progress = cur ? await api(`/campaigns/${cur}/progress`).catch(() => null) : null;
+  return { campaigns, units, qs, sel: cur, progress, links: API.adm && API.adm.sel === cur ? API.adm.links : null };
+}
+export function apiAdmReload(sel) { API.adm = null; API.loading.adm = true; render(true); apiLoadAdm(sel).then(v => { API.adm = v; }, e => { API.adm = { error: apiErrText(e) }; }).finally(() => { API.loading.adm = false; render(true); }); }
+export async function apiCreateUnit(name, parentId) {
+  const u = await api("/admin/units", { method: "POST", body: { name, parent_id: parentId || null } });
+  API.adm.units.push(u); toast(`Підрозділ «${u.name}» створено`); return u;
+}
+export async function apiCreateCampaign(body) {
+  const c = await api("/campaigns", { method: "POST", body });
+  closeDrawer(); toast(`Хвилю «${c.title}» створено як чернетку`); apiAdmReload(c.id);
+}
+export async function apiCampaignAct(id, act) {
+  try { await api(`/campaigns/${id}/${act}`, { method: "POST" }); toast(act === "open" ? "Хвилю відкрито: респонденти бачать анкети" : "Хвилю закрито: знімок результатів збережено"); if (act === "close") API.model = null; apiAdmReload(id); }
+  catch (e) { apiFail(e); }
+}
+export async function apiIssueTokens(id, questionnaireId, unitId, count) {
+  try {
+    const r = await api(`/campaigns/${id}/tokens`, { method: "POST", body: { questionnaire_id: questionnaireId, unit_id: unitId, count } });
+    API.adm.links = { urls: r.tokens.map(t => t.link.startsWith("/") ? location.origin + t.link : t.link), warning: r.warning };
+    toast(`Видано посилань: ${r.tokens.length}`); render(true);
+  } catch (e) { apiFail(e); }
+}
+export function apiCopyOne(i) { const t = API.adm.links.urls[i]; copyText(t, () => toast(`Посилання ${i + 1} скопійовано`)); }
+export function apiCopyLinks() { copyText(API.adm.links.urls.join("\n"), () => toast("Посилання скопійовано")); }
+export async function apiRevoke(id) { try { const r = await api(`/campaigns/${id}/tokens/revoke`, { method: "POST", body: {} }); toast(`Відкликано невикористаних посилань: ${r.revoked}`); } catch (e) { apiFail(e); } }
+
+/* --- Анкети (укладач) --- */
+export const QST = { draft: ["Чернетка", "p-warn"], published: ["Опубліковано", "p-good"], archived: ["В архіві", "p-mute"] };
+export const QCAT = { working_group: "Робоча група", staff: "Особовий склад", expert: "Зовнішні експерти" };
+export function apiSurveysReload() { API.qs = null; render(true); }
+export async function apiQAct(id, act) {
+  try {
+    if (act === "publish") { const issues = await api(`/questionnaires/${id}/validate`); if (issues.length) { toast("Не можна опублікувати: " + issues.map(i => i.message).join("; ")); return; } }
+    const q = await api(`/questionnaires/${id}/${act}`, { method: "POST" });
+    toast(act === "publish" ? `Опубліковано: ${q.title}` : act === "new-version" ? `Створено чернетку версії ${q.version}` : `В архіві: ${q.title}`);
+    API.qs = null; render(true);
+    if (act === "new-version") bldOpen(q.id); // нова версія це чернетка: одразу відкриваємо в конструкторі
+  } catch (e) { apiFail(e); }
+}
+export async function bldOpen(id) {
+  try { const q = await api(`/questionnaires/${id}`); ui.bld = { q, n: Date.now() }; render(true); } catch (e) { apiFail(e); }
+}
+
+/* --- Чек-лист: вносить робоча група, підтверджує укладач --- */
+export const CKS = { full: ["Впроваджено повністю", "p-good"], partial: ["Частково", "p-warn"], none: ["Не впроваджено", "p-bad"] };
+export async function apiLoadCk(sel) {
+  let camps;
+  if (S.role === "checklist_editor") camps = (await api("/me/assignments")).filter(a => a.kind === "checklist").map(a => ({ id: a.campaign_id, title: a.campaign_title, status: "open" }));
+  else camps = (await api("/campaigns")).filter(c => c.status !== "draft").map(c => ({ id: c.id, title: c.title, status: c.status }));
+  const cur = sel || (camps.find(c => c.status === "open") || camps[0] || {}).id;
+  let data = null, err = null;
+  if (cur) { try { data = await api(`/campaigns/${cur}/checklist`); } catch (e) { err = apiErrText(e); } }
+  return { camps, sel: cur, data, err };
+}
+export function apiCkReload(sel) { API.ck = null; API.loading.ck = true; render(true); apiLoadCk(sel).then(v => { API.ck = v; }, e => { API.ck = { error: apiErrText(e) }; }).finally(() => { API.loading.ck = false; render(true); }); }
+export async function apiSaveItem(camp, qid, body, file) {
+  await api(`/campaigns/${camp}/checklist/${qid}`, { method: "PUT", body });
+  if (file) { const fd = new FormData(); fd.append("file", file); const r = await api(`/campaigns/${camp}/checklist/${qid}/files`, { method: "POST", body: fd }); return r; }
+  return null;
+}
+export async function apiConfirm(qid, yes) {
+  const camp = API.ck.sel;
+  try { await api(`/campaigns/${camp}/checklist/${qid}/confirm`, { method: yes ? "POST" : "DELETE" }); toast(yes ? "Пункт підтверджено" : "Підтвердження відкликано"); apiCkReload(camp); }
+  catch (e) { apiFail(e); }
+}
+export async function apiDelFile(camp, qid, fid) { try { await api(`/campaigns/${camp}/checklist/${qid}/files/${fid}`, { method: "DELETE" }); toast("Файл прибрано з пункту (лишається в журналі)"); apiCkReload(camp); } catch (e) { apiFail(e); } }
+export async function apiDownload(camp, qid, fid, name) {
+  try { const r = await api(`/campaigns/${camp}/checklist/${qid}/files/${fid}`, { raw: true }); const blob = await r.blob(); const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); }
+  catch (e) { apiFail(e); }
+}
+
+/* --- Журнал --- */
+export const AUDIT_ENT = { campaign: "Хвиля", questionnaire: "Анкета", user: "Користувач", unit: "Підрозділ", checklist_entry: "Чек-лист", evidence_file: "Файл-доказ", measure: "Захід", recommendation: "Рекомендація", results: "Результати", indicator: "Факт", report: "Звіт", assistant: "Асистент", audit_log: "Журнал" };
+// Людські назви дій бекенду: «сутність:дія» → текст
+export const AUDIT_ACT = {
+  "assistant:ask": "Запит до асистента", "audit_log:verify": "Перевірено цілісність журналу",
+  "campaign:create": "Створено хвилю", "campaign:update": "Змінено хвилю", "campaign:open": "Відкрито хвилю", "campaign:close": "Закрито хвилю, збережено знімок результатів",
+  "campaign:set_participants": "Змінено учасників хвилі", "campaign:clear_participants": "Очищено учасників хвилі", "campaign:import_participants": "Імпортовано учасників",
+  "campaign:issue_tokens": "Видано одноразові посилання", "campaign:import_tokens": "Імпортовано посилання", "campaign:revoke_tokens": "Відкликано посилання",
+  "campaign:export_report": "Експортовано звіт", "campaign:view_dashboard": "Переглянуто огляд закладу", "campaign:view_recommendations": "Переглянуто рекомендації", "campaign:view_results": "Переглянуто результати",
+  "checklist_entry:set": "Внесено пункт чек-листа", "checklist_entry:confirm": "Підтверджено пункт чек-листа", "checklist_entry:revoke_confirm": "Відкликано підтвердження пункту чек-листа",
+  "evidence_file:upload": "Додано файл-доказ", "evidence_file:download": "Завантажено файл-доказ", "evidence_file:delete": "Видалено файл-доказ", "evidence_file:integrity_fail": "Файл-доказ не пройшов перевірку цілісності",
+  "indicator:upsert": "Передано факт із зовнішньої системи",
+  "measure:create": "Створено захід", "measure:update": "Змінено захід", "measure:external_status": "Статус заходу оновлено із зовнішньої системи",
+  "questionnaire:create": "Створено анкету", "questionnaire:update_meta": "Змінено анкету", "questionnaire:publish": "Опубліковано анкету", "questionnaire:new_version": "Створено нову версію анкети", "questionnaire:archive": "Анкету архівовано", "questionnaire:delete": "Видалено анкету",
+  "recommendation:decide": "Ухвалено рішення щодо рекомендації",
+  "unit:create": "Створено підрозділ", "unit:update": "Змінено підрозділ", "unit:delete": "Видалено підрозділ", "unit:compare": "Порівняно хвилі підрозділу", "unit:view_history": "Переглянуто історію підрозділу",
+  "user:create": "Створено користувача", "user:update": "Змінено користувача", "user:login_proxy": "Вхід через проксі",
+};
+export function apiLoadLog() {
+  return Promise.all([
+    api("/admin/audit-log?limit=500"),
+    S.role === "admin" ? api("/admin/units").catch(() => []) : [], // лише для адміністратора; аудитору покажемо скорочений код
+    S.role === "admin" ? api("/admin/users").catch(() => []) : [],
+  ]).then(([rows, units, users]) => ({ rows, units, users }));
+}
+// Читабельний рядок із деталей запису: назви підрозділів замість UUID, без службових полів
+export function auditDetails(x, units) {
+  const unit = id => { const u = units.find(u => u.id === id); return u ? dn(u.name) : "підрозділ …" + String(id).slice(-4); };
+  const d = x.details || {}, out = [];
+  if (d.unit_id) out.push(unit(d.unit_id));
+  if (d.unit_name) out.push(dn(d.unit_name));
+  if (d.title) out.push(`«${dn(d.title)}»`);
+  if (d.recalculate === true) out.push("з перерахунком");
+  if (d.access_mode) out.push(d.access_mode === "token" ? "анонімно за посиланнями" : "за обліковими записами");
+  if (d.count != null) out.push(`кількість: ${d.count}`);
+  if (d.ok != null) out.push(d.ok ? "ланцюг цілий" : "ланцюг порушено");
+  if (d.checked != null) out.push(`перевірено записів: ${d.checked}`);
+  return out.join(" · ");
+}
+export async function apiVerify() {
+  try { API.chain = await api("/admin/audit-log/verify", { method: "POST" }); API.log = null; render(true); }
+  catch (e) { apiFail(e); }
+}
