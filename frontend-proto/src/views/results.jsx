@@ -8,7 +8,7 @@ import { render, toast, openPop, closePop } from "../lib/store.js";
 import { cur, go } from "../lib/nav.js";
 import { Pill, LvPill, TrustPill, SrcDot, Num, Delta, LevelBar } from "../components/ui.jsx";
 import { MiniTrend, TrendChart, Radar } from "../components/charts.jsx";
-import { openWhy, openTrust, openHow, openResp, openItem, openApiQ } from "./panels.jsx";
+import { openWhy, openTrust, openHow, openResp, openItem, openApiQ, openTrustHow, openTrackerHow, openRespHow } from "./panels.jsx";
 
 const enter = f => e => { if (e.key === "Enter") f(e); };
 export function BackToInst() {
@@ -31,9 +31,9 @@ export function ReadGuide({ title }) {
 }
 
 const LIST_MAX = 3; // скільки пунктів показувати в «Що потребує уваги» і «Сильні сторони» до розгортання
-function Tile({ ic, title, big, sub, act, info }) {
+function Tile({ ic, title, big, sub, act, info, tip = "Як рахується і шкала рівнів" }) {
   return <section className="card rise kpi-tile" {...(act ? { role: "button", tabIndex: 0, onClick: act, onKeyDown: enter(act) } : {})}>
-    <div className="kt-h"><span className="kt-ic"><Ic n={ic} /></span><span className="lbl">{title}</span>{info && <button type="button" className="kt-info" aria-label="Підказка: як рахується" data-tip="Як рахується і шкала рівнів" onClick={e => { e.stopPropagation(); info(); }}><Ic n="info" /></button>}</div>
+    <div className="kt-h"><span className="kt-ic"><Ic n={ic} /></span><span className="lbl">{title}</span>{info && <button type="button" className="kt-info" aria-label={`Підказка: ${tip}`} data-tip={tip} onClick={e => { e.stopPropagation(); info(); }}><Ic n="info" /></button>}</div>
     <div className="kt-b">{big}<div className="kt-s">{sub}</div></div>
   </section>;
 }
@@ -59,11 +59,11 @@ export function Overview() {
     <div className="c12 kpi-row">
       <Tile ic="gauge" title="Індекс доброчесності" big={<span className="mid tnum"><Num v={m.index} /></span>} act={openWhy} info={openHow}
         sub={<><span data-tip={`Рівень зрілості визначається за індексом<small>${LDESC[m.level - 1]}</small>`}>Рівень зрілості {m.level} з 5: {LSHORT[m.level - 1]}</span><br /><Delta d={m.delta} /></>} />
-      <Tile ic="shield" title="Достовірність" big={<span className="mid">{m.trust === "insufficient" ? "?" : m.trust}</span>} act={openTrust}
+      <Tile ic="shield" title="Достовірність" big={<span className="mid">{m.trust === "insufficient" ? "?" : m.trust}</span>} act={openTrust} info={openTrustHow} tip="Як визначається достовірність"
         sub={<>{TRUST[m.trust][1]}<br /><span className="lbl">Прапорці: {m.raised.length}</span></>} />
       {S.role === "observer"
-        ? <Tile ic="users" title="Відповідей у циклі" big={<span className="mid tnum">{m.responses}</span>} sub={<span className="lbl">Мінімальна група k = {S.k}</span>} act={openResp} />
-        : <Tile ic="target" title="Заходи в трекері" big={<span className="mid tnum">{ms.length}</span>} sub={od ? <span style={{ color: "var(--red)", fontWeight: 600 }}>З них {od} прострочено</span> : <span className="lbl">Прострочених немає</span>} act={() => go("tracker")} />}
+        ? <Tile ic="users" title="Відповідей у циклі" big={<span className="mid tnum">{m.responses}</span>} sub={<span className="lbl">Мінімальна група k = {S.k}</span>} act={openResp} info={openRespHow} tip="Що таке мінімальна група k" />
+        : <Tile ic="target" title="Заходи в трекері" big={<span className="mid tnum">{ms.length}</span>} sub={od ? <span style={{ color: "var(--red)", fontWeight: 600 }}>З них {od} прострочено</span> : <span className="lbl">Прострочених немає</span>} act={() => go("tracker")} info={openTrackerHow} tip="Як працює трекер заходів" />}
     </div>
     <section className="card c8 rise" id="attn">
       <div className="attn-cols"><div>

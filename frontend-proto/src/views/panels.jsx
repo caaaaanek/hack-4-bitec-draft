@@ -2,20 +2,20 @@
 import { Ic } from "../lib/icons.jsx";
 import { S, AI_ROLES, SURVEY_Q, FACT_META, logItems } from "../lib/state.js";
 import { API, CATEGORY_SRC } from "../lib/api.js";
-import { COMPS, COMP, LEVELS, LSHORT, LDESC, BOUNDS, CAP, TRUST, TRUST_HINT, SRC, SRC_HINT, GROUPS, ALPHA, M_ST, level, allItems, measures, overdueDays, daysWord, verif, CYCLE } from "../lib/model.js";
+import { FLAGS, COMPS, COMP, LEVELS, LSHORT, LDESC, BOUNDS, CAP, TRUST, TRUST_HINT, SRC, SRC_HINT, GROUPS, ALPHA, M_ST, level, allItems, measures, overdueDays, daysWord, verif, CYCLE } from "../lib/model.js";
 import { fb, f2, ua } from "../lib/format.js";
 import { openDrawer, closeDrawer, toast } from "../lib/store.js";
 import { cur, can, route } from "../lib/nav.js";
-import { whyText, checkText, flagTitle } from "../lib/texts.js";
+import { whyText, checkText, flagTitle, trustBecause } from "../lib/texts.js";
 import { aiOpen } from "../ai/assistant.jsx";
 import { Pill, TrustPill, CapBars } from "../components/ui.jsx";
 
 const FlagIc = ({ f, ok }) => <span className={`flag-ic ${ok ? "ok" : f.w}`}><Ic n={ok ? "ok" : f.w === "major" ? "alert" : "flag"} /></span>;
 const Link = ({ href, children, cls = "link", style }) => <a className={cls} href={href} onClick={closeDrawer} style={style}>{children}</a>;
 
-// Клік на картку індексу: висновок і прапорці показує асистент; якщо ШІ вимкнено або недоступний для ролі, ті самі тексти правил у панелі
+// Клік на картку: готовий висновок за правилами одразу, без асистента. Обговорити можна кнопкою внизу панелі.
+const AskAi = ({ q }) => S.aiOn && AI_ROLES.includes(S.role) ? <button type="button" className="btn btn-soft" style={{ alignSelf: "flex-start" }} onClick={() => { closeDrawer(); aiOpen(q); }}><Ic n="spark" />Обговорити з асистентом</button> : null;
 export function openWhy() {
-  if (S.aiOn && AI_ROLES.includes(S.role)) return aiOpen("Чому такий індекс?");
   openDrawer("Чому такий індекс", () => {
     const m = cur(), lim = m.limited;
     return <>
@@ -25,18 +25,20 @@ export function openWhy() {
         <div className="lbl" style={{ marginBottom: 8 }}>Спрацювало прапорців: {m.raised.length}</div>
         {m.raised.length ? <div className="rows">{m.raised.map(f => <div key={f.id} className="row" style={{ alignItems: "flex-start" }}><FlagIc f={f} /><div className="grow"><div style={{ fontWeight: 600 }}>{f.t} <Pill cls="p-mute nodot">{f.w === "major" ? "Серйозний" : "Незначний"}</Pill></div><div className="lbl">{f.ex}</div></div></div>)}</div> : <div>Жоден прапорець не спрацював.</div>}
         <div className="lbl" style={{ marginTop: 10 }}>Напрям для додаткового аналізу. Це не висновок про людей чи підрозділи.</div></div>
+      <AskAi q="Чому такий індекс?" />
     </>;
   });
 }
 export function openTrust() {
-  if (S.aiOn && AI_ROLES.includes(S.role)) return aiOpen("Чому така достовірність?");
   openDrawer("Достовірність результату", () => {
     const m = cur();
     return <>
       <div className="card-h"><h2>{TRUST[m.trust][1]}</h2><div className="sp" /><TrustPill g={m.trust} /></div>
+      <div><div className="lbl" style={{ marginBottom: 4 }}>Короткий висновок</div><div style={{ lineHeight: 1.55 }}>{trustBecause(m)}</div></div>
       <div className="lbl">{TRUST_HINT}</div>
       <div className="rows">{m.flags.map(f => <div key={f.id} className="row" style={{ alignItems: "flex-start" }}><FlagIc f={f} ok={!f.raised} /><div className="grow"><div style={{ fontWeight: 600 }}>{flagTitle(f)} <Pill cls={`${f.raised ? "p-bad" : "p-good"} nodot`}>{f.raised ? "Спрацював" : "Не спрацював"}</Pill></div><div className="lbl">{checkText(f)} {f.w === "major" ? "Серйозний прапорець." : "Незначний прапорець."}</div></div></div>)}</div>
       <div className="lbl">Прапорець означає напрям для додаткової перевірки даних, а не висновок про людей чи підрозділи.</div>
+      <AskAi q="Чому така достовірність?" />
     </>;
   });
 }
@@ -66,6 +68,39 @@ export function respGroups(m) {
   const n = m.responses, wg = Math.round(n * .2), ex = 5, os = n - wg - ex;
   return [{ n: "Робоча група", inv: wg + 1, resp: wg }, { n: "Особовий склад", inv: os + 8, resp: os }, { n: "Експерти", inv: ex, resp: ex }];
 }
+// Іконка «i» на картці достовірності: правило літер і чотири перевірки
+export function openTrustHow() {
+  openDrawer("Як визначається достовірність", () => <>
+    <div><div className="lbl" style={{ marginBottom: 6 }}>Правило</div><ol className="howto">
+      <li>Система автоматично перевіряє дані циклу чотирма прапорцями: двома серйозними й двома незначними.</li>
+      <li><b>A</b> — жоден прапорець не спрацював.</li>
+      <li><b>B</b> — спрацювали один або два незначні.</li>
+      <li><b>C</b> — спрацював хоча б один серйозний або три й більше незначних.</li>
+      <li>Якщо відповідей менше за мінімальну групу k = {S.k}, достовірність не оцінюється.</li></ol></div>
+    <div><div className="lbl" style={{ marginBottom: 4 }}>Перевірки</div><div className="rows">{FLAGS.map(f => <div key={f.id} className="row" style={{ alignItems: "flex-start" }}><FlagIc f={f} /><div className="grow"><div style={{ fontWeight: 600 }}>{f.t}</div><div className="lbl">{f.w === "major" ? "Серйозний" : "Незначний"}</div></div></div>)}</div></div>
+    <div className="lbl">Прапорець означає напрям для додаткової перевірки даних, а не висновок про людей чи підрозділи.</div>
+  </>);
+}
+// Іконка «i» на картці заходів: стани, прострочення, перевірка результату
+export function openTrackerHow() {
+  openDrawer("Як працює трекер заходів", () => <>
+    <ol className="howto">
+      <li>Захід зʼявляється, коли керівник приймає рекомендацію, або його додають вручну.</li>
+      <li>Стани: {["accepted", "inprogress", "done"].map(k => M_ST[k][0].toLowerCase()).join(" → ")}. «Виконано» ставиться лише з доказом.</li>
+      <li>Захід прострочено, якщо строк минув, а його ще не виконано.</li>
+      <li>Чи дав захід результат, перевіряє наступний цикл оцінювання: показник, на який він спрямований, має покращитися. Тоді стан стає «підтверджено» або «не підтверджено».</li>
+      <li>Відповідальний — посада, а не прізвище.</li></ol>
+    {route().r !== "tracker" && <Link href="#tracker">Відкрити трекер <Ic n="arrowR" /></Link>}
+  </>);
+}
+// Іконка «i» на картці відповідей (спостерігач): поріг k
+export function openRespHow() {
+  openDrawer("Відповіді й мінімальна група", () => <ol className="howto">
+    <li>Опитування анонімні: кожен отримує одноразове посилання.</li>
+    <li>Результат групи показується, лише якщо відповіли щонайменше k = {S.k} осіб. Менші групи приховано, щоб не можна було впізнати людину.</li>
+    <li>Якщо відповідей у циклі менше за k, достовірність не оцінюється.</li></ol>);
+}
+
 export function openResp() {
   openDrawer("Відповіді в циклі " + CYCLE, () => {
     const m = cur(), gs = respGroups(m), inv = gs.reduce((a, g) => a + g.inv, 0), resp = gs.reduce((a, g) => a + g.resp, 0);

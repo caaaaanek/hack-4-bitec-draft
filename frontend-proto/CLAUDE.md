@@ -78,7 +78,7 @@ frontend-proto/
 
 **`views/`**
 - `results.jsx` — «Огляд», «Розклад індексу», «Динаміка», «Порівняння», `ReadGuide`, вибір періоду (`PeriodPop`).
-- `panels.jsx` — бічні панелі: `openWhy`, `openTrust`, `openHow`, `openResp`, `openItem`, `openApiQ`, `openSource`, `openMeasure`.
+- `panels.jsx` — бічні панелі: `openWhy`, `openTrust`, `openHow`, `openResp`, `openItem`, `openApiQ`, `openSource`, `openMeasure`; «i» на картках «Огляду» — `openHow`, `openTrustHow`, `openTrackerHow`, `openRespHow`. Клік на картку індексу чи достовірності одразу показує готовий висновок за правилами (`whyText`, `trustBecause` у `texts.js`), асистента не запускає; обговорити з ним можна кнопкою внизу панелі.
 - `work.jsx` — «Рекомендації» (прийняти/уточнити/відхилити), «Трекер заходів» (таблиця й дошка з перетягуванням), «Джерела», «Заклади».
 - `WhatIf.jsx` — «Що, якщо»: прогноз індексу, якщо підтягнути факти, закрити пункти чек-листа чи виконати заходи. З бекендом рахує `POST /campaigns/{id}/what-if` (нічого не записує), у демо — та сама модель, що й «Огляд». Топ-5 важелів із кнопкою «Додати», пояснення до кожного компонента. Опитування не моделюються. Стилі — `extra-whatif.css`.
 - `Report.jsx` — екран «Звіт»: шаблони, масштаб, редагування, ШІ за виділенням, вікно експорту (PDF/друк, HTML, CSV, JSON, копіювати; з бекендом ще Word за шаблоном і Excel із `GET /campaigns/{id}/report`; Excel завжди повний, тож без `template`).
