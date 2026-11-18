@@ -173,7 +173,7 @@ cd backend && python scripts/gen_docs.py   # тимчасова SQLite-база,
 ## Перевірки
 
 ```bash
-cd backend && pytest                    # бекенд: 189 тестів (на SQLite один тест xmin пропускається)
+cd backend && pytest                    # бекенд: 289 тестів (на SQLite один тест xmin пропускається)
 TEST_DATABASE_URL=postgresql+psycopg://imd:пароль@localhost:5432/imd_test pytest   # те саме на PostgreSQL
 cd frontend && npm run check            # фронтенд: typecheck, lint, тести, збірка
 cd frontend && npm run check:contrast   # контраст кольорів
