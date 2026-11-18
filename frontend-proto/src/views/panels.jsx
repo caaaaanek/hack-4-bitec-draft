@@ -153,6 +153,13 @@ export const SOURCES = [
   ["Охоплення навчанням", "Флешкартки доброчесності платформи", "auto", "Оновлюється щодня за історією проходження колод", "Скільки учасників пройшли всі обовʼязкові колоди за рік. Лише частка, без імен; групи менші за k приховані."],
   ["Звітування за заходами", "Система суміжної команди", "approval", "Немає даних: інтеграцію ще не погоджено", "Автоматичне оновлення статусів заходів планується. Поки статуси змінюють вручну в трекері."],
 ];
+// З сервером показники декларацій, конфліктів інтересів і закупівель рахує модуль «Перевірки» (docs/features.md, розділ 6)
+const SERVER_SRC = {
+  2: ["Модуль «Перевірки»", "auto", "Рахує система за правилами", "Строк подання декларацій перевіряє модуль «Перевірки». Показник потрапляє в екран «Порівняння»."],
+  3: ["Модуль «Перевірки»", "auto", "Рахує система за правилами", "Правила конфлікту інтересів знаходять випадки, а уповноважений розглядає їх. Показник потрапляє в «Порівняння»."],
+  4: ["Модуль «Перевірки»", "auto", "Рахує система за правилами", "Правила червоних прапорців перевіряють закупівлі. Показник потрапляє в «Порівняння»."],
+};
+export const srcRows = () => SOURCES.map((r, i) => API.on && SERVER_SRC[i] ? [r[0], ...SERVER_SRC[i]] : r);
 export const MODE = { auto: ["Автоматично", "p-good"], manual: ["Ручний ввід", "p-info"], planned: ["Планується", "p-mute"], approval: ["Потребує погодження", "p-warn"] };
 const SRC_DATA = {
   decl: { n: 100, ok: 45, rows: [["Керівний склад", 12, 10], ["Науково-педагогічні працівники", 38, 19], ["Посадові особи служб забезпечення", 30, 11], ["Інші зобовʼязані особи", 20, 5]] },
@@ -163,12 +170,13 @@ const SRC_DATA = {
 const Tbl = ({ hs, rows }) => <div className="tbl-wrap"><table><thead><tr>{hs.map(h => <th key={h}>{h}</th>)}</tr></thead><tbody>{rows.map((r, i) => <tr key={i}>{r.map((c, j) => <td key={j}>{c}</td>)}</tr>)}</tbody></table></div>;
 const N = ({ children, style }) => <span className="tnum" style={style}>{children}</span>;
 export function openSource(i) {
-  const [name, from, mo, age] = SOURCES[i];
+  const [name, from, mo, age] = srcRows()[i];
   openDrawer(name, () => {
     const m = cur();
     const synth = <div className="lbl">Записи синтетичні, для демонстрації. {mo === "planned" || mo === "approval" ? "Після підключення інтеграції дані надходитимуть автоматично." : ""}</div>;
     let body;
-    if (i === 0) body = <><div className="lbl">Агреговані результати за питаннями. Окремих відповідей немає.</div><Tbl hs={["Питання", "Група", "Бал"]} rows={m.pItems.map(x => [x.t, SRC[x.src][0].replace("Сприйняття ", ""), <b className="tnum">{fb(x.v)}</b>])} /><Link href="#explain">Відкрити в розкладі індексу <Ic n="arrowR" /></Link></>;
+    if (API.on && SERVER_SRC[i]) body = <><div className="lbl">Записи окремих закупівель і декларацій тут не показуються: у модулі зберігаються лише знахідки з публічними ідентифікаторами.</div>{can("checks") && <Link cls="btn btn-soft" href="#checks"><Ic n="shield" />Відкрити «Перевірки»</Link>}</>;
+    else if (i === 0) body = <><div className="lbl">Агреговані результати за питаннями. Окремих відповідей немає.</div><Tbl hs={["Питання", "Група", "Бал"]} rows={m.pItems.map(x => [x.t, SRC[x.src][0].replace("Сприйняття ", ""), <b className="tnum">{fb(x.v)}</b>])} /><Link href="#explain">Відкрити в розкладі індексу <Ic n="arrowR" /></Link></>;
     else if (i === 1) body = <Tbl hs={["Показник", "Дані", "Ким внесено"]} rows={m.fItems.map(x => [x.t, <N>{x.kind === "pct" ? `${x.val[0]} з ${x.val[1]}` : `рівень ${x.val} з 5`}</N>, (FACT_META[x.id] || ["10.11.2026", "Вносить дані чек-листа"]).join(", ") + ". Підтверджено"])} />;
     else if (i === 2) { const d = SRC_DATA.decl; body = <><div className="stat4 tnum" style={{ gridTemplateColumns: "repeat(3,1fr)" }}><div><small>Зобовʼязані</small><b>{d.n}</b></div><div><small>Подали вчасно</small><b>{d.ok}</b></div><div><small>Частка</small><b>{d.ok} %</b></div></div><Tbl hs={["Категорія", "Зобовʼязані", "Вчасно"]} rows={d.rows.map(r => [r[0], <N>{r[1]}</N>, <N>{r[2]}</N>])} />{synth}</>; }
     else if (i === 3) body = <><div className="lbl">Повідомлення про потенційні конфлікти інтересів і висновки уповноваженого. Імена не показуються.</div><Tbl hs={["Номер", "Суть", "Статус", "Дата"]} rows={SRC_DATA.coi.map(r => [<N>{r[0]}</N>, r[1], <Pill cls={r[2].includes("у строк") ? "p-good nodot" : r[2].includes("запізн") ? "p-bad nodot" : "p-mute nodot"}>{r[2]}</Pill>, <N>{r[3]}</N>])} />{synth}</>;

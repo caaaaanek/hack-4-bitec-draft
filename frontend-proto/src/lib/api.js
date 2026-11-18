@@ -98,7 +98,7 @@ export async function loginProxy() {
 }
 export async function logout() {
   try { await api("/auth/session", { method: "DELETE" }); } catch (e) { /* сесія вже закрита */ }
-  apiSetToken(null); API.user = null; API.model = null; history.replaceState(null, "", "/"); showLogin();
+  apiSetToken(null); API.user = null; API.model = null; API.mod = {}; history.replaceState(null, "", "/"); showLogin();
 }
 
 async function afterLogin(user) {

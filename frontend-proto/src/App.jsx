@@ -2,7 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Ic } from "./lib/icons.jsx";
 import { S, ROLE, NAV, HOME, AI_ROLES, persist, resetDemo, addLog } from "./lib/state.js";
-import { API, login, loginProxy, logout, apiErrText, retryBoot, startDemo } from "./lib/api.js";
+import { API, login, loginProxy, logout, apiErrText, retryBoot, startDemo, apiMod, apiModReset, apiNotices } from "./lib/api.js";
 import { COMPS, COMP, INSTITUTIONS, allItems, pendingRecs, measures, overdueDays, clamp, CYCLE } from "./lib/model.js";
 import { useStore, getViewKey, render, toast, ui, openPop, closePop, closeDrawer } from "./lib/store.js";
 import { route, allowed, cur, TITLES, isLogin } from "./lib/nav.js";
@@ -16,8 +16,12 @@ import { Manage, Surveys, Checklist, Audit, Survey, Me } from "./views/demo.jsx"
 import { apiView } from "./views/api-views.jsx";
 import { Builder } from "./views/Builder.jsx";
 import { Learn } from "./views/Learn.jsx";
+import { Watch, Advocate } from "./views/Insights.jsx";
+import { Autopilot } from "./views/Autopilot.jsx";
+import { Normative } from "./views/Normative.jsx";
+import { Checks } from "./views/Checks.jsx";
 
-const V = { learn: Learn, overview: Overview, explain: Explain, trends: Trends, compare: Compare, whatif: WhatIf, recs: Recs, tracker: Tracker, sources: Sources, report: Report, manage: Manage, surveys: Surveys, checklist: Checklist, audit: Audit, survey: Survey, me: Me, institutions: Institutions };
+const V = { learn: Learn, watch: Watch, advocate: Advocate, autopilot: Autopilot, normative: Normative, checks: Checks, overview: Overview, explain: Explain, trends: Trends, compare: Compare, whatif: WhatIf, recs: Recs, tracker: Tracker, sources: Sources, report: Report, manage: Manage, surveys: Surveys, checklist: Checklist, audit: Audit, survey: Survey, me: Me, institutions: Institutions };
 const html = document.documentElement;
 
 /* ---------- Маршрут: що зробити при переході ---------- */
@@ -130,9 +134,28 @@ function Login() {
   </div>;
 }
 
+/* ---------- Сповіщення (лише з сервером): нагадування, підсумки хвиль, підсумок чергового ---------- */
+const NOTE_KIND = { opened: "Хвилю відкрито", reminder: "Нагадування", results: "Результати доступні", recommendations: "Рекомендації чекають рішення", digest: "Підсумок чергового" };
+const seenKey = () => "ii-notes-seen:" + (API.user ? API.user.login : "");
+const seenAt = () => { try { return localStorage.getItem(seenKey()) || ""; } catch (e) { return ""; } };
+function notesState() {
+  if (!API.on || !API.user || API.anon) return null;
+  const r = apiMod("notes", apiNotices), list = r && r.data ? r.data : [], seen = seenAt();
+  return { r, list, fresh: list.filter(n => n.created_at > seen).length };
+}
+function NotesPop({ ns }) {
+  const { r, list } = ns;
+  if (!r) return <div className="lbl">Завантажуємо…</div>;
+  if (r.error) return <div className="lbl" role="alert">{r.error} <button type="button" className="link-btn" onClick={() => apiModReset("notes")}>Повторити</button></div>;
+  return <div style={{ width: 340, maxWidth: "80vw", maxHeight: "60vh", overflowY: "auto" }}>
+    <div style={{ fontWeight: 600, marginBottom: 6 }}>Сповіщення за 30 днів</div>
+    {list.length ? <div className="rows">{list.map(n => <div key={n.id} className="row" style={{ alignItems: "flex-start" }}><div className="grow" style={{ minWidth: 0 }}><div className="lbl">{NOTE_KIND[n.kind] || n.kind} · {n.created_at.slice(0, 10).split("-").reverse().join(".")}</div><div style={{ fontWeight: 500, overflowWrap: "anywhere" }}>{n.title}</div><div className="lbl" style={{ overflowWrap: "anywhere" }}>{n.body}</div></div></div>)}</div> : <div className="lbl">Нових сповіщень немає.</div>}
+  </div>;
+}
+
 /* ---------- Сервер недоступний ---------- */
 function ServerDown() {
-  return <div className="login-wrap c12"><section className="card rise login-card" role="alert">
+  return <div className="c12" style={{ display: "flex", justifyContent: "center", paddingTop: 40 }}><section className="card rise login-card" role="alert">
     <h2 style={{ margin: "0 0 4px", fontSize: 22 }}>Сервер недоступний</h2>
     <p className="lbl" style={{ margin: "6px 0 12px" }}>Не вдалося зʼєднатися з сервером. Перевірте мережу й повторіть спробу. Дані не змінено.</p>
     <button type="button" className="btn btn-primary" style={{ justifyContent: "center" }} onClick={retryBoot}>Повторити</button>
@@ -167,7 +190,7 @@ export default function App() {
   const login = isLogin(), anon = API.on && API.anon, { r } = API.booting || login ? { r: null } : route(), vk = getViewKey();
   const mini = html.classList.contains("side-mini"), u = API.user;
   const [q, setQ] = useState(""), [sel, setSel] = useState(0), qRef = useRef(null), box = useRef(null);
-  const hits = searchHits(q);
+  const hits = searchHits(q), ns = notesState();
   html.dataset.role = S.role;
   useEffect(() => {
     const key = e => {
@@ -216,6 +239,8 @@ export default function App() {
           <span className="synthetic hide-m">Синтетичні дані</span>
           <button className="pill-btn hide-m" id="cycleBtn" data-tip="Цикл оцінювання: один повний раунд опитування й збору фактів. Індекс порівнюється з попереднім циклом."><Ic n="cal" />Цикл {CYCLE}</button>
           <button className={`pill-btn ai-btn ${S.aiOn ? "" : "off"}`} id="aiBtn" hidden={!AI_ROLES.includes(S.role)} onClick={() => aiOpen()}><Ic n="spark" /><span className="hide-m">Асистент</span></button>
+          {ns && <button type="button" className="icon-btn" id="notesBtn" aria-label={ns.fresh ? `Сповіщення: нових ${ns.fresh}` : "Сповіщення"} aria-haspopup="dialog" data-tip="Сповіщення" style={{ position: "relative" }} onClick={e => { hideTip(); apiModReset("notes"); try { localStorage.setItem(seenKey(), new Date().toISOString()); } catch (x) { /* немає */ } openPop("notes", e.currentTarget); }}><Ic n="bell" />{ns.fresh > 0 && <span className="badge" style={{ position: "absolute", top: -4, right: -4 }}>{ns.fresh}</span>}</button>}
+          <span className="sr-only" role="status" aria-live="polite">{ns && ns.fresh ? `Нових сповіщень: ${ns.fresh}` : ""}</span>
           <button className="icon-btn" id="a11yBtn" aria-label="Доступність: розмір тексту й контраст" aria-haspopup="dialog" data-tip="Доступність" onClick={e => openPop("a11y", e.currentTarget)}><Ic n="a11y" /></button>
           <button className="icon-btn" id="themeBtn" aria-label="Тема" onClick={() => { html.dataset.theme = isDark() ? "light" : "dark"; try { localStorage.setItem("ii-theme", html.dataset.theme); } catch (e) { /* немає */ } render(true); }}><Ic n={isDark() ? "sun" : "moon"} /></button>
           <div className="avatar" id="avatar" role="button" tabIndex={0} aria-label="Профіль і вихід" data-tip={ROLE[S.role][0]} onClick={e => profile(e.currentTarget)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); profile(e.currentTarget); } }}>{ROLE[S.role][1]}</div>
@@ -230,6 +255,7 @@ export default function App() {
     <Pop mode={pk === "search" ? "under" : undefined}>
       {pk === "period" && <PeriodPop />}
       {pk === "a11y" && <A11yPop />}
+      {pk === "notes" && ns && <NotesPop ns={ns} />}
       {pk === "search" && <SearchPop q={q} hits={hits} sel={sel} pick={pick} />}
       {pk === "profile" && <><div style={{ fontWeight: 600 }}>{u ? u.display_name : ROLE[S.role][0]}</div><div className="lbl" style={{ margin: "2px 0 12px" }}>{ROLE[S.role][0]}{u ? ` · ${u.login}` : ""}</div>{u ? <button className="btn btn-ghost" style={{ width: "100%", justifyContent: "center" }} onClick={() => { closePop(); logout(); }}><Ic n="arrowL" />Вийти</button> : <div className="lbl">Демо-режим: вихід не потрібен.</div>}</>}
     </Pop>

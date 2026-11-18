@@ -8,6 +8,7 @@ import { render, toast, openPop, closePop } from "../lib/store.js";
 import { cur, go } from "../lib/nav.js";
 import { Pill, LvPill, TrustPill, SrcDot, Num, Delta, LevelBar } from "../components/ui.jsx";
 import { MiniTrend, TrendChart, Radar } from "../components/charts.jsx";
+import { DigestStrip } from "./Insights.jsx";
 import { openWhy, openTrust, openHow, openResp, openItem, openApiQ, openTrustHow, openTrackerHow, openRespHow } from "./panels.jsx";
 
 const enter = f => e => { if (e.key === "Enter") f(e); };
@@ -73,6 +74,7 @@ export function Overview() {
         <div className="card-h"><h2>Сильні сторони</h2></div>
         {m.strengths.length ? <div className="rows">{strong.map((a, i) => <a key={i} className="row click" href={a.c ? "#explain/" + a.c : "#trends"} data-tip={a.hint}><span className="dot" style={{ background: "var(--teal)" }} /><div className="grow"><div className="t">{a.t}</div></div><b className="tnum">{a.unit ? "+" : ""}{fb(a.v)}</b></a>)}</div> : <div className="lbl">Поки що немає даних про сильні сторони.</div>}
       </div></div>
+      <DigestStrip />
       {(m.attention.length > LIST_MAX || m.strengths.length > LIST_MAX) && <button className="link-btn" style={{ marginTop: 8 }} onClick={() => { S.attnAll = !S.attnAll; render(true); }}>{S.attnAll ? "Згорнути" : `Показати всі (${m.attention.length + m.strengths.length})`}</button>}
     </section>
     <section className="card c4 rise dyn-card"><DynCard m={m} /></section>
