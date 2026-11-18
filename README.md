@@ -89,5 +89,6 @@ cp .env.example .env && docker compose up --build   # PostgreSQL + API + UI → 
 |---|---|
 | Умова завдання й Рекомендації НУОУ (Markdown) | [`docs/README.md`](docs/README.md) |
 | Бекенд: ролі, модель даних, API | [`docs/backend.md`](docs/backend.md), [`backend/README.md`](backend/README.md) |
+| Карта інтеграції і концепція екосистеми (результати 9 і 12) | [`docs/integration-map.md`](docs/integration-map.md), [`docs/ecosystem.md`](docs/ecosystem.md) |
 | Фронтенд: дизайн-система, відомі обмеження | [`frontend/docs/DESIGN_SYSTEM.md`](frontend/docs/DESIGN_SYSTEM.md), [`frontend/docs/KNOWN_ISSUES.md`](frontend/docs/KNOWN_ISSUES.md) |
 | Правила роботи з репозиторієм: гілки, коміти | [`AGENTS.md`](AGENTS.md) |
