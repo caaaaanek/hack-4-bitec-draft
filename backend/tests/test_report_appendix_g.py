@@ -140,3 +140,44 @@ def test_measure_verified_by_next_wave(client):
 
     report = client.get(f"{API}/campaigns/{first}/report", headers=leader).json()
     assert {x["id"]: x["verification"]["status"] for x in report["measures"]}[done["id"]] == v["status"]
+
+
+def test_report_templates(client):
+    """Чотири шаблони: перелік, свій Word для кожного, JSON із полем template, невідомий шаблон — 422."""
+    campaign_id, _, _ = full_wave(client)
+    leader = auth(client, "leader")
+    templates = client.get(f"{API}/report-templates", headers=leader).json()
+    assert [t["code"] for t in templates] == ["appendix_g", "brief", "measures", "dynamics"]
+    assert all(t["title"] and t["description"] for t in templates)
+    assert client.get(f"{API}/report-templates", headers=auth(client, "staff01")).status_code == 403
+
+    url = f"{API}/campaigns/{campaign_id}/report"
+    assert client.get(url, headers=leader).json()["template"]["code"] == "appendix_g"
+    assert client.get(url, params={"template": "brief"}, headers=leader).json()["template"]["title"] == "Довідка керівнику"
+    expected = {
+        "brief": ("ДОВІДКА КЕРІВНИКУ", "Головне", "Компоненти", "Потрібне рішення керівника"),
+        "measures": ("СТАН ВИКОНАННЯ ПЛАНУ ЗАХОДІВ",),
+        "dynamics": ("ДИНАМІКА МІЖ ХВИЛЯМИ", "Попередньої закритої хвилі"),  # перша хвиля: порівнювати нема з чим
+    }
+    for code, parts in expected.items():
+        r = client.get(url, params={"format": "docx", "template": code}, headers=leader)
+        assert r.status_code == 200, r.text
+        assert f'filename="integrity-report-{code}-' in r.headers["content-disposition"]
+        text = "\n".join(p.text for p in Document(io.BytesIO(r.content)).paragraphs)
+        for part in parts:
+            assert part in text, (code, part)
+        assert "Основна частина" not in text  # не повний Додаток Г
+    assert client.get(url, params={"template": "nope"}, headers=leader).status_code == 422
+
+
+def test_report_template_dynamics_and_measures_after_two_waves(client):
+    from tests.helpers import full_wave as wave
+
+    wave(client, title="Хвиля 1")
+    campaign_id, _, _ = wave(client, title="Хвиля 2", staff_pick=3)
+    leader = auth(client, "leader")
+    url = f"{API}/campaigns/{campaign_id}/report"
+    doc = Document(io.BytesIO(client.get(url, params={"format": "docx", "template": "dynamics"}, headers=leader).content))
+    text = "\n".join(p.text for p in doc.paragraphs)
+    assert "«Хвиля 1»" in text and "Зміна" in text
+    assert doc.tables and doc.tables[0].rows[0].cells[0].text == "Компонент"

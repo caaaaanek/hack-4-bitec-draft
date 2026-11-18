@@ -29,24 +29,39 @@ def _networks(items: list[str]) -> list:
     return nets
 
 
-def is_trusted_proxy(host: str | None) -> bool:
+def _in_networks(host: str | None, items: list[str]) -> bool:
     if not host:
         return False
     try:
         addr = ipaddress.ip_address(host)
     except ValueError:
         return False
-    return any(addr in net for net in _networks(get_settings().trusted_proxy_list))
+    return any(addr in net for net in _networks(items))
+
+
+def is_trusted_proxy(host: str | None) -> bool:
+    """Проксі SSO (TRUSTED_PROXIES): йому дозволено передавати логін у заголовку."""
+    return _in_networks(host, get_settings().trusted_proxy_list)
+
+
+def is_forwarding_proxy(host: str | None) -> bool:
+    """Проксі, чиєму X-Forwarded-For віримо щодо адреси клієнта: FORWARDED_PROXIES і проксі SSO."""
+    settings = get_settings()
+    return _in_networks(host, settings.forwarded_proxy_list + settings.trusted_proxy_list)
 
 
 def client_ip(request: Request) -> str:
-    """Адреса клієнта. X-Forwarded-For враховується лише від довіреного проксі."""
+    """Адреса клієнта. X-Forwarded-For враховується лише від проксі з FORWARDED_PROXIES / TRUSTED_PROXIES.
+
+    Без цього за nginx усі запити мали б одну адресу (контейнера nginx), і ліміт спроб одного
+    користувача блокував би всіх.
+    """
     peer = request.client.host if request.client else ""
     forwarded = request.headers.get("x-forwarded-for")
-    if forwarded and is_trusted_proxy(peer):
+    if forwarded and is_forwarding_proxy(peer):
         # Беремо найправішу адресу, яку додав не довірений проксі.
         for hop in reversed([h.strip() for h in forwarded.split(",") if h.strip()]):
-            if not is_trusted_proxy(hop):
+            if not is_forwarding_proxy(hop):
                 return hop
     return peer
 

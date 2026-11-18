@@ -23,10 +23,17 @@ docker compose up --build
 Перевірити стенд з кінця в кінець (вхід, хвиля за посиланнями, повтор → 409, файл-доказ із sha256, журнал):
 
 ```bash
+# Окремий проєкт compose: свої томи й БД, демо-стенд не зачіпається. Основний стенд зупиніть (ті самі порти).
+docker compose stop
+SEED_WITH_WAVES=false docker compose -p smoke up -d --build
 python backend/scripts/smoke.py --base http://localhost:8080 --password "$DEMO_PASSWORD"
+docker compose -p smoke down -v      # прибрати разом із даними
+docker compose start                 # повернути демо-стенд
 ```
 
-Скрипт створює демо-хвилю «Smoke …», тож запускайте його на демо-стенді.
+Smoke лише на окремому проєкті (`-p smoke`): він лишає в БД хвилю «Smoke …», файл-доказ і записи журналу,
+які не видаляються (журнал незмінний). Якщо в БД є хвилі «(демо)», скрипт зупиняється з кодом 2;
+`--force` — запустити все одно.
 
 ### За проксі організації
 
@@ -36,6 +43,9 @@ python backend/scripts/smoke.py --base http://localhost:8080 --password "$DEMO_P
   Проксі має сам задавати `X-Remote-User` (і `X-Proxy-Secret`) після автентифікації й не пропускати їх від браузера.
   Фронтенд викликає `POST /api/v1/auth/proxy`, коли `GET /api/v1/config` → `auth.proxy: true`.
   Без `TRUSTED_PROXIES` API з увімкненим входом через проксі не стартує.
+- Реальна IP клієнта для лімітів спроб береться з `X-Forwarded-For` лише від адрес `FORWARDED_PROXIES` (nginx).
+  У compose за замовчуванням це приватні мережі Docker; SSO цим не вмикається. Порт API `8000` опубліковано лише
+  на `127.0.0.1`, щоб ззовні не можна було підробити `X-Forwarded-For` в обхід nginx.
 
 ## Бекенд без Docker
 
@@ -85,6 +95,12 @@ LLM_MODEL=gemma3:4b
 - «Хвиля 2 (демо)», закрита сьогодні: індекс вищий, рекомендації ще без рішень (їх можна ухвалити на демо).
 
 Повторний старт нічого не дублює: якщо хвилі вже є, історія не додається. Без історії: `SEED_WITH_WAVES=false` у `.env`.
+
+Без демо-даних узагалі (робочий стенд): `SEED_DEMO=false` у `.env` (локально — `python -m app.seed.seed --no-demo`).
+Тоді створюються лише чотири анкети з додатків Б і В і один адміністратор `admin` з паролем `DEMO_PASSWORD`
+(змініть після першого входу); підрозділи й людей заводить він. Каталог заходів (Додаток Д) читається з файлу
+й доступний завжди. `SEED_DEMO=false` вимикає й `SEED_WITH_WAVES`. На вже засіяній базі нічого не видаляє:
+почніть з `docker compose down -v`.
 Локально без Docker: `python -m app.seed.seed --with-waves` (сервер запускати не треба).
 
 Додати ще хвилю до вже засіяної бази (сервер має працювати):
@@ -138,7 +154,7 @@ cd backend && python scripts/gen_docs.py   # тимчасова SQLite-база,
 ## Перевірки
 
 ```bash
-cd backend && pytest                    # бекенд: 164 тестів (на SQLite один тест xmin пропускається)
+cd backend && pytest                    # бекенд: 168 тестів (на SQLite один тест xmin пропускається)
 TEST_DATABASE_URL=postgresql+psycopg://imd:пароль@localhost:5432/imd_test pytest   # те саме на PostgreSQL
 cd frontend && npm run check            # фронтенд: typecheck, lint, тести, збірка
 cd frontend && npm run check:contrast   # контраст кольорів
@@ -148,3 +164,5 @@ cd frontend && npm run check:contrast   # контраст кольорів
 `npx playwright install chromium`). Бекенд для цього не потрібен. Скріншоти лягають у `frontend/artifacts/` (не комітиться).
 
 > Після 5 невдалих спроб входу для пари логін + IP вхід блокується на 5 хвилин (429). Перезапуск сервера скидає лічильник.
+> Анонімні посилання: рахуються лише невірні (5 за 5 хвилин з однієї IP → 429 саме для невірних); дійсне посилання
+> відкривається завжди, навіть з тієї ж адреси.

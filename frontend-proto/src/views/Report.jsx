@@ -1,83 +1,115 @@
-/* Звіт за шаблоном Додатку Г Рекомендацій НУОУ: формальний документ без кольорів і бейджів. Експорт у кількох форматах. */
-import { Fragment, useEffect, useRef } from "react";
+/* Екран «Звіт»: шаблони (report-templates.jsx), масштаб, ручне редагування, ШІ за виділенням (ReportAi.jsx), експорт.
+ * Шаблон рендериться в прихований блок, а в документ копіюється його HTML (або збережені правки).
+ * Так React не чіпає вміст contentEditable і правки не конфліктують із перемальовуванням. */
+import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { Ic } from "../lib/icons.jsx";
-import { S, AI_ROLES, persist, addLog, me } from "../lib/state.js";
-import { COMP, LEVELS, CAP, TRUST, REC_ST, M_ST, ALPHA, level, allItems, buildRecs, measures, dispSt, CYCLE, TODAY, TODAY_UA } from "../lib/model.js";
-import { fb, f1, pts, ua } from "../lib/format.js";
-import { render, toast, ui } from "../lib/store.js";
+import { S, persist, addLog, me } from "../lib/state.js";
+import { API, api, apiFail } from "../lib/api.js";
+import { COMP, ALPHA, allItems, measures, CYCLE, TODAY } from "../lib/model.js";
+import { fb } from "../lib/format.js";
+import { render, toast, ui, useStore } from "../lib/store.js";
 import { cur } from "../lib/nav.js";
 import { download, copyText } from "../lib/util.js";
 import { aiOpen } from "../ai/assistant.jsx";
-import { respGroups } from "./panels.jsx";
 import { BackToInst } from "./results.jsx";
+import { RT_TPL, RT_RENDER } from "./report-templates.jsx";
+import { ReportAi, rtCanAi } from "./ReportAi.jsx";
 
-const SEC_ABOUT = {
-  culture: "Розділ оцінює роль керівництва, інтеграцію цінностей доброчесності в корпоративну культуру, ефективність освітніх заходів та рівень відкритості.",
-  system: "Розділ аналізує інституційну спроможність у сфері антикорупції та доброчесності: організацію роботи антикорупційного уповноваженого, процедури й канали звернень.",
-  accountability: "Розділ оцінює практичні механізми контролю та реагування: прозорість рішень, оприлюднення результатів перевірок, контроль виконання заходів.",
-};
-const GRP = { wg: "РГ", os: "ОС", experts: "Експерти" };
+const ZMIN = 50, ZMAX = 200;
+const ls = (k, v) => { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { /* сховище недоступне */ } return null; };
+// Стан інструментів звіту живе між перемальовуваннями екрана
+export const RT = { tpl: RT_TPL[ls("ii-rt-tpl")] ? ls("ii-rt-tpl") : "appendix_g", zoom: Math.min(ZMAX, Math.max(ZMIN, +ls("ii-rt-zoom") || 100)), edit: false };
+const rtKey = () => `ii-rt-edit:${API.on ? API.unitId || "api" : cur().id}:${CYCLE}:${RT.tpl}`;
+let resetArm = 0;
 
 export function Report() {
-  const m = cur(), recs = m.id === ALPHA ? buildRecs(m) : [], ms = m.id === ALPHA ? measures() : [], gs = respGroups(m);
-  const g = k => gs.filter(x => k === "wg" ? x.n === "Робоча група" : k === "ex" ? x.n === "Експерти" : x.n !== "Робоча група" && x.n !== "Експерти").reduce((a, x) => a + x.resp, 0);
-  const lvT = v => `${level(v)}. ${LEVELS[level(v) - 1]}`;
-  const best = [...m.components].filter(c => !c.cr.lim).sort((a, b) => b.cr.v - a.cr.v), low = [...m.components].sort((a, b) => a.cr.v - b.cr.v).filter(c => c.cr.v < 65 || c.cr.lim);
-  const weakItems = [...allItems(m)].sort((a, b) => a.v - b.v).slice(0, 3);
-  const props = recs.filter(r => r.st !== "rejected");
-  const lowList = [...low.map(c => `${COMP[c.id].n}: ${c.cr.lim ? "самооцінку не підтверджують факти" : `зараховано ${fb(c.cr.v)}`}.`), ...weakItems.map(x => `${x.t}: ${fb(x.v)} з 100.`)].slice(0, 4);
+  useStore();
+  const m = cur(), docRef = useRef(null), zoomRef = useRef(null), stageRef = useRef(null);
+  const key = rtKey(), saved = ls(key);
+  const Tpl = RT_RENDER[RT.tpl], genRef = useRef(null), shown = useRef(null), frozen = useRef(null);
+  if (!RT.edit) frozen.current = null;
+  // Після кожного рендеру: що показати в документі. Під час редагування — знімок на момент входу в режим.
+  useLayoutEffect(() => {
+    const d = docRef.current, g = genRef.current; if (!d || !g) return;
+    if (RT.edit && frozen.current == null) frozen.current = ls(rtKey()) ?? g.innerHTML;
+    const want = RT.edit ? frozen.current : ls(rtKey()) ?? g.innerHTML;
+    if (shown.current !== want) { d.innerHTML = want; shown.current = want; }
+  });
+
+  const save = useCallback(() => { const d = docRef.current; if (d && RT.edit) ls(rtKey(), d.innerHTML); }, []);
+  const timer = useRef(0);
+  const saveSoon = () => { clearTimeout(timer.current); timer.current = setTimeout(save, 400); };
+  // Вихід з екрана або зміна закладу — зберегти й вийти з режиму редагування
+  useEffect(() => () => { clearTimeout(timer.current); if (RT.edit) { save(); RT.edit = false; } }, [save]);
+
+  const setZoom = z => {
+    RT.zoom = Math.round(Math.min(ZMAX, Math.max(ZMIN, z)));
+    if (zoomRef.current) zoomRef.current.style.zoom = RT.zoom / 100;
+    ls("ii-rt-zoom", String(RT.zoom)); render(true);
+  };
+  // Жести: Ctrl/⌘ + коліщатко (і щипок тачпада), щипок двома пальцями, Safari gesture*
+  useEffect(() => {
+    const st = stageRef.current; if (!st) return;
+    const wheel = e => {
+      if (!e.ctrlKey && !e.metaKey) return; e.preventDefault();
+      if (e.deltaMode || Math.abs(e.deltaY) >= 50) setZoom(Math.round(RT.zoom / 10) * 10 + (e.deltaY > 0 ? -10 : 10));
+      else setZoom(RT.zoom * Math.exp(-e.deltaY * 0.01));
+    };
+    let base = 0, start = 100, gz = 100;
+    const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    const ts = e => { if (e.touches.length === 2) { base = dist(e.touches); start = RT.zoom; } };
+    const tm = e => { if (e.touches.length === 2 && base) { e.preventDefault(); setZoom(start * dist(e.touches) / base); } };
+    const te = e => { if (e.touches.length < 2) base = 0; };
+    const gs = e => { e.preventDefault(); gz = RT.zoom; }, gc = e => { e.preventDefault(); setZoom(gz * e.scale); };
+    st.addEventListener("wheel", wheel, { passive: false }); st.addEventListener("touchstart", ts, { passive: true }); st.addEventListener("touchmove", tm, { passive: false }); st.addEventListener("touchend", te);
+    st.addEventListener("gesturestart", gs); st.addEventListener("gesturechange", gc);
+    return () => { st.removeEventListener("wheel", wheel); st.removeEventListener("touchstart", ts); st.removeEventListener("touchmove", tm); st.removeEventListener("touchend", te); st.removeEventListener("gesturestart", gs); st.removeEventListener("gesturechange", gc); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const setTpl = k => { save(); RT.tpl = k; ls("ii-rt-tpl", k); frozen.current = null; render(true); };
+  const toggleEdit = () => {
+    if (RT.edit) { clearTimeout(timer.current); save(); }
+    RT.edit = !RT.edit; frozen.current = null; render(true);
+    if (RT.edit) setTimeout(() => docRef.current && docRef.current.focus({ preventScroll: true }), 0);
+  };
+  const resetEdits = () => {
+    if (Date.now() - resetArm >= 3000) { resetArm = Date.now(); return toast("Натисніть ще раз, щоб скинути всі правки"); }
+    resetArm = 0; clearTimeout(timer.current); ls(key, null); RT.edit = false; frozen.current = null;
+    addLog(me(), `Скинуто ручні правки звіту (${RT_TPL[RT.tpl][0]})`); render(true); toast("Правки скинуто");
+  };
+  // «Прибрати» в нотатці асистента (кнопка всередині HTML документа)
+  const onDocClick = e => {
+    const b = e.target.closest("[data-rm-note]"); if (!b || RT.edit) return;
+    S.notes.splice(+b.dataset.rmNote, 1); persist(); render(true);
+  };
+
   return <>
     <BackToInst />
-    <div className="c12 rise toolbar"><span className="lbl">Форма звіту відповідає Додатку Г Рекомендацій НУОУ.</span><div className="sp" />
-      {S.aiOn && AI_ROLES.includes(S.role) && <button className="btn btn-soft" onClick={() => aiOpen("Підготуй чернетку опису результатів для звіту")}><Ic n="spark" />Чернетка опису</button>}
-      <button className="btn btn-primary" onClick={() => { ui.exp = true; render(true); }}><Ic n="download" />Експорт</button>
+    <div className="c12 rise toolbar rt-bar">
+      <label className="rt-tpl" data-tip={RT_TPL[RT.tpl][1]}><span className="lbl">Шаблон</span>
+        <select className="inp" value={RT.tpl} onChange={e => setTpl(e.target.value)} aria-label="Шаблон звіту">{Object.entries(RT_TPL).map(([k, [t]]) => <option key={k} value={k}>{t}</option>)}</select></label>
+      <div className="sp" />
+      <div className="rt-zoomctl" role="group" aria-label="Масштаб">
+        <button type="button" className="icon-btn" onClick={() => setZoom(RT.zoom - 10)} aria-label="Зменшити">−</button>
+        <input type="range" min={ZMIN} max={ZMAX} step={5} value={RT.zoom} onChange={e => setZoom(+e.target.value)} aria-label="Масштаб, %" />
+        <button type="button" className="icon-btn" onClick={() => setZoom(RT.zoom + 10)} aria-label="Збільшити">+</button>
+        <button type="button" className="rt-pct" onClick={() => setZoom(100)} data-tip="Скинути до 100%">{RT.zoom}%</button>
+      </div>
+      <button type="button" className={`btn ${RT.edit ? "btn-primary" : "btn-soft"}`} onClick={toggleEdit} aria-pressed={RT.edit}><Ic n="edit" />{RT.edit ? "Готово" : "Редагувати"}</button>
+      {saved != null && <button type="button" className="btn btn-ghost" onClick={resetEdits} data-tip="Повернути текст, згенерований із даних"><Ic n="reset" />Скинути правки</button>}
+      {rtCanAi() && RT.tpl === "appendix_g" && <button type="button" className="btn btn-soft" onClick={() => aiOpen("Підготуй чернетку опису результатів для звіту")}><Ic n="spark" />Чернетка опису</button>}
+      <button type="button" className="btn btn-primary" onClick={() => { ui.exp = true; render(true); }}><Ic n="download" />Експорт</button>
     </div>
-    <article className="paper doc c12 rise">
-      <div className="doc-approve">ЗАТВЕРДЖУЮ<br />Голова робочої групи<br /><span className="doc-blank">військове звання</span><br /><span className="doc-blank">Імʼя ПРІЗВИЩЕ</span><br />«___» ____________ 2026 року</div>
-      <h2 className="doc-title">ЗВІТ</h2>
-      <p className="doc-sub">про результати опитувань з визначення поточного рівня зрілості доброчесності<br />{m.name}</p>
-      <p className="doc-meta">Цикл оцінювання {CYCLE}. Дані станом на {TODAY_UA}. Синтетичні дані для демонстрації.</p>
-      <p>На підставі наказу керівника закладу {m.name} від «___» ____________ 2026 року № ___ «Про організацію роботи з трансформації функціонування закладу на засадах прозорості та доброчесності» проведено роботу з визначення поточного рівня зрілості доброчесності за Моделлю зрілості НАЗК.</p>
-      <p>Проведено анонімне опитування трьох категорій респондентів:</p>
-      <p>І категорія: члени робочої групи (далі РГ), відповіли {g("wg")} осіб.<br />ІІ категорія: особовий склад закладу (далі ОС), відповіли {g("os")} осіб.<br />ІІІ категорія: зовнішні експерти, відповіли {g("ex")} осіб.</p>
-      <p><b>Мета опитування:</b></p>
-      <ul>
-        <li>визначення фактичного рівня зрілості системи доброчесності за кожним ключовим напрямом;</li>
-        <li>ідентифікація найслабших місць у робочих процесах і визначення сильних сторін;</li>
-        <li>формування базового показника («точки відліку») для відстеження подальшого розвитку;</li>
-        <li>забезпечення керівництва обʼєктивними даними для планування заходів.</li></ul>
-      <p><b>Методика дослідження:</b></p>
-      <p>Онлайн-опитування на платформі з одноразовими анонімними жетонами. Результати групи показуються, лише якщо відповіли щонайменше {S.k} осіб. Відповіді переведено в бали від 0 до 100. Сприйняття за кожним напрямом зіставлено з фактами контрольного чек-листа та даних обліку. Якщо сприйняття перевищує факти більш ніж на {CAP} пунктів, зараховується значення «факти + {CAP}». Індекс доброчесності є середнім трьох напрямів, рівень зрілості визначається межами 12,5 / 37,5 / 62,5 / 87,5.</p>
-      <p><b>Основна частина:</b></p>
-      <p>Аналіз проведено за трьома розділами Моделі зрілості НАЗК: «Культура», «Система» та «Підзвітність».</p>
-      {m.components.map((c, ci) => <Fragment key={c.id}>
-        <h3>Розділ {ci + 1}. {COMP[c.id].n}</h3>
-        <p>{SEC_ABOUT[c.id]}</p>
-        <p className="doc-cap">Таблиця {ci * 2 + 1}. Сприйняття за питаннями анкет</p>
-        <table className="doc-t"><thead><tr><th>№</th><th>Питання</th><th>Категорія</th><th>Вага, %</th><th>Середній бал</th><th>Рівень зрілості (за моделлю НАЗК)</th></tr></thead><tbody>
-          {m.pItems.filter(x => x.c === c.id).map((x, i) => <tr key={x.id}><td>{ci + 1}.{i + 1}</td><td>{x.t}</td><td>{GRP[x.src]}</td><td className="tnum">{x.w}</td><td className="tnum">{fb(x.v)}</td><td>{lvT(x.v)}</td></tr>)}</tbody></table>
-        <p className="doc-cap">Таблиця {ci * 2 + 2}. Факти: контрольний чек-лист і дані обліку</p>
-        <table className="doc-t"><thead><tr><th>№</th><th>Показник</th><th>Дані</th><th>Вага, %</th><th>Бал</th></tr></thead><tbody>
-          {m.fItems.filter(x => x.c === c.id).map((x, i) => <tr key={x.id}><td>{ci + 1}.{i + 1}</td><td>{x.t}</td><td>{x.kind === "pct" ? `${x.val[0]} з ${x.val[1]}` : `рівень ${x.val} з 5`}</td><td className="tnum">{x.w}</td><td className="tnum">{fb(x.v)}</td></tr>)}</tbody></table>
-        <p>За розділом «{COMP[c.id].n}» сприйняття становить {fb(c.P)}, факти {fb(c.F)}, зараховано {fb(c.cr.v)} з 100, що відповідає рівню зрілості {lvT(c.cr.v)}.{c.cr.lim ? ` ${c.cr.reason}` : ""} {c.P - c.F > 10 ? "Самооцінка помітно вища за підтверджені факти, тож висновки потребують підтвердження документами." : c.F - c.P > 10 ? "Факти вищі за сприйняття: наявні процедури варто краще доносити до особового складу." : "Сприйняття й факти в цілому узгоджуються."}</p>
-      </Fragment>)}
-      <h3>Розділ 4. Достовірність результатів</h3>
-      <p>Достовірність {m.trust === "insufficient" ? "не оцінюється" : m.trust}: {TRUST[m.trust][1].toLowerCase()}. {m.raised.length ? `Спрацювало автоматичних перевірок: ${m.raised.length}.` : "Жодна автоматична перевірка не спрацювала."}</p>
-      {m.raised.length > 0 && <ol>{m.raised.map(f => <li key={f.id}>{f.t} ({f.w === "major" ? "серйозна" : "незначна"}). {f.ex}</li>)}</ol>}
-      <h3>Висновок</h3>
-      <p>На основі аналізу відповідей респондентів за критеріями розділів «Культура», «Система» та «Підзвітність» Моделі зрілості НАЗК <b>загальний рівень зрілості доброчесності у {m.name} можна оцінити як «{LEVELS[m.level - 1]}»</b> (рівень {m.level} з 5; індекс доброчесності {f1(m.index)} з 100; {m.delta == null ? "дані про попередній цикл недоступні" : `${m.delta > 0 ? `на ${pts(m.delta)} вище` : m.delta < 0 ? `на ${pts(m.delta)} нижче` : "без змін"} порівняно з попереднім циклом`}).</p>
-      <p><i>Довідково:</i> {m.fItems.filter(x => x.kind === "pct").map(x => `${x.t.toLowerCase()}: ${x.val[0]} з ${x.val[1]}`).join("; ")}.</p>
-      <p><b>Найбільш ефективні напрями:</b></p>
-      <ol>{best.slice(0, 2).map(c => <li key={c.id}>{COMP[c.id].n}: зараховано {fb(c.cr.v)}, рівень {lvT(c.cr.v)}.</li>)}</ol>
-      <p><b>Напрями, що потребують більшої уваги:</b></p>
-      <ol>{lowList.map(t => <li key={t}>{t}</li>)}</ol>
-      <p><b>Пропозиції:</b></p>
-      {props.length ? <ol>{props.map(r => <li key={r.id}>{r.t} ({COMP[r.c].n}; {REC_ST[r.st][0].toLowerCase()}).</li>)}</ol> : <ol>{weakItems.map(x => <li key={x.id}>Розробити заходи щодо показника «{x.t}».</li>)}</ol>}
-      {S.notes.length > 0 && m.id === ALPHA && <><p><b>Опис результатів</b> (чернетку підготовлено асистентом, затверджено керівником):</p>{S.notes.map((n, i) => <div key={i} className="note-ai"><p>{n.t}</p><div className="noprint" style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}><span className="lbl">{n.who} · {n.at}</span>{S.role === "leader" && <button className="btn btn-ghost" style={{ padding: "4px 10px", fontSize: 12, marginLeft: "auto" }} onClick={() => { S.notes.splice(i, 1); persist(); render(true); }}>Прибрати</button>}</div></div>)}</>}
-      {ms.length > 0 && <><p className="doc-cap">Таблиця 7. Заходи плану трансформації</p><table className="doc-t"><thead><tr><th>№</th><th>Захід</th><th>Відповідальна посада</th><th>Строк</th><th>Стан</th></tr></thead><tbody>{ms.map((x, i) => <tr key={x.id}><td>{i + 1}</td><td>{x.t}</td><td>{x.who}</td><td className="tnum">{ua(x.due)}</td><td>{M_ST[dispSt(x)][0]}</td></tr>)}</tbody></table></>}
-      <p className="doc-note">Усі бали, рівні й перевірки розраховано явними правилами методики v1.0. Окремих відповідей, імен і порівнянь підрозділів у звіті немає.</p>
-      <div className="doc-sign"><span>Секретар робочої групи</span><span className="doc-blank">підпис</span><span className="doc-blank">Імʼя ПРІЗВИЩЕ</span></div>
-    </article>
+    {RT.edit ? <div className="c12 rt-hint noprint"><Ic n="edit" /><span>Режим редагування: пишіть прямо в документі, правки зберігаються в цьому браузері.{rtCanAi() ? " Виділіть фрагмент, щоб попросити ШІ переписати його або пояснити." : ""}</span></div>
+      : saved != null ? <div className="c12 rt-hint noprint"><Ic n="info" /><span>Документ містить ручні правки. Числа в них не оновлюються разом із даними.</span></div> : null}
+    <div className="c12 rt-stage" ref={stageRef}>
+      <div className="rt-zoom" ref={zoomRef} style={{ zoom: RT.zoom / 100 }}>
+        <article ref={docRef} className={`paper doc rise rt-doc${RT.edit ? " rt-editing" : ""}`} contentEditable={RT.edit} spellCheck={RT.edit} suppressContentEditableWarning
+          onInput={saveSoon} onClick={onDocClick} />
+      </div>
+    </div>
+    <div ref={genRef} hidden aria-hidden="true"><Tpl m={m} /></div>
+    <ReportAi docRef={docRef} edit={RT.edit} onApplied={save} />
   </>;
 }
 
@@ -87,20 +119,33 @@ export function ExportDialog() {
   const ref = useRef(null), open = ui.exp;
   useEffect(() => { const d = ref.current; if (!d) return; if (open && !d.open) d.showModal(); else if (!open && d.open) d.close(); }, [open]);
   const close = () => { ui.exp = false; render(true); };
-  const run = k => { close(); if (k === "print") { addLog(me(), "Експорт звіту (PDF / друк)"); return setTimeout(() => window.print(), 50); } if (k === "copy") return copyOut("csv"); copyOut(k, true); };
+  const srv = API.on && API.campaignId ? [["docx", "file", `Word: ${RT_TPL[RT.tpl][0]}`, "Документ із сервера за шаблоном, без ручних правок."], ["xlsx", "table", "Excel", "Усі таблиці звіту з сервера, незалежно від шаблону."]] : [];
+  const run = k => { close(); if (k === "docx" || k === "xlsx") return serverExport(k); if (k === "print") { addLog(me(), "Експорт звіту (PDF / друк)"); return setTimeout(() => window.print(), 50); } if (k === "copy") return copyOut("csv"); copyOut(k, true); };
   return <dialog className="modal" id="exp" aria-label="Експорт звіту" ref={ref} onClose={() => { if (ui.exp) close(); }}>
     {open && <form method="dialog" className="exp-box" onSubmit={e => { e.preventDefault(); close(); }}><div className="card-h"><h2>Експорт звіту</h2><div className="sp" /><button className="icon-btn" value="x" aria-label="Закрити"><Ic n="x" /></button></div>
       <div className="lbl" style={{ marginBottom: 10 }}>{cur().name} · цикл {CYCLE}</div>
-      <div className="exp-list">{OPTS.map(([k, ic, t, ds]) => <button key={k} type="button" className="exp-opt" onClick={() => run(k)}><span className="comp-ic" style={{ background: "var(--soft)" }}><Ic n={ic} /></span><span><b>{t}</b><span className="lbl">{ds}</span></span></button>)}</div></form>}
+      <div className="exp-list">{[...srv, ...OPTS].map(([k, ic, t, ds]) => <button key={k} type="button" className="exp-opt" onClick={() => run(k)}><span className="comp-ic" style={{ background: "var(--soft)" }}><Ic n={ic} /></span><span><b>{t}</b><span className="lbl">{ds}</span></span></button>)}</div></form>}
   </dialog>;
 }
 function copyOut(kind, dl) {
   const m = cur(); let txt;
-  if (kind === "html") { const doc = `<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>Звіт ${CYCLE}</title><style>body{font:14pt/1.5 "Times New Roman",Times,serif;max-width:800px;margin:40px auto;padding:0 24px;color:#000}table{border-collapse:collapse;width:100%;margin:6px 0 12px}td,th{border:1px solid #000;padding:4px 6px;font-size:12pt;text-align:left;vertical-align:top}th{font-weight:bold}.doc-approve{margin-left:auto;width:300px}.doc-title{text-align:center;font-size:16pt;margin:24px 0 4px}.doc-sub{text-align:center;font-weight:bold}.doc-meta,.doc-note{font-size:11pt}.doc-cap{text-align:right;font-style:italic;margin-bottom:2px}.doc-sign{display:flex;justify-content:space-between;margin-top:36px}.doc-blank{display:inline-block;min-width:140px;border-top:1px solid #000;font-size:10pt;text-align:center}.noprint,svg,button{display:none}p{text-align:justify}</style></head><body>${document.querySelector(".paper").innerHTML}</body></html>`; return download(`integrity-report-${m.id}-${CYCLE}.html`, doc, "text/html"); }
+  if (kind === "html") { const doc = `<!doctype html><html lang="uk"><head><meta charset="utf-8"><title>${RT_TPL[RT.tpl][0]} ${CYCLE}</title><style>body{font:14pt/1.5 "Times New Roman",Times,serif;max-width:800px;margin:40px auto;padding:0 24px;color:#000}table{border-collapse:collapse;width:100%;margin:6px 0 12px}td,th{border:1px solid #000;padding:4px 6px;font-size:12pt;text-align:left;vertical-align:top}th{font-weight:bold}.doc-approve{margin-left:auto;width:300px}.doc-title{text-align:center;font-size:16pt;margin:24px 0 4px}.doc-sub{text-align:center;font-weight:bold}.doc-meta,.doc-note{font-size:11pt}.doc-cap{text-align:right;font-style:italic;margin-bottom:2px}.doc-sign{display:flex;justify-content:space-between;margin-top:36px}.doc-blank{display:inline-block;min-width:140px;border-top:1px solid #000;font-size:10pt;text-align:center}.noprint,svg,button{display:none}p{text-align:justify}</style></head><body>${(document.querySelector(".rt-doc") || document.querySelector(".paper")).innerHTML}</body></html>`; return download(`integrity-report-${m.id}-${CYCLE}.html`, doc, "text/html"); }
   if (kind === "csv") txt = ["id;component;kind;label;source;weight;value", ...allItems(m).map(x => [x.id, x.c, x.src ? "perception" : "fact", `"${x.t.replace(/"/g, '""')}"`, x.src || x.kind, x.w, fb(x.v)].join(";")), ...m.components.map(c => [c.id, c.id, "component", COMP[c.id].n, "credited", "33.3", fb(c.cr.v)].join(";")), ["index", "", "index", "Індекс доброчесності", "", "100", fb(m.index)].join(";")].join("\n");
   else txt = JSON.stringify({ institution: m.name, cycle: CYCLE, asOf: TODAY, index: m.index, level: m.level, trust: m.trust, delta: m.delta,
     components: Object.fromEntries(m.components.map(c => [c.id, { perception: c.P, facts: c.F, credited: c.cr.v, limited: c.cr.lim }])),
     flags: m.raised.map(f => ({ id: f.id, weight: f.w, title: f.t })), measures: m.id === ALPHA ? measures() : [] }, null, 2);
   if (dl) return download(`integrity-${m.id}-${CYCLE}.${kind}`, (kind === "csv" ? "﻿" : "") + txt, kind === "csv" ? "text/csv" : "application/json");
   copyText(txt, () => { toast(kind.toUpperCase() + " скопійовано"); addLog(me(), `Експорт звіту (${kind.toUpperCase()})`); });
+}
+
+/* Word за шаблоном і Excel із сервера: GET /campaigns/{id}/report?format=&template=&unit_id= */
+async function serverExport(fmt) {
+  try {
+    // Шаблон змінює лише Word; Excel завжди з повними даними, тож без шаблону (і без «-brief» у назві файлу)
+    const q = new URLSearchParams({ format: fmt }); if (fmt === "docx") q.set("template", RT.tpl); if (API.unitId) q.set("unit_id", API.unitId);
+    const r = await api(`/campaigns/${API.campaignId}/report?${q}`, { raw: true });
+    const name = (/filename="([^"]+)"/.exec(r.headers.get("content-disposition") || "") || [])[1] || `integrity-report.${fmt}`;
+    const a = document.createElement("a"); a.href = URL.createObjectURL(await r.blob()); a.download = name; document.body.appendChild(a); a.click();
+    setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 500); toast("Завантажено: " + name);
+  } catch (e) { apiFail(e); }
 }

@@ -8,6 +8,8 @@ import "./styles/extra-fixes.css";
 import "./styles/extra-preview.css";
 import "./styles/extra-shell.css";
 import "./styles/extra-survey.css";
+import "./styles/extra-report.css";
+import "./styles/extra-whatif.css";
 import "./styles/base-end.css";
 import { S } from "./lib/state.js";
 import { API, boot } from "./lib/api.js";

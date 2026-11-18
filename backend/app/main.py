@@ -21,6 +21,7 @@ from app.routers import (
     reports,
     respond,
     results,
+    what_if,
 )
 from app.routers import config as config_router
 from app.routers import llm as llm_router
@@ -64,7 +65,7 @@ app.add_middleware(
 )
 
 for module in (config_router, auth, admin, questionnaires, campaigns, respond, checklist, indicators, results,
-               dashboard, recommendations, measures, reports, integrations, assistant):
+               dashboard, recommendations, measures, reports, integrations, assistant, what_if):
     app.include_router(module.router, prefix=API_PREFIX, responses=ERROR_RESPONSES)
 
 # /api/assistant — асистент frontend-proto (шлях без /api/v1, як очікує фронтенд).

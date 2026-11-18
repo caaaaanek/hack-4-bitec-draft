@@ -270,7 +270,7 @@ export function apiEnsure(key, loader) {
   return false;
 }
 export function apiRetry() { API.adm = API.qs = API.ck = API.log = API.my = API.assignments = API.formError = null; render(); }
-export const RESULT_VIEWS = ["overview", "explain", "trends", "compare", "recs", "tracker", "report", "sources"];
+export const RESULT_VIEWS = ["overview", "explain", "trends", "compare", "whatif", "recs", "tracker", "report", "sources"];
 
 /* --- Керування циклом (уповноважений) --- */
 export const dn = t => String(t || "").replace(/\s*\(демо\)/gi, "");
@@ -353,7 +353,7 @@ export async function apiDownload(camp, qid, fid, name) {
 export const AUDIT_ENT = { campaign: "Хвиля", questionnaire: "Анкета", user: "Користувач", unit: "Підрозділ", checklist_entry: "Чек-лист", evidence_file: "Файл-доказ", measure: "Захід", recommendation: "Рекомендація", results: "Результати", indicator: "Факт", report: "Звіт", assistant: "Асистент", audit_log: "Журнал" };
 // Людські назви дій бекенду: «сутність:дія» → текст
 export const AUDIT_ACT = {
-  "assistant:ask": "Запит до асистента", "audit_log:verify": "Перевірено цілісність журналу",
+  "assistant:ask": "Запит до асистента", "assistant:edit_report": "Звіт: запит до ШІ щодо фрагмента", "audit_log:verify": "Перевірено цілісність журналу",
   "campaign:create": "Створено хвилю", "campaign:update": "Змінено хвилю", "campaign:open": "Відкрито хвилю", "campaign:close": "Закрито хвилю, збережено знімок результатів",
   "campaign:set_participants": "Змінено учасників хвилі", "campaign:clear_participants": "Очищено учасників хвилі", "campaign:import_participants": "Імпортовано учасників",
   "campaign:issue_tokens": "Видано одноразові посилання", "campaign:import_tokens": "Імпортовано посилання", "campaign:revoke_tokens": "Відкликано посилання",

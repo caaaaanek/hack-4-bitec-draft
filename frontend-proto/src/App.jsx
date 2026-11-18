@@ -11,11 +11,12 @@ import { AiPanel, aiOpen, aiClose } from "./ai/assistant.jsx";
 import { Overview, Explain, Trends, Compare, PeriodPop } from "./views/results.jsx";
 import { Recs, Tracker, Sources, Institutions } from "./views/work.jsx";
 import { Report, ExportDialog } from "./views/Report.jsx";
+import { WhatIf } from "./views/WhatIf.jsx";
 import { Manage, Surveys, Checklist, Audit, Survey, Me } from "./views/demo.jsx";
 import { apiView } from "./views/api-views.jsx";
 import { Builder } from "./views/Builder.jsx";
 
-const V = { overview: Overview, explain: Explain, trends: Trends, compare: Compare, recs: Recs, tracker: Tracker, sources: Sources, report: Report, manage: Manage, surveys: Surveys, checklist: Checklist, audit: Audit, survey: Survey, me: Me, institutions: Institutions };
+const V = { overview: Overview, explain: Explain, trends: Trends, compare: Compare, whatif: WhatIf, recs: Recs, tracker: Tracker, sources: Sources, report: Report, manage: Manage, surveys: Surveys, checklist: Checklist, audit: Audit, survey: Survey, me: Me, institutions: Institutions };
 const html = document.documentElement;
 
 /* ---------- Маршрут: що зробити при переході ---------- */

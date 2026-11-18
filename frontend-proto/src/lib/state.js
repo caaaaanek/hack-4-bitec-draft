@@ -45,6 +45,7 @@ export const NAV = [
   ["explain", "Розклад індексу", "tree", ["leader", "observer", "auditor"]],
   ["trends", "Динаміка", "trend", ["leader", "observer", "auditor"]],
   ["compare", "Порівняння", "compare", ["leader", "observer", "auditor"]],
+  ["whatif", "Що, якщо", "sliders", ["leader", "observer", "auditor"]],
   ["recs", "Рекомендації", "bulb", ["leader"]],
   ["tracker", "Трекер", "target", ["leader", "auditor"]],
   ["sources", "Джерела", "plug", ["leader", "observer", "auditor"]],

@@ -11,5 +11,5 @@ export const cur = () => inst(S.role === "observer" ? S.inst : ALPHA);
 export const go = h => { location.hash = h; };
 const subHash = f => { addEventListener("hashchange", f); return () => removeEventListener("hashchange", f); };
 export const useHash = () => useSyncExternalStore(subHash, () => location.hash);
-export const TITLES = { overview: "Огляд закладу", explain: "Розклад індексу", trends: "Динаміка", compare: "Порівняння: сприйняття і факти", recs: "Рекомендації", tracker: "Трекер заходів", sources: "Джерела", report: "Звіт", manage: "Керування циклом", surveys: "Анкети", checklist: "Чек-лист", audit: "Журнал", survey: "Анонімне опитування", me: "Мої результати", institutions: "Заклади" };
+export const TITLES = { overview: "Огляд закладу", explain: "Розклад індексу", trends: "Динаміка", compare: "Порівняння: сприйняття і факти", whatif: "Що, якщо: прогноз індексу", recs: "Рекомендації", tracker: "Трекер заходів", sources: "Джерела", report: "Звіт", manage: "Керування циклом", surveys: "Анкети", checklist: "Чек-лист", audit: "Журнал", survey: "Анонімне опитування", me: "Мої результати", institutions: "Заклади" };
 export const isLogin = () => API.on && !API.user && !API.anon;

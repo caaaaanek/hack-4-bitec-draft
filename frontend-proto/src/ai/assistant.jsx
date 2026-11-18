@@ -12,7 +12,7 @@ import { copyText } from "../lib/util.js";
 import { Pill } from "../components/ui.jsx";
 
 export const AI = { live: null, busy: false, model: "", typing: -1 };
-const modelName = m => (m || "LLM").split("/").pop();
+export const modelName = m => (m || "LLM").split("/").pop();
 const SUGG = ["Поясни індекс", "Що робити в першу чергу?", "Чому спрацював обмежувач?", "Підготуй чернетку опису результатів для звіту"];
 const SUGG_COL = ["var(--teal-soft)", "var(--blue-soft)", "var(--lime-soft)", "var(--amber-soft)"];
 

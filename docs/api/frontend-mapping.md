@@ -62,7 +62,8 @@ npx openapi-typescript ../docs/api/openapi.json -o src/api/schema.d.ts
 | `POST /recommendations/{id}/decision` | `POST /campaigns/{id}/recommendations/{code}/decision` | |
 | `GET /measures`, `PATCH /measures/{id}` | ті самі | + `POST /measures`, `GET /measures/stats`; `overdue_days` є; `verification` — перевірка наступною хвилею |
 | `GET /me` | `GET /me/results` | |
-| `POST /reports`, `GET /reports/{id}`, `.../export` | `GET /campaigns/{id}/report?format=json\|csv\|xlsx\|docx` | звіт будується на льоту зі знімка; `appendix_g` — крос-таблиці, збіги/розбіжності, висновок, пропозиції за Додатком Г; Word/Excel — посилання на завантаження; PDF — print.css |
+| `POST /reports`, `GET /reports/{id}`, `.../export` | `GET /campaigns/{id}/report?format=json\|csv\|xlsx\|docx&template=appendix_g\|brief\|measures\|dynamics`, перелік — `GET /report-templates` | звіт будується на льоту зі знімка; `appendix_g` — крос-таблиці, збіги/розбіжності, висновок, пропозиції за Додатком Г; Word/Excel — посилання на завантаження; PDF — print.css |
+| «Що, якщо» (`WhatIf.jsx`) | `POST /campaigns/{id}/what-if` | сценарій «що, якщо»: `baseline` / `scenario` / `delta`, `levers`, `options` для перемикачів і повзунків; див. `docs/backend.md` |
 | `GET /audit` | `GET /admin/audit-log` | фільтри й `offset` |
 | `POST /audit/verify` | `POST /admin/audit-log/verify` | |
 | `GET /methodology` | `GET /methodology` | |

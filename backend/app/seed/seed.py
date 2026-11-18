@@ -1,7 +1,11 @@
 """Заповнення БД синтетичними демо-даними й анкетами з додатків Б і В.
 
-Запуск: python -m app.seed.seed [--with-waves]
+Запуск: python -m app.seed.seed [--with-waves] [--no-demo]
 Повторний запуск нічого не дублює.
+
+SEED_DEMO=false (або --no-demo): лише анкети з додатків Б і В і один адміністратор `admin`
+(пароль DEMO_PASSWORD, якщо адміністратора ще немає). Демо-підрозділи, користувачі, факти й хвилі
+не створюються, SEED_WITH_WAVES ігнорується. Каталог заходів читається з файлу й доступний завжди.
 """
 
 import argparse
@@ -213,16 +217,42 @@ def seed_indicators(db: Session, units: dict[str, Unit], today: date | None = No
     return created
 
 
+def _flag(name: str, default: bool) -> bool:
+    value = os.environ.get(name, "").strip().lower()
+    if not value:
+        return default
+    return value in ("1", "true", "yes", "on")
+
+
+def seed_admin(db: Session, password: str) -> int:
+    """Робочий режим: єдиний адміністратор, щоб було кому завести підрозділи й людей."""
+    if db.scalar(select(User.id).where(User.role == Role.ADMIN).limit(1)):
+        return 0
+    db.add(User(login="admin", display_name="Адміністратор", password_hash=hash_password(password), role=Role.ADMIN))
+    return 1
+
+
 def main(argv: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Синтетичні демо-дані")
     parser.add_argument("--with-waves", action="store_true",
                         help="Ще дві закриті хвилі, рішення керівника й заходи (або SEED_WITH_WAVES=1)")
+    parser.add_argument("--no-demo", action="store_true",
+                        help="Без демо-даних: лише анкети й адміністратор (або SEED_DEMO=false)")
     args = parser.parse_args(argv)
-    with_waves = args.with_waves or os.environ.get("SEED_WITH_WAVES", "").lower() in ("1", "true", "yes")
+    demo = not args.no_demo and _flag("SEED_DEMO", True)
+    with_waves = demo and (args.with_waves or _flag("SEED_WITH_WAVES", False))
 
     password = get_settings().demo_password
     if len(password) < 8:
         raise SystemExit("Задайте DEMO_PASSWORD (щонайменше 8 символів) у .env")
+    if not demo:
+        with SessionLocal() as db:
+            questionnaires = seed_questionnaires(db)
+            admins = seed_admin(db, password)
+            db.commit()
+        print(f"SEED_DEMO=false: нових анкет: {questionnaires}, адміністраторів: {admins}. Демо-дані й хвилі пропущено"
+              + (" (SEED_WITH_WAVES ігнорується)" if args.with_waves or _flag("SEED_WITH_WAVES", False) else ""))
+        return
     months = FACTS_WINDOW_MONTHS + (WAVE_GAP_MONTHS if with_waves else 0)
     with SessionLocal() as db:
         units = seed_units(db)
