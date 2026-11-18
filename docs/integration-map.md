@@ -47,6 +47,8 @@ flowchart LR
 | Під підшляхом наявного порталу | `ROOT_PATH=/imd` за зворотним проксі організації | `ROOT_PATH`, `PUBLIC_URL` |
 | Вхід через облікові записи організації | Довірений проксі (Keycloak, ADFS, oauth2-proxy тощо) передає логін у `X-Remote-User`; заголовок приймається лише від адрес із `TRUSTED_PROXIES`, опційно зі спільним секретом. Користувачів автоматично не створюємо: роль і підрозділ призначає адміністратор | `POST /api/v1/auth/proxy`, `services/proxy_auth.py`, `PROXY_AUTH_*`, `TRUSTED_PROXIES` |
 | Вимкнути власні паролі | `PASSWORD_LOGIN_ENABLED=false` — лише вхід через SSO | `app/config.py` |
+| Реальна адреса клієнта за проксі | `FORWARDED_PROXIES`: від цих адрес IP клієнта береться з `X-Forwarded-For` (для лімітів невірних спроб); окремо від `TRUSTED_PROXIES` для SSO. API назовні лише через nginx | `app/security.py::client_ip`, `docker-compose.yml` |
+| Робоче розгортання без демо | `SEED_DEMO=false`: лише анкети з Додатків Б і В і адміністратор, без демо-підрозділів, людей, фактів і хвиль | `app/seed/seed.py` |
 | Структура підрозділів | Дерево `Unit {id, name, parent_id}` будь-якої глибини; задає адміністратор або імпорт | `GET/POST /api/v1/admin/units` |
 | Учасники | Явний склад хвилі, імпорт CSV псевдонімів (стовпці з персональними даними відхиляються) або одноразові анонімні посилання | `/campaigns/{id}/participants`, `/campaigns/{id}/tokens` |
 | Стан для моніторингу | `GET /health` (з перевіркою БД), `GET /api/v1/config` (без секретів) | `routers/config.py` |
@@ -84,10 +86,10 @@ flowchart LR
 |---|---|---|---|
 | Тема 2 (трекер заходів) | Прийняті рекомендації як заходи: `id`, `unit_id`, `title`, `description`, `component`, `catalog_number`, `owner` (посада), `due_date`, `status`, `done_on`, `source` | Черга `outbox`: кожна зміна заходу — повідомлення `measure.upsert`; `POST /api/v1/integrations/theme2/sync` шле `POST {THEME2_URL}/measures` із `X-Integration-Key`, невдалі повторюються (до 20 спроб). Їхній `id` зберігається як `external_id` | реалізовано; **на стенді теми 2 ще не перевірено** |
 | Тема 2 → ми | Статус заходу | Вебхук `POST /api/v1/integrations/theme2/measures/status` з ключем `THEME2_API_KEY`, за нашим `measure_id` або їхнім `external_id`; «виконано» — лише з доказом | реалізовано, не перевірено з ними |
-| Документообіг | Звіт за Додатком Г | `GET /api/v1/campaigns/{id}/report?format=docx\|xlsx\|csv\|json` (Word із грифом «Затверджую») | реалізовано |
-| Інші панелі керівника | Індекс, компоненти, динаміка, порівняння хвиль | `GET /api/v1/campaigns/{id}/results`, `/units/{id}/history`, `/units/{id}/compare`, `/dashboard` з роллю `auditor` (лише читання) чи `leader` | реалізовано |
+| Документообіг | Звіт за шаблоном: `appendix_g` (Додаток Г, гриф «Затверджую»), `brief` (довідка керівнику), `measures` (стан Плану заходів), `dynamics` (динаміка між хвилями) | `GET /api/v1/report-templates`; `GET /api/v1/campaigns/{id}/report?format=docx\|xlsx\|csv\|json&template=…` | реалізовано |
+| Інші панелі керівника | Індекс, компоненти, динаміка, порівняння хвиль, прогноз «що, якщо» | `GET /api/v1/campaigns/{id}/results`, `/units/{id}/history`, `/units/{id}/compare`, `/dashboard`; `POST /api/v1/campaigns/{id}/what-if` (прогноз від заходів, пунктів чек-листа, цільових фактів; нічого не записує). Роль `auditor` — лише читання | реалізовано |
 | Методика для пояснень | Ваги, пороги, правила | `GET /api/v1/methodology` | реалізовано |
-| Асистент (опційно) | Лише агрегати груп ≥ k | OpenAI-сумісний `/chat/completions` моделі кафедри (Gemma), ключ у `Authorization`; модель сама викликає інструменти бекенду лише на читання | реалізовано; на моделі кафедри ще не перевірено |
+| Асистент (опційно) | Лише агрегати груп ≥ k | OpenAI-сумісний `/chat/completions` моделі кафедри (Gemma), ключ у `Authorization`; модель сама викликає інструменти бекенду лише на читання. Редактор звіту: `POST /api/assistant/edit` пропонує заміну виділеного фрагмента, застосовує її людина; числа, яких немає в даних, позначаються попередженням | реалізовано; на моделі кафедри ще не перевірено |
 
 Повний контракт API — [`api/openapi.json`](api/openapi.json), відповідність запитам фронтенду —
 [`api/frontend-mapping.md`](api/frontend-mapping.md).
