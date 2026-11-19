@@ -381,7 +381,7 @@ export async function apiQAct(id, act) {
   try {
     if (act === "publish") { const issues = await api(`/questionnaires/${id}/validate`); if (issues.length) { toast("Не можна опублікувати: " + issues.map(i => i.message).join("; ")); return; } }
     const q = await api(`/questionnaires/${id}/${act}`, { method: "POST" });
-    toast(act === "publish" ? `Опубліковано: ${q.title}` : act === "new-version" ? `Створено чернетку версії ${q.version}` : `В архіві: ${q.title}`);
+    toast(act === "publish" ? `Опубліковано: ${q.title}` : act === "new-version" ? `Створено чернетку версії ${q.version}` : act === "restore" ? `Повернуто з архіву: ${q.title}` : `В архіві: ${q.title}`);
     API.qs = null; render(true);
     if (act === "new-version") bldOpen(q.id); // нова версія це чернетка: одразу відкриваємо в конструкторі
   } catch (e) { apiFail(e); }
