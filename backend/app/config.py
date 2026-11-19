@@ -11,7 +11,9 @@ JWT_SECRET_MIN_LENGTH = 32
 class Settings(BaseSettings):
     """Налаштування читаються зі змінних оточення або з файлу .env."""
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+    # env_ignore_empty: рядок «AUTOPILOT_INTERVAL_SECONDS=» у .env (як у .env.example) означає «значення за
+    # замовчуванням», а не порожній рядок, який не перетворюється на число й зупиняє застосунок на старті.
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore", env_ignore_empty=True)
 
     database_url: str = "postgresql+psycopg://imd:imd@localhost:5432/imd"
 
@@ -70,6 +72,9 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_model: str = "gemma4-26b"
     llm_timeout_seconds: float = 60.0
+    # Скільки запитів до моделі одночасно. Кожен запит займає потік сервера до LLM_TIMEOUT_SECONDS × кроки
+    # інструментів; без обмеження черга до моделі забирає потоки в решти API. Понад ліміт — 429.
+    llm_max_concurrent: int = 4
 
     # Живі запити модуля «Перевірки» до відкритих API (Prozorro, НАЗК). Закритий контур: false.
     external_fetch_enabled: bool = False

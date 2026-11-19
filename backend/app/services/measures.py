@@ -302,15 +302,31 @@ _sync_stop = threading.Event()
 _sync_thread: threading.Thread | None = None
 
 
+MAX_SYNC_BACKOFF_SECONDS = 900.0
+
+
+def next_sync_wait(base: float, current: float, result: dict | None) -> float:
+    """Пауза до наступного кроку черги. Поки Mitra недоступна (нічого не надіслано, є збої), пауза подвоюється
+    до MAX_SYNC_BACKOFF_SECONDS. Інакше MAX_ATTEMPTS спроб згоріли б за MAX_ATTEMPTS × base секунд
+    (20 × 10 с ≈ 3 хв простою Mitra), і всі заходи потрапили б у «відхилені», які треба повертати вручну."""
+    if result is None or (result.get("failed") and not result.get("sent")):
+        return min(max(current, base) * 2, max(MAX_SYNC_BACKOFF_SECONDS, base))
+    return base
+
+
 def _sync_loop(interval: float) -> None:
     from app.db import SessionLocal
-    while not _sync_stop.wait(interval):
+    wait = interval
+    while not _sync_stop.wait(wait):
+        result: dict | None = {}
         try:
             with SessionLocal() as db:
                 if pending_count(db):
-                    send_pending(db)
+                    result = send_pending(db)
         except Exception:  # noqa: BLE001
             log.exception("theme2: sync")
+            result = None
+        wait = next_sync_wait(interval, wait, result)
 
 
 def start_sync() -> None:
