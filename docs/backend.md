@@ -209,8 +209,8 @@ stateDiagram-v2
 | `GET /report-templates` | admin, commissioner, leader, auditor | Шаблони звіту: `appendix_g`, `brief`, `measures`, `dynamics` (назва, опис, для кого) |
 | `GET /campaigns/{id}/report?unit_id=&format=json\|csv\|xlsx\|docx&template=` | admin, commissioner, leader, auditor | Звіт хвилі за Додатком Г (розділ `appendix_g`). `template` змінює структуру Word; JSON (поле `template`), CSV і Excel — повні дані. CSV з BOM; PDF друкує фронтенд |
 | `GET /integrations/status` | admin | Які джерела фактів, тема 2, асистент налаштовані (без ключів) |
-| `POST /integrations/theme2/sync` | admin | Надіслати заходи з черги `outbox` у трекер теми 2 |
-| `POST /integrations/theme2/measures/status` | тема 2 (`X-Integration-Key` = `THEME2_API_KEY`) | Вебхук: тема 2 змінює статус заходу за нашим `measure_id` або їхнім `external_id` |
+| `POST /integrations/theme2/sync?retry_failed=` | admin | Надіслати заходи з черги `outbox` у Mitra (тема 2); `retry_failed=true` — повторити й відхилені |
+| `POST /integrations/theme2/measures/status` | Mitra (`X-Integration-Key` = `THEME2_API_KEY`) | Вебхук: стан заходу в Mitra і доказ виконання (документи з sha256 і посиланням на перевірку) за `measure_id` або `external_id` |
 | `POST /assistant/ask` | admin, commissioner, leader, auditor | Опційний асистент. Вимкнено (`ASSISTANT_ENABLED=false`) → 404 |
 | `POST /api/assistant/edit` (без `/api/v1`) | admin, commissioner, leader, auditor | Редактор звіту: запит до моделі щодо виділеного фрагмента → `replace` (пропозиція заміни) або `answer`. 503 без моделі |
 
@@ -383,9 +383,15 @@ Word-файл повторює шаблон: гриф «Затверджую», 
 («53,7» і «53.7» вважаються однаковими). Модель без `tools` → запасний шлях: правка або відповідь за режимом
 (у `auto` запитання з «?» — відповідь). У журнал: `edit_report` з довжиною фрагмента, дією й інструментами, без тексту.
 
-**Тема 2.** Кожне створення чи зміна заходу ставить повідомлення в `outbox`, якщо задано `THEME2_URL`. `POST /integrations/theme2/sync`
-надсилає їх (`POST {THEME2_URL}/measures`), невдалі повторюються пізніше: недоступність їхнього сервісу нашу роботу не ламає.
-Статус повертається вебхуком. Узгодити з темою 2: однакові ID підрозділів і формат `measures`.
+**Тема 2 (Mitra).** Контракт: [`contracts/integra-mitra.yaml`](contracts/integra-mitra.yaml). Кожне створення чи зміна заходу
+ставить `measure.upsert` в `outbox`, якщо задано `THEME2_URL`. Фоновий потік (`THEME2_SYNC_SECONDS`, 0 — вимкнено) і
+`POST /integrations/theme2/sync` шлють їх у `POST {THEME2_URL}/measures`. Мережеві збої й 5xx повторюються (до 20 спроб, події
+одного заходу по порядку), 4xx — ні: такі повідомлення видно в `GET /integrations/status` → `theme2_failed`, повернути в чергу —
+`sync?retry_failed=true`. Mitra повертає свій `id` → `external_id`. Стан повертається вебхуком
+`POST /integrations/theme2/measures/status`: `state` (linked, rejected, in_progress, on_review, returned, partial, not_done, done),
+доказ `evidence: {summary, documents: [{name, sha256, verify_url}]}`, `occurred_at`. Наш статус змінюється лише за переходами
+трекера; стан Mitra, коментар координатора й документи видно в `MeasureOut.external`. Посилання приймаються лише на адресу Mitra
+(`THEME2_PUBLIC_URL`). Мок для розробки: `python scripts/mitra_mock.py --key … --auto 2`.
 
 **Асистент** бачить лише агрегати й пояснення `rule`, нічого не змінює й не рахує, питання не логуються дослівно. Модель —
 локальна Ollama; адреси й моделі з РФ, РБ і китайських хмар відхиляються (`FORBIDDEN_MARKERS`).

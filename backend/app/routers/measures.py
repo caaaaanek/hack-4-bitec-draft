@@ -111,6 +111,27 @@ class MeasureVerification(BaseModel):
     rule: str
 
 
+class ExternalDocument(BaseModel):
+    name: str
+    sha256: str
+    verify_url: str | None = None
+
+
+class MeasureExternal(BaseModel):
+    """Стан заходу в Mitra (тема 2). Посилання ведуть лише на адресу Mitra з налаштувань."""
+
+    source: str
+    system: str
+    id: str | None
+    state: str | None
+    state_title: str | None
+    url: str | None
+    note: str | None
+    summary: str | None
+    documents: list[ExternalDocument]
+    updated_at: datetime | None
+
+
 class MeasureOut(BaseModel):
     id: uuid.UUID
     unit_id: uuid.UUID
@@ -129,6 +150,7 @@ class MeasureOut(BaseModel):
     overdue_days: int | None
     external_id: str | None
     external_source: str | None
+    external: MeasureExternal | None = None
     created_at: datetime
     updated_at: datetime
     verification: MeasureVerification | None = None

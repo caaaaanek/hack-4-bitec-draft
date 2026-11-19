@@ -200,8 +200,13 @@ export function openMeasure(id) {
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><Pill cls={M_ST[x.st][1]}>{M_ST[x.st][0]}</Pill>{d > 0 && <Pill cls="p-bad">Прострочено на {d} {daysWord(d)}</Pill>}<Pill cls={verif(x)[1] + " nodot"}>{verif(x)[0]}</Pill></div>
       <dl className="inst-kv" style={{ gridTemplateColumns: "auto 1fr" }}><dt>Відповідальна посада</dt><dd>{x.who}</dd><dt>Строк</dt><dd className="tnum">{ua(x.due)}</dd>{it && <><dt>Повʼязаний показник</dt><dd><Link href={`#explain/${it.id}`}>{it.t}: {fb(it.v)}</Link></dd></>}</dl>
       <div><div className="lbl" style={{ marginBottom: 6 }}>Історія в журналі</div>{hist.length ? <div className="rows">{hist.map((l, i) => <div key={i} className="row"><div className="grow"><div className="t" style={{ fontSize: 13 }}>{l.a}</div><div className="s">{l.who} · {l.t}</div></div></div>)}</div> : <div className="lbl">Змін статусу в цьому циклі ще не було.</div>}</div>
-      <div className="note-box"><b>Звіт виконавця</b><span className="lbl">Документи й звіти про виконання ведуться в окремому застосунку суміжної команди.</span>
-        {MEASURES_APP.url ? <a className="btn btn-soft" href={MEASURES_APP.url} target="_blank" rel="noopener" style={{ justifyContent: "center" }}><Ic n="arrowR" />Відкрити в застосунку звітування</a> : <><button className="btn btn-soft" disabled style={{ justifyContent: "center", opacity: .6 }}><Ic n="arrowR" />Відкрити в застосунку звітування</button><span className="lbl" style={{ fontSize: 12 }}>Посилання зʼявиться після погодження інтеграції.</span></>}</div>
+      {x.ext ? <div className="note-box"><b>Звіт виконавця в {x.ext.system}</b><span className="lbl">{x.ext.t}</span>
+        {x.ext.note && <span className="lbl">Коментар координатора: {x.ext.note}</span>}
+        {x.ext.summary && <span>{x.ext.summary}</span>}
+        {x.ext.docs.map(d => <span key={d.sha} className="lbl" style={{ overflowWrap: "anywhere" }}>{d.name} · sha256 <span className="tnum" title={d.sha}>{d.sha.slice(0, 12)}…</span>{d.url && <> · <a href={d.url} target="_blank" rel="noopener noreferrer">Перевірити справжність у {x.ext.system}</a></>}</span>)}
+        {x.ext.url ? <a className="btn btn-soft" href={x.ext.url} target="_blank" rel="noopener noreferrer" style={{ justifyContent: "center" }}><Ic n="arrowR" />Відкрити в {x.ext.system}</a> : x.ext.state !== "rejected" && <span className="lbl" style={{ fontSize: 12 }}>Координатор {x.ext.system} ще не повʼязав захід із програмою.</span>}</div>
+      : <div className="note-box"><b>Звіт виконавця</b><span className="lbl">Документи й звіти про виконання ведуться в окремому застосунку суміжної команди.</span>
+        {MEASURES_APP.url ? <a className="btn btn-soft" href={MEASURES_APP.url} target="_blank" rel="noopener" style={{ justifyContent: "center" }}><Ic n="arrowR" />Відкрити в застосунку звітування</a> : <><button className="btn btn-soft" disabled style={{ justifyContent: "center", opacity: .6 }}><Ic n="arrowR" />Відкрити в застосунку звітування</button><span className="lbl" style={{ fontSize: 12 }}>Посилання зʼявиться після погодження інтеграції.</span></>}</div>}
     </>;
   });
 }
