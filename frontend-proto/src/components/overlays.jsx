@@ -9,19 +9,24 @@ export const zr = r => { const z = Z(); return { left: r.left / z, right: (r.rig
 
 /* ---------- Підказка ---------- */
 const tipEl = () => document.getElementById("tip");
-export function showTip(r, html) {
+export function showTip(r, html, pos) {
   const tip = tipEl(); if (!tip) return;
   r = zr(r); const vw = window.innerWidth / Z(), vh = window.innerHeight / Z();
   tip.innerHTML = html; tip.style.left = "0px"; tip.style.top = "0px";
   const w = tip.offsetWidth, h = tip.offsetHeight, m = 8, gap = 10;
-  const x = Math.min(Math.max(r.left + r.width / 2 - w / 2, m), vw - w - m);
-  const y = r.top - h - gap >= m ? r.top - h - gap : Math.min(r.bottom + gap, vh - h - m);
+  // data-tip-pos="right": праворуч від елемента, по центру по вертикалі (кнопка згорнутого меню не закриває заголовок)
+  const right = pos === "right";
+  const x = right ? Math.min(r.right + gap, vw - w - m) : Math.min(Math.max(r.left + r.width / 2 - w / 2, m), vw - w - m);
+  const y = right ? Math.min(Math.max(r.top + (r.bottom - r.top) / 2 - h / 2, m), vh - h - m) : r.top - h - gap >= m ? r.top - h - gap : Math.min(r.bottom + gap, vh - h - m);
   tip.style.left = x + "px"; tip.style.top = y + "px"; tip.classList.add("on");
 }
 export function hideTip() { const t = tipEl(); if (t) t.classList.remove("on"); }
 export function installTips() {
-  document.addEventListener("mouseover", e => { const el = e.target.closest && e.target.closest("[data-tip]"); if (!el || !el.dataset.tip) return; if (ui.pop && ui.pop.anchor === el) return; showTip(el.getBoundingClientRect(), el.dataset.tip); });
+  document.addEventListener("mouseover", e => { const el = e.target.closest && e.target.closest("[data-tip]"); if (!el || !el.dataset.tip) return; if (ui.pop && ui.pop.anchor === el) return; showTip(el.getBoundingClientRect(), el.dataset.tip, el.dataset.tipPos); });
   document.addEventListener("mouseout", e => { if (e.target.closest && e.target.closest("[data-tip]")) hideTip(); });
+  // Елементи з data-tip-pos показують підказку й при фокусі з клавіатури
+  document.addEventListener("focusin", e => { const el = e.target.closest && e.target.closest("[data-tip-pos]"); if (el && el.dataset.tip && el.matches(":focus-visible")) showTip(el.getBoundingClientRect(), el.dataset.tip, el.dataset.tipPos); });
+  document.addEventListener("focusout", e => { if (e.target.closest && e.target.closest("[data-tip-pos]")) hideTip(); });
 }
 
 /* ---------- Бічна панель ---------- */
@@ -50,9 +55,20 @@ export function placePop(p, anchor, mode) {
   p.style.width = ""; const w = p.offsetWidth;
   p.style.left = Math.max(8, Math.min(r.right - w, vw - w - 8)) + "px"; p.style.top = (r.bottom + 6) + "px";
 }
+// mode "stay": місце рахується один раз при відкритті, у пікселях екрана. Так вікно доступності
+// не стрибає, коли змінюється масштаб сторінки (сам масштаб для нього скасовано в CSS через --uz).
+function placeStay(p, anchor) {
+  if (!p || !anchor) return;
+  p.style.width = ""; const r = anchor.getBoundingClientRect(), w = Math.round(p.getBoundingClientRect().width);
+  p.style.left = Math.round(Math.max(8, Math.min(r.right - w, innerWidth - w - 8))) + "px"; p.style.top = Math.round(r.bottom + 6) + "px";
+}
 export function Pop({ children, mode, cls = "", label = "Вибір" }) {
-  const ref = useRef(null), pop = ui.pop;
-  useLayoutEffect(() => { if (pop) placePop(ref.current, pop.anchor, mode); });
+  const ref = useRef(null), placed = useRef(null), pop = ui.pop;
+  useLayoutEffect(() => {
+    if (!pop) { placed.current = null; return; }
+    if (mode !== "stay") { placePop(ref.current, pop.anchor, mode); return; }
+    if (placed.current !== pop) { placed.current = pop; placeStay(ref.current, pop.anchor); }
+  });
   useEffect(() => {
     const f = e => { const p = ref.current; if (ui.pop && p && !p.contains(e.target) && !(ui.pop.anchor && ui.pop.anchor.contains(e.target))) closePop(); };
     document.addEventListener("click", f, true); return () => document.removeEventListener("click", f, true);

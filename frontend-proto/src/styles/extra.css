@@ -163,6 +163,8 @@ a.pill-btn { color: inherit; text-decoration: none; }
 /* Поповер (період, доступність) */
 .popover { position: fixed; z-index: 80; display: none; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 32px rgba(0,0,0,.14); padding: 14px; width: 300px; max-width: calc(100vw - 16px); }
 .popover.on { display: block; animation: rise .2s both; }
+/* Вікно «Розмір тексту» не масштабується разом зі сторінкою: --uz = 1 / масштаб (applyA11y) */
+.popover.a11y-pop { zoom: var(--uz, 1); }
 .mp-y { font-size: 12px; font-weight: 600; color: var(--muted); margin: 6px 0 4px; }
 .mp { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
 .mp > * { height: 32px; border-radius: 8px; display: grid; place-items: center; font-size: 12.5px; }
@@ -282,15 +284,23 @@ html.hc a, html.hc .link { text-decoration: underline; }
 .side-btn { margin-left: auto; width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); display: grid; place-items: center; cursor: pointer; flex: none; }
 .side-btn:hover { color: var(--fg); border-color: var(--faint); }
 .side-btn svg { width: 16px; height: 16px; }
-.app { transition: grid-template-columns .25s ease; }
+.app { transition: grid-template-columns .24s cubic-bezier(.2,.8,.2,1); }
+@keyframes side-fade { from { opacity: 0; } }
 @media (min-width: 901px) {
+  /* Ширина колонки міняється плавно, підписи лише зникають (без переносу), іконки лишаються на тому ж x */
+  .side { overflow-x: hidden; }
+  .brand-t { min-width: 0; overflow: hidden; animation: side-fade .24s ease both; }
+  .nav a { overflow: hidden; }
+  .nav a span { white-space: nowrap; transition: opacity .18s ease; }
+  .side-foot { min-width: 228px; animation: side-fade .24s ease both; }
   html.side-mini .app { grid-template-columns: 76px 1fr; }
-  html.side-mini .side { padding-left: 12px; padding-right: 12px; align-items: center; }
+  html.side-mini .side { padding-left: 12px; padding-right: 12px; }
   html.side-mini .brand { flex-direction: column; padding: 0; gap: 10px; }
   html.side-mini .side-btn { margin-left: 0; }
-  html.side-mini .brand-t, html.side-mini .nav-label, html.side-mini .nav a span, html.side-mini .side .search input, html.side-mini .side .search .kbd, html.side-mini .side-foot { display: none; }
-  html.side-mini .side .search { padding: 10px; cursor: pointer; }
-  html.side-mini .nav a { padding: 11px; justify-content: center; }
+  html.side-mini .brand-t, html.side-mini .nav-label, html.side-mini .side .search input, html.side-mini .side .search .kbd, html.side-mini .side-foot { display: none; }
+  html.side-mini .nav a span { opacity: 0; }
+  html.side-mini .side .search { padding: 10px; cursor: pointer; align-self: center; }
+  html.side-mini .nav a { padding-left: 16px; }
   html.side-mini .nav a .badge { position: absolute; top: 2px; right: 0; font-size: 9px; padding: 0 4px; }
 }
 @media (max-width: 900px) { .side-btn { display: none; } }

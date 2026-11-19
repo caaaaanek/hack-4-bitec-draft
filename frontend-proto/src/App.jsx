@@ -45,7 +45,8 @@ export function applyRoute() {
 }
 
 /* ---------- Доступність: розмір тексту й підвищений контраст ---------- */
-export function applyA11y() { const a = S.a11y || { z: 1, hc: false }; html.style.zoom = a.z === 1 ? "" : a.z; html.classList.toggle("hc", !!a.hc); scaleMedia(a.z); }
+// --uz = 1 / масштаб: вікно «Розмір тексту» не масштабується разом зі сторінкою (extra.css, .a11y-pop)
+export function applyA11y() { const a = S.a11y || { z: 1, hc: false }; html.style.zoom = a.z === 1 ? "" : a.z; html.style.setProperty("--uz", a.z === 1 ? "1" : String(1 / a.z)); html.classList.toggle("hc", !!a.hc); scaleMedia(a.z); }
 // CSS zoom не змінює ширину, яку бачать медіазапити. Тому межі (max-width/min-width) множимо на масштаб:
 // при 150 % на екрані 1280 px сторінка верстається як для 853 px, без горизонтального скролу (WCAG 1.4.10).
 function scaleMedia(z) {
@@ -73,6 +74,7 @@ function A11yPop() {
 /* ---------- Згортання бічного меню ---------- */
 const sidePref = () => { try { return localStorage.getItem("ii-side2"); } catch (e) { return null; } };
 function setSide(mini, auto) {
+  hideTip(); // кнопка після перемикання стоїть деінде: стара підказка не має висіти
   html.classList.toggle("side-mini", mini);
   if (!auto) try { localStorage.setItem("ii-side2", mini ? "mini" : ""); } catch (e) { /* немає */ }
   render(true);
@@ -199,7 +201,7 @@ export default function App() {
     <div className={`app ${login ? "login" : ""} ${anon ? "anon" : ""}`}>
       <aside className={`side ${ui.side ? "on" : ""}`} id="side">
         <div className="brand"><span className="logo" id="logo"><Ic n="pulse" size={20} /></span><span className="brand-t">Integra</span>
-          <button type="button" className="side-btn" id="sideBtn" aria-label={mini ? "Розгорнути меню" : "Згорнути меню"} aria-expanded={!mini} data-tip={mini ? "Розгорнути меню" : "Згорнути меню"} onClick={() => setSide(!mini)}><Ic n={mini ? "chevR" : "chevL"} /></button></div>
+          <button type="button" className="side-btn" id="sideBtn" aria-label={mini ? "Розгорнути меню" : "Згорнути меню"} aria-expanded={!mini} data-tip={mini ? "Розгорнути меню" : "Згорнути меню"} data-tip-pos={mini ? "right" : undefined} onClick={() => setSide(!mini)}><Ic n={mini ? "chevR" : "chevL"} /></button></div>
         <label className="search" ref={box} onClick={() => { if (html.classList.contains("side-mini")) { setSide(false); setTimeout(() => qRef.current && qRef.current.focus(), 50); } }}>
           <span id="ic-search"><Ic n="search" size={17} /></span>
           <input id="q" placeholder="Пошук" aria-label="Пошук по сторінках і показниках" ref={qRef} value={q} onChange={e => { setQ(e.target.value); setSel(0); showSearch(e.target.value); }} onFocus={() => showSearch(q)} onKeyDown={qKey} />
@@ -236,7 +238,7 @@ export default function App() {
     <Drawer />
     <AiPanel />
     <div className="tip" id="tip" />
-    <Pop mode={pk === "search" ? "under" : undefined} cls={pk === "notes" ? "notes-pop" : ""} label={pk === "notes" ? "Сповіщення" : pk === "a11y" ? "Доступність" : "Вибір"}>
+    <Pop mode={pk === "search" ? "under" : pk === "a11y" ? "stay" : undefined} cls={pk === "notes" ? "notes-pop" : pk === "a11y" ? "a11y-pop" : ""} label={pk === "notes" ? "Сповіщення" : pk === "a11y" ? "Доступність" : "Вибір"}>
       {pk === "period" && <PeriodPop />}
       {pk === "a11y" && <A11yPop />}
       {pk === "notes" && ns && <NotesPop ns={ns} />}
