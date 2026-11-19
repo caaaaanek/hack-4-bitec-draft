@@ -3,13 +3,13 @@ import { useEffect, useState } from "react";
 import { Ic } from "../lib/icons.jsx";
 import { S, persist } from "../lib/state.js";
 import { COMPS, COMP, LEVELS, LSHORT, LDESC, BOUNDS, CAP, TRUST, SRC, SCOL, level, indexLevel, status, r1, wmean, clamp, measures, overdueDays, CYCLE } from "../lib/model.js";
-import { fb, f1, f2, pts, esc } from "../lib/format.js";
+import { fb, f1, f2, pts, esc, plural } from "../lib/format.js";
 import { render, toast, openPop, closePop } from "../lib/store.js";
 import { cur, go, can } from "../lib/nav.js";
-import { Pill, LvPill, TrustPill, SrcDot, Num, Delta, LevelBar } from "../components/ui.jsx";
+import { Pill, LvPill, TrustPill, SrcDot, Num, Delta, LevelBar, useWidth } from "../components/ui.jsx";
 import { MiniTrend, TrendChart, Radar } from "../components/charts.jsx";
 import { DigestRows, digestTop, PrepBtn } from "./Insights.jsx";
-import { openWhy, openTrust, openHow, openResp, openItem, openApiQ, openTrustHow, openTrackerHow, openRespHow } from "./panels.jsx";
+import { openWhy, openTrust, openHow, openResp, openItem, openApiQ, openTrustHow, openTrackerHow, openRespHow, itemQs } from "./panels.jsx";
 
 const enter = f => e => { if (e.key === "Enter") f(e); };
 export function BackToInst() {
@@ -54,13 +54,13 @@ function DynCard({ m }) {
 /* Огляд */
 export function Overview() {
   const m = cur(), ms = measures(), od = ms.filter(x => overdueDays(x) > 0).length, prev = m.series[m.series.length - 2];
-  const attn = S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX), strong = S.attnAll ? m.strengths : m.strengths.slice(0, LIST_MAX), dg = digestTop();
+  const attn = S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX), strong = S.strAll ? m.strengths : m.strengths.slice(0, LIST_MAX), dg = digestTop();
   return <>
     <BackToInst />
-    {can("advocate") && <div className="c12 toolbar rise"><span className="lbl">Що спитає зовнішній аудитор і де в даних відповідь.</span><div className="sp" /><PrepBtn /></div>}
+    {can("advocate") && <div className="c12 toolbar rise"><div className="sp" /><PrepBtn /></div>}
     <div className="c12 kpi-row">
       <Tile ic="gauge" title="Індекс доброчесності" big={<span className="mid tnum"><Num v={m.index} /></span>} act={openWhy} info={openHow}
-        sub={<><span data-tip={`Рівень зрілості визначається за індексом<small>${LDESC[m.level - 1]}</small>`}>Рівень зрілості {m.level} з 5: {LSHORT[m.level - 1]}</span><br /><Delta d={m.delta} /></>} />
+        sub={<><span>Рівень зрілості {m.level} з 5: {LSHORT[m.level - 1]}</span><br /><Delta d={m.delta} /></>} />
       <Tile ic="shield" title="Достовірність" big={<span className="mid">{m.trust === "insufficient" ? "?" : m.trust}</span>} act={openTrust} info={openTrustHow} tip="Як визначається достовірність"
         sub={<>{TRUST[m.trust][1]}<br /><span className="lbl">Прапорці: {m.raised.length}</span></>} />
       {S.role === "observer"
@@ -68,33 +68,33 @@ export function Overview() {
         : <Tile ic="target" title="Заходи в трекері" big={<span className="mid tnum">{ms.length}</span>} sub={od ? <span style={{ color: "var(--red)", fontWeight: 600 }}>З них {od} прострочено</span> : <span className="lbl">Прострочених немає</span>} act={() => go("tracker")} info={openTrackerHow} tip="Як працює трекер заходів" />}
     </div>
     <section className="card c8 rise" id="attn">
-      <div className="attn-cols"><div>
-        <div className="card-h"><h2>Що потребує уваги</h2></div>
-        {m.attention.length ? <div className="rows">{attn.map((a, i) => <a key={i} className="row click" href={`#explain/${a.c}`} onClick={a.q ? e => { e.preventDefault(); openApiQ(a.q); } : undefined} data-tip={a.hint}><span className="dot" style={{ background: SCOL[status(a.v)] }} /><div className="grow"><div className="t">{a.t}</div></div><Pill cls="p-mute nodot">{COMP[a.c].n}</Pill><b className="tnum">{fb(a.v)}</b></a>)}</div> : dg.length ? null : <div className="lbl">Зауважень немає: нічого не потребує уваги.</div>}
-        <DigestRows items={dg} />
-      </div><div>
+      <div className="card-h"><h2>Що потребує уваги</h2></div>
+      {m.attention.length ? <div className="rows">{attn.map((a, i) => <a key={i} className="row click" href={`#explain/${a.c}`} onClick={a.q ? e => { e.preventDefault(); openApiQ(a.q); } : undefined} data-tip={a.hint}><span className="dot" style={{ background: SCOL[status(a.v)] }} /><div className="grow"><div className="t">{a.t}</div></div><Pill cls="p-mute nodot">{COMP[a.c].n}</Pill><b className="tnum">{fb(a.v)}</b></a>)}</div> : dg.length ? null : <div className="lbl">Зауважень немає: нічого не потребує уваги.</div>}
+      <DigestRows items={dg} />
+      {m.attention.length > LIST_MAX && <button className="link-btn" style={{ marginTop: 8 }} onClick={() => { S.attnAll = !S.attnAll; render(true); }}>{S.attnAll ? "Згорнути" : `Показати всі (${m.attention.length})`}</button>}
+    </section>
+    <div className="c4 ov-side">
+      <section className="card rise dyn-card"><DynCard m={m} /></section>
+      <section className="card rise str-card">
         <div className="card-h"><h2>Сильні сторони</h2></div>
         {m.strengths.length ? <div className="rows">{strong.map((a, i) => <a key={i} className="row click" href={a.c ? "#explain/" + a.c : "#trends"} data-tip={a.hint}><span className="dot" style={{ background: "var(--teal)" }} /><div className="grow"><div className="t">{a.t}</div></div><b className="tnum">{a.unit ? "+" : ""}{fb(a.v)}</b></a>)}</div> : <div className="lbl">Поки що немає даних про сильні сторони.</div>}
-      </div></div>
-      {(m.attention.length > LIST_MAX || m.strengths.length > LIST_MAX) && <button className="link-btn" style={{ marginTop: 8 }} onClick={() => { S.attnAll = !S.attnAll; render(true); }}>{S.attnAll ? "Згорнути" : `Показати всі (${m.attention.length + m.strengths.length})`}</button>}
-    </section>
-    <section className="card c4 rise dyn-card"><DynCard m={m} /></section>
+        {m.strengths.length > LIST_MAX && <button className="link-btn" style={{ marginTop: 8 }} onClick={() => { S.strAll = !S.strAll; render(true); }}>{S.strAll ? "Згорнути" : `Показати всі (${m.strengths.length})`}</button>}
+      </section>
+    </div>
     <div className="c12 comp-row">{m.components.map((c, ci) => {
       const C = COMP[c.id], d = m.noHistory ? null : r1(c.cr.v - prev.cr[c.id]), lv = level(c.cr.v);
       return <a key={c.id} className="card rise comp-card" href={`#explain/${c.id}`}>
         <div className="comp-top"><span className="comp-ic" style={{ background: C.s, color: C.c }}><Ic n={C.ic} /></span><b>{C.n}</b><div className="sp" style={{ flex: 1 }} /><LvPill l={lv} /></div>
-        <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 10, marginTop: 14 }}>
+        {c.cr.lim && <div className="comp-lim"><Pill cls="p-warn">Зараховано з обмеженням</Pill></div>}
+        <div className="comp-val">
           <div><div className="mid tnum"><Num v={c.cr.v} /></div><div style={{ marginTop: 6 }}><Delta d={d} /></div></div>
           <div className="pf">{[["Сприйняття", c.P, "var(--blue)"], ["Факти", c.F, "var(--amber)"], ["Зараховано", c.cr.v, C.c]].map(([n, v, col], j) => <div key={n} data-tip={`${n}: ${fb(v)}`}><i className="bar-a" style={{ height: Math.max(4, v * .6), background: col, animationDelay: `${300 + ci * 100 + j * 80}ms` }} /><small>{n[0]}</small></div>)}</div>
         </div>
-        {c.cr.lim && <div style={{ marginTop: 14 }}><Pill cls="p-warn">Зараховано з обмеженням</Pill></div>}
       </a>;
     })}</div>
     <section className="card c8 rise lv-card">
       <div className="card-h"><h2>Рівень зрілості</h2><div className="sp" /><button type="button" className="pill-btn" onClick={openHow}><Ic n="help" />Як рахується</button></div>
-      <div className="lbl" style={{ marginBottom: 14 }}>Індекс {f1(m.index)} з 100 відповідає рівню {m.level} «{LEVELS[m.level - 1]}» за Моделлю зрілості НАЗК.</div>
       <LevelBar v={m.index} />
-      <div className="lbl" style={{ marginTop: 14 }}>{LDESC[m.level - 1]}</div>
       <div className="lbl" style={{ margin: "20px 0 8px" }}>Компоненти на тій самій шкалі</div>
       <div className="lv-comps">{m.components.map(c => { const v = c.cr.v, l = level(v); return <a key={c.id} className="lv-comp" href={`#explain/${c.id}`}><b>{COMP[c.id].n}</b><div className="lvc-track">{[12.5, 25, 25, 25, 12.5].map((w, i) => <span key={i} className={`lv-b${i + 1} ${i + 1 === l ? "here" : ""}`} style={{ flex: w }} />)}<i style={{ left: `${v}%` }} data-tip={`${COMP[c.id].n}: ${fb(v)}`} /></div><span className="tnum">{fb(v)}</span><LvPill l={l} /></a>; })}</div>
     </section>
@@ -165,40 +165,74 @@ function tree(m, mode) {
     return { ...c, val, lim, contrib: val / 3, items };
   });
 }
+const LEG = ["wg", "os", "experts", "facts"];
+const edgeP = (x1, y1, x2, y2) => { const mx = (x1 + x2) / 2; return `M${x1},${y1} C${mx},${y1} ${mx},${y2} ${x2},${y2}`; };
+const mixC = c => `color-mix(in srgb, ${c} 16%, var(--panel))`;
+/* Граф: індекс → компоненти → джерела (анкети) чи показники фактів. Товщина ребра це внесок в індекс. */
+function TreeGraph({ T, sum, hl, maxC, fallback }) {
+  const [ref, w] = useWidth(1000);
+  if (w && w < 620) return <div ref={ref} className="tg">{fallback}</div>;
+  const W = Math.max(w || 1000, 620), rowH = 60, gap = 24, top = 24, rL = 22, rC = 30, rR = 38;
+  const xR = 60, xC = Math.round(W * .27), xL = Math.round(W * .48), chars = Math.max(14, Math.floor((W - xL - rL - 24) / 7.6));
+  let y = top;
+  const G = T.map(c => {
+    const items = c.items.map(x => { const it = { ...x, y: y + rowH / 2 }; y += rowH; return it; });
+    if (!items.length) y += rowH;
+    const cy = items.length ? (items[0].y + items[items.length - 1].y) / 2 : y - rowH / 2; y += gap;
+    return { ...c, items, y: cy };
+  });
+  const H = y - gap + top, yR = (G[0].y + G[G.length - 1].y) / 2, cut = t => t.length > chars ? t.slice(0, chars - 1) + "…" : t;
+  const used = new Set(T.flatMap(c => c.items.map(x => x.kind === "p" ? x.src : "facts")));
+  const leafSub = x => { const n = itemQs(x).length; return [x.kind === "p" ? (n ? `${n} ${plural(n, "питання", "питання", "питань")}` : null) : x.kind === "pct" ? `${x.val[0]} з ${x.val[1]}` : `рівень ${x.val} з 5`, `вага ${fb(x.w)} %`, `внесок ${f2(x.contrib)}`].filter(Boolean).join(" · "); };
+  return <div ref={ref} className="tg">
+    <div className="tg-legend lbl">{LEG.filter(k => used.has(k)).map(k => <span key={k}><i style={{ background: SRC[k][1] }} />{SRC[k][0]}</span>)}<span className="tg-w"><i />Товщина лінії: внесок в індекс</span></div>
+    <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Розклад індексу ${fb(sum)}: ${G.map(c => `${COMP[c.id].n} ${fb(c.val)}`).join(", ")}`}>
+      {G.map(c => <g key={c.id}>
+        <path d={edgeP(xR + rR, yR, xC - rC, c.y)} className="tg-e" style={{ stroke: COMP[c.id].c, strokeWidth: 2 + c.contrib / 34 * 6 }} />
+        {c.items.map(x => <path key={x.id} d={edgeP(xC + rC, c.y, xL - rL, x.y)} className="tg-e" style={{ stroke: COMP[c.id].c, strokeWidth: 1.5 + (maxC ? x.contrib / maxC : 0) * 5 }} />)}
+      </g>)}
+      <g className="tg-n"><title>{`Індекс доброчесності: ${fb(sum)}. Середнє трьох компонентів.`}</title>
+        <circle cx={xR} cy={yR} r={rR} style={{ fill: "var(--lime-soft)", stroke: "var(--teal-deep)" }} />
+        <text x={xR} y={yR + 6} className="tg-v" style={{ fontSize: 17 }}>{fb(sum)}</text>
+        <text x={xR} y={yR - rR - 24} className="tg-t">Індекс</text><text x={xR} y={yR - rR - 9} className="tg-t">доброчесності</text></g>
+      {G.map(c => <g key={c.id} className="tg-n" id={`n-${c.id}`}><title>{`${COMP[c.id].n}: ${fb(c.val)}, внесок в індекс ${f2(c.contrib)}${c.lim ? `. ${c.cr.reason}` : ""}`}</title>
+        {hl === c.id && <circle cx={xC} cy={c.y} r={rC + 6} className="tg-hl" />}
+        <circle cx={xC} cy={c.y} r={rC} style={{ fill: COMP[c.id].s, stroke: c.lim ? "var(--amber)" : COMP[c.id].c, strokeDasharray: c.lim ? "5 3" : undefined }} />
+        <text x={xC} y={c.y + 5} className="tg-v" style={{ fontSize: 14 }}>{fb(c.val)}</text>
+        <text x={xC} y={c.y + rC + 17} className="tg-t">{COMP[c.id].n}</text>
+        {c.lim && <text x={xC} y={c.y + rC + 33} className="tg-lim">Обмежувач</text>}</g>)}
+      {G.flatMap(c => c.items.map(x => { const col = SRC[x.kind === "p" ? x.src : "facts"][1], act = () => openItem(x.id);
+        return <g key={x.id} id={`n-${x.id}`} className="tg-leaf" role="button" tabIndex={0} aria-label={`${x.t}: ${fb(x.vv)}. ${leafSub(x)}`} onClick={act} onKeyDown={enter(act)}><title>{x.t}</title>
+          <rect x={xL - rL - 6} y={x.y - rowH / 2 + 3} width={W - xL + rL + 6} height={rowH - 6} rx={10} className="tg-hit" />
+          {hl === x.id && <circle cx={xL} cy={x.y} r={rL + 5} className="tg-hl" />}
+          <circle cx={xL} cy={x.y} r={rL} style={{ fill: mixC(col), stroke: col }} />
+          <text x={xL} y={x.y + 4} className="tg-v" style={{ fontSize: 12 }}>{fb(x.vv)}</text>
+          <text x={xL + rL + 12} y={x.y - 3} className="tg-l">{cut(x.t)}</text>
+          <text x={xL + rL + 12} y={x.y + 15} className="tg-s">{leafSub(x)}</text></g>; }))}
+    </svg>
+  </div>;
+}
 export function Explain() {
   const m = cur(), mode = S.mode, T = tree(m, mode), sum = r1(T.reduce((a, c) => a + c.contrib, 0)), hl = S.focus;
-  const maxC = Math.max(...T.flatMap(c => c.items.map(x => x.contrib)));
+  const maxC = Math.max(0, ...T.flatMap(c => c.items.map(x => x.contrib)));
   useEffect(() => { if (S.focus) { const el = document.getElementById("n-" + S.focus); if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 200); S.focus = null; } });
-  const row = x => <div key={x.id} className={`tree-row ${hl === x.id ? "hl" : ""}`} id={`n-${x.id}`} role="button" tabIndex={0} onClick={() => openItem(x.id)} onKeyDown={enter(() => openItem(x.id))}>
-    <span className="tn"><span>{x.t}</span><span className="tsub">{x.kind === "p" ? <><SrcDot s={x.src} />{SRC[x.src][0]}</> : <><SrcDot s="facts" />{x.kind === "pct" ? `${x.val[0]} з ${x.val[1]}` : `рівень ${x.val} з 5`}</>}{x.lim && <span className="lim-tag">Частка обмеження компонента</span>}</span></span>
-    <span className="tnum hm">{fb(x.w)} %</span><b className="tnum">{fb(x.vv)}</b>
-    <span className="hm"><div className="contrib"><i style={{ width: `${x.contrib / maxC * 100}%`, background: COMP[x.c].c }} /></div><span className="lbl tnum">{f2(x.contrib)}</span></span><span /></div>;
-  const table = <div className="tbl-wrap"><table><thead><tr><th>Вузол</th><th>Рівень</th><th>Вага, %</th><th>Значення</th><th>Внесок, пункти</th><th>Джерело</th></tr></thead><tbody>
+  const shut = S.tblShut || (S.tblShut = {}), tog = id => { shut[id] = !shut[id]; render(true); };
+  const table = <div className="tbl-wrap"><table className="ex-tbl"><thead><tr><th>Вузол</th><th>Рівень</th><th>Вага, %</th><th>Значення</th><th>Внесок, пункти</th><th>Джерело</th></tr></thead><tbody>
     <tr><td><b>Індекс доброчесності</b></td><td>1</td><td className="tnum">100</td><td className="tnum">{fb(sum)}</td><td className="tnum">{f2(T.reduce((a, c) => a + c.contrib, 0))}</td><td /></tr>
-    {T.map(c => [<tr key={c.id}><td><b>{COMP[c.id].n}</b>{c.lim && <> <Pill cls="p-warn nodot">Обмежувач</Pill></>}</td><td>2</td><td className="tnum">33,3</td><td className="tnum">{fb(c.val)}</td><td className="tnum">{f2(c.contrib)}</td><td /></tr>,
-      ...c.items.map(x => <tr key={x.id}><td style={{ paddingLeft: 28 }}>{x.t}</td><td>3</td><td className="tnum">{x.w}</td><td className="tnum">{fb(x.vv)}</td><td className="tnum">{f2(x.contrib)}</td><td>{x.src ? SRC[x.src][0] : "Факти"}</td></tr>)])}
+    {T.map(c => [<tr key={c.id} id={S.exTable ? `n-${c.id}` : undefined} className={`ex-grp ${shut[c.id] ? "shut" : ""}`} onClick={() => tog(c.id)}>
+        <td><span className="ex-gt"><button type="button" className="ex-tog" aria-expanded={!shut[c.id]} aria-label={`${shut[c.id] ? "Розгорнути" : "Згорнути"}: ${COMP[c.id].n}`} onClick={e => { e.stopPropagation(); tog(c.id); }}><Ic n="chev" /></button><b>{COMP[c.id].n}</b>{c.lim && <> <Pill cls="p-warn nodot">Обмежувач</Pill></>}{shut[c.id] && <span className="lbl">· {c.items.length}</span>}</span></td>
+        <td>2</td><td className="tnum">33,3</td><td className="tnum">{fb(c.val)}</td><td className="tnum">{f2(c.contrib)}</td><td /></tr>,
+      ...(shut[c.id] ? [] : c.items.map(x => <tr key={x.id} id={S.exTable ? `n-${x.id}` : undefined} className={`ex-item ${hl === x.id ? "hl" : ""}`} onClick={() => openItem(x.id)}><td style={{ paddingLeft: 44 }}>{x.t}</td><td>3</td><td className="tnum">{x.w}</td><td className="tnum">{fb(x.vv)}</td><td className="tnum">{f2(x.contrib)}</td><td>{x.src ? SRC[x.src][0] : "Факти"}</td></tr>))])}
   </tbody></table></div>;
   return <>
     <BackToInst />
     <section className="c12 rise toolbar"><div className="sp" />
       <button className="btn btn-ghost" onClick={openHow}><Ic n="help" />Як це рахується</button>
       <div className="seg" role="group" aria-label="Що показувати">{Object.entries(MODES).map(([k, n]) => <button key={k} className={mode === k ? "on" : ""} aria-pressed={mode === k} onClick={() => { S.mode = k; persist(); render(true); }}>{n}</button>)}</div>
-      <button className="btn btn-ghost" onClick={() => { S.exTable = !S.exTable; render(true); }}>{S.exTable ? <><Ic n="tree" />Показати як дерево</> : <><Ic n="table" />Показати як таблицю</>}</button></section>
-    {mode !== "credited" && <div className="c12 note-box rise" style={{ flexDirection: "row", alignItems: "center", gap: 10 }}><Ic n="info" /><span>Режим «{MODES[mode]}»: значення без обмежувача, тому верхній рядок ({f1(sum)}) не дорівнює індексу {f1(m.index)}. До індексу йдуть зараховані значення.</span></div>}
+      <button className="btn btn-ghost" onClick={() => { S.exTable = !S.exTable; render(true); }}>{S.exTable ? <><Ic n="tree" />Показати як граф</> : <><Ic n="table" />Показати як таблицю</>}</button></section>
     <section className="card c12 rise">
-      {S.exTable ? table : <>
-        <div className="tree-cols lbl"><span>Складова</span><span className="hm" /><span>Значення</span><span className="hm">Внесок в індекс, пункти</span><span /></div>
-        {mode === "credited" && T.some(c => c.lim) && <div className="lim-callout" role="note"><span className="lim-ic"><Ic n="alert" /></span><div><b>Результат знижено обмежувачем</b>{T.filter(c => c.lim).map(c => <div key={c.id}><b>{COMP[c.id].n}:</b> {c.cr.reason}</div>)}</div></div>}
-        <div className="tree-root"><span><b>Індекс доброчесності</b><span className="lbl" style={{ display: "block", fontSize: 12.5 }}>Середнє трьох компонентів: кожен дає третину індексу</span></span><span className="hm" /><b className="tnum">{fb(sum)}</b><span className="lbl tnum hm">{f2(T.reduce((a, c) => a + c.contrib, 0))}</span><span /></div>
-        {T.map((c, ci) => <div key={c.id} className={`tree-c ${S.open[c.id] ? "open" : ""} ${hl === c.id ? "hl" : ""}`} id={`n-${c.id}`}>
-          <button className="tree-head" onClick={() => { S.open[c.id] = !S.open[c.id]; render(true); }} aria-expanded={!!S.open[c.id]}>
-            <span style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}><span className="comp-ic" style={{ background: COMP[c.id].s, color: COMP[c.id].c }}><Ic n={COMP[c.id].ic} /></span><span><b>{COMP[c.id].n}</b>{mode === "credited" && <span className="pf-sub tnum"><span>Сприйняття {fb(c.P)}</span><span>Факти {fb(c.F)}</span></span>}</span>{c.lim && <Pill cls="p-warn">Обмежувач</Pill>}</span>
-            <span className="hm" /><b className="tnum">{fb(c.val)}</b>
-            <span className="hm"><div className="contrib"><i style={{ width: `${c.contrib / 34 * 100}%`, background: COMP[c.id].c, animationDelay: `${ci * 120}ms` }} /></div><span className="lbl tnum">{f2(c.contrib)}</span></span>
-            <span className="chev"><Ic n="chev" /></span></button>
-          <div className="tree-body"><div className="tree-row lbl hdr"><span>{mode === "facts" ? "Показник" : "Питання"}</span><span className="hm">Вага</span><span>Значення</span><span className="hm">Внесок</span><span /></div>{c.items.map(row)}</div>
-        </div>)}
-      </>}
+      {mode === "credited" && T.some(c => c.lim) && <div className="lim-callout" role="note"><span className="lim-ic"><Ic n="alert" /></span><div><b>Результат знижено обмежувачем</b>{T.filter(c => c.lim).map(c => <div key={c.id}><b>{COMP[c.id].n}:</b> {c.cr.reason}</div>)}</div></div>}
+      {S.exTable ? table : <TreeGraph T={T} sum={sum} hl={hl} maxC={maxC} fallback={table} />}
     </section>
   </>;
 }

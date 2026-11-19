@@ -21,3 +21,54 @@
 /* довідка «Як читати цей екран»: перший блок на всю ширину, решта поруч, без порожнеч */
 .legend3 { align-items: start; }
 .legend3 > div:first-child { grid-column: 1 / -1; }
+
+/* «Огляд»: довідка «Як читати» на всю ширину картки, двома колонками під першим блоком */
+.legend3 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (max-width: 900px) { .legend3 { grid-template-columns: minmax(0, 1fr); } }
+/* Картки компонентів: обмеження під заголовком, число й стовпчики притиснуті донизу */
+.comp-card { display: flex; flex-direction: column; }
+.comp-lim { margin-top: 10px; }
+.comp-val { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px; margin-top: auto; padding-top: 14px; }
+/* Справа від «Що потребує уваги»: динаміка й сильні сторони одна під одною */
+.ov-side { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+.ov-side > .card { margin: 0; }
+.ov-side > .str-card { flex: 1; }
+@media (max-width: 1180px) { .view > .ov-side.c4 { grid-column: span 12; } }
+/* Бейдж рівня в рядку компонента: за шириною тексту, без порожнечі */
+.lv-comp .pill { justify-self: end; }
+/* Шкала рівнів у панелі «Як рахується»: лише колір, без номерів */
+.lvsq.lvdot { width: 14px; height: 14px; border-radius: 50%; margin-top: 4px; }
+
+/* «Розклад індексу»: граф (TreeGraph) */
+.tg { min-width: 0; }
+.tg svg { display: block; overflow: visible; }
+.tg-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin-bottom: 8px; font-size: 12.5px; }
+.tg-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.tg-legend i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.tg-legend .tg-w { margin-left: auto; }
+.tg-legend .tg-w i { width: 22px; height: 0; border-radius: 0; border-top: 3px solid var(--faint); }
+.tg-e { fill: none; opacity: .45; stroke-linecap: round; }
+.tg circle { stroke-width: 2; }
+.tg-v { text-anchor: middle; font-weight: 700; fill: var(--fg); font-variant-numeric: tabular-nums; }
+.tg-t { text-anchor: middle; font-size: 13px; font-weight: 600; fill: var(--fg); }
+.tg-lim { text-anchor: middle; font-size: 12px; font-weight: 600; fill: var(--amber); }
+.tg-l { font-size: 14px; fill: var(--fg); }
+.tg-s { font-size: 12px; fill: var(--muted); font-variant-numeric: tabular-nums; }
+.tg-hit { fill: transparent; }
+.tg-leaf { cursor: pointer; outline: none; }
+.tg-leaf:hover .tg-hit, .tg-leaf:focus-visible .tg-hit { fill: var(--soft); }
+.tg-leaf:hover .tg-l { fill: var(--teal-deep); }
+.tg-leaf:focus-visible .tg-hit { stroke: var(--teal); stroke-width: 2; }
+.tg-hl { fill: none; stroke: var(--teal); stroke-width: 2.5 !important; }
+@media (max-width: 760px) { .tg-legend .tg-w { margin-left: 0; } }
+/* Таблиця з групами, що згортаються */
+.ex-tbl .ex-grp { cursor: pointer; background: var(--soft); }
+.ex-gt { display: inline-flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 640px) { .ex-tbl th:nth-child(2), .ex-tbl td:nth-child(2), .ex-tbl th:nth-child(3), .ex-tbl td:nth-child(3), .ex-tbl th:nth-child(6), .ex-tbl td:nth-child(6) { display: none; } .ex-tbl .ex-item td:first-child { padding-left: 20px !important; } }
+.ex-tbl .ex-item { cursor: pointer; }
+.ex-tbl .ex-item:hover td:first-child { color: var(--teal-deep); }
+.ex-tbl .ex-item.hl { background: var(--lime-soft); }
+.ex-tog { width: 24px; height: 24px; border: 0; background: none; padding: 0; display: grid; place-items: center; color: var(--muted); cursor: pointer; border-radius: 6px; }
+.ex-tog:hover { background: var(--panel); }
+.ex-tog svg { width: 16px; height: 16px; transform: rotate(180deg); transition: transform .2s; }
+.ex-grp.shut .ex-tog svg { transform: none; }
