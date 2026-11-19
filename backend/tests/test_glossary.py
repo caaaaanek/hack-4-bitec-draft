@@ -42,6 +42,7 @@ def test_definitions_do_not_duplicate_methodology_numbers():
     """Ваги, пороги й межі рівнів дає get_methodology; у визначеннях їх немає, щоб не розійтися з кодом."""
     for t in glossary():
         assert not re.search(r"\d+,\d|\d+\s*%|\d+\s*бал", t["definition"]), t["term"]  # дати наказів (17.04.2025) можна
+        assert "Integrity Index" not in t["definition"], t["term"]  # модель повторює визначення дослівно
 
 
 def test_find_exact_alias_and_partial():
