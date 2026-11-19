@@ -62,15 +62,18 @@
 /* Навчання: картка зі стосом і перегортанням */
 .fc-col { max-width: 480px; width: 100%; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
 .fc-top { display: flex; align-items: center; gap: 10px; }
-.fc-stack { position: relative; margin-bottom: 20px; }
-/* Стос непрозорий і нерухомий: посеред повороту крізь нього не просвічує сторінка */
-.fc-layer { position: absolute; border: 2px solid var(--teal-pale); border-radius: 26px; background: var(--teal-soft); }
-.fc-layer.l1 { inset: 10px 12px -10px; }
-.fc-layer.l2 { inset: 20px 26px -20px; background: var(--teal-pale); }
-/* Висота під екран: над карткою 134 px (шапка й «Усі колоди»), під нею до 196 px (стос, Назад/Далі, підказки, відступ),
+/* 20 px зверху й знизу: запас для ближнього краю картки під час повороту (при perspective 3200px він виступає до ~24 px),
+   знизу в цьому ж запасі лежить край колоди */
+.fc-stack { position: relative; padding: 20px 0; }
+/* Стос непрозорий і нерухомий: лише край колоди, що визирає знизу (смуги висотою 40 px за нижнім краєм картки),
+   тож коли картка стоїть ребром, позаду не видно «другої картки» */
+.fc-layer { position: absolute; height: 40px; border: 2px solid var(--teal-pale); border-radius: 26px; background: var(--teal-soft); }
+.fc-layer.l1 { left: 12px; right: 12px; bottom: 10px; }
+.fc-layer.l2 { left: 26px; right: 26px; bottom: 0; background: var(--teal-pale); }
+/* Висота під екран: над карткою 154 px (шапка, «Усі колоди», запас стосу), під нею до 196 px (стос, Назад/Далі, підказки, відступ),
    тож картка з кнопками вміщається від 1366x768 до 910x512. Довгий текст прокручується всередині.
    Висота ціла (round), щоб текст на гранях не розмивався; перший рядок для браузерів без round() */
-.fc3 { position: relative; height: clamp(260px, calc(100vh - 330px), 600px); height: round(down, clamp(260px, calc(100vh - 330px), 600px), 1px); perspective: 1400px; border-radius: 26px; outline: none; cursor: pointer; }
+.fc3 { position: relative; height: clamp(260px, calc(100vh - 350px), 600px); height: round(down, clamp(260px, calc(100vh - 350px), 600px), 1px); perspective: 3200px; border-radius: 26px; outline: none; cursor: pointer; }
 .fc3:focus-visible { box-shadow: 0 0 0 3px var(--panel), 0 0 0 6px var(--teal); }
 .fc-in { position: relative; width: 100%; height: 100%; transition: transform .45s ease; transform-style: preserve-3d; }
 .fc3.flipped .fc-in { transform: rotateY(180deg); }
