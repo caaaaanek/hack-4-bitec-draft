@@ -9,7 +9,7 @@ import { fb, ua, plural } from "../lib/format.js";
 import { render, toast, openDrawer, closeDrawer, ui } from "../lib/store.js";
 import { Pill, LvPill, Num, LevelBar, Ticks } from "../components/ui.jsx";
 import { Loading, Failed, Empty } from "../components/states.jsx";
-import { UnitCombo } from "../components/UnitCombo.jsx";
+import { UnitCombo, UnitPick } from "../components/UnitCombo.jsx";
 import { QrCode, qrAbs } from "../components/QrCode.jsx";
 import { bldFromServer, bldNewSec } from "./Builder.jsx";
 import { AutopilotSection } from "./Autopilot.jsx";
@@ -148,11 +148,11 @@ function ApiManage() {
           {!l.revoked && c.status !== "closed" && <button className="btn btn-ghost" onClick={() => apiQrRevoke(c.id, l.id)}>Зупинити скани</button>}</div>
       </div>)}</div>}
     </section>}
-    {c && <AutopilotSection key={c.id} id={c.id} kpi />}
+    {c && <AutopilotSection key={c.id} id={c.id} />}
     {shown && <QrScreen l={shown} onClose={hideQr} />}
   </>;
 }
-const MODE_HINT = { login: "Люди входять у систему під своїм логіном. Система знає, хто вже пройшов (щоб не пустити вдруге), але не показує нікому, що саме він відповів.", token: "Ви показуєте QR групі, кожен скан відкриває нову одноразову форму без входу. Система не знає навіть, хто пройшов: лише скільки форм завершено." };
+const MODE_HINT = { login: "Вхід під своїм логіном. Відповіді нікому не показуються.", token: "Один скан QR це одна анонімна форма без входу." };
 
 /* --- QR для зали: лише кількості, хто відкрив форму, система не зберігає --- */
 const QrOver = () => <span className="qr-over" role="alert"><Ic n="lock" />Відповідей більше, ніж людей у групі: можлива накрутка</span>;
@@ -185,17 +185,17 @@ function apiNewCampaign() {
     const ok = async () => {
       if (!title.trim()) return setErr("Вкажіть назву.");
       if (!ids.length) return setErr("Оберіть хоча б одну анкету.");
+      if (!(+k >= 5)) return setErr("Мінімальна група k не менше 5.");
       const u = A.units.find(x => x.id === unit) || A.units.find(x => !x.parent_id) || A.units[0];
       try { await apiCreateCampaign({ title: title.trim(), unit_id: u ? u.id : "", questionnaire_ids: ids, min_group_size: +k, access_mode: mode }); }
       catch (e) { setErr(apiErrText(e)); }
     };
     return <>
-      <div className="note-box"><span className="lbl">Хвиля це один раунд оцінювання: ви обираєте підрозділ та анкети, відкриваєте хвилю, люди відповідають, потім ви її завершуєте і система рахує індекс.</span></div>
       <div className="field"><label htmlFor="n-t">Назва</label><input className="inp" id="n-t" placeholder="Хвиля 3 (весна)" value={title} onChange={e => setTitle(e.target.value)} /></div>
-      <div className="field"><label htmlFor="n-u">Підрозділ</label><UnitCombo id="n-u" units={A.units} value={unit} onChange={setUnit} canCreate /><span className="lbl">Оцінювання охопить цей підрозділ і всі його дочірні. Немає потрібного? Введіть назву й оберіть «Створити».</span></div>
+      <UnitPick id="n-u" units={A.units} value={unit} onChange={setUnit} />
       <div className="field"><label>Анкети</label>{A.qs.map(q => <label key={q.id} className="chk-row"><input type="checkbox" className="n-q" value={q.id} checked={ids.includes(q.id)} onChange={e => setIds(v => e.target.checked ? [...v, q.id] : v.filter(x => x !== q.id))} /><span>{q.title} <span className="lbl">v{q.version}</span></span></label>)}</div>
-      <div className="field"><label>Як проходять</label><div className="seg" id="n-m">{[["token", "Анонімно за QR"], ["login", "За обліковими записами"]].map(([m, n]) => <button key={m} type="button" className={mode === m ? "on" : ""} onClick={() => setMode(m)}>{n}</button>)}</div><span className="lbl" id="n-mh">{MODE_HINT[mode]}</span></div>
-      <div className="field"><label htmlFor="n-k">Мінімальна група k</label><input className="inp tnum" id="n-k" type="number" min="5" value={k} onChange={e => setK(e.target.value)} /><span className="lbl">Якщо відповіли менше цієї кількості людей, результати групи не показуються, щоб нікого не можна було впізнати. Не менше 5.</span></div>
+      <div className="field"><label>Як проходять</label><div className="seg seg-full" id="n-m">{[["token", "Анонімно за QR"], ["login", "За обліковими записами"]].map(([m, n]) => <button key={m} type="button" className={mode === m ? "on" : ""} onClick={() => setMode(m)}>{n}</button>)}</div><span className="lbl" id="n-mh">{MODE_HINT[mode]}</span></div>
+      <div className="field"><label htmlFor="n-k">Мінімальна група k</label><input className="inp tnum" id="n-k" type="number" min="5" value={k} onChange={e => setK(e.target.value)} /><span className="lbl">Менші групи не показуються. Не менше 5.</span></div>
       <span className="lbl" id="n-err" style={{ color: "var(--red)" }}>{err}</span>
       <button className="btn btn-primary" id="n-ok" style={{ justifyContent: "center" }} onClick={ok}><Ic n="plus" />Створити чернетку</button>
     </>;

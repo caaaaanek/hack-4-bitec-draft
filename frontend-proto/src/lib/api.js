@@ -42,8 +42,13 @@ export async function api(path, { method = "GET", body, headers = {}, auth = tru
 // Для збоїв сервера (5xx) додаємо код запиту: за ним адміністратор знайде запис у журналі сервера
 // Відмова переходу статусу містить службові назви статусів: показуємо зрозумілий текст
 // 422 з переліком полів: до трьох причин з errors (без шляхів полів), інакше видно лише «Дані не пройшли перевірку»
-const errReasons = e => [...new Set(e.errors.map(i => String((i && i.message) || "").replace(/^Value error,\s*/i, "").trim()).filter(Boolean))].slice(0, 3).join("; ");
-export const apiErrText = e => e instanceof ApiErr && e.code === "bad_transition" ? "Такий перехід статусу недоступний. Оновіть сторінку: статус могли змінити." : e instanceof ApiErr ? `${e.message}${errReasons(e) ? ": " + errReasons(e) : ""}${e.hint ? ". " + e.hint : ""}${e.status >= 500 && e.requestId ? ` Код запиту: ${e.requestId}` : ""}` : "Не вдалося виконати дію";
+// Назви полів сервера в повідомленнях перевірки → підписи з інтерфейсу
+const FIELD_UA = { planned_open_on: "Відкрити", planned_close_on: "Закрити не пізніше", close_at_percent: "Поріг участі", remind_every_days: "Нагадувати кожні", min_group_size: "Мінімальна група k",
+  title: "Назва", unit_id: "Підрозділ", questionnaire_ids: "Анкети", access_mode: "Як проходять", due_date: "Строк", owner: "Відповідальний", password: "Пароль", username: "Логін" };
+const FIELD_RE = new RegExp(`\\b(${Object.keys(FIELD_UA).join("|")})\\b`, "g");
+export const uaFields = t => String(t || "").replace(FIELD_RE, k => `«${FIELD_UA[k]}»`);
+const errReasons = e => [...new Set(e.errors.map(i => uaFields(String((i && i.message) || "").replace(/^Value error,\s*/i, "").trim())).filter(Boolean))].slice(0, 3).join("; ");
+export const apiErrText = e => e instanceof ApiErr && e.code === "bad_transition" ? "Такий перехід статусу недоступний. Оновіть сторінку: статус могли змінити." : e instanceof ApiErr ? `${uaFields(e.message)}${errReasons(e) ? ": " + errReasons(e) : ""}${e.hint ? ". " + uaFields(e.hint) : ""}${e.status >= 500 && e.requestId ? ` Код запиту: ${e.requestId}` : ""}` : "Не вдалося виконати дію";
 export const apiFail = e => toast(apiErrText(e));
 
 /* --- Ролі: обліковий запис → роль інтерфейсу --- */

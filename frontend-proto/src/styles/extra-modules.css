@@ -108,3 +108,13 @@
   .fc3.flipped .fc-face.back { opacity: 1; pointer-events: auto; }
   .fc3.flipped .fc-face.front { opacity: 0; pointer-events: none; }
 }
+
+/* Автопілот: усе в одній картці, компактна форма */
+.ap-sum { display: flex; flex-wrap: wrap; gap: 6px 22px; margin: 2px 0 10px; font-size: 14px; }
+.ap-sum .lbl { margin-right: 4px; }
+.ap-acts { display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+.ap-sw { display: inline-flex; align-items: center; gap: 10px; cursor: pointer; }
+.ap-fields { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; margin-top: 12px; }
+.ap-fields .field { width: 180px; margin: 0; }
+.ap-fields .ap-num { width: 150px; }
+@media (max-width: 640px) { .ap-fields .field, .ap-fields .ap-num { width: calc(50% - 6px); } .ap-fields .btn { width: 100%; justify-content: center; } }

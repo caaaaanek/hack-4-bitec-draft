@@ -72,3 +72,9 @@
 .ex-tog:hover { background: var(--panel); }
 .ex-tog svg { width: 16px; height: 16px; transform: rotate(180deg); transition: transform .2s; }
 .ex-grp.shut .ex-tog svg { transform: none; }
+
+/* Нова хвиля: перемикач на всю ширину, вибір підрозділу рівнями */
+.seg.seg-full { display: flex; }
+.seg.seg-full button { flex: 1; }
+.unit-pick { display: flex; flex-direction: column; gap: 12px; }
+.unit-pick .field { margin: 0; }

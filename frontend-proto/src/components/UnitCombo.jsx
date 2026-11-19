@@ -37,3 +37,27 @@ export function UnitCombo({ id, units, value, onChange, canCreate }) {
     </ul>
   </div>;
 }
+
+/* Вибір підрозділу рівнями: спершу підрозділ організації, потім (якщо є) його структурний підрозділ і так далі.
+ * Порожній вибір на рівні означає «увесь» батьківський підрозділ. Організацію обирати не треба, якщо вона одна. */
+export function UnitPick({ id, units, value, onChange }) {
+  const kids = p => units.filter(u => (u.parent_id || null) === p).sort((a, b) => dn(a.name).localeCompare(dn(b.name), "uk"));
+  const roots = kids(null), byId = Object.fromEntries(units.map(u => [u.id, u]));
+  const cur = byId[value] || roots[0];
+  const chain = []; for (let u = cur; u; u = u.parent_id ? byId[u.parent_id] : null) chain.unshift(u);
+  // рівні: [батько, вибраний нащадок або null]
+  const levels = [];
+  if (roots.length > 1) levels.push({ parent: null, opts: roots, sel: chain[0], label: "Організація" });
+  for (let d = 0; d < chain.length; d++) {
+    const opts = kids(chain[d].id); if (!opts.length) break;
+    levels.push({ parent: chain[d], opts, sel: chain[d + 1] || null, label: levels.length ? "Структурний підрозділ" : "Підрозділ" });
+    if (!chain[d + 1]) break;
+  }
+  return <div className="unit-pick" id={id}>
+    {levels.map((l, i) => <div key={i} className="field"><label htmlFor={`${id}-${i}`}>{l.label}</label>
+      <select className="inp" id={`${id}-${i}`} value={l.sel ? l.sel.id : ""} onChange={e => onChange(e.target.value || (l.parent ? l.parent.id : roots[0].id))}>
+        {l.parent && <option value="">{l.parent.parent_id ? `Увесь «${dn(l.parent.name)}»` : roots.length > 1 ? `Уся «${dn(l.parent.name)}»` : "Уся організація"}</option>}
+        {l.opts.map(u => <option key={u.id} value={u.id}>{dn(u.name)}</option>)}
+      </select></div>)}
+  </div>;
+}
