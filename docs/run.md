@@ -47,6 +47,13 @@ Smoke лише на окремому проєкті (`-p smoke`): він лиш�
   У compose за замовчуванням це приватні мережі Docker; SSO цим не вмикається. Порт API `8000` опубліковано лише
   на `127.0.0.1`, щоб ззовні не можна було підробити `X-Forwarded-For` в обхід nginx.
 
+## Coolify кафедри (`*.csit-mitit.com`)
+
+Окремий `docker-compose.coolify.yml` (без `ports`, з `mem_limit`, паролі бази й ключ буфера генерує Coolify,
+несекретні налаштування зашиті у файл), Build Pack «Docker Compose», домен лише для `frontend`:
+`http://<назва>.csit-mitit.com:8080`. У Coolify задаються лише `JWT_SECRET`, `DEMO_PASSWORD`, `PUBLIC_URL` і, для
+асистента, `LLM_BASE_URL` + `LLM_API_KEY`. Покроково — [`deploy/coolify/README.md`](../deploy/coolify/README.md).
+
 ## Бекенд без Docker
 
 `cd backend`, далі кроки з [`backend/README.md`](../backend/README.md): venv, alembic, seed, uvicorn на порту 8000.
