@@ -165,6 +165,7 @@ FACT_SOURCES = {
     "training_coverage": "training",
     "procurement_flags_reviewed": "procurement",
     "reports_handled": "reports",
+    "program_measures_on_time": "mitra",  # у демо-seed не генерується: дані дає сама Mitra
 }
 
 # Синтетичні факти за місяць для кожного підрозділу: (з них, всього).

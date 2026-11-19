@@ -27,6 +27,8 @@ services:
       DEFAULT_MIN_GROUP_SIZE: ${DEFAULT_MIN_GROUP_SIZE:-5}
       THEME2_URL: ${THEME2_URL:-}
       THEME2_API_KEY: ${THEME2_API_KEY:-}
+      THEME2_PUBLIC_URL: ${THEME2_PUBLIC_URL:-}
+      THEME2_SYNC_SECONDS: ${THEME2_SYNC_SECONDS:-10}
       ASSISTANT_ENABLED: ${ASSISTANT_ENABLED:-false}
       ASSISTANT_URL: ${ASSISTANT_URL:-http://host.docker.internal:11434/api/generate}
       ASSISTANT_MODEL: ${ASSISTANT_MODEL:-llama3.1:8b}
@@ -52,6 +54,7 @@ services:
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_MODEL: ${LLM_MODEL:-gemma4-26b}
       LLM_ALLOW_EXTERNAL: ${LLM_ALLOW_EXTERNAL:-false}
+      LLM_MAX_CONCURRENT: ${LLM_MAX_CONCURRENT:-4}
       POOL_ENCRYPTION_KEY: ${POOL_ENCRYPTION_KEY:-}
       # Автопілот хвиль: крок кожні N секунд (0 — лише вручну, POST /api/v1/autopilot/tick)
       AUTOPILOT_INTERVAL_SECONDS: ${AUTOPILOT_INTERVAL_SECONDS:-300}

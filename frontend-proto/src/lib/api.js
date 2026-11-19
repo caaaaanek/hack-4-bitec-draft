@@ -22,7 +22,7 @@ const SESSION_KEY = "ii-session";
 function apiToken() { try { return sessionStorage.getItem(SESSION_KEY); } catch (e) { return null; } }
 function apiSetToken(t) { try { if (t) sessionStorage.setItem(SESSION_KEY, t); else sessionStorage.removeItem(SESSION_KEY); } catch (e) { /* сховище недоступне */ } }
 export const apiAuth = () => { const t = apiToken(); return t ? { Authorization: "Bearer " + t } : {}; };
-export class ApiErr extends Error { constructor(status, body, requestId) { super((body && body.message) || "Сервер не відповів"); this.status = status; this.code = body && body.code; this.hint = (body && body.hint) || ""; this.requestId = (body && body.request_id) || requestId || null; } }
+export class ApiErr extends Error { constructor(status, body, requestId) { super((body && body.message) || "Сервер не відповів"); this.status = status; this.code = body && body.code; this.hint = (body && body.hint) || ""; this.requestId = (body && body.request_id) || requestId || null; this.errors = body && Array.isArray(body.errors) ? body.errors : []; this.missing = body && Array.isArray(body.missing_question_ids) ? body.missing_question_ids : []; } }
 export async function api(path, { method = "GET", body, headers = {}, auth = true, raw = false } = {}) {
   const h = { Accept: "application/json", ...(auth ? apiAuth() : {}), ...headers };
   let b;
@@ -41,7 +41,9 @@ export async function api(path, { method = "GET", body, headers = {}, auth = tru
 }
 // Для збоїв сервера (5xx) додаємо код запиту: за ним адміністратор знайде запис у журналі сервера
 // Відмова переходу статусу містить службові назви статусів: показуємо зрозумілий текст
-export const apiErrText = e => e instanceof ApiErr && e.code === "bad_transition" ? "Такий перехід статусу недоступний. Оновіть сторінку: статус могли змінити." : e instanceof ApiErr ? `${e.message}${e.hint ? ". " + e.hint : ""}${e.status >= 500 && e.requestId ? ` Код запиту: ${e.requestId}` : ""}` : "Не вдалося виконати дію";
+// 422 з переліком полів: до трьох причин з errors (без шляхів полів), інакше видно лише «Дані не пройшли перевірку»
+const errReasons = e => [...new Set(e.errors.map(i => String((i && i.message) || "").replace(/^Value error,\s*/i, "").trim()).filter(Boolean))].slice(0, 3).join("; ");
+export const apiErrText = e => e instanceof ApiErr && e.code === "bad_transition" ? "Такий перехід статусу недоступний. Оновіть сторінку: статус могли змінити." : e instanceof ApiErr ? `${e.message}${errReasons(e) ? ": " + errReasons(e) : ""}${e.hint ? ". " + e.hint : ""}${e.status >= 500 && e.requestId ? ` Код запиту: ${e.requestId}` : ""}` : "Не вдалося виконати дію";
 export const apiFail = e => toast(apiErrText(e));
 
 /* --- Ролі: обліковий запис → роль інтерфейсу --- */
@@ -224,9 +226,16 @@ function apiMeasure(x, titles) {
   const v = x.verification || {}, st = x.status === "done" && VERIFY_ST[v.status] ? VERIFY_ST[v.status] : MEAS_ST[x.status] || "accepted";
   const d = v.delta != null ? ` (${v.delta > 0 ? "+" : ""}${fb(v.delta)})` : "";
   const vf = x.status === "done" ? (st === "confirmed" ? [`Підтверджено: компонент зріс${d}`, "p-good"] : st === "notconfirmed" ? [`Не підтверджено: ${v.title || "без змін"}${d}`, "p-bad"] : v.status === "check_data" ? ["Перевірити дані: достовірність C", "p-warn"] : ["Очікує наступного оцінювання", "p-info"]) : null;
-  return { id: x.id, rec: titles[x.recommendation_code] || (x.recommendation_code ? "попередньої хвилі" : "окремий захід"), t: x.title, who: x.owner, due: x.due_date, st, ind: x.component, vf, vrule: v.rule };
+  return { id: x.id, rec: titles[x.recommendation_code] || (x.recommendation_code ? "попередньої хвилі" : "окремий захід"), t: x.title, who: x.owner, due: x.due_date, st, ind: x.component, vf, vrule: v.rule, ext: apiExternal(x.external) };
 }
-const MEAS_BACK = { accepted: "planned", inprogress: "in_progress", done: "done" };
+// Стан заходу в Mitra (тема 2): бекенд приймає лише посилання на адресу Mitra з налаштувань (THEME2_PUBLIC_URL)
+function apiExternal(e) {
+  if (!e) return null;
+  const t = e.state_title || `надіслано в ${e.system}`;
+  return { system: e.system, state: e.state, t: t.charAt(0).toUpperCase() + t.slice(1), url: e.url, note: e.note, summary: e.summary,
+    docs: (e.documents || []).map(d => ({ name: d.name, sha: d.sha256, url: d.verify_url })) };
+}
+const MEAS_BACK = { accepted: "planned", inprogress: "in_progress", done: "done", cancelled: "cancelled" };
 
 async function apiLoadResults() {
   API.model = null; API.empty = false; API.recs = []; API.ms = [];
@@ -237,13 +246,16 @@ async function apiLoadResults() {
   const q = d.unit_id ? `?unit_id=${d.unit_id}` : "";
   const [r, h, recs, ms] = await Promise.all([
     api(`/campaigns/${d.campaign_id}/results${q}`), api(`/units/${d.unit_id}/history`).catch(() => api(`/units/${d.unit_id}/history`)).catch(() => null), // один повтор на випадок короткого збою мережі чи сервера (код запиту збою — у журналі сервера)
-    api(`/campaigns/${d.campaign_id}/recommendations${q}`).catch(() => ({ items: [] })), api(`/measures${q}`).catch(() => []),
+    // 404 і 409 (хвиля ще не закрита) дають порожній список; інші збої не ховаємо
+    api(`/campaigns/${d.campaign_id}/recommendations${q}`).catch(e => { if (e.status !== 404 && e.status !== 409) apiFail(e); return { items: [] }; }), api(`/measures${q}`).catch(() => []),
   ]);
   API.model = apiModel(r, h);
   API.res = r; API.recs = recs.items.map(x => apiRec(x, API.model, r));
   const titles = Object.fromEntries(recs.items.map(x => [x.code, x.title]));
   API.ms = ms.map(x => apiMeasure(x, titles));
-  setClock(new Date().toISOString().slice(0, 10), API.model.series[API.model.series.length - 1].cycle);
+  // Локальна дата, а не UTC: інакше з 00:00 до 02:00 за Києвом «сьогодні» було б учорашнім, і прострочення рахувалося б на день менше.
+  const now = new Date(), localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  setClock(localToday, API.model.series[API.model.series.length - 1].cycle);
   const n = API.model.series.length;
   S.trend = { from: 0, to: n - 1, lines: [] }; S.cmp = { a: Math.max(0, n - 2), b: n - 1 };
 }
@@ -259,7 +271,9 @@ export async function apiDecide(code, decision, comment, measure) {
 export async function apiSendMSt(id, st, evidence, reason) {
   // done_on не передаємо: сервер ставить сьогоднішню дату за своїм часовим поясом (TIMEZONE), а не за UTC браузера.
   // reason: обов'язкова причина повернення виконаного заходу (сервер пише її в журнал дій).
-  await api(`/measures/${id}`, { method: "PATCH", body: { status: MEAS_BACK[st] || "in_progress", ...(st === "done" ? { evidence } : {}), ...(reason ? { reason } : {}) } });
+  // Невідомий статус не підміняємо на in_progress: краще помилка, ніж тихо не той перехід.
+  if (!MEAS_BACK[st]) throw new Error(`Невідомий статус заходу: ${st}`);
+  await api(`/measures/${id}`, { method: "PATCH", body: { status: MEAS_BACK[st], ...(st === "done" ? { evidence } : {}), ...(reason ? { reason } : {}) } });
   await apiReloadResults();
 }
 
@@ -284,8 +298,11 @@ export async function apiSubmitSurvey() {
     if (sv.kind === "token") await api("/respond/responses", { method: "POST", auth: false, headers: { "X-Response-Token": API.token }, body: { answers } });
     else await api(`/campaigns/${sv.campaignId}/questionnaires/${sv.questionnaireId}/responses`, { method: "POST", body: { answers } });
   } catch (e) {
-    if (e.code === "token_used" || e.status === 409) { API.surveyUsed = true; API.surveyMsg = "used"; render(); return; }
-    toast(apiErrText(e)); return;
+    // «Вже пройдено» лише коли сервер так і каже; інші 409 (хвиля не відкрита тощо) ідуть тостом
+    if (e.code === "already_submitted" || e.code === "token_used") { API.surveyUsed = true; API.surveyMsg = "used"; render(); return; }
+    if (e.code === "campaign_not_open") { API.survey = null; API.surveyMsg = "closed"; render(); return; }
+    if (e.missing && e.missing.length) S.survey.miss = true;
+    toast(apiErrText(e)); render(true); return;
   }
   S.survey = { phase: "done", sec: 0, a: {}, miss: false }; API.surveyUsed = sv.kind === "token";
   try { localStorage.removeItem("ii-survey-draft"); } catch (e) { /* немає */ }
@@ -336,7 +353,7 @@ export async function apiCreateCampaign(body) {
 }
 export async function apiCampaignAct(id, act) {
   try { await api(`/campaigns/${id}/${act}`, { method: "POST" }); toast(act === "open" ? "Хвилю відкрито: респонденти бачать анкети" : "Хвилю закрито: знімок результатів збережено"); if (act === "close") API.model = null; apiAdmReload(id); }
-  catch (e) { apiFail(e); }
+  catch (e) { apiFail(e); apiAdmReload(id); } // статус хвилі міг змінитися: показуємо актуальний
 }
 // QR для зали: одне посилання на групу (анкета + підрозділ), expected — скільки людей у групі
 export async function apiQrCreate(id, questionnaireId, unitId, expected) {
@@ -366,7 +383,7 @@ export async function apiQAct(id, act) {
   try {
     if (act === "publish") { const issues = await api(`/questionnaires/${id}/validate`); if (issues.length) { toast("Не можна опублікувати: " + issues.map(i => i.message).join("; ")); return; } }
     const q = await api(`/questionnaires/${id}/${act}`, { method: "POST" });
-    toast(act === "publish" ? `Опубліковано: ${q.title}` : act === "new-version" ? `Створено чернетку версії ${q.version}` : `В архіві: ${q.title}`);
+    toast(act === "publish" ? `Опубліковано: ${q.title}` : act === "new-version" ? `Створено чернетку версії ${q.version}` : act === "restore" ? `Повернуто з архіву: ${q.title}` : `В архіві: ${q.title}`);
     API.qs = null; render(true);
     if (act === "new-version") bldOpen(q.id); // нова версія це чернетка: одразу відкриваємо в конструкторі
   } catch (e) { apiFail(e); }
@@ -421,7 +438,7 @@ export const AUDIT_ACT = {
   "questionnaire:create": "Створено анкету", "questionnaire:update_meta": "Змінено анкету", "questionnaire:publish": "Опубліковано анкету", "questionnaire:new_version": "Створено нову версію анкети", "questionnaire:archive": "Анкету архівовано", "questionnaire:delete": "Видалено анкету",
   "recommendation:decide": "Ухвалено рішення щодо рекомендації",
   "unit:create": "Створено підрозділ", "unit:update": "Змінено підрозділ", "unit:delete": "Видалено підрозділ", "unit:compare": "Порівняно хвилі підрозділу", "unit:view_history": "Переглянуто історію підрозділу",
-  "campaign:devils_advocate": "Переглянуто питання «Адвоката диявола»", "campaign:autopilot": "Змінено налаштування автопілота хвилі", "autopilot:tick": "Виконано крок автопілота",
+  "campaign:devils_advocate": "Переглянуто питання перевірки", "campaign:autopilot": "Змінено налаштування автопілота хвилі", "autopilot:tick": "Виконано крок автопілота",
   "normative:analyze": "Проаналізовано нормативний документ", "learning_deck:complete": "Пройдено колоду флешкарток", "indicator:publish": "Записано показник із модуля системи",
   "check_run:run": "Запущено перевірку", "check_run:fetch": "Отримано дані для перевірки", "check_finding:review": "Розглянуто знахідку перевірки",
   "user:create": "Створено користувача", "user:update": "Змінено користувача", "user:login_proxy": "Вхід через проксі",

@@ -556,8 +556,15 @@ class Measure(Base):
     done_on: Mapped[date | None] = mapped_column(Date)
     evidence: Mapped[str] = mapped_column(Text, default="")  # чим підтверджено виконання
     # Синхронізація з темою 2.
-    external_id: Mapped[str | None] = mapped_column(String(128))
+    external_id: Mapped[str | None] = mapped_column(String(128), index=True)
     external_source: Mapped[str | None] = mapped_column(String(64))
+    # Стан у Mitra (linked, rejected, in_progress, done, partial, not_done…), посилання на їхній захід,
+    # коментар координатора, документи-докази (назва, sha256, посилання на /verify) і час події в Mitra.
+    external_state: Mapped[str | None] = mapped_column(String(32))
+    external_url: Mapped[str | None] = mapped_column(String(1000))
+    external_note: Mapped[str] = mapped_column(Text, default="")
+    external_evidence: Mapped[dict | None] = mapped_column(JSON)
+    external_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)

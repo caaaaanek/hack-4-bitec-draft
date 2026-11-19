@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import ipaddress
 import time
 import uuid
@@ -68,11 +69,26 @@ def client_ip(request: Request) -> str:
     return peer
 
 
+# bcrypt враховує лише перші 72 байти, а bcrypt 5 на довшому паролі кидає ValueError (було 500 на вході).
+# Кирилиця — 2 байти на літеру, тож 72 байти ≈ 36 українських літер.
+BCRYPT_MAX_BYTES = 72
+
+
+def password_too_long(password: str) -> bool:
+    return len(password.encode()) > BCRYPT_MAX_BYTES
+
+
 def hash_password(password: str) -> str:
+    if password_too_long(password):
+        raise ValueError(f"Пароль довший за {BCRYPT_MAX_BYTES} байти")
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=get_settings().bcrypt_rounds)).decode()
 
 
 def verify_password(password: str, password_hash: str) -> bool:
+    if password_too_long(password):
+        # Такого пароля не могло бути збережено; час відповіді той самий, що й для звичайної спроби.
+        verify_password_dummy("")
+        return False
     return bcrypt.checkpw(password.encode(), password_hash.encode())
 
 
@@ -83,7 +99,15 @@ def _dummy_hash() -> bytes:
 
 def verify_password_dummy(password: str) -> None:
     """Перевірка проти фіктивного хешу, щоб час відповіді не видавав неіснуючий логін."""
-    bcrypt.checkpw(password.encode(), _dummy_hash())
+    bcrypt.checkpw(password.encode()[:BCRYPT_MAX_BYTES], _dummy_hash())
+
+
+def keys_equal(given: str | None, expected: str | None) -> bool:
+    """Порівняння секретів сталого часу. hmac.compare_digest на str з не-ASCII кидає TypeError
+    (заголовок із кирилицею давав 500), тому порівнюємо байти."""
+    if not given or not expected:
+        return False
+    return hmac.compare_digest(given.encode("utf-8", "surrogateescape"), expected.encode("utf-8", "surrogateescape"))
 
 
 class LoginThrottle:

@@ -91,13 +91,14 @@ def apply(db: Session, inputs: results.Inputs, measure_ids: list[uuid.UUID], che
 
     if measure_ids:
         rows = db.scalars(select(Measure).where(Measure.id.in_(measure_ids))).all()
+        # Захід поза підрозділом сценарію — так само «не знайдено»: ні назви, ні самого факту існування
+        # чужого заходу керівник підрозділу з помилки не дізнається.
+        rows = [r for r in rows if r.unit_id in inputs.units]
         found = {r.id for r in rows}
         missing = [str(x) for x in measure_ids if x not in found]
         if missing:
-            raise WhatIfError("Заходи не знайдено", "measure_not_found", ", ".join(missing))
+            raise WhatIfError("Заходи не знайдено в цьому підрозділі", "measure_not_found", ", ".join(missing))
         for x in rows:
-            if x.unit_id not in inputs.units:
-                raise WhatIfError(f"Захід «{x.title}» стосується іншого підрозділу", "measure_out_of_scope")
             entry = {"kind": "measure", "id": str(x.id), "title": x.title, "catalog_number": x.catalog_number}
             note = checklist_note(x.catalog_number) if x.catalog_number else None
             if note is None:

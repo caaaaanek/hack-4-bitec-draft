@@ -4,7 +4,6 @@
 людини) відхиляється з 422.
 """
 
-import hmac
 import re
 import uuid
 from datetime import date
@@ -21,7 +20,7 @@ from app.db import get_db
 from app.errors import ApiError
 from app.models import Indicator, Role, Unit, User
 from app.clock import today
-from app.security import RESULT_READERS, ensure_unit_access, get_current_user, require_roles
+from app.security import RESULT_READERS, ensure_unit_access, get_current_user, keys_equal, require_roles
 from app.services import facts, methodology as m
 
 router = APIRouter(tags=["indicators"])
@@ -129,9 +128,9 @@ def integration_or_admin(
     settings = get_settings()
     if x_integration_key:
         for source, key in settings.integration_key_map.items():
-            if hmac.compare_digest(x_integration_key, key):
+            if keys_equal(x_integration_key, key):
                 return IntegrationActor(source=source)
-        if settings.integration_api_key and hmac.compare_digest(x_integration_key, settings.integration_api_key):
+        if keys_equal(x_integration_key, settings.integration_api_key):
             return IntegrationActor(any_source=True)
         raise HTTPException(status_code=401, detail="Невірний ключ інтеграції")
     if token is None:

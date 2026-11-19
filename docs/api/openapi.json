@@ -8582,8 +8582,25 @@
           "integrations"
         ],
         "summary": "Sync Theme2",
-        "description": "Надіслати заходи з черги в трекер теми 2. Невдалі повторяться при наступному запуску.",
+        "description": "Надіслати заходи з черги в Mitra. Невдалі повторяться при наступному запуску.\n`retry_failed=true` повертає в чергу й ті, що Mitra відхилила або що вичерпали спроби.",
         "operationId": "sync_theme2_api_v1_integrations_theme2_sync_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "retry_failed",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "default": false,
+              "title": "Retry Failed"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "Successful Response",
@@ -8596,61 +8613,56 @@
             }
           },
           "401": {
-            "description": "Unauthorized",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorOut"
                 }
               }
-            }
+            },
+            "description": "Unauthorized"
           },
           "403": {
-            "description": "Forbidden",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorOut"
                 }
               }
-            }
+            },
+            "description": "Forbidden"
           },
           "404": {
-            "description": "Not Found",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorOut"
                 }
               }
-            }
+            },
+            "description": "Not Found"
           },
           "409": {
-            "description": "Conflict",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorOut"
                 }
               }
-            }
+            },
+            "description": "Conflict"
           },
           "422": {
-            "description": "Unprocessable Content",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorOut"
                 }
               }
-            }
+            },
+            "description": "Unprocessable Content"
           }
-        },
-        "security": [
-          {
-            "OAuth2PasswordBearer": []
-          }
-        ]
+        }
       }
     },
     "/api/v1/integrations/theme2/measures/status": {
@@ -8659,7 +8671,7 @@
           "integrations"
         ],
         "summary": "Theme2 Status Webhook",
-        "description": "Тема 2 повідомляє про зміну статусу заходу (за нашим id або їхнім external_id).",
+        "description": "Mitra повідомляє про зміну стану заходу (за нашим `measure_id` або їхнім `external_id`).\n\n«Виконано» — лише з доказом: опис результату або документи з sha256 і посиланням на перевірку в Mitra.\nПовтор тієї ж події безпечний (`changed: false`), старіша за вже отриману (`occurred_at`) ігнорується.",
         "operationId": "theme2_status_webhook_api_v1_integrations_theme2_measures_status_post",
         "parameters": [
           {
@@ -13232,6 +13244,41 @@
         ],
         "title": "DistributionItem"
       },
+      "DocumentIn": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Name"
+          },
+          "sha256": {
+            "type": "string",
+            "maxLength": 64,
+            "minLength": 64,
+            "title": "Sha256"
+          },
+          "verify_url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verify Url"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "name",
+          "sha256"
+        ],
+        "title": "DocumentIn"
+      },
       "DocumentInfo": {
         "properties": {
           "name": {
@@ -13680,6 +13727,28 @@
         ],
         "title": "EvidenceFileOut"
       },
+      "EvidenceIn": {
+        "properties": {
+          "summary": {
+            "type": "string",
+            "maxLength": 4000,
+            "title": "Summary",
+            "description": "Опис результату виконання",
+            "default": ""
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/DocumentIn"
+            },
+            "type": "array",
+            "maxItems": 20,
+            "title": "Documents"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "EvidenceIn"
+      },
       "EvidenceLimits": {
         "properties": {
           "max_bytes": {
@@ -13706,8 +13775,75 @@
         ],
         "title": "EvidenceLimits"
       },
+      "ExternalDocument": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "sha256": {
+            "type": "string",
+            "title": "Sha256"
+          },
+          "verify_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Verify Url"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "sha256"
+        ],
+        "title": "ExternalDocument"
+      },
       "ExternalStatusIn": {
         "properties": {
+          "contract": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contract"
+          },
+          "event_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Event Id",
+            "description": "Для журналу; повтори безпечні й без нього"
+          },
+          "occurred_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Occurred At",
+            "description": "Час події в Mitra: старіші події ігноруються"
+          },
           "measure_id": {
             "anyOf": [
               {
@@ -13732,8 +13868,57 @@
             ],
             "title": "External Id"
           },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State",
+            "description": "inbox | linked | rejected | planned | in_progress | on_review | returned | done | partial | not_done"
+          },
           "status": {
-            "$ref": "#/components/schemas/MeasureStatus"
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status",
+            "description": "Старий формат: planned | in_progress | done | cancelled"
+          },
+          "mitra_status": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 32
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mitra Status",
+            "description": "Статус у Mitra як є, для журналу"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 1000
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url",
+            "description": "Посилання на захід у Mitra"
           },
           "done_on": {
             "anyOf": [
@@ -13747,19 +13932,32 @@
             ],
             "title": "Done On"
           },
-          "evidence": {
+          "comment": {
             "type": "string",
             "maxLength": 2000,
-            "title": "Evidence",
+            "title": "Comment",
+            "description": "Причина відхилення чи невиконання",
             "default": ""
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/EvidenceIn"
+              },
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence"
           }
         },
         "additionalProperties": false,
         "type": "object",
-        "required": [
-          "status"
-        ],
-        "title": "ExternalStatusIn"
+        "title": "ExternalStatusIn",
+        "description": "Подія з Mitra. Новий формат: `state` + структурований `evidence`. Старий (`status` нашими словами,\n`evidence` рядком) теж приймається."
       },
       "FactOut": {
         "properties": {
@@ -13877,6 +14075,54 @@
           "rule"
         ],
         "title": "FactOut"
+      },
+      "FailedMessage": {
+        "properties": {
+          "measure_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measure Id"
+          },
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "attempts": {
+            "type": "integer",
+            "title": "Attempts"
+          },
+          "last_error": {
+            "type": "string",
+            "title": "Last Error"
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Created At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "measure_id",
+          "title",
+          "attempts",
+          "last_error",
+          "created_at"
+        ],
+        "title": "FailedMessage"
       },
       "FetchIn": {
         "properties": {
@@ -14821,6 +15067,30 @@
             "type": "integer",
             "title": "Theme2 Pending"
           },
+          "theme2_failed": {
+            "items": {
+              "$ref": "#/components/schemas/FailedMessage"
+            },
+            "type": "array",
+            "title": "Theme2 Failed",
+            "default": []
+          },
+          "theme2_public_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Theme2 Public Url"
+          },
+          "theme2_auto_sync_seconds": {
+            "type": "number",
+            "title": "Theme2 Auto Sync Seconds",
+            "default": 0
+          },
           "assistant_enabled": {
             "type": "boolean",
             "title": "Assistant Enabled"
@@ -15225,6 +15495,118 @@
         ],
         "title": "MeasureDraft"
       },
+      "MeasureExternal": {
+        "properties": {
+          "source": {
+            "type": "string",
+            "title": "Source"
+          },
+          "system": {
+            "type": "string",
+            "title": "System"
+          },
+          "id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Id"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "state_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State Title"
+          },
+          "url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Url"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "summary": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Summary"
+          },
+          "documents": {
+            "items": {
+              "$ref": "#/components/schemas/ExternalDocument"
+            },
+            "type": "array",
+            "title": "Documents"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "system",
+          "id",
+          "state",
+          "state_title",
+          "url",
+          "note",
+          "summary",
+          "documents",
+          "updated_at"
+        ],
+        "title": "MeasureExternal",
+        "description": "Стан заходу в Mitra (тема 2). Посилання ведуть лише на адресу Mitra з налаштувань."
+      },
       "MeasureIn": {
         "properties": {
           "unit_id": {
@@ -15444,6 +15826,16 @@
               }
             ],
             "title": "External Source"
+          },
+          "external": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MeasureExternal"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "created_at": {
             "type": "string",

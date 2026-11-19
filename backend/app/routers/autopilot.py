@@ -9,7 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.audit import log_action
-from app.clock import now
+from app.clock import now, today
 from app.db import get_db
 from app.errors import ApiError
 from app.models import (
@@ -119,6 +119,21 @@ def get_autopilot(campaign_id: uuid.UUID, db: Session = Depends(get_db),
     return state(db, get_campaign(db, campaign_id))
 
 
+def reject_past_dates(campaign: Campaign, data: AutopilotIn) -> None:
+    """Нову дату в минулому автопілот виконати не може. Уже збережену дату можна лишити як є,
+    а дату відкриття відкритої хвилі не перевіряємо: вона вже настала."""
+    if not data.enabled:
+        return
+    day = today()
+    if (campaign.status == CampaignStatus.DRAFT and data.planned_open_on and data.planned_open_on < day
+            and data.planned_open_on != campaign.planned_open_on):
+        raise ApiError(422, "Дата відкриття вже минула", code="date_in_past",
+                       hint=f"Оберіть сьогодні ({day:%d.%m.%Y}) або пізніше.")
+    if data.planned_close_on and data.planned_close_on < day and data.planned_close_on != campaign.planned_close_on:
+        raise ApiError(422, "Дата закриття вже минула", code="date_in_past",
+                       hint=f"Оберіть сьогодні ({day:%d.%m.%Y}) або пізніше.")
+
+
 @router.put("/campaigns/{campaign_id}/autopilot", response_model=AutopilotOut)
 def set_autopilot(campaign_id: uuid.UUID, data: AutopilotIn, db: Session = Depends(get_db),
                   admin: User = Depends(admin_only)):
@@ -128,6 +143,7 @@ def set_autopilot(campaign_id: uuid.UUID, data: AutopilotIn, db: Session = Depen
         raise ApiError(409, "Хвилю вже закрито", code="conflict")
     if campaign.status == CampaignStatus.OPEN and data.planned_open_on and data.planned_open_on != campaign.planned_open_on:
         raise ApiError(409, "Хвиля вже відкрита: дату відкриття змінити не можна", code="conflict")
+    reject_past_dates(campaign, data)
     campaign.autopilot = data.enabled
     campaign.planned_open_on = data.planned_open_on if campaign.status == CampaignStatus.DRAFT else campaign.planned_open_on
     campaign.planned_close_on = data.planned_close_on

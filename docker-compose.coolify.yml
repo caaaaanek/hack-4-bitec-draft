@@ -1,0 +1,72 @@
+# Варіант docker-compose.yml для Coolify кафедри (https://coolify.csit-mitit.com), Build Pack «Docker Compose».
+# Відрізняється від локального за правилами Coolify: без ports, з mem_limit, паролі — змінні Coolify.
+# Домен задається в Coolify лише для frontend: http://<назва>.csit-mitit.com:8080 (порт усередині контейнера).
+# backend і db назовні не відкриваються: фронтенд проксує /api на backend, тож CORS не потрібен.
+# Несекретні налаштування зашиті у файл: поля «${X:-типове}» Coolify лише показує заповненими, а передає порожніми.
+# Інструкція — deploy/coolify/README.md.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: imd
+      POSTGRES_USER: imd
+      # Coolify сам генерує й зберігає пароль при першому деплої.
+      POSTGRES_PASSWORD: ${SERVICE_PASSWORD_POSTGRES}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U imd -d imd"]
+      interval: 3s
+      retries: 20
+    mem_limit: 512m
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://imd:${SERVICE_PASSWORD_POSTGRES}@db:5432/imd
+      # Обов'язкові: без них деплой зупиниться з помилкою (заповнити в Environment Variables Coolify).
+      JWT_SECRET: ${JWT_SECRET:?не коротше 32 символів}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:?пароль демо-користувачів, щонайменше 8 символів}
+      PUBLIC_URL: ${PUBLIC_URL:?https://<назва>.csit-mitit.com — для посилань на анонімне проходження}
+      # Ключ шифрування буфера відповідей: Coolify генерує сам і не змінює між деплоями.
+      POOL_ENCRYPTION_KEY: ${SERVICE_PASSWORD_POOL}
+      # Ключі джерел фактів (artemida=…;atestat=…;…). Порожньо — факти лише з демо-даних і модуля «Перевірки».
+      INTEGRATION_KEYS: ${INTEGRATION_KEYS}
+      # Асистент: Gemma на шлюзі кафедри. Увімкнути — задати в Coolify обидві змінні:
+      #   LLM_BASE_URL=https://api.csit-mitit.com/v1 і LLM_API_KEY=<ключ шлюзу>.
+      # Порожній LLM_BASE_URL — асистент вимкнено, фронтенд відповідає шаблонами правил.
+      LLM_BASE_URL: ${LLM_BASE_URL}
+      LLM_MODEL: gemma4-26b
+      LLM_ALLOW_EXTERNAL: "true"
+      LLM_API_KEY: ${LLM_API_KEY}
+      # Демо-стенд: синтетичні підрозділи, люди й дві закриті хвилі (повторний деплой нічого не дублює).
+      SEED_DEMO: "true"
+      SEED_WITH_WAVES: "true"
+      TIMEZONE: Europe/Kyiv
+      DEFAULT_MIN_GROUP_SIZE: "5"
+      EVIDENCE_MAX_BYTES: "10485760"
+      EVIDENCE_MAX_FILES_PER_ITEM: "10"
+      PASSWORD_LOGIN_ENABLED: "true"
+      PROXY_AUTH_ENABLED: "false"
+      # Мережа стеку Coolify: IP клієнта для лімітів спроб беремо з X-Forwarded-For лише від nginx фронтенду.
+      FORWARDED_PROXIES: 172.16.0.0/12,192.168.0.0/16,10.0.0.0/8
+      EXTERNAL_FETCH_ENABLED: "false"
+    volumes:
+      - evidence:/data/evidence
+    depends_on:
+      db:
+        condition: service_healthy
+    mem_limit: 768m
+
+  frontend:
+    build:
+      context: ./frontend-proto
+    depends_on:
+      backend:
+        condition: service_healthy
+    mem_limit: 128m
+
+volumes:
+  pgdata:
+  evidence:

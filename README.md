@@ -29,7 +29,7 @@ hack-4-bitec-draft/
 │   └── docs/                дизайн-система, бриф, відомі обмеження, пропозиція API-контракту
 ├── docs/
 │   ├── backend.md           ролі, модель даних, API
-│   ├── integrity-index.md   методика Integrity Index v2.1
+│   ├── integrity-index.md   методика Integrity Index v2.2
 │   ├── run.md               запуск і перевірки
 │   ├── anonymity.md         як забезпечено анонімність, модель загроз, залишкові ризики
 │   ├── abuse-analysis.md    зловживання й протидія

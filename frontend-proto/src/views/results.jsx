@@ -2,7 +2,7 @@
 import { useEffect, useState } from "react";
 import { Ic } from "../lib/icons.jsx";
 import { S, persist } from "../lib/state.js";
-import { COMPS, COMP, LEVELS, LSHORT, LDESC, BOUNDS, CAP, TRUST, SRC, SCOL, level, status, r1, wmean, clamp, measures, overdueDays, CYCLE } from "../lib/model.js";
+import { COMPS, COMP, LEVELS, LSHORT, LDESC, BOUNDS, CAP, TRUST, SRC, SCOL, level, indexLevel, status, r1, wmean, clamp, measures, overdueDays, CYCLE } from "../lib/model.js";
 import { fb, f1, f2, pts, esc } from "../lib/format.js";
 import { render, toast, openPop, closePop } from "../lib/store.js";
 import { cur, go, can } from "../lib/nav.js";
@@ -127,7 +127,7 @@ function TrendCard({ m }) {
       <button className="pill-btn" onClick={() => { S.trTable = !S.trTable; render(true); }}>{S.trTable ? <><Ic n="trend" />Діаграма</> : <><Ic n="table" />Таблиця</>}</button></div>
     {!S.trTable && <div className="chips-row"><span className="lbl">Лінії:</span>{chip("index", "Індекс", "var(--teal-deep)", !t.noIdx)}{COMPS.map(c => chip(c, COMP[c].n, COMP[c].c, t.lines.includes(c)))}</div>}
     {S.trTable
-      ? <div className="tbl-wrap"><table><thead><tr><th>Цикл</th><th>Індекс</th><th>Рівень</th>{COMPS.map(c => <th key={c}>{COMP[c].n}</th>)}<th>Події після циклу</th></tr></thead><tbody>{rows.map(r => <tr key={r.cycle}><td><b>{r.cycle}</b></td><td className="tnum"><b>{f1(r.index)}</b></td><td><LvPill l={level(r.index)} /></td>{COMPS.map(c => <td key={c} className="tnum">{fb(r.cr[c])}</td>)}<td className="lbl">{m.events.filter(e => e.after === r.cycle && r !== rows[rows.length - 1]).map(e => e.t).join("; ") || "–"}</td></tr>)}</tbody></table></div>
+      ? <div className="tbl-wrap"><table><thead><tr><th>Цикл</th><th>Індекс</th><th>Рівень</th>{COMPS.map(c => <th key={c}>{COMP[c].n}</th>)}<th>Події після циклу</th></tr></thead><tbody>{rows.map(r => <tr key={r.cycle}><td><b>{r.cycle}</b></td><td className="tnum"><b>{f1(r.index)}</b></td><td><LvPill l={r === m.series[m.series.length - 1] ? m.level : indexLevel(r.index, COMPS.map(c => r.cr[c]))} /></td>{COMPS.map(c => <td key={c} className="tnum">{fb(r.cr[c])}</td>)}<td className="lbl">{m.events.filter(e => e.after === r.cycle && r !== rows[rows.length - 1]).map(e => e.t).join("; ") || "–"}</td></tr>)}</tbody></table></div>
       : <TrendChart rows={rows} lines={t.lines} events={m.events} showIdx={!t.noIdx} />}
     <div className="lbl" style={{ marginTop: 8, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 4 }}><span className="ev-ic"><Ic n="diamond" /></span>Виконані заходи між циклами: {evs.reduce((a, e) => a + (e.n || 1), 0)}. {d > 0 ? `За період індекс зріс на ${pts(d)}.` : d < 0 ? `За період індекс знизився на ${pts(d)}.` : "За період індекс не змінився."}</div>
   </>;

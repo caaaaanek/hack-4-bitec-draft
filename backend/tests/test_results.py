@@ -50,7 +50,7 @@ def test_full_wave_with_facts(client):
 
     data = results(client, campaign_id, admin)
     assert data["source"] == "snapshot"
-    assert data["methodology_version"] == "2.1"
+    assert data["methodology_version"] == "2.2"
     c = {x["code"]: x for x in data["components"]}
 
     assert c["culture"]["self_score"] == 72.5 and c["culture"]["score"] == 72.5
@@ -145,7 +145,7 @@ def test_snapshots_history_compare_and_significance(client):
     assert [p["index"] for p in points] == [25.0, 75.0, 75.0]
     assert points[1]["significance"]["code"] == "improved"
     assert points[2]["significance"]["code"] == "within_error"
-    assert all(p["methodology_version"] == "2.1" for p in points)
+    assert all(p["methodology_version"] == "2.2" for p in points)
 
     compare = client.get(f"{API}/units/{root}/compare", params={"from_campaign": c1, "to_campaign": c3}, headers=admin).json()
     assert compare["index_delta"] == 50.0
@@ -184,7 +184,7 @@ def test_progress_hides_small_groups(client):
 
 def test_methodology_endpoint(client):
     data = client.get(f"{API}/methodology", headers=auth(client, "staff01")).json()
-    assert data["version"] == "2.1"
+    assert data["version"] == "2.2"
     assert sum(data["source_weights"].values()) == pytest.approx(1.0)
     assert sum(c["weight"] for c in data["components"].values()) == pytest.approx(1.0)
 

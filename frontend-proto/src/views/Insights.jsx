@@ -1,5 +1,5 @@
-/* Інсайти: «Адвокат диявола» (питання аудитора до результатів) і «Черговий» (що змінилось і як виправити).
- * Адвокат: повний екран #advocate і бічна панель «Підготуватися до перевірки» з «Огляду» та «Звіту».
+/* Інсайти: «Питання перевірки» (питання аудитора до результатів) і «Черговий» (що змінилось і як виправити).
+ * Питання перевірки: повний екран #advocate і бічна панель «Підготуватися до перевірки» з «Огляду» та «Звіту».
  * Черговий: повний екран #watch і пункти в блоці «Що потребує уваги» на «Огляді». */
 import { Ic } from "../lib/icons.jsx";
 import { API, apiMod, apiModReset, apiAdvocate, apiDigest } from "../lib/api.js";
@@ -52,7 +52,7 @@ function linkTarget(link) {
 const goTo = t => { closeDrawer(); if (t.q) { go(t.h); setTimeout(() => openApiQ(t.q), 300); } else go(t.h); };
 const GoBtn = ({ link, t = linkTarget(link) }) => t ? <button type="button" className="btn btn-soft" onClick={() => goTo(t)}><Ic n="arrowR" />Відкрити: {TITLES[t.h.split("/")[0]]}</button> : null;
 
-/* --- «Адвокат диявола» --- */
+/* --- «Питання перевірки» --- */
 function useAdv() {
   if (!API.on) return { data: DEMO_Q };
   if (!API.campaignId) return API.empty ? { none: true } : null;

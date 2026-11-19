@@ -51,7 +51,7 @@ export const NAV = [
   ["tracker", "Трекер", "target", ["leader", "auditor"]],
   ["sources", "Джерела", "plug", ["leader", "observer", "auditor"]],
   ["watch", "Черговий", "eye", ["leader", "observer", "auditor", "admin", "commissioner", "coordinator"]],
-  ["advocate", "Адвокат диявола", "scale", ["leader", "observer", "auditor", "admin", "commissioner"]],
+  ["advocate", "Питання перевірки", "scale", ["leader", "observer", "auditor", "admin", "commissioner"]],
   ["report", "Звіт", "file", ["leader", "observer"]],
   ["manage", "Керування циклом", "sliders", ["admin"]],
   ["autopilot", "Автопілот хвилі", "bolt", ["coordinator", "auditor"]],
@@ -76,7 +76,7 @@ const QUESTIONNAIRES = [
   { id: "q-ck", t: "Чек-лист: анкети фактів", grp: "Відповідальні за чек-лист", ver: 1, st: "draft", n: 4, upd: "14.11.2026" },
 ];
 const DEFAULTS = () => ({
-  role: "leader", k: 10, inst: "alpha", unit: "unit-a", cycleOpen: true,
+  role: "leader", k: 5, inst: "alpha", unit: "unit-a", cycleOpen: true,
   facts: {}, fpend: {}, dec: { rec: {}, mst: {}, added: [] }, qs: QUESTIONNAIRES.map(q => ({ ...q })),
   log: [], notes: [], aiOn: true, tokenUsed: false,
   mode: "credited", trackView: "table", recF: { st: "all", c: "all" }, trF: { st: "all", who: "all" },

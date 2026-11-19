@@ -26,7 +26,10 @@ export let TODAY = "2026-11-16", TODAY_UA = "16.11.2026", CYCLE = "2026-11";
 export function setClock(today, cycle) { TODAY = today; TODAY_UA = today.split("-").reverse().join("."); CYCLE = cycle; }
 export const r1 = v => Math.round(v * 10) / 10;
 export const clamp = (v, a = 0, b = 100) => Math.max(a, Math.min(b, v));
-export const level = v => { const i = BOUNDS.findIndex(b => v <= b); return i === -1 ? 5 : i + 1; };
+// Рівень за мінімальними межами 0 / 12,5 / 37,5 / 62,5 / 87,5: бал >= межі (як maturity_level на сервері)
+export const level = v => 1 + BOUNDS.filter(b => v >= b).length;
+// Слабка ланка (методика v2.1): рівень індексу не вищий за рівень найслабшого компонента плюс 1
+export const indexLevel = (idx, comps) => comps.length ? Math.min(level(idx), Math.min(...comps.map(level)) + 1) : level(idx);
 export const lvl100 = l => (l - 1) * 25;
 export const status = v => v >= 65 ? "good" : v >= 40 ? "warn" : "bad";
 export const ST = { good: ["Сильна сторона", "p-good"], warn: ["Потребує уваги", "p-warn"], bad: ["Критична зона", "p-bad"] };
@@ -123,7 +126,7 @@ const round5 = v => Math.round(clamp(v) / 5) * 5;
 
 export function finish(m) {
   const cur = m.series[m.series.length - 1], prev = m.series[m.series.length - 2];
-  m.index = cur.index; m.level = level(cur.index); m.prevIndex = prev.index; m.delta = r1(cur.index - prev.index);
+  m.index = cur.index; m.level = indexLevel(cur.index, m.components.map(c => c.cr.v)); m.prevIndex = prev.index; m.delta = r1(cur.index - prev.index);
   m.limited = m.components.find(c => c.cr.lim);
   m.trust = trust(m.flags, m.responses);
   m.raised = m.flags.filter(f => f.raised);

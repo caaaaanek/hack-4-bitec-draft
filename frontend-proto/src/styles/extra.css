@@ -163,6 +163,8 @@ a.pill-btn { color: inherit; text-decoration: none; }
 /* Поповер (період, доступність) */
 .popover { position: fixed; z-index: 80; display: none; background: var(--panel); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 12px 32px rgba(0,0,0,.14); padding: 14px; width: 300px; max-width: calc(100vw - 16px); }
 .popover.on { display: block; animation: rise .2s both; }
+/* Вікно «Розмір тексту» не масштабується разом зі сторінкою: --uz = 1 / масштаб (applyA11y) */
+.popover.a11y-pop { zoom: var(--uz, 1); }
 .mp-y { font-size: 12px; font-weight: 600; color: var(--muted); margin: 6px 0 4px; }
 .mp { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
 .mp > * { height: 32px; border-radius: 8px; display: grid; place-items: center; font-size: 12.5px; }
@@ -282,15 +284,33 @@ html.hc a, html.hc .link { text-decoration: underline; }
 .side-btn { margin-left: auto; width: 28px; height: 28px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); color: var(--muted); display: grid; place-items: center; cursor: pointer; flex: none; }
 .side-btn:hover { color: var(--fg); border-color: var(--faint); }
 .side-btn svg { width: 16px; height: 16px; }
-.app { transition: grid-template-columns .25s ease; }
+.app { transition: grid-template-columns .24s cubic-bezier(.4,0,.2,1); }
+@keyframes side-fade { from { opacity: 0; } }
 @media (min-width: 901px) {
+  /* Згортання без перебудови: шапка лишається рядком, панель звужується разом з колонкою сітки (той самий перехід),
+     логотип та іконки стоять на тому ж x, підписи й пошук обрізаються і зникають через opacity / max-width / max-height.
+     Стрілка прив'язана до правого краю панелі й плавно опускається під логотип (у 76 px поруч із ним вона не вміщається). */
+  .side { overflow-x: hidden; }
+  .brand { padding-bottom: 0; transition: padding-bottom .24s cubic-bezier(.4,0,.2,1); }
+  .brand .logo { flex: none; }
+  .brand-t { min-width: 0; max-width: 140px; overflow: hidden; transition: opacity .18s ease, max-width .24s cubic-bezier(.4,0,.2,1); }
+  .side-btn { position: absolute; top: 25px; right: 23px; margin: 0; transition: top .24s cubic-bezier(.4,0,.2,1); }
+  .side .search { overflow: hidden; }
+  .side .search .kbd { flex: none; white-space: nowrap; }
+  .side .search input, .side .search .kbd { transition: opacity .18s ease, visibility .18s; }
+  .nav-label { max-height: 20px; overflow: hidden; transition: opacity .18s ease, max-height .24s cubic-bezier(.4,0,.2,1), margin .24s cubic-bezier(.4,0,.2,1); }
+  .nav a { overflow: hidden; }
+  .nav a span { white-space: nowrap; transition: opacity .18s ease; }
+  .side-foot { min-width: 228px; animation: side-fade .24s ease both; }
   html.side-mini .app { grid-template-columns: 76px 1fr; }
-  html.side-mini .side { padding-left: 12px; padding-right: 12px; align-items: center; }
-  html.side-mini .brand { flex-direction: column; padding: 0; gap: 10px; }
-  html.side-mini .side-btn { margin-left: 0; }
-  html.side-mini .brand-t, html.side-mini .nav-label, html.side-mini .nav a span, html.side-mini .side .search input, html.side-mini .side .search .kbd, html.side-mini .side-foot { display: none; }
-  html.side-mini .side .search { padding: 10px; cursor: pointer; }
-  html.side-mini .nav a { padding: 11px; justify-content: center; }
+  html.side-mini .brand { padding-bottom: 38px; }
+  html.side-mini .brand-t { opacity: 0; max-width: 0; }
+  html.side-mini .side-btn { top: 66px; }
+  html.side-mini .side .search input, html.side-mini .side .search .kbd { opacity: 0; visibility: hidden; }
+  html.side-mini .side .search { cursor: pointer; }
+  html.side-mini .nav-label { opacity: 0; max-height: 0; margin-top: -18px; }
+  html.side-mini .side-foot { display: none; }
+  html.side-mini .nav a span { opacity: 0; }
   html.side-mini .nav a .badge { position: absolute; top: 2px; right: 0; font-size: 9px; padding: 0 4px; }
 }
 @media (max-width: 900px) { .side-btn { display: none; } }
@@ -319,7 +339,6 @@ html.hc a, html.hc .link { text-decoration: underline; }
 .vf-s b { font-size: 16px; color: var(--fg); }
 #ic-search { display: grid; place-items: center; flex: none; }
 #ic-search svg { width: 18px; height: 18px; display: block; }
-@media (min-width: 901px) { html.side-mini .side .search { width: 42px; height: 42px; padding: 0; justify-content: center; } }
 .vf h2 { font-size: 16px; font-weight: 600; }
 .b-card .seg.sm { flex-wrap: wrap; max-width: 100%; }
 .cmp-stack { display: flex; flex-direction: column; gap: inherit; gap: 20px; min-width: 0; }
