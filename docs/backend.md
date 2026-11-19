@@ -178,7 +178,7 @@ stateDiagram-v2
 | `DELETE /questionnaires/{id}` | commissioner | Видалити чернетку |
 | `GET/POST /campaigns`, `POST /campaigns/{id}/open` · `/close` | admin (читати список: також commissioner, leader, auditor) | Хвилі. `min_group_size` ≥ 5. Відкриття фіксує склад (хвиля `login`); при закритті зашифрований буфер переноситься в `responses` |
 | `GET /campaigns/{id}/progress` | admin | % проходження без імен; `over_expected` — відповідей більше, ніж людей у групі (ознака накрутки QR) |
-| `GET /me/assignments` | respondent | Мої анкети в відкритих хвилях |
+| `GET /me/assignments` | respondent | Мої анкети у відкритих хвилях `login`; у хвилях `token` лише чек-лист для робочої групи (анкети там тільки за посиланням) |
 | `GET /campaigns/{cid}/questionnaires/{qid}/form` | respondent | Форма без балів |
 | `POST /campaigns/{cid}/questionnaires/{qid}/responses` | respondent | Подати відповіді |
 | `GET /methodology` | усі, хто увійшов | Методика: ваги, пороги, рівні, правила |
