@@ -13,6 +13,7 @@
 
 import hashlib
 import json
+import uuid
 from datetime import date
 
 from sqlalchemy import select
@@ -77,12 +78,21 @@ def declarations_run(db: Session, unit: Unit, u_index: int, period: str, decl: t
     _review(db, run, total, reviewer, only=lambda f: f.record_ref not in coi_refs)
 
 
+MOCK_ATTEMPTS = 20
+
+
 def procurement_run(db: Session, unit: Unit, period: str, proc: tuple[int, int], reviewer: User | None) -> None:
     reviewed, found = proc
-    records = checks.mock_procurement(unit.id, period)
-    # Деякі правила (поділ закупівлі) спрацьовують лише на групі записів, тож беремо записи,
-    # підозрілі самі по собі, і прибираємо «чисті», які разом стають підозрілими.
-    alone = {r["record_id"]: evaluate_records([r])[0]["risk_level"] != "none" for r in records}
+    # Набір залежить від випадкового UUID підрозділу; зрідка (~0,03% пар «підрозділ + місяць») у ньому
+    # замало записів, підозрілих самі по собі. Тоді беремо запасний набір: детермінований від того самого id.
+    for attempt in range(MOCK_ATTEMPTS):
+        seed_id = unit.id if attempt == 0 else uuid.uuid5(unit.id, f"procurement-retry-{attempt}")
+        records = checks.mock_procurement(seed_id, period)
+        # Деякі правила (поділ закупівлі) спрацьовують лише на групі записів, тож беремо записи,
+        # підозрілі самі по собі, і прибираємо «чисті», які разом стають підозрілими.
+        alone = {r["record_id"]: evaluate_records([r])[0]["risk_level"] != "none" for r in records}
+        if sum(alone.values()) >= found:
+            break
     flagged = [r for r in records if alone[r["record_id"]]][:found]
     clean = [r for r in records if not alone[r["record_id"]]]
     while True:
