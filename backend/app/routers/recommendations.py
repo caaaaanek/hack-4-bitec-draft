@@ -11,7 +11,16 @@ from sqlalchemy.orm import Session
 from app.audit import log_action
 from app.clock import today, utcnow
 from app.db import get_db
-from app.models import Campaign, CampaignStatus, Measure, RecommendationDecision, RecommendationDecisionType, Role, User
+from app.models import (
+    Campaign,
+    CampaignStatus,
+    Measure,
+    MeasureStatus,
+    RecommendationDecision,
+    RecommendationDecisionType,
+    Role,
+    User,
+)
 from app.routers.measures import MeasureIn, MeasureOut, check_owner, create_measure
 from app.security import RESULT_READERS, ensure_unit_access, require_roles
 from app.services import facts, results
@@ -154,6 +163,8 @@ def decide(
     """Рішення керівника: прийняти (і одразу створити захід), уточнити або відхилити з обґрунтуванням."""
     campaign = closed_campaign(db, campaign_id)
     ensure_unit_access(db, user, data.unit_id or campaign.unit_id)
+    # Рішення щодо рекомендацій хвилі — по черзі: подвійний клік «Прийняти» не створить два рішення чи два заходи.
+    db.get(Campaign, campaign.id, with_for_update=True, populate_existing=True)
     result, recs = build(db, campaign, data.unit_id)
     scope = uuid.UUID(result["unit_id"])
     rec = next((r for r in recs if r["code"] == code), None)
@@ -175,7 +186,24 @@ def decide(
     log_action(db, user, "decide", "recommendation", decision.id,
                {"code": code, "decision": data.decision.value, "unit_id": str(scope)})
 
-    if data.measure is not None:
+    linked = list(db.scalars(select(Measure).where(
+        Measure.campaign_id == campaign.id, Measure.unit_id == scope, Measure.recommendation_code == code)))
+    if data.decision != RecommendationDecisionType.ACCEPTED:
+        # Рекомендацію більше не прийнято: її незавершені заходи скасовуються (з причиною в журналі), щоб не
+        # висіли простроченими, не рахувалися в плані й не йшли в тему 2. Виконані лишаються як є.
+        reason = f"Рішення щодо рекомендації змінено на «{data.decision.value}»: {decision.comment}"[:500]
+        for measure in linked:
+            if measure.status in (MeasureStatus.PLANNED, MeasureStatus.IN_PROGRESS):
+                old_status = measure.status
+                measure.status = MeasureStatus.CANCELLED
+                measure.done_on = None
+                measures_service.enqueue_measure(db, measure)
+                log_action(db, user, "update", "measure", measure.id,
+                           {"status": MeasureStatus.CANCELLED.value, "from_status": old_status.value, "reason": reason})
+
+    # Захід створюється, лише якщо в рекомендації ще немає жодного нескасованого: повторне «Прийняти»
+    # (подвійний клік, повернення до рішення) не плодить дублікати.
+    if data.measure is not None and not any(m.status != MeasureStatus.CANCELLED for m in linked):
         suggested = rec["suggested_measures"][0] if rec["suggested_measures"] else None
         draft = data.measure
         title = draft.title or (suggested["title"] if suggested else rec["title"])

@@ -88,6 +88,19 @@ def get_or_404(db: Session, campaign_id: uuid.UUID) -> Campaign:
     return campaign
 
 
+def get_locked_or_404(db: Session, campaign_id: uuid.UUID) -> Campaign:
+    """Хвиля з блокуванням рядка (SELECT ... FOR UPDATE) до кінця транзакції.
+
+    Відкриття й закриття змінюють статус: без блокування адмін і автопілот (або подвійний клік) обидва бачили б
+    «відкрита», і другий падав би на унікальності знімків з 500. З блокуванням другий чекає, бачить новий статус
+    і отримує звичайний 409.
+    """
+    campaign = db.get(Campaign, campaign_id, with_for_update=True, populate_existing=True)
+    if campaign is None:
+        raise HTTPException(status_code=404, detail="Хвилю не знайдено")
+    return campaign
+
+
 @router.get("", response_model=list[CampaignOut])
 def list_campaigns(db: Session = Depends(get_db), _: User = Depends(can_read)):
     query = (select(Campaign)
@@ -173,7 +186,7 @@ def get_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db), _: User 
 
 @router.post("/{campaign_id}/open", response_model=CampaignOut)
 def open_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db), admin: User = Depends(admin_only)):
-    campaign = get_or_404(db, campaign_id)
+    campaign = get_locked_or_404(db, campaign_id)
     lifecycle.open_wave(db, campaign, admin)
     db.commit()
     return to_out(campaign)
@@ -181,7 +194,7 @@ def open_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db), admin: 
 
 @router.post("/{campaign_id}/close", response_model=CampaignOut)
 def close_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db), admin: User = Depends(admin_only)):
-    campaign = get_or_404(db, campaign_id)
+    campaign = get_locked_or_404(db, campaign_id)
     lifecycle.close_wave(db, campaign, admin)
     db.commit()
     return to_out(campaign)
