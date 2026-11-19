@@ -10,6 +10,7 @@ import uuid
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.db import get_db
@@ -131,7 +132,8 @@ def submit(
 ):
     campaign, questionnaire = load_assignment(db, user, campaign_id, questionnaire_id)
     if already_submitted(db, campaign.id, questionnaire.id, user.id):
-        raise HTTPException(status_code=409, detail="Ви вже пройшли цю анкету")
+        raise ApiError(409, "Ви вже пройшли цю анкету", code="already_submitted",
+                       hint="Відповідь прийнято з першого надсилання.")
 
     check_answers(questionnaire, data)
 
@@ -139,7 +141,13 @@ def submit(
     # користувачем дозволив би зіставити його з відповіддю.
     submitted_on = save_submission(db, campaign, questionnaire, user, data.answers)
     # Відповідь лишається в зашифрованому буфері до закриття хвилі (services/anonymity.py).
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        # Паралельне подання (подвійний клік) уже записало участь: друге відкочується разом зі своєю відповіддю.
+        db.rollback()
+        raise ApiError(409, "Ви вже пройшли цю анкету", code="already_submitted",
+                       hint="Відповідь прийнято з першого надсилання.")
     return SubmissionOut(submitted_on=submitted_on)
 
 

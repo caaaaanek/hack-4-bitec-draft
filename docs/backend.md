@@ -201,7 +201,7 @@ stateDiagram-v2
 |---|---|---|
 | `GET /dashboard?campaign_id=&unit_id=` | admin, commissioner, leader, auditor | Executive Dashboard одним запитом: індекс, компоненти, групи, висновки, динаміка, топ-5 рекомендацій, статистика заходів, ризик-сигнали. За замовчуванням — остання закрита хвиля й підрозділ керівника |
 | `GET /campaigns/{id}/recommendations?unit_id=` | admin, commissioner, leader, auditor | Рекомендації за правилами з `rule`, пріоритетом, запропонованими заходами з Додатку Д, рішенням і пов'язаними заходами |
-| `POST /campaigns/{id}/recommendations/{code}/decision` | leader | `accepted` / `clarify` / `rejected` (два останні з коментарем). Для `accepted` можна одразу створити захід (`measure`) |
+| `POST /campaigns/{id}/recommendations/{code}/decision` | leader | `accepted` / `clarify` / `rejected` (два останні з коментарем). Для `accepted` можна одразу створити захід (`measure`); якщо в рекомендації вже є нескасований захід, новий не створюється (повторне «Прийняти» безпечне). Зміна рішення на `clarify` чи `rejected` скасовує незавершені заходи рекомендації з причиною в журналі; виконані лишаються |
 | `GET /measures?unit_id=&status=&campaign_id=&overdue=` | admin, commissioner, leader, auditor | Заходи підрозділу з дочірніми; `overdue`, `overdue_days` рахуються на льоту |
 | `GET /measures/stats?unit_id=`, `GET /measures/{id}` | admin, commissioner, leader, auditor | Статистика за статусами, один захід |
 | `POST /measures`, `PATCH /measures/{id}` | leader | Створити, змінити. `done` лише з непорожнім доказом (`evidence`), стерти доказ виконаного не можна. Переходи: planned ↔ in_progress → done / cancelled; done → in_progress; cancelled → planned; інші → 409 `bad_transition`. Скасування й повернення з done чи cancelled — з `reason` (у журнал), інакше 422 `reason_required`. Відповідальний — посада: «Прізвище І. Б.» → 422; зайві поля → 422 |
@@ -231,7 +231,7 @@ stateDiagram-v2
 | `GET /campaigns/{id}/qr-links` | admin | QR-посилання хвилі: `opened` (відкрито форм) і `completed` (завершено); різниця — покинуті форми |
 | `POST /campaigns/{id}/qr-links/{qr_id}/revoke` | admin | Зупинити нові скани; відкриті форми можна дописати, `expected` лишається в участі |
 | `POST /respond/qr/{code}` | без входу | Скан QR → `{token}` для `/s/{token}`. Недійсний код → 404 `qr_invalid`; відкрито форм більше за 3 × `expected` → 429 `qr_limit` |
-| `GET /respond/form`, `POST /respond/responses` | без входу, заголовок `X-Response-Token` | Анкета й подання за посиланням. Кожен розділ форми має `component` (`culture` / `system` / `accountability` / `overall`). Повтор → 409 `token_used`, недійсне → 404 `token_invalid`, перебір → 429 |
+| `GET /respond/form`, `POST /respond/responses` | без входу, заголовок `X-Response-Token` | Анкета й подання за посиланням. Кожен розділ форми має `component` (`culture` / `system` / `accountability` / `overall`). Повтор → 409 `token_used`, недійсне → 404 `token_invalid`, перебір → 429. Повторне подання за обліковим записом (зокрема одночасне, подвійний клік) → 409 `already_submitted` |
 | `PATCH /admin/units/{id}`, `DELETE /admin/units/{id}` | admin | Перейменувати, перенести (без циклів; не під час відкритої хвилі), видалити невикористаний |
 | `GET` / `POST /campaigns/{id}/checklist/{qid}/files` | перегляд: РГ, admin, commissioner, auditor; додавання: РГ | Файли-докази. Ліміти розміру, кількості, типів (за сигнатурою). Додавання знімає підтвердження |
 | `GET` / `DELETE /campaigns/{id}/checklist/{qid}/files/{file_id}` | як вище; видалення: РГ | Завантаження зі звіркою sha256 (`X-Content-SHA256`; невідповідність → 409 `evidence_tampered`), м'яке видалення |
@@ -295,6 +295,9 @@ stateDiagram-v2
 предметні: `token_used`, `token_invalid`, `not_draft`, `incomplete`, `evidence_tampered`, `unit_in_use`…). `message` і `hint` — для людини.
 `detail` лишився для сумісності (рядок або список, як раніше). `errors` — для 422 з шляхами полів. `request_id` збігається з
 заголовком `X-Request-ID`: за ним шукати в логах. Необроблені помилки повертаються як `500 internal` без тексту винятку.
+Порушення унікальності в БД (паралельний дубль запиту: подвійний клік, адмін і автопілот одночасно) — `409 conflict`, а не 500.
+Відкриття й закриття хвилі блокують її рядок, тож із двох одночасних запитів другий отримує звичайний 409.
+Тіло запиту обмежене `EVIDENCE_MAX_BYTES` + 1 МБ і за `Content-Length`, і за фактично прочитаними байтами (тіло частинами) → `413 too_large`.
 
 ## Результати й Integrity Index
 

@@ -20,6 +20,7 @@ import uuid
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from sqlalchemy.exc import IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 log = logging.getLogger("app.errors")
@@ -113,6 +114,64 @@ def configure_logging() -> None:
     logger.setLevel(logging.INFO)
 
 
+class BodyLimit:
+    """Грубий захист від завеликих тіл: найбільше легітимне тіло — файл-доказ (+1 МБ на форму).
+
+    Перевіряє і Content-Length (одразу, до розбору), і фактично прочитані байти: тіло частинами
+    (Transfer-Encoding: chunked) приходить без Content-Length і раніше проходило без обмеження.
+    """
+
+    def __init__(self, app) -> None:
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            return await self.app(scope, receive, send)
+        from app.config import get_settings
+
+        max_mb = get_settings().evidence_max_bytes // (1024 * 1024)
+        limit = get_settings().evidence_max_bytes + 1024 * 1024
+        hint = f"Максимум {max_mb} МБ на файл."
+        length = dict(scope.get("headers") or []).get(b"content-length", b"")
+        if length.isdigit() and int(length) > limit:
+            body = error_body(413, "Запит завеликий", code="too_large", hint=hint)
+            body["request_id"] = uuid.uuid4().hex
+            return await JSONResponse(body, status_code=413)(scope, receive, send)
+
+        received = 0
+        rejected = False
+
+        async def reject() -> None:
+            body = error_body(413, "Запит завеликий", code="too_large", hint=hint)
+            body["request_id"] = uuid.uuid4().hex
+            await JSONResponse(body, status_code=413)(scope, receive, send)
+
+        async def limited_receive():
+            nonlocal received, rejected
+            if rejected:
+                return {"type": "http.disconnect"}
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > limit:
+                    # Відповідаємо 413 самі (виняток тут FastAPI перетворив би на 400 «помилка розбору тіла»),
+                    # а застосунку кажемо, що клієнт відключився: далі він нічого не читає й не відповідає.
+                    rejected = True
+                    await reject()
+                    return {"type": "http.disconnect"}
+            return message
+
+        async def guarded_send(message) -> None:
+            if not rejected:
+                await send(message)
+
+        try:
+            await self.app(scope, limited_receive, guarded_send)
+        except Exception:
+            if not rejected:
+                raise
+
+
 def install(app: FastAPI) -> None:
     configure_logging()
 
@@ -127,19 +186,7 @@ def install(app: FastAPI) -> None:
         response.headers[REQUEST_ID_HEADER] = rid
         return response
 
-    @app.middleware("http")
-    async def body_limit(request: Request, call_next):
-        # Грубий захист від завеликих тіл до розбору: найбільше легітимне тіло — файл-доказ.
-        from app.config import get_settings
-
-        limit = get_settings().evidence_max_bytes + 1024 * 1024
-        length = request.headers.get("content-length")
-        if length and length.isdigit() and int(length) > limit:
-            body = error_body(413, "Запит завеликий", code="too_large",
-                              hint=f"Максимум {get_settings().evidence_max_bytes // (1024 * 1024)} МБ на файл.")
-            body["request_id"] = _request_id(request)
-            return JSONResponse(body, status_code=413)
-        return await call_next(request)
+    app.add_middleware(BodyLimit)
 
     @app.exception_handler(StarletteHTTPException)
     async def http_error(request: Request, exc: StarletteHTTPException):
@@ -161,6 +208,18 @@ def install(app: FastAPI) -> None:
         body = error_body(422, errors)
         body["request_id"] = _request_id(request)
         return JSONResponse(body, status_code=422)
+
+    @app.exception_handler(IntegrityError)
+    async def integrity_error(request: Request, exc: IntegrityError):
+        # Паралельний запит (подвійний клік, адмін і автопілот одночасно) уже створив такий самий запис:
+        # це конфлікт стану, а не збій сервера. Транзакцію відкотить get_db при закритті сесії.
+        rid = _request_id(request)
+        log.warning("%s → 409: порушення унікальності (request_id=%s): %s", _where(request), rid,
+                    str(exc.orig).splitlines()[0] if exc.orig else type(exc).__name__)
+        body = error_body(409, "Такий запис уже існує: схоже, запит надіслано двічі", code="conflict",
+                          hint="Оновіть сторінку: перша дія вже виконана.")
+        body["request_id"] = rid
+        return JSONResponse(body, status_code=409, headers={REQUEST_ID_HEADER: rid})
 
     @app.exception_handler(Exception)
     async def unhandled(request: Request, exc: Exception):

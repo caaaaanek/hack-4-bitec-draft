@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.audit import log_action
 from app.config import get_settings
 from app.db import get_db
+from app.errors import ApiError
 from app.models import Indicator, Role, Unit, User
 from app.clock import today
 from app.security import RESULT_READERS, ensure_unit_access, get_current_user, require_roles
@@ -153,6 +154,12 @@ def post_indicator(data: IndicatorIn, db: Session = Depends(get_db), actor: Inte
             Indicator.unit_id == data.unit_id, Indicator.period == data.period, Indicator.indicator == data.indicator
         )
     )
+    if row is not None and not actor.any_source and row.source != actor.source:
+        # Ключ джерела дозволяє писати лише свої показники: інакше одне джерело (чи викрадений ключ одного
+        # джерела) могло б тихо переписати факт іншого й змінити індекс. Хто першим передав показник
+        # підрозділу за місяць, той ним і володіє; переписати чужий може лише адмін або спільний ключ.
+        raise ApiError(409, f"Цей показник за {data.period} передало джерело «{row.source}»", code="source_conflict",
+                       hint="Ключ джерела може оновлювати лише показники, які передало саме це джерело.")
     if row is None:
         row = Indicator(unit_id=data.unit_id, period=data.period, indicator=data.indicator)
         db.add(row)
