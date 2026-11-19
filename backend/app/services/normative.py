@@ -116,10 +116,20 @@ def corpus(db: Session) -> list[dict]:
 
 # ---------- Документ ----------
 
+# Захист від «бомб»: 10 МБ стиснутого docx можуть розпакуватися в гігабайти XML, а PDF — мати тисячі сторінок.
+MAX_UNPACKED_BYTES = 50 * 1024 * 1024
+MAX_PDF_PAGES = 300
+
+
 def read_document(filename: str, raw: bytes) -> str:
     name = (filename or "").lower()
     if name.endswith(".docx"):
+        import zipfile
+
         from docx import Document
+        with zipfile.ZipFile(io.BytesIO(raw)) as z:
+            if sum(i.file_size for i in z.infolist()) > MAX_UNPACKED_BYTES:
+                raise ValueError("Документ після розпакування більший за 50 МБ: розділіть його на частини")
         doc = Document(io.BytesIO(raw))
         parts = [p.text for p in doc.paragraphs]
         for table in doc.tables:
@@ -129,7 +139,14 @@ def read_document(filename: str, raw: bytes) -> str:
     if name.endswith(".pdf"):
         from pypdf import PdfReader
         reader = PdfReader(io.BytesIO(raw))
-        return "\n\n".join((page.extract_text() or "") for page in reader.pages)
+        if len(reader.pages) > MAX_PDF_PAGES:
+            raise ValueError(f"У PDF понад {MAX_PDF_PAGES} сторінок: завантажте лише потрібний розділ")
+        text = ""
+        for page in reader.pages:
+            text += (page.extract_text() or "") + "\n\n"
+            if len(text) > MAX_CHARS:
+                break
+        return text
     for encoding in ("utf-8-sig", "cp1251"):
         try:
             return raw.decode(encoding)

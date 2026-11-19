@@ -1,7 +1,8 @@
 import uuid
 from datetime import date, datetime
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import AfterValidator, BaseModel, ConfigDict, Field
 
 from app.config import MIN_GROUP_SIZE_FLOOR
 from app.models import (
@@ -74,10 +75,20 @@ class UnitOut(ORM):
     parent_id: uuid.UUID | None
 
 
+def _password_bytes(value: str | None) -> str | None:
+    # bcrypt враховує лише 72 байти (≈ 36 літер кирилицею); довший пароль відхиляємо, а не обрізаємо мовчки.
+    if value is not None and len(value.encode()) > 72:
+        raise ValueError("Пароль задовгий: не більше 72 байтів (≈ 36 літер кирилицею або 72 латиницею)")
+    return value
+
+
+Password = Annotated[str, Field(min_length=8, max_length=128), AfterValidator(_password_bytes)]
+
+
 class UserCreate(BaseModel):
     login: str = Field(min_length=3, max_length=64, pattern=r"^[a-zA-Z0-9_.-]+$")
     display_name: str = Field(min_length=1, max_length=100)
-    password: str = Field(min_length=8, max_length=128)
+    password: Password
     role: Role
     category: RespondentCategory | None = None
     unit_id: uuid.UUID | None = None
@@ -85,7 +96,7 @@ class UserCreate(BaseModel):
 
 class UserUpdate(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=100)
-    password: str | None = Field(default=None, min_length=8, max_length=128)
+    password: Password | None = None
     role: Role | None = None
     category: RespondentCategory | None = None
     unit_id: uuid.UUID | None = None

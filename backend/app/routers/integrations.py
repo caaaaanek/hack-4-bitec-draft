@@ -2,7 +2,6 @@
 
 Контракт: docs/contracts/integra-mitra.yaml."""
 
-import hmac
 import uuid
 from datetime import date, datetime
 
@@ -15,7 +14,7 @@ from app.config import get_settings
 from app.db import get_db
 from app.errors import ApiError
 from app.models import Role, User
-from app.security import require_roles
+from app.security import keys_equal, require_roles
 from app.services import measures as service
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
@@ -134,7 +133,7 @@ def theme2_status_webhook(
     «Виконано» — лише з доказом: опис результату або документи з sha256 і посиланням на перевірку в Mitra.
     Повтор тієї ж події безпечний (`changed: false`), старіша за вже отриману (`occurred_at`) ігнорується."""
     key = get_settings().theme2_api_key
-    if not key or not x_integration_key or not hmac.compare_digest(x_integration_key, key):
+    if not keys_equal(x_integration_key, key):
         raise HTTPException(status_code=401, detail="Невірний ключ інтеграції")
     try:
         measure = service.find_measure(db, data.measure_id, data.external_id)

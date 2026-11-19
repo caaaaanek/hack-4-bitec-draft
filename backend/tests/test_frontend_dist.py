@@ -30,6 +30,8 @@ def test_pages_assets_and_api(tmp_path):
     assert r.headers["x-frame-options"] == "DENY"
     r = c.get("/s/abc123")
     assert r.status_code == 200 and r.headers["cache-control"] == "no-store"
+    r = c.get("/q/QRCODE42")  # скан QR для зали в режимі одного процесу
+    assert r.status_code == 200 and "id=root" in r.text and r.headers["cache-control"] == "no-store"
     r = c.get("/assets/app-1a2b.js")
     assert r.status_code == 200 and "immutable" in r.headers["cache-control"]
     assert c.get("/icon.svg").status_code == 200

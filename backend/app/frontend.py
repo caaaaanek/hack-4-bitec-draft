@@ -1,7 +1,7 @@
 """Роздача зібраного фронтенду (frontend-proto/dist) самим API: один процес і один порт без nginx.
 
 Вмикається змінною FRONTEND_DIST. Поведінка повторює frontend-proto/deploy/nginx.conf:
-`/` і `/s/<токен>` віддають index.html (без кешу, з тими самими заголовками безпеки), `/assets/*` кешується назавжди,
+`/`, `/s/<токен>` і `/q/<код>` віддають index.html (без кешу, з тими самими заголовками безпеки), `/assets/*` кешується назавжди,
 решта — лише наявні файли збірки. Маршрути /api, /docs і /health реєструються раніше й не перекриваються.
 """
 from pathlib import Path
@@ -55,6 +55,12 @@ def mount_frontend(app: FastAPI, dist: str) -> bool:
     # Одноразове посилання на анонімну анкету: та сама сторінка, без кешу (токен не лишається в кеші браузера).
     @app.get("/s/{token:path}", include_in_schema=False)
     def frontend_token(token: str):
+        return page("no-store")
+
+    # QR для зали /q/<код> (як location /q/ у nginx): сторінка сама робить POST /respond/qr/<код>.
+    # Без цього маршруту в режимі одного процесу (run-local.sh) скан QR давав 404.
+    @app.get("/q/{code:path}", include_in_schema=False)
+    def frontend_qr(code: str):
         return page("no-store")
 
     @app.get("/{name}", include_in_schema=False)
