@@ -82,11 +82,14 @@ function DeckList() {
 function Study({ code }) {
   const key = "deck:" + code, init = getProg(code), cardRef = useRef(null);
   const [i, setI] = useState(init.i || 0), [flip, setFlip] = useState(false), [seen, setSeen] = useState(() => Object.fromEntries(init.seen.map(x => [x, true]))), [busy, setBusy] = useState(false), [fin, setFin] = useState(false);
+  // turning: лічильник поворотів, 0 = картка в спокої. Поки картка обертається, прокрутку в гранях вимкнено (.turning)
+  const [turning, setTurning] = useState(0);
+  useEffect(() => { if (!turning) return; const t = setTimeout(() => setTurning(0), 700); return () => clearTimeout(t); }, [turning]); // запасне зняття класу
   const r = API.on ? apiMod(key, () => apiDeck(code)) : { data: DEMO_LEARN.decks.find(x => x.code === code) };
   const cards = r && r.data ? r.data.cards : [], n = cards.length, idx = Math.min(i, Math.max(0, n - 1)), c = cards[idx], last = idx === n - 1, all = n > 0 && cards.every(x => seen[x.id]);
   useEffect(() => { if (Object.keys(seen).length) setProg(code, { i: idx, seen: Object.keys(seen) }); }, [idx, seen, code]);
-  const turn = () => { if (!c) return; setFlip(f => !f); setSeen(s => ({ ...s, [c.id]: true })); };
-  const step = d => { const j = Math.max(0, Math.min(n - 1, idx + d)); if (j === idx) return; setI(j); setFlip(false); };
+  const turn = () => { if (!c) return; setFlip(f => !f); setSeen(s => ({ ...s, [c.id]: true })); if (!matchMedia("(prefers-reduced-motion: reduce)").matches) setTurning(t => t + 1); };
+  const step = d => { const j = Math.max(0, Math.min(n - 1, idx + d)); if (j === idx) return; setI(j); setFlip(false); setTurning(0); };
   useEffect(() => {
     const key = e => {
       if (fin || /INPUT|TEXTAREA|SELECT|BUTTON|A/.test(document.activeElement.tagName) || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -112,11 +115,12 @@ function Study({ code }) {
   return <div className="c12 fc-col">
     <div className="fc-top rise"><a className="btn btn-ghost" href="#learn"><Ic n="arrowL" />Усі колоди</a><b className="txt">{title}</b></div>
     <div className="sr-only" aria-live="polite">{said}</div>
-    <div className="fc-stack rise">
+    <div className="fc-stack">
       <span className="fc-layer l2" aria-hidden="true" /><span className="fc-layer l1" aria-hidden="true" />
-      <div ref={cardRef} className={`fc3 ${flip ? "flipped" : ""}`} tabIndex={0} role="group" aria-roledescription="картка" aria-label={`Картка ${idx + 1} з ${n}`}
+      <div ref={cardRef} className={`fc3 ${flip ? "flipped" : ""} ${turning ? "turning" : ""}`} tabIndex={0} role="group" aria-roledescription="картка" aria-label={`Картка ${idx + 1} з ${n}`}
         onClick={e => { if (!e.target.closest("button")) turn(); }} onKeyDown={e => { if (e.key === "Enter" && e.target === cardRef.current) { e.preventDefault(); turn(); } }}>
-        <div className="fc-in">
+        {/* key: нова картка монтується одразу лицем, без зворотного повороту від попередньої */}
+        <div key={idx} className="fc-in" onTransitionEnd={e => { if (e.target === e.currentTarget && e.propertyName === "transform") setTurning(0); }}>
           <div className="fc-face front" aria-hidden={flip}>
             <div className="fc-head"><span>Ситуація</span><span className="tnum">{idx + 1} з {n}</span></div>
             <button type="button" className="fc-flip" onClick={turn} tabIndex={flip ? -1 : 0}><Ic n="reset" />Перегорнути</button>

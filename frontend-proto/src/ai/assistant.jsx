@@ -4,7 +4,7 @@ import { Ic } from "../lib/icons.jsx";
 import { S, AI_ROLES, persist, addLog, me } from "../lib/state.js";
 import { apiAuth } from "../lib/api.js";
 import { COMPS, COMP, LEVELS, TRUST, SRC, ST, PRI, REC_ST, M_ST, CAP, ALPHA, level, status, allItems, buildRecs, measures, dispSt, CYCLE, TODAY } from "../lib/model.js";
-import { fb, f1, pts } from "../lib/format.js";
+import { fb, f1, pts, dsh } from "../lib/format.js";
 import { whyText, flagsText, trustText } from "../lib/texts.js";
 import { ui, render, toast } from "../lib/store.js";
 import { cur } from "../lib/nav.js";
@@ -75,7 +75,7 @@ export async function aiAsk(q) {
     try {
       const r = await fetch("/api/assistant", { method: "POST", headers: { "content-type": "application/json", ...apiAuth() }, body: JSON.stringify({ question: q, context: aiCtx(), history }) });
       const j = await r.json();
-      if (r.ok && j.text) msg = { r: "a", t: j.text, src: local.src, draft: local.draft || /звіт|чернетк|опис/i.test(q), live: true, model: j.model };
+      if (r.ok && j.text) msg = { r: "a", t: dsh(j.text), src: local.src, draft: local.draft || /звіт|чернетк|опис/i.test(q), live: true, model: j.model };
     } catch (e) { /* відповідь із шаблону */ }
   } else await new Promise(res => setTimeout(res, 650));
   if (!msg) msg = { r: "a", ...local, live: false };
