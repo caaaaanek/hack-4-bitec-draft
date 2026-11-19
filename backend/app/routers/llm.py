@@ -16,6 +16,8 @@ FORBIDDEN_MARKERS не викликаються; текст запитань у 
 
 import json
 import re
+import threading
+from contextlib import contextmanager
 from typing import Literal
 
 import httpx
@@ -102,6 +104,27 @@ class LlmStatus(BaseModel):
 
 # Помилки виклику моделі: мережа, HTTP-статус, неочікувана відповідь.
 CHAT_ERRORS = (httpx.HTTPError, KeyError, IndexError, TypeError, ValueError)
+
+_slots_lock = threading.Lock()
+_slots_busy = 0
+
+
+@contextmanager
+def model_slot():
+    """Не більше LLM_MAX_CONCURRENT одночасних звернень до моделі. Ендпоінти синхронні й виконуються в пулі
+    потоків сервера: без ліміту повільна модель (до 60 с × кроки інструментів) забрала б потоки в решти API.
+    Понад ліміт — 429, фронтенд тоді відповідає шаблонами правил."""
+    global _slots_busy
+    limit = max(1, get_settings().llm_max_concurrent)
+    with _slots_lock:
+        if _slots_busy >= limit:
+            raise HTTPException(status_code=429, detail="Асистент зараз зайнятий іншими запитами. Спробуйте за хвилину")
+        _slots_busy += 1
+    try:
+        yield
+    finally:
+        with _slots_lock:
+            _slots_busy -= 1
 
 
 def chat_message(base: str, key: str, model: str, messages: list[dict], tools: list[dict] | None = None) -> dict:
@@ -223,10 +246,11 @@ def ask(data: LlmIn, db: Session = Depends(get_db), user: User = Depends(require
 
     used: list[str] = []
     try:
-        if use_tools:
-            text, used = answer_with_tools(db, user, base, key, model, messages)
-        else:
-            text = chat(base, key, model, messages)
+        with model_slot():
+            if use_tools:
+                text, used = answer_with_tools(db, user, base, key, model, messages)
+            else:
+                text = chat(base, key, model, messages)
     except CHAT_ERRORS:
         raise HTTPException(status_code=502, detail="Модель не відповіла. Спробуйте ще раз або вимкніть асистента")
     if not text:
@@ -365,13 +389,14 @@ def edit(data: EditIn, db: Session = Depends(get_db), user: User = Depends(requi
                                             f"Інструкція: {data.instruction.strip()}"}]
     seen: list[str] = []
     try:
-        try:
-            action, text, note, used = edit_with_tools(db, user, ep, list(messages), data.mode, seen)
-        except httpx.HTTPStatusError as e:
-            if not tools_unsupported(e):
-                raise
-            action, text = edit_plain(ep, messages, data.mode, data.instruction)
-            note, used = None, []
+        with model_slot():
+            try:
+                action, text, note, used = edit_with_tools(db, user, ep, list(messages), data.mode, seen)
+            except httpx.HTTPStatusError as e:
+                if not tools_unsupported(e):
+                    raise
+                action, text = edit_plain(ep, messages, data.mode, data.instruction)
+                note, used = None, []
     except CHAT_ERRORS:
         raise HTTPException(status_code=502, detail="Модель не відповіла. Спробуйте ще раз")
     if not text:
