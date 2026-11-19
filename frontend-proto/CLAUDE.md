@@ -65,7 +65,7 @@ frontend-proto/
 **`lib/`**
 - `model.js` — модель і дані: `COMPS`, `COMP`, `LEVELS`, `LDESC`, `BOUNDS`, `CAP = 25`, `TODAY`/`CYCLE` (змінюються через `setClock`), `PERCEPTION`, `FACTS`, `credit`, `components`, `trust`, `FLAGS`, `ALPHA_HISTORY`, `OTHERS`, `inst(id)`, `INSTITUTIONS`, `UNITS`, `resolveUnit`, `buildRecs`, `measures`, `overdueDays`.
 - `state.js` — анкета `SURVEY`, ролі `ROLE`, меню `NAV` (`[route, label, icon, roles]`), `HOME`, `AI_ROLES`, стан `S` (localStorage `ii-proto-v2`), `persist`, `resetDemo`, журнал з хеш-ланцюгом (`fnv`, `addLog`, `logItems`).
-- `api.js` — режим бекенду: `boot` (зокрема скан QR `/q/<код>` → `/s/<токен>`), вхід/вихід, завантаження результатів, рішення, анкети, хвилі й QR для зали (`apiQrCreate`, `apiQrRevoke`, живі лічильники `apiQrTick`), чек-лист, журнал.
+- `api.js` — режим бекенду: `boot` (зокрема скан QR `/q/<код>` → `/s/<токен>`), вхід/вихід, завантаження результатів, рішення, анкети, хвилі й QR для зали (`apiQrCreate`, `apiQrRevoke`, живі лічильники `apiQrTick`), чек-лист, журнал. У текстах помилок назви полів сервера (`planned_close_on` тощо) замінюються підписями з інтерфейсу (`uaFields`).
 - `nav.js` — `route()`, `allowed`, `can`, `cur()`, `TITLES`, `isLogin`.
 - `store.js` — `render`, `useStore`, `ui`, панелі, поповер, сповіщення.
 - `format.js` (`fb`, `f1`, `pts`, `ua`, `plural`), `texts.js` (тексти «Чому такий індекс/достовірність»), `util.js` (завантаження файлу, копіювання), `icons.jsx` (`<Ic n="…"/>`).
@@ -74,7 +74,7 @@ frontend-proto/
 - `ui.jsx` — `Pill`, `LvPill`, `TrustPill`, `Num` (анімація числа), `Delta`, `LevelBar`, `Ticks`, `useWidth`.
 - `charts.jsx` — `MiniTrend`, `TrendChart`, `Radar` (SVG, ширина з `useWidth`).
 - `overlays.jsx` — підказка (`showTip`/`hideTip`, з урахуванням zoom через `Z()`/`zr()`), `Drawer`, `Pop` + `placePop`, `Toast`.
-- `DatePicker.jsx`, `UnitCombo.jsx`.
+- `DatePicker.jsx` (`min` вимикає минулі дні), `UnitCombo.jsx` (`UnitCombo` — пошук і створення підрозділу; `UnitPick` — вибір рівнями: підрозділ, далі структурний підрозділ; у формі нової хвилі).
 
 **`views/`**
 - `results.jsx` — «Огляд», «Розклад індексу», «Динаміка», «Порівняння», `ReadGuide`, вибір періоду (`PeriodPop`).
