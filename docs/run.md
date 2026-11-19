@@ -67,7 +67,7 @@ cp backend/.env.example backend/.env   # DATABASE_URL (PostgreSQL), JWT_SECRET �
 ./run-local.sh                          # збирає frontend-proto, міграції, seed з демо-хвилями → http://localhost:8000
 ```
 
-Сторінки, `/s/<токен>` і `/api/v1` — на тому ж порту, з тими самими заголовками безпеки, що й у nginx. `SKIP_BUILD=1` і `SKIP_SEED=1` пропускають відповідні кроки.
+Сторінки, `/s/<токен>`, QR `/q/<код>` і `/api/v1` — на тому ж порту, з тими самими заголовками безпеки, що й у nginx. `SKIP_BUILD=1` і `SKIP_SEED=1` пропускають відповідні кроки.
 
 ## Фронтенд
 
@@ -184,15 +184,19 @@ cd backend && python scripts/gen_docs.py   # тимчасова SQLite-база,
 ## Перевірки
 
 ```bash
-cd backend && pytest                    # бекенд: 289 тестів (на SQLite один тест xmin пропускається)
+cd backend && pytest                    # бекенд: 342 тести (на SQLite 5 пропускаються: xmin і гонки — лише PostgreSQL)
 TEST_DATABASE_URL=postgresql+psycopg://imd:пароль@localhost:5432/imd_test pytest   # те саме на PostgreSQL
-cd frontend && npm run check            # фронтенд: typecheck, lint, тести, збірка
-cd frontend && npm run check:contrast   # контраст кольорів
+cd frontend-proto && npm run build      # основний фронтенд: збірка без помилок (те саме робить CI)
+cd backend && python scripts/export_openapi.py   # після змін API: оновити docs/api/openapi.json
 ```
 
-`npm run verify` додатково збирає фронтенд, піднімає `vite preview` і знімає скріншоти всіх екранів у Playwright (Chromium має бути встановлений:
-`npx playwright install chromium`). Бекенд для цього не потрібен. Скріншоти лягають у `frontend/artifacts/` (не комітиться).
+`frontend-proto` не має власних юніт-тестів і лінтера; ручна перевірка екранів (ширини 1440 і 390, без горизонтального
+скролу й `pageerror`) описана в `frontend-proto/CLAUDE.md`, розділ «Як робити правку».
 
-> Після 5 невдалих спроб входу для пари логін + IP вхід блокується на 5 хвилин (429). Перезапуск сервера скидає лічильник.
+Старий `frontend/` (TypeScript) у compose не використовується, але його перевірки лишилися робочими:
+`cd frontend && npm run check` (typecheck, lint, тести, збірка), `npm run check:contrast`, `npm run verify` (скріншоти в Playwright).
+
+> Після 5 невдалих спроб входу для пари логін + IP вхід блокується на 5 хвилин (429). Лічильник зберігається в БД
+> (таблиця `login_failures`, лише хеші), тож переживає перезапуск і спільний для всіх процесів API: зачекайте 5 хвилин.
 > Анонімні посилання: рахуються лише невірні (5 за 5 хвилин з однієї IP → 429 саме для невірних); дійсне посилання
 > відкривається завжди, навіть з тієї ж адреси.

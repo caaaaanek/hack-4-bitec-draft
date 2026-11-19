@@ -49,10 +49,12 @@ cd backend && pytest
 | `app/models.py` | Таблиці БД |
 | `app/schemas.py` | Формати запитів і відповідей API |
 | `app/security.py` | Паролі, JWT, перевірка ролей |
-| `app/routers/` | Маршрути: `auth`, `admin`, `questionnaires`, `campaigns`, `respond`, `checklist`, `indicators`, `results`, `dashboard`, `recommendations`, `measures`, `reports`, `integrations`, `assistant` |
-| `app/services/` | Логіка: анкети й версії, перевірка відповідей, правила допуску, анонімність (буфер, вторинне приховування), методика й розрахунок Integrity Index, факти, знімки, рекомендації, заходи й черга для теми 2 |
+| `app/routers/` | Маршрути: `config` (налаштування й `/health`), `auth`, `admin`, `questionnaires`, `campaigns`, `respond`, `checklist`, `checks`, `indicators`, `results`, `dashboard`, `recommendations`, `measures`, `reports`, `integrations` (тема 2 / Mitra), `what_if`, `insights` (адвокат диявола, черговий), `normative`, `learning`, `autopilot`, `assistant` і `llm` (`/api/assistant` для frontend-proto) |
+| `app/services/` | Логіка: анкети й версії, перевірка відповідей, правила допуску, анонімність (буфер, вторинне приховування), методика й розрахунок Integrity Index, факти, знімки, рекомендації, заходи й черга для теми 2, «що, якщо», адвокат диявола, черговий, нормативка, автопілот, флешкартки, перевірки декларацій і закупівель |
 | `app/seed/` | Демо-дані, анкети з додатків Б і В, каталог заходів з Додатку Д (JSON) |
 | `migrations/` | Міграції Alembic |
 | `scripts/demo_wave.py` | Демо-хвиля через API від початку до кінця |
 | `adapters/`, `scripts/mock_sources.py` | Моки 5 джерел фактів (ARTEMIDA, атестація, навчання, закупівлі, повідомлення) → `POST /indicators`, кожне своїм ключем |
+| `scripts/export_openapi.py` | Оновлює `docs/api/openapi.json` з коду (запускати після змін API) |
+| `scripts/smoke.py`, `scripts/mitra_mock.py` | Перевірка стенду з кінця в кінець; мок Mitra (тема 2) для інтеграції |
 | `scripts/gen_docs.py` | Генерує `docs/recommendations.md` і `docs/cross-check.md` з прогону на тимчасовій базі (демо-seed, фіксована дата) |

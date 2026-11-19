@@ -49,7 +49,7 @@ class AnalyzeOut(BaseModel):
 
 
 @router.post("/analyze", response_model=AnalyzeOut)
-async def analyze(
+def analyze(
     file: UploadFile | None = File(default=None, description=".txt, .md, .docx або .pdf"),
     text: str | None = Form(default=None, description="Або сам текст документа"),
     title: str | None = Form(default=None, max_length=200),
@@ -60,10 +60,12 @@ async def analyze(
 
     Документ не зберігається; у журнал дій потрапляють лише назва, розмір і хеш.
     """
+    # Навмисно не async: FastAPI виконує обробник у пулі потоків. Розбір PDF/DOCX і TF-IDF — секунди CPU,
+    # в async-обробнику вони зупиняли б цикл подій, тобто весь API для всіх користувачів.
     if file is None and not (text and text.strip()):
         raise ApiError(422, "Додайте файл або текст документа", code="validation_error")
     if file is not None:
-        raw = await file.read(MAX_BYTES + 1)
+        raw = file.file.read(MAX_BYTES + 1)
         if len(raw) > MAX_BYTES:
             raise ApiError(413, "Файл більший за 10 МБ", code="too_large")
         name = title or file.filename or "документ"

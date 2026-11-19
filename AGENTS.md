@@ -37,8 +37,11 @@ git switch dev && git merge --no-ff feature/questionnaire-json && git push
 
 Огляд модулів і дерево проєкту — `README.md`.
 
-- `backend/` — FastAPI. Перед комітом: `cd backend && pytest`. Ваги й пороги індексу міняються лише в `app/services/methodology.py`, зміни API — разом із `docs/api/openapi.json` і `docs/backend.md`.
-- `frontend/` — Vite + React. Перед комітом: `cd frontend && npm run check`. Локальні правила UI (тексти, кольори, доступність) — `frontend/CLAUDE.md`; правила гілок і комітів звідси діють і там.
+- `backend/` — FastAPI. Перед комітом: `cd backend && pytest`. Ваги й пороги індексу міняються лише в `app/services/methodology.py`, зміни API — разом із `docs/api/openapi.json` (`python scripts/export_openapi.py`) і `docs/backend.md`. Після змін правил,
+  методики чи seed — `python scripts/gen_docs.py` (оновлює `docs/recommendations.md` і `docs/cross-check.md`).
+- `frontend-proto/` — основний UI (React + Vite, JSX), саме він іде в `docker compose`. Перед комітом: `cd frontend-proto && npm run build`
+  і перевірка екранів за `frontend-proto/CLAUDE.md`. Правила гілок і комітів звідси діють і там.
+- `frontend/` — попередній UI (TypeScript), у compose не використовується. Якщо змінюєте: `cd frontend && npm run check`; локальні правила — `frontend/CLAUDE.md`.
 - `docs/` — джерела хакатону (`raw/` — оригінали, `md/` — оброблене) і документація проєкту. Як додавати й конвертувати джерела — `docs/README.md` і скіл `.claude/skills/ingest-docs/SKILL.md`.
 
 Документацію оновлюємо в тому ж коміті, що й код, який вона описує.

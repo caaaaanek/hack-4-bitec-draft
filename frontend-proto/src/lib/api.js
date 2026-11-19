@@ -233,7 +233,7 @@ function apiExternal(e) {
   return { system: e.system, state: e.state, t: t.charAt(0).toUpperCase() + t.slice(1), url: e.url, note: e.note, summary: e.summary,
     docs: (e.documents || []).map(d => ({ name: d.name, sha: d.sha256, url: d.verify_url })) };
 }
-const MEAS_BACK = { accepted: "planned", inprogress: "in_progress", done: "done" };
+const MEAS_BACK = { accepted: "planned", inprogress: "in_progress", done: "done", cancelled: "cancelled" };
 
 async function apiLoadResults() {
   API.model = null; API.empty = false; API.recs = []; API.ms = [];
@@ -251,7 +251,9 @@ async function apiLoadResults() {
   API.res = r; API.recs = recs.items.map(x => apiRec(x, API.model, r));
   const titles = Object.fromEntries(recs.items.map(x => [x.code, x.title]));
   API.ms = ms.map(x => apiMeasure(x, titles));
-  setClock(new Date().toISOString().slice(0, 10), API.model.series[API.model.series.length - 1].cycle);
+  // Локальна дата, а не UTC: інакше з 00:00 до 02:00 за Києвом «сьогодні» було б учорашнім, і прострочення рахувалося б на день менше.
+  const now = new Date(), localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  setClock(localToday, API.model.series[API.model.series.length - 1].cycle);
   const n = API.model.series.length;
   S.trend = { from: 0, to: n - 1, lines: [] }; S.cmp = { a: Math.max(0, n - 2), b: n - 1 };
 }
@@ -267,7 +269,9 @@ export async function apiDecide(code, decision, comment, measure) {
 export async function apiSendMSt(id, st, evidence, reason) {
   // done_on не передаємо: сервер ставить сьогоднішню дату за своїм часовим поясом (TIMEZONE), а не за UTC браузера.
   // reason: обов'язкова причина повернення виконаного заходу (сервер пише її в журнал дій).
-  await api(`/measures/${id}`, { method: "PATCH", body: { status: MEAS_BACK[st] || "in_progress", ...(st === "done" ? { evidence } : {}), ...(reason ? { reason } : {}) } });
+  // Невідомий статус не підміняємо на in_progress: краще помилка, ніж тихо не той перехід.
+  if (!MEAS_BACK[st]) throw new Error(`Невідомий статус заходу: ${st}`);
+  await api(`/measures/${id}`, { method: "PATCH", body: { status: MEAS_BACK[st], ...(st === "done" ? { evidence } : {}), ...(reason ? { reason } : {}) } });
   await apiReloadResults();
 }
 
