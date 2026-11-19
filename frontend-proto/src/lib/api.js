@@ -22,7 +22,7 @@ const SESSION_KEY = "ii-session";
 function apiToken() { try { return sessionStorage.getItem(SESSION_KEY); } catch (e) { return null; } }
 function apiSetToken(t) { try { if (t) sessionStorage.setItem(SESSION_KEY, t); else sessionStorage.removeItem(SESSION_KEY); } catch (e) { /* сховище недоступне */ } }
 export const apiAuth = () => { const t = apiToken(); return t ? { Authorization: "Bearer " + t } : {}; };
-export class ApiErr extends Error { constructor(status, body, requestId) { super((body && body.message) || "Сервер не відповів"); this.status = status; this.code = body && body.code; this.hint = (body && body.hint) || ""; this.requestId = (body && body.request_id) || requestId || null; } }
+export class ApiErr extends Error { constructor(status, body, requestId) { super((body && body.message) || "Сервер не відповів"); this.status = status; this.code = body && body.code; this.hint = (body && body.hint) || ""; this.requestId = (body && body.request_id) || requestId || null; this.errors = body && Array.isArray(body.errors) ? body.errors : []; this.missing = body && Array.isArray(body.missing_question_ids) ? body.missing_question_ids : []; } }
 export async function api(path, { method = "GET", body, headers = {}, auth = true, raw = false } = {}) {
   const h = { Accept: "application/json", ...(auth ? apiAuth() : {}), ...headers };
   let b;
@@ -41,7 +41,9 @@ export async function api(path, { method = "GET", body, headers = {}, auth = tru
 }
 // Для збоїв сервера (5xx) додаємо код запиту: за ним адміністратор знайде запис у журналі сервера
 // Відмова переходу статусу містить службові назви статусів: показуємо зрозумілий текст
-export const apiErrText = e => e instanceof ApiErr && e.code === "bad_transition" ? "Такий перехід статусу недоступний. Оновіть сторінку: статус могли змінити." : e instanceof ApiErr ? `${e.message}${e.hint ? ". " + e.hint : ""}${e.status >= 500 && e.requestId ? ` Код запиту: ${e.requestId}` : ""}` : "Не вдалося виконати дію";
+// 422 з переліком полів: до трьох причин з errors (без шляхів полів), інакше видно лише «Дані не пройшли перевірку»
+const errReasons = e => [...new Set(e.errors.map(i => String((i && i.message) || "").replace(/^Value error,\s*/i, "").trim()).filter(Boolean))].slice(0, 3).join("; ");
+export const apiErrText = e => e instanceof ApiErr && e.code === "bad_transition" ? "Такий перехід статусу недоступний. Оновіть сторінку: статус могли змінити." : e instanceof ApiErr ? `${e.message}${errReasons(e) ? ": " + errReasons(e) : ""}${e.hint ? ". " + e.hint : ""}${e.status >= 500 && e.requestId ? ` Код запиту: ${e.requestId}` : ""}` : "Не вдалося виконати дію";
 export const apiFail = e => toast(apiErrText(e));
 
 /* --- Ролі: обліковий запис → роль інтерфейсу --- */
@@ -235,7 +237,8 @@ async function apiLoadResults() {
   const q = d.unit_id ? `?unit_id=${d.unit_id}` : "";
   const [r, h, recs, ms] = await Promise.all([
     api(`/campaigns/${d.campaign_id}/results${q}`), api(`/units/${d.unit_id}/history`).catch(() => api(`/units/${d.unit_id}/history`)).catch(() => null), // один повтор на випадок короткого збою мережі чи сервера (код запиту збою — у журналі сервера)
-    api(`/campaigns/${d.campaign_id}/recommendations${q}`).catch(() => ({ items: [] })), api(`/measures${q}`).catch(() => []),
+    // 404 і 409 (хвиля ще не закрита) дають порожній список; інші збої не ховаємо
+    api(`/campaigns/${d.campaign_id}/recommendations${q}`).catch(e => { if (e.status !== 404 && e.status !== 409) apiFail(e); return { items: [] }; }), api(`/measures${q}`).catch(() => []),
   ]);
   API.model = apiModel(r, h);
   API.res = r; API.recs = recs.items.map(x => apiRec(x, API.model, r));
@@ -282,8 +285,11 @@ export async function apiSubmitSurvey() {
     if (sv.kind === "token") await api("/respond/responses", { method: "POST", auth: false, headers: { "X-Response-Token": API.token }, body: { answers } });
     else await api(`/campaigns/${sv.campaignId}/questionnaires/${sv.questionnaireId}/responses`, { method: "POST", body: { answers } });
   } catch (e) {
-    if (e.code === "token_used" || e.status === 409) { API.surveyUsed = true; API.surveyMsg = "used"; render(); return; }
-    toast(apiErrText(e)); return;
+    // «Вже пройдено» лише коли сервер так і каже; інші 409 (хвиля не відкрита тощо) ідуть тостом
+    if (e.code === "already_submitted" || e.code === "token_used") { API.surveyUsed = true; API.surveyMsg = "used"; render(); return; }
+    if (e.code === "campaign_not_open") { API.survey = null; API.surveyMsg = "closed"; render(); return; }
+    if (e.missing && e.missing.length) S.survey.miss = true;
+    toast(apiErrText(e)); render(true); return;
   }
   S.survey = { phase: "done", sec: 0, a: {}, miss: false }; API.surveyUsed = sv.kind === "token";
   try { localStorage.removeItem("ii-survey-draft"); } catch (e) { /* немає */ }
@@ -334,7 +340,7 @@ export async function apiCreateCampaign(body) {
 }
 export async function apiCampaignAct(id, act) {
   try { await api(`/campaigns/${id}/${act}`, { method: "POST" }); toast(act === "open" ? "Хвилю відкрито: респонденти бачать анкети" : "Хвилю закрито: знімок результатів збережено"); if (act === "close") API.model = null; apiAdmReload(id); }
-  catch (e) { apiFail(e); }
+  catch (e) { apiFail(e); apiAdmReload(id); } // статус хвилі міг змінитися: показуємо актуальний
 }
 // QR для зали: одне посилання на групу (анкета + підрозділ), expected — скільки людей у групі
 export async function apiQrCreate(id, questionnaireId, unitId, expected) {
