@@ -181,6 +181,18 @@ def archive(questionnaire_id: uuid.UUID, db: Session = Depends(get_db), user: Us
     return questionnaire
 
 
+@router.post("/{questionnaire_id}/restore", response_model=QuestionnaireOut)
+def restore(questionnaire_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(commissioner_only)):
+    """Повернути анкету з архіву в опубліковані. Зміст не змінюється, тож відповіді лишаються порівнюваними."""
+    questionnaire = get_or_404(db, questionnaire_id)
+    if questionnaire.status != QuestionnaireStatus.ARCHIVED:
+        raise HTTPException(status_code=409, detail="Повернути можна лише анкету з архіву")
+    questionnaire.status = QuestionnaireStatus.PUBLISHED
+    log_action(db, user, "restore", "questionnaire", questionnaire.id)
+    db.commit()
+    return questionnaire
+
+
 @router.delete("/{questionnaire_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_draft(questionnaire_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(commissioner_only)):
     questionnaire = get_or_404(db, questionnaire_id)

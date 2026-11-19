@@ -215,7 +215,8 @@ function ApiSurveys() {
       <div className="lbl" style={{ marginTop: 10 }}>Оновлено {ua(q.updated_at.slice(0, 10))}</div><div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end" }}>
         <button className="btn btn-soft" onClick={() => apiOpenQ(q.id)}><Ic n="eye" />Переглянути</button>
         {q.status === "draft" ? <><button className="btn btn-soft" onClick={() => bldOpen(q.id)}><Ic n="edit" />Редагувати</button><button className="btn btn-primary" onClick={() => apiQAct(q.id, "publish")}><Ic n="ok" />Опублікувати</button></>
-          : q.status === "published" ? <><button className="btn btn-ghost" onClick={() => apiQAct(q.id, "new-version")}><Ic n="plus" />Нова версія</button><button className="btn btn-ghost" onClick={() => apiQAct(q.id, "archive")}>В архів</button></> : null}</div>
+          : q.status === "published" ? <><button className="btn btn-ghost" onClick={() => apiQAct(q.id, "new-version")}><Ic n="plus" />Нова версія</button><button className="btn btn-ghost" onClick={() => apiQAct(q.id, "archive")}>В архів</button></>
+          : q.status === "archived" ? <button className="btn btn-ghost" onClick={() => apiQAct(q.id, "restore")}>Повернути з архіву</button> : null}</div>
     </section>)}
   </>;
 }

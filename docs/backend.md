@@ -63,6 +63,7 @@ stateDiagram-v2
   draft --> published: POST /publish (якщо перевірка пройдена)
   published --> draft: POST /new-version (копія, version+1)
   published --> archived: POST /archive
+  archived --> published: POST /restore
   draft --> [*]: DELETE
 ```
 
@@ -173,7 +174,7 @@ stateDiagram-v2
 | `PATCH /questionnaires/{id}` | commissioner | Назва, опис, тип, категорія |
 | `PUT /questionnaires/{id}/structure` | commissioner | Зберегти всю структуру конструктора |
 | `GET /questionnaires/{id}/validate` | commissioner | Що заважає публікації |
-| `POST /questionnaires/{id}/publish` · `/new-version` · `/archive` | commissioner | Життєвий цикл |
+| `POST /questionnaires/{id}/publish` · `/new-version` · `/archive` · `/restore` | commissioner | Життєвий цикл (повернення з архіву не змінює змісту) |
 | `DELETE /questionnaires/{id}` | commissioner | Видалити чернетку |
 | `GET/POST /campaigns`, `POST /campaigns/{id}/open` · `/close` | admin (читати список: також commissioner, leader, auditor) | Хвилі. `min_group_size` ≥ 5. Відкриття фіксує склад (хвиля `login`); при закритті зашифрований буфер переноситься в `responses` |
 | `GET /campaigns/{id}/progress` | admin | % проходження без імен; `over_expected` — відповідей більше, ніж людей у групі (ознака накрутки QR) |
