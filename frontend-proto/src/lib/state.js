@@ -51,7 +51,7 @@ export const NAV = [
   ["tracker", "Трекер", "target", ["leader", "auditor"]],
   ["sources", "Джерела", "plug", ["leader", "observer", "auditor"]],
   ["watch", "Черговий", "eye", ["leader", "observer", "auditor", "admin", "commissioner", "coordinator"]],
-  ["advocate", "Адвокат диявола", "scale", ["leader", "observer", "auditor", "admin", "commissioner"]],
+  ["advocate", "Питання перевірки", "scale", ["leader", "observer", "auditor", "admin", "commissioner"]],
   ["report", "Звіт", "file", ["leader", "observer"]],
   ["manage", "Керування циклом", "sliders", ["admin"]],
   ["autopilot", "Автопілот хвилі", "bolt", ["coordinator", "auditor"]],

@@ -425,7 +425,7 @@ export const AUDIT_ACT = {
   "questionnaire:create": "Створено анкету", "questionnaire:update_meta": "Змінено анкету", "questionnaire:publish": "Опубліковано анкету", "questionnaire:new_version": "Створено нову версію анкети", "questionnaire:archive": "Анкету архівовано", "questionnaire:delete": "Видалено анкету",
   "recommendation:decide": "Ухвалено рішення щодо рекомендації",
   "unit:create": "Створено підрозділ", "unit:update": "Змінено підрозділ", "unit:delete": "Видалено підрозділ", "unit:compare": "Порівняно хвилі підрозділу", "unit:view_history": "Переглянуто історію підрозділу",
-  "campaign:devils_advocate": "Переглянуто питання «Адвоката диявола»", "campaign:autopilot": "Змінено налаштування автопілота хвилі", "autopilot:tick": "Виконано крок автопілота",
+  "campaign:devils_advocate": "Переглянуто питання перевірки", "campaign:autopilot": "Змінено налаштування автопілота хвилі", "autopilot:tick": "Виконано крок автопілота",
   "normative:analyze": "Проаналізовано нормативний документ", "learning_deck:complete": "Пройдено колоду флешкарток", "indicator:publish": "Записано показник із модуля системи",
   "check_run:run": "Запущено перевірку", "check_run:fetch": "Отримано дані для перевірки", "check_finding:review": "Розглянуто знахідку перевірки",
   "user:create": "Створено користувача", "user:update": "Змінено користувача", "user:login_proxy": "Вхід через проксі",
