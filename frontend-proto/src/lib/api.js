@@ -68,6 +68,8 @@ export async function boot() {
   API.on = true; API.cfg = cfg; S.k = cfg.min_group_size;
   // Розподіл прав як на бекенді: укладач підтверджує чек-лист, робоча група ще й проходить анкету.
   NAV.find(n => n[0] === "checklist")[3].push("commissioner", "auditor");
+  // Бекенд дає результати й уповноваженому, і укладачу (RESULT_READERS): лише перегляд, без рішень і заходів.
+  for (const r of ["overview", "explain", "trends", "compare"]) NAV.find(n => n[0] === r)[3].push("admin", "commissioner");
   for (const r of ["survey", "me"]) NAV.find(n => n[0] === r)[3].push("checklist_editor");
   NAV.find(n => n[0] === "survey")[1] = "Пройти анкету";
   const tm = location.pathname.match(/^\/s\/([^/?#]+)/);

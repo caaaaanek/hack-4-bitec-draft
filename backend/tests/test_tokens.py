@@ -171,6 +171,16 @@ def test_login_respondents_cannot_use_token_campaign(client):
     assert r.status_code == 409 and r.json()["code"] == "token_only"
 
 
+def test_working_group_sees_checklist_of_token_campaign(client):
+    campaign_id, q, admin = token_campaign(client, codes=(STAFF, "nazk-checklist"))
+    client.post(f"{API}/campaigns/{campaign_id}/open", headers=admin)
+    mine = [a for a in client.get(f"{API}/me/assignments", headers=auth(client, "wg1")).json()
+            if a["campaign_id"] == campaign_id]
+    assert [(a["questionnaire_id"], a["kind"]) for a in mine] == [(q["nazk-checklist"], "checklist")]
+    staff = client.get(f"{API}/me/assignments", headers=auth(client, "staff01")).json()
+    assert all(a["campaign_id"] != campaign_id for a in staff)
+
+
 def test_revoked_and_closed_tokens_stop_working(client):
     campaign_id, q, admin = token_campaign(client)
     unit = units(client, admin)["Підрозділ А"]

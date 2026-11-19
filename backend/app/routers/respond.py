@@ -77,13 +77,16 @@ def load_assignment(db: Session, user: User, campaign_id: uuid.UUID, questionnai
 @router.get("/me/assignments", response_model=list[AssignmentOut])
 def my_assignments(db: Session = Depends(get_db), user: User = Depends(respondent_only)):
     result = []
-    for campaign in db.scalars(select(Campaign).where(Campaign.status == CampaignStatus.OPEN,
-                                                      Campaign.access_mode == AccessMode.LOGIN)):
+    for campaign in db.scalars(select(Campaign).where(Campaign.status == CampaignStatus.OPEN)):
         units = subtree_ids(db, campaign.unit_id)
         participants = participants_of(db, campaign)
         frozen = frozen_of(db, campaign)
+        token_only = campaign.access_mode == AccessMode.TOKEN
         for link in campaign.questionnaire_links:
             questionnaire: Questionnaire = link.questionnaire
+            # Анкети анонімної хвилі проходять лише за посиланням; чек-лист робоча група вносить під своїм входом.
+            if token_only and questionnaire.kind != QuestionnaireKind.CHECKLIST:
+                continue
             # Чек-лист не має складу учасників (вносить робоча група): за правилом.
             fixed = None if questionnaire.kind == QuestionnaireKind.CHECKLIST else frozen
             if can_answer(user, questionnaire, units, participants, fixed):

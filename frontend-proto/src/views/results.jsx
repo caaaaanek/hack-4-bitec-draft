@@ -65,7 +65,7 @@ export function Overview() {
         sub={<>{TRUST[m.trust][1]}<br /><span className="lbl">Прапорці: {m.raised.length}</span></>} />
       {S.role === "observer"
         ? <Tile ic="users" title="Відповідей у циклі" big={<span className="mid tnum">{m.responses}</span>} sub={<span className="lbl">Мінімальна група k = {S.k}</span>} act={openResp} info={openRespHow} tip="Що таке мінімальна група k" />
-        : <Tile ic="target" title="Заходи в трекері" big={<span className="mid tnum">{ms.length}</span>} sub={od ? <span style={{ color: "var(--red)", fontWeight: 600 }}>З них {od} прострочено</span> : <span className="lbl">Прострочених немає</span>} act={() => go("tracker")} info={openTrackerHow} tip="Як працює трекер заходів" />}
+        : <Tile ic="target" title="Заходи в трекері" big={<span className="mid tnum">{ms.length}</span>} sub={od ? <span style={{ color: "var(--red)", fontWeight: 600 }}>З них {od} прострочено</span> : <span className="lbl">Прострочених немає</span>} act={can("tracker") ? () => go("tracker") : undefined} info={openTrackerHow} tip="Як працює трекер заходів" />}
     </div>
     <section className="card c8 rise" id="attn">
       <div className="attn-cols"><div>
