@@ -222,7 +222,14 @@ function apiMeasure(x, titles) {
   const v = x.verification || {}, st = x.status === "done" && VERIFY_ST[v.status] ? VERIFY_ST[v.status] : MEAS_ST[x.status] || "accepted";
   const d = v.delta != null ? ` (${v.delta > 0 ? "+" : ""}${fb(v.delta)})` : "";
   const vf = x.status === "done" ? (st === "confirmed" ? [`Підтверджено: компонент зріс${d}`, "p-good"] : st === "notconfirmed" ? [`Не підтверджено: ${v.title || "без змін"}${d}`, "p-bad"] : v.status === "check_data" ? ["Перевірити дані: достовірність C", "p-warn"] : ["Очікує наступного оцінювання", "p-info"]) : null;
-  return { id: x.id, rec: titles[x.recommendation_code] || (x.recommendation_code ? "попередньої хвилі" : "окремий захід"), t: x.title, who: x.owner, due: x.due_date, st, ind: x.component, vf, vrule: v.rule };
+  return { id: x.id, rec: titles[x.recommendation_code] || (x.recommendation_code ? "попередньої хвилі" : "окремий захід"), t: x.title, who: x.owner, due: x.due_date, st, ind: x.component, vf, vrule: v.rule, ext: apiExternal(x.external) };
+}
+// Стан заходу в Mitra (тема 2): бекенд приймає лише посилання на адресу Mitra з налаштувань (THEME2_PUBLIC_URL)
+function apiExternal(e) {
+  if (!e) return null;
+  const t = e.state_title || `надіслано в ${e.system}`;
+  return { system: e.system, state: e.state, t: t.charAt(0).toUpperCase() + t.slice(1), url: e.url, note: e.note, summary: e.summary,
+    docs: (e.documents || []).map(d => ({ name: d.name, sha: d.sha256, url: d.verify_url })) };
 }
 const MEAS_BACK = { accepted: "planned", inprogress: "in_progress", done: "done" };
 

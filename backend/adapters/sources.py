@@ -217,4 +217,44 @@ class Reports(Source):
                      extra={"pending": lambda r: r["answered_on"] is None})
 
 
-SOURCES: dict[str, Source] = {s.name: s for s in (Artemida(), Atestat(), Training(), Procurement(), Reports())}
+class Mitra(Source):
+    """Mitra — тема 2 цього хакатону (моніторинг виконання антикорупційної програми). Справжня Mitra сама шле
+    факт POST /indicators (source "mitra", контракт docs/contracts/integra-mitra.yaml); тут лише мок для демо
+    без їхнього стенду.
+
+    Записи (JSON): {"system": "Mitra", "measures": [{"measure_code", "org_code", "due_on", "state", "closed_on"}]}
+    state: DONE / PARTIAL / NOT_DONE / IN_PROGRESS. Факт program_measures_on_time: закриті «Виконано» до строку /
+    заходи, строк яких настав (або вже закриті).
+    """
+
+    name = "mitra"
+    title = "Mitra, виконання антикорупційної програми (мок)"
+    indicators = ("program_measures_on_time",)
+
+    def mock_records(self, orgs, periods, as_of):
+        rows = []
+        for org in orgs:
+            for period in periods:
+                rng = _rng(self.name, org, period)
+                for i in range(rng.randint(1, 4)):
+                    due = _day(period, rng)
+                    on_time = rng.random() < ORG_QUALITY[org]
+                    closed = due - timedelta(days=rng.randint(0, 10)) if on_time else due + timedelta(days=rng.randint(1, 30))
+                    state = "DONE" if on_time or rng.random() < 0.5 else rng.choice(["PARTIAL", "NOT_DONE"])
+                    if closed > as_of:
+                        closed, state = None, "IN_PROGRESS"
+                    rows.append({"measure_code": f"{period}-{org}-{i}", "org_code": org, "due_on": due.isoformat(),
+                                 "state": state, "closed_on": _iso(closed)})
+        return {"system": "Mitra", "measures": rows}
+
+    def facts(self, data, periods, as_of):
+        rows = [r for r in data["measures"] if _due(r, as_of, "due_on", "closed_on")]
+        ok = lambda r: r["state"] == "DONE" and r["closed_on"] is not None and r["closed_on"] <= r["due_on"]  # noqa: E731
+        return tally(rows, source=self.name, indicator="program_measures_on_time", when="due_on", ok=ok,
+                     periods=periods, why="Mitra: заходи антикорупційної програми, закриті «Виконано» до строку",
+                     extra={"partial": lambda r: r["state"] == "PARTIAL", "not_done": lambda r: r["state"] == "NOT_DONE",
+                            "overdue": lambda r: r["closed_on"] is None})
+
+
+SOURCES: dict[str, Source] = {s.name: s for s in (Artemida(), Atestat(), Training(), Procurement(), Reports(),
+                                                    Mitra())}

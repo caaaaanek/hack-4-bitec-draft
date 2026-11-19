@@ -32,6 +32,7 @@ from app.routers import (
 from app.routers import autopilot as autopilot_router
 from app.routers import config as config_router
 from app.services import autopilot as autopilot_service
+from app.services import measures as measures_service
 from app.routers import llm as llm_router
 
 API_PREFIX = "/api/v1"
@@ -66,7 +67,9 @@ async def lifespan(_: FastAPI):
     # Без надійного секрету JWT застосунок не стартує.
     check_settings(get_settings())
     autopilot_service.start()
+    measures_service.start_sync()
     yield
+    measures_service.stop_sync()
     autopilot_service.stop()
 
 

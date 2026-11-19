@@ -43,9 +43,15 @@ class Settings(BaseSettings):
     integration_keys: str = ""
 
     # Інтеграція з темою 2 (трекер заходів колег). Порожня адреса: інтеграцію вимкнено.
+    # Mitra: THEME2_URL=http://mitra/api/integrations/integra (ми шлемо POST {THEME2_URL}/measures).
     theme2_url: str = ""
     theme2_api_key: str = ""
     theme2_timeout_seconds: float = 5.0
+    # Адреса веб-інтерфейсу Mitra. Посилання на доказ (/verify) і на захід приймаються лише з цієї адреси.
+    # Порожньо: береться схема й хост із THEME2_URL.
+    theme2_public_url: str = ""
+    # Як часто надсилати чергу заходів у Mitra, секунд. 0 — лише вручну (POST /integrations/theme2/sync).
+    theme2_sync_seconds: float = 10
 
     # Опційний асистент (чат-бот). Вимкнено за замовчуванням, система повністю працює без нього.
     assistant_enabled: bool = False

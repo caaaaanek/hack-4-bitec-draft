@@ -1,0 +1,249 @@
+openapi: 3.1.0
+info:
+  title: "Integra ↔ Mitra: контракт інтеграції (integra-mitra/1)"
+  version: "1.0.0"
+  description: |
+    Спільний контракт двох команд хакатону. Однакова копія лежить в обох репозиторіях; кожна команда реалізує лише
+    свій бік і не бере код іншої.
+
+    - **Integra** (тема 3, Integrity Management Dashboard) — оцінювання доброчесності, рекомендації, трекер заходів.
+    - **Mitra** (тема 2) — моніторинг виконання антикорупційної програми.
+
+    Потоки:
+    1. **Integra → Mitra: захід.** Керівник приймає рекомендацію в Integra → захід іде в Mitra (`POST /measures`)
+       і падає у «вхідні» координатора. Координатор **пов'язує** його з наявним заходом програми або **відхиляє**.
+       Нових заходів програми Mitra автоматично не створює.
+    2. **Mitra → Integra: статус.** Коли в пов'язаного заходу змінюється стан, Mitra шле вебхук через свою чергу з
+       повторами. «Виконано» йде з доказом: опис результату + документи з sha256 і посиланням на `/verify` у Mitra.
+    3. **Mitra → Integra: факт** (опційно). Раз на місяць по підрозділу: «заходи програми виконано вчасно, X з Y»
+       (`POST /api/v1/indicators`, `indicator: program_measures_on_time`, `source: mitra`).
+
+    Спільні правила:
+    - **Без персональних даних.** Відповідальний — посада. Імен, ПІБ, ID людей немає в жодному повідомленні;
+      Integra відхиляє зайві поля (422).
+    - **Ключі.** Заголовок `X-Integration-Key`. Для потоків 1–2 — один спільний ключ (`THEME2_API_KEY` в Integra).
+      Для фактів — окремий ключ джерела `mitra` (`INTEGRATION_KEYS="mitra=…"` в Integra).
+    - **Ідемпотентність.** Повтор того самого повідомлення безпечний: Integra шле `measure.upsert` повністю (не дельту),
+      Mitra повертає той самий `id`. Повтор вебхука Integra приймає з `changed: false`; подія, старіша за вже
+      отриману (`occurred_at`), ігнорується (`reason: stale`).
+    - **Повтори.** 2xx — доставлено. 401/403/404/422 — помилка вмісту, повтор не допоможе. 408/409/425/429/5xx
+      і мережеві помилки — повторити пізніше (Integra: до 20 спроб; повідомлення одного заходу йдуть по порядку).
+    - **Посилання.** `url` і `verify_url` мають вести на адресу Mitra з налаштувань Integra (`THEME2_PUBLIC_URL`,
+      за замовчуванням хост із `THEME2_URL`). Інакше 422 `untrusted_link`: доказ не можна підмінити адресою деінде.
+    - **Підрозділи.** У повідомленні є наш `unit.id`, повний шлях назв і `unit.code` зі спільного довідника
+      `units.json` (якщо назва там є). Остаточно підрозділ визначає координатор, коли пов'язує захід.
+servers:
+  - url: "{mitra}"
+    description: "Mitra: THEME2_URL в Integra, напр. http://mitra/api/integrations/integra"
+    variables: { mitra: { default: "http://localhost/api/integrations/integra" } }
+  - url: "{integra}/api/v1"
+    description: Integra
+    variables: { integra: { default: "http://localhost:8000" } }
+security:
+  - integrationKey: []
+paths:
+  /measures:
+    post:
+      summary: "[Mitra реалізує] Прийняти або оновити захід з Integra"
+      description: |
+        Перше повідомлення з новим `id` створює запис у «вхідних» координатора. Повторні з тим самим `id`
+        оновлюють його (назва, строк, статус Integra) і повертають той самий `id` Mitra.
+        Якщо в Integra захід скасовано (`status: cancelled`), координатор бачить це у вхідних або в пов'язаному заході.
+      servers: [{ url: "{mitra}", variables: { mitra: { default: "http://localhost/api/integrations/integra" } } }]
+      parameters:
+        - { name: X-Topic, in: header, schema: { type: string, enum: [measure.upsert] } }
+        - { name: X-Contract, in: header, schema: { type: string, enum: [integra-mitra/1] } }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/MeasureUpsert" }
+            example:
+              contract: integra-mitra/1
+              id: 6f1c2a3e-5b7d-4c11-9a0e-2f1d3c4b5a69
+              unit_id: 0b8d7e2a-1c3f-4a5b-8d9e-7f6a5b4c3d21
+              unit: { id: 0b8d7e2a-1c3f-4a5b-8d9e-7f6a5b4c3d21, code: ORG-A1, name: "Підрозділ А-1",
+                      path: ["Організація (демо)", "Підрозділ А", "Підрозділ А-1"] }
+              title: "Провести навчання з конфлікту інтересів для керівників"
+              description: ""
+              component: accountability
+              component_title: "Підзвітність"
+              catalog_number: "4.1.2"
+              recommendation_code: "cut:accountability"
+              owner: "Уповноважений з антикорупційної діяльності"
+              due_date: "2026-12-15"
+              status: planned
+              done_on: null
+              integra_url: "http://integra.local/tracker?measure=6f1c2a3e-5b7d-4c11-9a0e-2f1d3c4b5a69"
+              source: integrity-dashboard
+      responses:
+        "200": { description: Оновлено наявний запис, content: { application/json: { schema: { $ref: "#/components/schemas/MeasureAccepted" } } } }
+        "201": { description: Створено запис у вхідних, content: { application/json: { schema: { $ref: "#/components/schemas/MeasureAccepted" } } } }
+        "401": { description: Невірний ключ }
+        "422": { description: Невідомий contract чи бракує полів (Integra не повторює) }
+  /integrations/theme2/measures/status:
+    post:
+      summary: "[Integra реалізує] Стан заходу в Mitra"
+      servers: [{ url: "{integra}/api/v1", variables: { integra: { default: "http://localhost:8000" } } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/StatusEvent" }
+            examples:
+              linked:
+                value: { contract: integra-mitra/1, event_id: "a1", occurred_at: "2026-11-19T10:00:00+02:00",
+                         measure_id: 6f1c2a3e-5b7d-4c11-9a0e-2f1d3c4b5a69, external_id: "42", state: linked,
+                         mitra_status: PLANNED, url: "http://mitra.local/measures/42" }
+              rejected:
+                value: { contract: integra-mitra/1, event_id: "a2", occurred_at: "2026-11-19T10:05:00+02:00",
+                         external_id: "42", state: rejected, comment: "Дублює захід 2.4 програми" }
+              done:
+                value: { contract: integra-mitra/1, event_id: "a3", occurred_at: "2026-11-25T15:30:00+02:00",
+                         measure_id: 6f1c2a3e-5b7d-4c11-9a0e-2f1d3c4b5a69, external_id: "42", state: done,
+                         mitra_status: DONE, done_on: "2026-11-25", url: "http://mitra.local/measures/42",
+                         evidence: { summary: "Проведено 2 заняття, 34 з 36 керівників пройшли тест",
+                                     documents: [{ name: "Наказ №112.pdf",
+                                                   sha256: "10a6835fdfa537b02dd71f763e226246d18250b4119b1424bd101f63bd5150ff",
+                                                   verify_url: "http://mitra.local/verify?…" }] } }
+      responses:
+        "200":
+          description: Прийнято (зокрема повтор чи застаріла подія)
+          content:
+            application/json:
+              schema: { $ref: "#/components/schemas/StatusResult" }
+        "401": { description: Невірний ключ }
+        "404": { description: Захід не знайдено }
+        "409": { description: "id_mismatch: measure_id і external_id вказують на різні заходи; conflict: паралельний запис, повторити" }
+        "422": { description: "Помилка вмісту: evidence_required, bad_sha256, untrusted_link, unknown_state, done_on_in_future, зайве поле" }
+  /indicators/units:
+    get:
+      summary: "[Integra реалізує] Підрозділи Integra для фактів (id і назва) за ключем джерела"
+      servers: [{ url: "{integra}/api/v1", variables: { integra: { default: "http://localhost:8000" } } }]
+      responses:
+        "200":
+          description: "Список підрозділів. Зіставлення з підрозділами Mitra — за назвою або кодом зі спільного units.json"
+          content:
+            application/json:
+              schema: { type: array, items: { type: object, properties: { id: { type: string, format: uuid }, name: { type: string } } } }
+  /indicators:
+    post:
+      summary: "[Integra реалізує] Факт від Mitra: заходи програми виконано вчасно"
+      description: |
+        Чисельник: заходи, закриті «Виконано» не пізніше строку. Знаменник: заходи, строк яких настав у цьому місяці
+        (або закриті раніше строку в цьому місяці). Частково виконані й невиконані в чисельник не входять.
+        Повторне надсилання за той самий місяць і підрозділ замінює значення. Індекс рахує лише частку, кількості
+        зірваних заходів можна передати в `extra_counts` для панелі ризик-сигналів.
+      servers: [{ url: "{integra}/api/v1", variables: { integra: { default: "http://localhost:8000" } } }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Fact" }
+            example: { unit_id: 0b8d7e2a-1c3f-4a5b-8d9e-7f6a5b4c3d21, period: "2026-10",
+                       indicator: program_measures_on_time, numerator: 9, denominator: 12, source: mitra,
+                       why: "Mitra: заходи програми, закриті «Виконано» до строку",
+                       extra_counts: { partial: 1, not_done: 1, overdue: 1 } }
+      responses:
+        "201": { description: Збережено }
+        "401": { description: Невірний ключ }
+        "403": { description: Ключ іншого джерела }
+        "409": { description: "source_conflict: цей показник уже передало інше джерело" }
+        "422": { description: Невідомий показник чи зайве поле }
+components:
+  securitySchemes:
+    integrationKey: { type: apiKey, in: header, name: X-Integration-Key }
+  schemas:
+    MeasureUpsert:
+      type: object
+      required: [contract, id, unit_id, unit, title, owner, due_date, status, source]
+      properties:
+        contract: { type: string, const: integra-mitra/1 }
+        id: { type: string, format: uuid, description: "id заходу в Integra; ключ ідемпотентності" }
+        unit_id: { type: string, format: uuid }
+        unit:
+          type: object
+          properties:
+            id: { type: string, format: uuid }
+            code: { type: [string, "null"], description: "Код зі спільного units.json (ORG-A1…)" }
+            name: { type: [string, "null"] }
+            path: { type: array, items: { type: string }, description: "Від кореня до підрозділу" }
+        title: { type: string, maxLength: 500 }
+        description: { type: string }
+        component: { type: [string, "null"], enum: [culture, system, accountability, null] }
+        component_title: { type: [string, "null"] }
+        catalog_number: { type: [string, "null"], description: "Пункт типового плану (Додаток Д)" }
+        recommendation_code: { type: [string, "null"] }
+        owner: { type: string, description: "Посада чи підрозділ відповідального, без ПІБ" }
+        due_date: { type: string, format: date }
+        status: { type: string, enum: [planned, in_progress, done, cancelled] }
+        done_on: { type: [string, "null"], format: date }
+        integra_url: { type: [string, "null"], description: "Відкрити захід в Integra" }
+        source: { type: string, const: integrity-dashboard }
+    MeasureAccepted:
+      type: object
+      required: [id]
+      properties:
+        id: { type: string, description: "id запису в Mitra; Integra зберігає як external_id" }
+        state: { type: string, enum: [inbox, linked, rejected] }
+    StatusEvent:
+      type: object
+      additionalProperties: false
+      description: "Потрібні state і хоча б одне з measure_id / external_id."
+      required: [state]
+      properties:
+        contract: { type: string, const: integra-mitra/1 }
+        event_id: { type: string, maxLength: 128, description: "Для журналу" }
+        occurred_at: { type: string, format: date-time, description: "Час події в Mitra. Радимо завжди передавати" }
+        measure_id: { type: string, format: uuid, description: "id в Integra (з MeasureUpsert.id)" }
+        external_id: { type: string, maxLength: 128, description: "id в Mitra (з MeasureAccepted.id)" }
+        state:
+          type: string
+          description: |
+            Стан у Mitra → що робить Integra:
+            inbox / linked / rejected / planned — статус Integra не змінюється, стан показується в трекері;
+            in_progress / on_review / returned / partial / not_done — «в роботі» (якщо перехід дозволений);
+            done — «виконано» з доказом. Недозволений перехід (напр. захід уже скасовано в Integra) → 200 з note.
+          enum: [inbox, linked, rejected, planned, in_progress, on_review, returned, done, partial, not_done]
+        mitra_status: { type: string, description: "Статус Mitra як є (DONE, PARTIAL…), для журналу" }
+        url: { type: string, maxLength: 1000, description: "Захід у Mitra" }
+        done_on: { type: string, format: date }
+        comment: { type: string, maxLength: 2000, description: "Причина відхилення чи невиконання" }
+        evidence:
+          type: object
+          additionalProperties: false
+          properties:
+            summary: { type: string, maxLength: 4000, description: "Опис результату виконання" }
+            documents:
+              type: array
+              maxItems: 20
+              items:
+                type: object
+                additionalProperties: false
+                required: [name, sha256]
+                properties:
+                  name: { type: string, maxLength: 255 }
+                  sha256: { type: string, pattern: "^[0-9a-f]{64}$" }
+                  verify_url: { type: string, maxLength: 1000, description: "Сторінка перевірки в Mitra" }
+    StatusResult:
+      type: object
+      properties:
+        id: { type: string, format: uuid }
+        status: { type: string, enum: [planned, in_progress, done, cancelled] }
+        external_state: { type: string }
+        changed: { type: boolean }
+        reason: { type: string, enum: [stale] }
+        note: { type: string, description: "Чому статус Integra не змінено" }
+    Fact:
+      type: object
+      additionalProperties: false
+      required: [unit_id, period, indicator, numerator, denominator, source]
+      properties:
+        unit_id: { type: string, format: uuid }
+        period: { type: string, pattern: "^\\d{4}-\\d{2}$" }
+        indicator: { type: string, const: program_measures_on_time }
+        numerator: { type: integer, minimum: 0 }
+        denominator: { type: integer, minimum: 0 }
+        source: { type: string, const: mitra }
+        why: { type: string }
+        extra_counts: { type: object, additionalProperties: { type: integer, minimum: 0 } }
