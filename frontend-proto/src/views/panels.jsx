@@ -56,7 +56,7 @@ export function openHow() {
         {route().r !== "explain" && <Link href="#explain">Відкрити розклад індексу <Ic n="arrowR" /></Link>}</div>
       <div><div className="lbl" style={{ marginBottom: 4 }}>Шкала рівнів зрілості</div><div className="rows">{[1, 2, 3, 4, 5].map(l => {
         const lo = [0, ...BOUNDS][l - 1], hi = [...BOUNDS, 100][l - 1];
-        return <div key={l} className="row" style={{ alignItems: "flex-start" }}><span className={`lvsq lv${l} ${l === m.level ? "on" : ""}`}>{l}</span><div className="grow">{LEVELS[l - 1]} <span className="lbl">{l === 1 ? `від 0 до ${fb(hi)}` : l === 5 ? `вище ${fb(lo)}` : `вище ${fb(lo)} до ${fb(hi)}`}</span><div className="lbl" style={{ fontSize: 12.5, marginTop: 2 }}>{LDESC[l - 1]}</div></div>{l === m.level && <Pill cls="p-good nodot">Поточний</Pill>}</div>;
+        return <div key={l} className="row" style={{ alignItems: "flex-start" }}><span className={`lvsq lvdot lv${l} ${l === m.level ? "on" : ""}`} aria-hidden="true" /><div className="grow">{LEVELS[l - 1]} <span className="lbl">{l === 1 ? `від 0 до ${fb(hi)}` : l === 5 ? `вище ${fb(lo)}` : `вище ${fb(lo)} до ${fb(hi)}`}</span><div className="lbl" style={{ fontSize: 12.5, marginTop: 2 }}>{LDESC[l - 1]}</div></div>{l === m.level && <Pill cls="p-good nodot">Поточний</Pill>}</div>;
       })}</div></div>
     </>;
   });
@@ -112,16 +112,23 @@ export function openResp() {
   });
 }
 
+// Питання анкети, з яких склалося джерело сприйняття (режим API): id «компонент-категорія», бал саме цієї групи
+export function itemQs(x) {
+  if (!x || x.kind !== "p" || !API.on || !API.res) return [];
+  const cat = x.id.slice(x.c.length + 1);
+  return (API.res.questions || []).filter(q => q.component === x.c).map(q => { const g = (q.by_category || []).find(g => g.category === cat); return g ? { code: q.code, t: q.text, v: g.score, n: g.n } : null; }).filter(Boolean);
+}
 export function openItem(id) {
   const m = cur(), x = allItems(m).find(i => i.id === id); if (!x) return;
   const isP = x.kind === "p";
-  openDrawer(isP ? "Питання анкети" : "Показник фактів", () => {
+  openDrawer(isP ? (itemQs(x).length ? "Анкета" : "Питання анкети") : "Показник фактів", () => {
     const m = cur(), x = allItems(m).find(i => i.id === id); if (!x) return null;
-    const c = m.byId[x.c], q = isP && x.id !== "sy-p3" ? SURVEY_Q.find(q => q.si === COMPS.indexOf(x.c) && q.qi === (+x.id.slice(-1) - 1)) : null;
+    const qs = itemQs(x), c = m.byId[x.c], q = isP && x.id !== "sy-p3" ? SURVEY_Q.find(q => q.si === COMPS.indexOf(x.c) && q.qi === (+x.id.slice(-1) - 1)) : null;
     return <>
       <div><div className="lbl">{COMP[x.c].n} · {isP ? SRC[x.src][0] : "Факти"}</div><div style={{ fontSize: 16, fontWeight: 600, marginTop: 4 }}>{x.t}</div></div>
       <div className="stat4 tnum" style={{ gridTemplateColumns: "repeat(3,1fr)" }}><div><small>Значення</small><b>{fb(x.v)}</b></div><div><small>Вага в компоненті</small><b>{x.w} %</b></div><div><small>Внесок в індекс</small><b>{f2(x.v * (c.cr.v / (isP ? c.P : c.F) || 1) / 3 * x.w / 100)}</b></div></div>
       <div><div className="lbl" style={{ marginBottom: 4 }}>Звідки число</div><div style={{ lineHeight: 1.55 }}>{isP ? `${SRC_HINT[x.src]} Відповіді переводяться в бали: варіант 1 це 0, варіант 5 це 100.` : x.kind === "pct" ? `${x.val[0]} з ${x.val[1]}, тобто ${fb(x.v)} %. Джерело: ${x.from}.` : `Рівень ${x.val} з 5 за анкетою чек-листа. Рівень переводиться в бали: (рівень − 1) × 25 = ${fb(x.v)}. Джерело: ${x.from}.`}</div></div>
+      {qs.length > 0 && <div><div className="lbl" style={{ marginBottom: 4 }}>Питання анкети ({qs.length}), бал цієї групи</div><div className="rows">{qs.map(i => <a key={i.code} className="row click" href="#" onClick={e => { e.preventDefault(); openApiQ(i.code); }}><div className="grow">{i.t}</div><b className="tnum">{i.v != null ? fb(i.v) : "–"}</b></a>)}</div></div>}
       {q && <div><div className="lbl" style={{ marginBottom: 6 }}>Відповідне питання в анкеті особового складу</div><div style={{ fontWeight: 500, marginBottom: 6 }}>{q.t}</div><ol className="howto">{q.o.map(o => <li key={o}>{o}</li>)}</ol></div>}
       <div><div className="lbl" style={{ marginBottom: 4 }}>Як іде в індекс</div><div style={{ lineHeight: 1.55 }}>Компонент «{COMP[x.c].n}»: {isP ? `сприйняття ${fb(c.P)}` : `факти ${fb(c.F)}`} це зважене середнє {isP ? "питань" : "показників"}. Зараховано {fb(c.cr.v)}{c.cr.lim ? " з обмеженням: " + c.cr.reason : "."} Індекс це середнє трьох компонентів.</div></div>
     </>;
