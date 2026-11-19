@@ -5,7 +5,7 @@
 import { useEffect } from "react";
 import { Ic } from "../lib/icons.jsx";
 import { API, api, apiErrText } from "../lib/api.js";
-import { COMP, CAP, LSHORT, level, r1, indexOf, components, measures, dispSt, M_ST } from "../lib/model.js";
+import { COMP, CAP, LSHORT, level, indexLevel, r1, indexOf, components, measures, dispSt, M_ST } from "../lib/model.js";
 import { fb, f1, pts } from "../lib/format.js";
 import { render } from "../lib/store.js";
 import { cur } from "../lib/nav.js";
@@ -43,8 +43,8 @@ function demoCalc(m, sc) {
 function demoResult(m) {
   const base = demoCalc(m, { facts: {} }), scen = demoCalc(m, WI);
   const touched = new Set(m.fItems.filter(f => WI.facts[f.id] != null).map(f => f.c));
-  const side = (r) => ({ index: { score: r.index, level: { level: level(r.index), title: LSHORT[level(r.index) - 1] } },
-    components: r.comps.map(c => ({ code: c.id, title: COMP[c.id].n, score: c.cr.v, self_score: c.P, facts_score: c.F, cut_by_facts: c.cr.lim })) });
+  const side = (r) => { const l = indexLevel(r.index, r.comps.map(c => c.cr.v)); return { index: { score: r.index, level: { level: l, title: LSHORT[l - 1] } },
+    components: r.comps.map(c => ({ code: c.id, title: COMP[c.id].n, score: c.cr.v, self_score: c.P, facts_score: c.F, cut_by_facts: c.cr.lim })) }; };
   const b = side(base), s = side(scen);
   s.components.forEach((c, i) => {
     const o = b.components[i], d = r1(c.score - o.score);
@@ -88,6 +88,8 @@ export function WhatIf() {
   const ms = API.on ? measures().filter(x => !["done", "confirmed", "cancelled"].includes(x.st)) : [];
   const ckOpen = ck.filter(i => !(i.score === 100 && i.confirmed) || WI.checklist[i.number]);
   const ckShown = WI.showAll ? ckOpen : ckOpen.slice(0, 8);
+  // Рівень готовий у відповіді (сервер: зі слабкою ланкою); клієнтський level() лише запасний
+  const lvOf = x => (x.index.level && x.index.level.level) || level(x.index.score), lB = lvOf(b), lS = lvOf(s);
 
   return <>
     <BackToInst />
@@ -97,9 +99,9 @@ export function WhatIf() {
         <div className="sp" />{WI.busy && <span className="lbl wi-busy">Рахуємо…</span>}
         {!empty() && <button type="button" className="btn btn-ghost" onClick={() => change(resetScenario)}><Ic n="reset" />Скинути сценарій</button>}</div>
       <div className="wi-sum">
-        <div className="wi-idx"><span className="lbl">Зараз</span><b className="tnum">{f1(b.index.score)}</b><span className="lbl">рівень {level(b.index.score)}, {LSHORT[level(b.index.score) - 1]}</span></div>
+        <div className="wi-idx"><span className="lbl">Зараз</span><b className="tnum">{f1(b.index.score)}</b><span className="lbl">рівень {lB}, {LSHORT[lB - 1]}</span></div>
         <Ic n="send" />
-        <div className={`wi-idx ${d > 0 ? "up" : d < 0 ? "down" : ""}`}><span className="lbl">За сценарієм</span><b className="tnum">{f1(s.index.score)}</b><span className="lbl">рівень {level(s.index.score)}, {LSHORT[level(s.index.score) - 1]}{level(s.index.score) !== level(b.index.score) ? " · новий рівень" : ""}</span></div>
+        <div className={`wi-idx ${d > 0 ? "up" : d < 0 ? "down" : ""}`}><span className="lbl">За сценарієм</span><b className="tnum">{f1(s.index.score)}</b><span className="lbl">рівень {lS}, {LSHORT[lS - 1]}{lS !== lB ? " · новий рівень" : ""}</span></div>
         <div className={`wi-d ${d > 0 ? "up" : d < 0 ? "down" : ""}`}>{d > 0 ? "+" : d < 0 ? "−" : ""}{d ? pts(d) : "Без змін"}</div>
       </div>
       <div className="wi-comps">{s.components.map((c, i) => { const o = b.components[i], cd = r1(c.score - o.score); return <div key={c.code} className="wi-comp">
