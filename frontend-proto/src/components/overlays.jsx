@@ -9,8 +9,11 @@ export const zr = r => { const z = Z(); return { left: r.left / z, right: (r.rig
 
 /* ---------- Підказка ---------- */
 const tipEl = () => document.getElementById("tip");
+let tipQuiet = 0;
+// Поки йде перехід бічної панелі, підказки не показуються: кнопка їде під курсором
+export const quietTips = ms => { tipQuiet = Date.now() + ms; };
 export function showTip(r, html, pos) {
-  const tip = tipEl(); if (!tip) return;
+  const tip = tipEl(); if (!tip || Date.now() < tipQuiet) return;
   r = zr(r); const vw = window.innerWidth / Z(), vh = window.innerHeight / Z();
   tip.innerHTML = html; tip.style.left = "0px"; tip.style.top = "0px";
   const w = tip.offsetWidth, h = tip.offsetHeight, m = 8, gap = 10;
@@ -20,7 +23,8 @@ export function showTip(r, html, pos) {
   const y = right ? Math.min(Math.max(r.top + (r.bottom - r.top) / 2 - h / 2, m), vh - h - m) : r.top - h - gap >= m ? r.top - h - gap : Math.min(r.bottom + gap, vh - h - m);
   tip.style.left = x + "px"; tip.style.top = y + "px"; tip.classList.add("on");
 }
-export function hideTip() { const t = tipEl(); if (t) t.classList.remove("on"); }
+// now: сховати без згасання (інакше напівпрозора підказка ще кілька кадрів висить на старому місці)
+export function hideTip(now) { const t = tipEl(); if (!t) return; if (now) { t.style.transition = "none"; t.classList.remove("on"); void t.offsetWidth; t.style.transition = ""; } else t.classList.remove("on"); }
 export function installTips() {
   document.addEventListener("mouseover", e => { const el = e.target.closest && e.target.closest("[data-tip]"); if (!el || !el.dataset.tip) return; if (ui.pop && ui.pop.anchor === el) return; showTip(el.getBoundingClientRect(), el.dataset.tip, el.dataset.tipPos); });
   document.addEventListener("mouseout", e => { if (e.target.closest && e.target.closest("[data-tip]")) hideTip(); });

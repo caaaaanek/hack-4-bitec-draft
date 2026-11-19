@@ -7,7 +7,7 @@ import { NotesPop, notesState, markNotesSeen } from "./components/NotesPop.jsx";
 import { COMPS, COMP, INSTITUTIONS, allItems, pendingRecs, measures, overdueDays, clamp, CYCLE } from "./lib/model.js";
 import { useStore, getViewKey, render, toast, ui, openPop, closePop, closeDrawer } from "./lib/store.js";
 import { route, allowed, cur, TITLES, isLogin } from "./lib/nav.js";
-import { Drawer, Pop, Toast, hideTip, Z } from "./components/overlays.jsx";
+import { Drawer, Pop, Toast, hideTip, quietTips, Z } from "./components/overlays.jsx";
 import { AiPanel, aiOpen, aiClose } from "./ai/assistant.jsx";
 import { Overview, Explain, Trends, Compare, PeriodPop } from "./views/results.jsx";
 import { Recs, Tracker, Sources, Institutions } from "./views/work.jsx";
@@ -74,7 +74,7 @@ function A11yPop() {
 /* ---------- Згортання бічного меню ---------- */
 const sidePref = () => { try { return localStorage.getItem("ii-side2"); } catch (e) { return null; } };
 function setSide(mini, auto) {
-  hideTip(); // кнопка після перемикання стоїть деінде: стара підказка не має висіти
+  hideTip(true); quietTips(300); // кнопка після перемикання стоїть деінде: стара підказка не має висіти
   html.classList.toggle("side-mini", mini);
   if (!auto) try { localStorage.setItem("ii-side2", mini ? "mini" : ""); } catch (e) { /* немає */ }
   render(true);
