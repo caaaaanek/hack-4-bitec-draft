@@ -50,7 +50,7 @@ from app.services.eligibility import open_frozen_campaigns_of
 from app.services.units import subtree_from, subtree_ids, unit_tree
 from app.config import get_settings
 from app.security import hash_password, require_people_manager, require_roles, revoke_all_tokens
-from app.services import approvals, audit_anchor, invites
+from app.services import approvals, audit_anchor, invites, titles
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 managers = require_roles(Role.ADMIN, Role.COORDINATOR)  # користувачі, підрозділи, зведення
@@ -142,7 +142,7 @@ def create_user(data: UserCreate, db: Session = Depends(get_db), admin: User = D
         extra.update(invite_link=invites.link(token), invite_expires_at=expires)
     if approvals.enabled():
         req = approvals.request(db, admin, "activate_users", user.id, {"user_ids": [str(user.id)]},
-                                f"Новий обліковий запис {user.login} ({user.role.value}"
+                                f"Новий обліковий запис {user.login} ({titles.role(user.role)}"
                                 + (f", {user.category}" if user.category else "") + ")")
         extra["pending_approval_id"] = req.id
     db.commit()

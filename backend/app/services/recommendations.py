@@ -13,11 +13,17 @@ from pathlib import Path
 
 from app.services import methodology as m
 from app.services.scoring import fmt
+from app.services.text import shorten
 
 CATALOG_FILE = Path(__file__).resolve().parent.parent / "seed" / "data" / "measures_catalog.json"
 
 PRIORITY_ORDER = {"high": 0, "medium": 1, "low": 2}
 PRIORITY_TITLES = {"high": "високий", "medium": "середній", "low": "низький"}
+
+# Довжина назви рекомендації: довші обрізаються по межі слова, повний текст лишається в `basis`.
+TITLE_MAX = 90
+GENERAL_GROUP = "general"
+GENERAL_GROUP_TITLE = "Загальне"
 
 # Поріг "слабкого" питання чи факту: нижче рівня 3 («Визначений»).
 WEAK_SCORE = 37.5
@@ -111,29 +117,78 @@ def component_numbers(component: str) -> list[str]:
     return [n for n in catalog() if m.checklist_component(n) == component]
 
 
-def _rec(code, priority, component, title, description, rule, basis=None, measures=None) -> dict:
+def _rec(code, priority, component, title, description, rule, basis=None, measures=None, pick=None) -> dict:
+    """`pick` — скільки заходів лишити після дедуплікації: решта `measures` — запасні кандидати."""
+    component_title = m.COMPONENTS[component]["title"] if component in m.COMPONENTS else None
     return {
         "code": code,
         "priority": priority,
         "priority_title": PRIORITY_TITLES[priority],
         "component": component,
-        "component_title": m.COMPONENTS[component]["title"] if component in m.COMPONENTS else None,
-        "title": title,
+        "component_title": component_title,
+        "group": component if component_title else GENERAL_GROUP,
+        "group_title": component_title or GENERAL_GROUP_TITLE,
+        "title": shorten(title, TITLE_MAX),
         "description": description,
         "rule": rule,
         "basis": basis or {},
         "suggested_measures": [x for x in (measures or []) if x],
+        "covers": [],
+        "pick": pick,
     }
+
+
+def dedupe(recs: list[dict]) -> list[dict]:
+    """Прибрати повтори (у вже відсортованому списку перша рекомендація — найважливіша).
+
+    - однакова назва: пізніша рекомендація зливається з першою (її код — у `covers` першої);
+    - захід із каталогу (номер Додатка Д) пропонується лише в одній рекомендації — у першій;
+    - пункт чек-листа, чий захід уже запропоновано вище, не дублюється окремою рекомендацією;
+    - `pick`: скільки заходів лишити з кандидатів після відсіву вже запропонованих.
+    """
+    out: list[dict] = []
+    by_title: dict[str, dict] = {}
+    owner_of: dict[str, dict] = {}
+    for r in recs:
+        pick = r.pop("pick", None)
+        key = " ".join(r["title"].casefold().split())
+        if key in by_title:
+            by_title[key]["covers"].append(r["code"])
+            continue
+        measures, seen, taken_by = [], set(), None
+        for x in r["suggested_measures"]:
+            number = x["catalog_number"]
+            if (number or x["title"]) in seen:
+                continue
+            if number and number in owner_of:
+                taken_by = taken_by or owner_of[number]
+                continue
+            seen.add(number or x["title"])
+            measures.append(x)
+        if pick is not None:
+            measures = measures[:pick]
+        if not measures and taken_by is not None and r["code"].startswith("checklist:"):
+            taken_by["covers"].append(r["code"])
+            continue
+        r["suggested_measures"] = measures
+        for x in measures:
+            if x["catalog_number"]:
+                owner_of[x["catalog_number"]] = r
+        by_title[key] = r
+        out.append(r)
+    for rank, r in enumerate(out, start=1):
+        r["rank"] = rank
+    return out
 
 
 def recommend(result: dict, risk_signals: list[dict] | None = None) -> list[dict]:
     """Рекомендації за правилами. `result` — результати хвилі (знімок)."""
     recs: list[dict] = []
     if result.get("index", {}).get("score") is None:
-        return [_rec("no_data", "high", None, "Зібрати достатньо відповідей для розрахунку",
+        return dedupe([_rec("no_data", "high", None, "Зібрати достатньо відповідей для розрахунку",
                      "Жодне джерело не досягло порогу анонімності, тому індекс не розраховано.",
                      f"Усі групи менші за k = {result.get('min_group_size')}.",
-                     measures=[generic_measure("raise_participation")])]
+                     measures=[generic_measure("raise_participation")])])
 
     components = {c["code"]: c for c in result["components"]}
     checklist = result.get("checklist") or {}
@@ -158,7 +213,7 @@ def recommend(result: dict, risk_signals: list[dict] | None = None) -> list[dict
                 f"Найслабший компонент: {fmt(weakest['score'])} зі 100, зона «{weakest['zone']['title']}».",
                 f"Компонент із найменшим балом серед {len(with_data)} і в зоні «{weakest['zone']['title']}» (менше 60).",
                 {"score": weakest["score"], "zone": weakest["zone"]["code"]},
-                [catalog_measure(n) for n in open_items(weakest["code"])[:3]],
+                [catalog_measure(n) for n in open_items(weakest["code"])], pick=3,
             ))
 
     for c in components.values():
@@ -300,11 +355,11 @@ def recommend(result: dict, risk_signals: list[dict] | None = None) -> list[dict
         component = q["code"].split(".")[0] if q["code"].split(".")[0] in m.COMPONENTS else None
         recs.append(_rec(
             f"question:{q['code']}", "low", component,
-            f"Слабке місце: «{q['text'][:90]}»",
+            f"Слабке місце: «{shorten(q['text'], TITLE_MAX - 16)}»",
             f"Середній бал питання {fmt(q['score'])} зі 100 (нижче рівня «Визначений»).",
             f"Бал питання менший за {WEAK_SCORE:g}.",
-            {"score": q["score"]},
-            [catalog_measure(n) for n in open_items(component)[:1]] if component else [],
+            {"score": q["score"], "question": q["text"]},
+            [catalog_measure(n) for n in open_items(component)] if component else [], pick=1,
         ))
 
     # 7. Ризик-сигнали (окремо від індексу).
@@ -321,4 +376,4 @@ def recommend(result: dict, risk_signals: list[dict] | None = None) -> list[dict
 
     score_of = {c["code"]: (c["score"] if c["score"] is not None else 101) for c in components.values()}
     recs.sort(key=lambda r: (PRIORITY_ORDER[r["priority"]], score_of.get(r["component"], 102), r["code"]))
-    return recs
+    return dedupe(recs)

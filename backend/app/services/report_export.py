@@ -15,10 +15,10 @@ from openpyxl.utils import get_column_letter
 
 from app.services.safe_export import safe_row
 from app.services.scoring import fmt
+from app.services.titles import DECISION_TITLES, MEASURE_STATUS_TITLES
 
 CATEGORY_SHORT = {"working_group": "РГ", "staff": "ОС", "expert": "Експерти"}
-STATUS_TITLES = {"planned": "заплановано", "in_progress": "в роботі", "done": "виконано", "cancelled": "скасовано"}
-DECISION_TITLES = {"accepted": "прийнято", "rejected": "відхилено", "clarify": "потрібне уточнення"}
+STATUS_TITLES = MEASURE_STATUS_TITLES
 
 
 def pct(value) -> str:

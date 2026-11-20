@@ -223,7 +223,10 @@ def _methodology(*_) -> dict:
     data = methodology.as_dict()
     return {k: data[k] for k in ("version", "points_per_level", "source_weights", "reality_margin", "weak_link_max_gap",
                                  "significant_delta", "rules")} | {
-        "facts": {code: {"title": f["title"], "thresholds": f["thresholds"]} for code, f in data["facts"].items()}}
+        "facts": {code: {"title": f["title"], "thresholds": f["thresholds"]} for code, f in data["facts"].items()},
+        "reliability_grades": data["reliability"]["grades"],
+        "reliability_flags": {code: {"title": f["title"], "explain": f["explain"]}
+                              for code, f in data["reliability"]["flags"].items()}}
 
 
 _HANDLERS = {"get_methodology": _methodology, "explain_term": _explain_term, "list_units": _units, "get_results": _results,

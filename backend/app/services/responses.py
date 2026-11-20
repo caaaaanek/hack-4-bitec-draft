@@ -15,6 +15,7 @@ from app.models import (
 )
 from app.schemas import AnswerIn, ValidationIssue
 from app.services.anonymity import seal
+from app.services.text import shorten
 
 
 def validate_submission(questionnaire: Questionnaire, answers_in: list[AnswerIn]) -> list[ValidationIssue]:
@@ -37,7 +38,7 @@ def validate_submission(questionnaire: Questionnaire, answers_in: list[AnswerIn]
         answered = a is not None and (a.option_ids or a.value is not None)
         if not answered:
             if q.required:
-                issues.append(ValidationIssue(path=str(q_id), message=f"Немає відповіді на обов'язкове питання: {q.text[:80]}"))
+                issues.append(ValidationIssue(path=str(q_id), message=f"Немає відповіді на обов'язкове питання: {shorten(q.text, 80)}"))
             continue
 
         option_ids = {o.id for o in q.options}

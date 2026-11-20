@@ -321,6 +321,58 @@ def significance(delta: float | None, reliabilities: list[str | None]) -> dict:
     return {"code": "worsened", "title": "погіршилось"}
 
 
+def pct(share: float) -> str:
+    return f"{share * 100:g} %"
+
+
+def flag_explanations() -> dict[str, str]:
+    """Коли ставиться кожен прапорець — людською мовою, з порогами з констант (один текст для API й UI)."""
+    from app.services import candor, goodhart  # обидва імпортують methodology
+
+    return {
+        "low_participation": f"Анкету пройшли менше {PARTICIPATION_MIN_PERCENT:g} % тих, хто мав пройти, "
+                             "або одна з груп респондентів не дала даних (замало людей чи відповідей).",
+        "category_gap": f"Середні бали робочої групи й особового складу за однаковими питаннями різняться більш ніж "
+                        f"на {CATEGORY_GAP_POINTS:g} балів: ті, хто будує систему, і ті, хто в ній працює, бачать її по-різному.",
+        "suspiciously_perfect": f"Понад {pct(PERFECT_SHARE_MAX)} анкет групи містять лише найвищі варіанти відповідей.",
+        "self_not_confirmed": f"Самооцінка вища за оцінку фактами більш ніж на {REALITY_MARGIN:g} балів (один рівень): "
+                              "компонент знижено за правилом реальності.",
+        "checklist_unconfirmed": f"Комісія підтвердила менше {pct(CHECKLIST_CONFIRMED_MIN_SHARE)} заповнених пунктів чек-листа.",
+        "no_facts": f"За {FACTS_WINDOW_MONTHS} місяців немає жодного факту для цього компонента: самооцінку нічим перевірити.",
+        "unaware_of_mechanisms": f"Факти кращі за самооцінку більш ніж на {REALITY_MARGIN:g} балів: механізми є, "
+                                 "але люди про них можуть не знати. На літеру не впливає.",
+        "concealment": f"У непрямому питанні частка «так» вища за пряму відповідь щонайменше на "
+                       f"{candor.CONCEALMENT_GAP_POINTS:g} п. п., і це не випадковість (нижня межа інтервалу вища).",
+        "pluralistic_ignorance": f"Про себе «повідомив би» кажуть щонайменше на {candor.PLURALISTIC_GAP_POINTS:g} п. п. "
+                                 "частіше, ніж про колег. На літеру не впливає.",
+        "possible_gaming": "Є ознака підгонки: частки фактів скупчились якраз над порогами методики (до "
+                           f"+{goodhart.THRESHOLD_BAND:g} п. п. у {goodhart.THRESHOLD_RATIO:g} рази частіше, ніж під ними), "
+                           f"сплеск «Виконано» за {goodhart.SPIKE_DAYS} днів до хвилі, масова зміна пунктів чек-листа "
+                           f"на «повністю» за {goodhart.RUSH_DAYS} дні до закриття, однакові набори відповідей "
+                           "чи різкий ріст участі в останній день з «ідеальними» анкетами. Це привід для питання, не звинувачення.",
+    }
+
+
+SEVERITY_TITLES = {"serious": "серйозний", "minor": "незначний", "info": "до відома"}
+
+
+def reliability_rule() -> dict[str, str]:
+    """Правило літери достовірності людською мовою (те саме, що робить reliability())."""
+    return {
+        "A": "Сумнівів немає: жодного незначного чи серйозного прапорця.",
+        "B": f"Незначні сумніви: 1–{MINOR_FLAGS_FOR_C - 1} незначних прапорці, серйозних немає.",
+        "C": f"Серйозний сумнів: хоч один серйозний прапорець або {MINOR_FLAGS_FOR_C} і більше незначних. "
+             "Порівнювати з іншими хвилями обережно.",
+        "index": "Достовірність індексу — найгірша літера серед компонентів. Прапорці «до відома» літеру не змінюють.",
+    }
+
+
+def flags_explained() -> dict[str, dict]:
+    explain = flag_explanations()
+    return {code: {**f, "severity_title": SEVERITY_TITLES[f["severity"]], "explain": explain[code]}
+            for code, f in FLAGS.items()}
+
+
 def as_dict() -> dict:
     return {
         "version": METHODOLOGY_VERSION,
@@ -342,7 +394,8 @@ def as_dict() -> dict:
             "perfect_share_max": PERFECT_SHARE_MAX,
             "checklist_confirmed_min_share": CHECKLIST_CONFIRMED_MIN_SHARE,
             "minor_flags_for_c": MINOR_FLAGS_FOR_C,
-            "flags": FLAGS,
+            "flags": flags_explained(),
+            "grades": reliability_rule(),
         },
         "significant_delta": SIGNIFICANT_DELTA,
         "weights_status": WEIGHTS_STATUS,

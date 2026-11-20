@@ -298,3 +298,36 @@ class ParticipantResultOut(BaseModel):
     my_unit: ScopeBrief | None
     index_delta: float | None
     summary: list[str]
+
+
+class BreakdownQuestion(BaseModel):
+    code: str
+    text: str
+    section: str
+    component: str
+    n: int
+    score: float | None
+    zone: Zone | None
+    distribution: list[DistributionItem]
+
+
+class BreakdownSource(BaseModel):
+    category: str
+    title: str
+    sufficient: bool
+    questions: int
+    hidden_questions: int
+
+
+class BreakdownOut(BaseModel):
+    campaign_id: uuid.UUID
+    unit_id: uuid.UUID
+    unit_name: str
+    min_group_size: int
+    sources: list[BreakdownSource]
+    source: str | None = None
+    component: str | None = None
+    sufficient: bool | None = None
+    hidden_questions: int = 0
+    note: str | None = None
+    questions: list[BreakdownQuestion] = []

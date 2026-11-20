@@ -11,6 +11,7 @@ from statistics import fmean, pstdev
 from app.models import Question, Questionnaire, QuestionType
 from app.services import candor
 from app.services import methodology as m
+from app.services.text import shorten
 
 SURVEY_SOURCES = ("staff", "working_group", "expert")
 
@@ -495,7 +496,7 @@ def find_discrepancies(usable: list[dict], questions: dict[str, dict]) -> list[d
             if abs(gap) > m.CATEGORY_GAP_POINTS:
                 who = "робоча група" if gap > 0 else "особовий склад"
                 result.append({"type": "category_gap", "subject": item["code"],
-                               "description": f"«{item['text'][:90]}»: {who} оцінює на {fmt(abs(gap))} бала вище.",
+                               "description": f"«{shorten(item['text'], 90)}»: {who} оцінює на {fmt(abs(gap))} бала вище.",
                                "values": scores, "rule": f"|РГ − ОС| більше {m.CATEGORY_GAP_POINTS:g} балів."})
     for g in usable:
         declared, computed = g["declared_level"], g["computed_level"]

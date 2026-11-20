@@ -11,6 +11,7 @@ from collections.abc import Callable
 
 from app.services import methodology as m
 from app.services.plural import plural
+from app.services.text import shorten
 
 # Короткий опис кожного правила для прозорості (GET .../devils-advocate віддає їх разом із питаннями).
 RULES: dict[str, str] = {
@@ -206,7 +207,7 @@ def r_questions(data: dict) -> list[dict]:
         if score is None or score >= 40:
             continue
         out.append(_q("critical_question", q["code"], 65, "Слабкі місця",
-                      f"Питання «{q['text'][:120]}» має {num(score)} балів — критична зона. Що змінилося на практиці, "
+                      f"Питання «{shorten(q['text'], 120)}» має {num(score)} балів — критична зона. Що змінилося на практиці, "
                       "а не на папері?",
                       RULES["critical_question"], [ev("Бал питання", score, path=f"questions.{q['code']}.score")],
                       "Конкретні дії за останній рік по цьому напряму і як про них дізналися люди.", "explain"))
@@ -257,7 +258,7 @@ def r_measures(measures: list[dict]) -> list[dict]:
         worst = overdue[0]
         out.append(_q("measures_overdue", "overdue", 80, "Виконання заходів",
                       f"Прострочено {plural(len(overdue), 'захід', 'заходи', 'заходів')}; найдовше — "
-                      f"«{worst['title'][:100]}» на {plural(worst['overdue_days'], 'день', 'дні', 'днів')}. "
+                      f"«{shorten(worst['title'], 100)}» на {plural(worst['overdue_days'], 'день', 'дні', 'днів')}. "
                       "Чому рекомендації не доводяться до дії?",
                       RULES["measures_overdue"],
                       [ev("Прострочених заходів", len(overdue), path="measures.overdue"),
@@ -267,7 +268,7 @@ def r_measures(measures: list[dict]) -> list[dict]:
         v = x.get("verification") or {}
         if v.get("status") in ("worsened", "within_error"):
             out.append(_q("measure_no_effect", str(x["id"]), 75, "Виконання заходів",
-                          f"Захід «{x['title'][:100]}» виконано, але «{v.get('component') or ''}» у наступній хвилі "
+                          f"Захід «{shorten(x['title'], 100)}» виконано, але «{v.get('component') or ''}» у наступній хвилі "
                           f"змінився на {num(v.get('delta'))}. Захід справді був дієвим?",
                           v.get("rule") or RULES["measure_no_effect"],
                           [ev("Було", v.get("previous"), path=f"measures.{x['id']}.verification.previous"),
@@ -285,14 +286,14 @@ def r_decisions(recs: list[dict], measures: list[dict]) -> list[dict]:
         decision = getattr(decision, "value", decision)
         if decision == "rejected":
             out.append(_q("rejected_recommendation", r["code"], 60, "Рішення керівництва",
-                          f"Ви відхилили рекомендацію «{r['title'][:120]}». На якій підставі?",
+                          f"Ви відхилили рекомендацію «{shorten(r['title'], 120)}». На якій підставі?",
                           f"{RULES['rejected_recommendation']} Коментар: {d.get('comment') or '—'}",
                           [ev("Пріоритет рекомендації", None, path=f"recommendations.{r['code']}") |
                            {"text": r.get("priority_title", "")}],
                           "Письмове обґрунтування і чим закрито ризик, на який указувала рекомендація.", "recs"))
         elif decision == "accepted" and r["code"] not in with_measure:
             out.append(_q("accepted_without_measure", r["code"], 70, "Рішення керівництва",
-                          f"Рекомендацію «{r['title'][:120]}» прийнято, але заходу в трекері немає. Хто і коли?",
+                          f"Рекомендацію «{shorten(r['title'], 120)}» прийнято, але заходу в трекері немає. Хто і коли?",
                           RULES["accepted_without_measure"],
                           [ev("Рекомендація", None, path=f"recommendations.{r['code']}") | {"text": "прийнято"}],
                           "Захід з відповідальним (посада) і строком.", "tracker"))
