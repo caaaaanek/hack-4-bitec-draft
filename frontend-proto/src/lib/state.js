@@ -48,7 +48,7 @@ export const NAV = [
   ["compare", "Порівняння", "compare", ["leader", "observer", "auditor"]],
   ["whatif", "Що, якщо", "sliders", ["leader", "observer", "auditor"]],
   ["recs", "Рекомендації", "bulb", ["leader"]],
-  ["tracker", "Трекер", "target", ["leader", "auditor"]],
+  ["tracker", "Трекер заходів", "target", ["leader", "auditor"]],
   ["sources", "Джерела", "plug", ["leader", "observer", "auditor"]],
   ["watch", "Черговий", "eye", ["leader", "observer", "auditor", "admin", "commissioner", "coordinator"]],
   ["advocate", "Питання перевірки", "scale", ["leader", "observer", "auditor", "admin", "commissioner"]],
@@ -65,6 +65,9 @@ export const NAV = [
   ["me", "Мої результати", "user", ["respondent"]],
   ["learn", "Навчання", "book", ["respondent", "checklist_editor", "checklist_approver", "leader", "observer", "auditor", "admin", "commissioner", "coordinator"]],
 ];
+// Групи меню: «Результати», «Дії», «Інструменти» (маршрути без змін)
+export const NAV_GROUP = { overview: "res", explain: "res", trends: "res", compare: "res", whatif: "res", institutions: "res", recs: "act", tracker: "act", manage: "act", surveys: "act", checklist: "act", survey: "act", me: "act", autopilot: "act", checks: "act" };
+export const NAV_GROUP_T = { res: "Результати", act: "Дії", tools: "Інструменти" };
 export const HOME = { admin: "manage", commissioner: "surveys", respondent: "me", leader: "overview", observer: "institutions", checklist_editor: "checklist", checklist_approver: "checklist", auditor: "overview", coordinator: "watch" };
 export const AI_ROLES = ["leader", "observer", "auditor"];
 

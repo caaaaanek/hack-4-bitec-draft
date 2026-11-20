@@ -1,7 +1,7 @@
 /* Оболонка застосунку: бічне меню, шапка, екран, оверлеї. */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Ic } from "./lib/icons.jsx";
-import { S, ROLE, NAV, HOME, AI_ROLES, persist, resetDemo, addLog } from "./lib/state.js";
+import { S, ROLE, NAV, NAV_GROUP, NAV_GROUP_T, HOME, AI_ROLES, persist, resetDemo, addLog } from "./lib/state.js";
 import { API, login, loginProxy, logout, apiErrText, retryBoot, startDemo, apiModReset } from "./lib/api.js";
 import { NotesPop, notesState, markNotesSeen } from "./components/NotesPop.jsx";
 import { COMPS, COMP, INSTITUTIONS, allItems, pendingRecs, measures, overdueDays, clamp, CYCLE } from "./lib/model.js";
@@ -93,6 +93,13 @@ export function initSide() {
 const isDark = () => html.dataset.theme ? html.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
 export function initTheme() { try { const t = localStorage.getItem("ii-theme"); if (t) html.dataset.theme = t; } catch (e) { /* немає */ } }
 
+/* ---------- Групи меню: лише коли пунктів багато й вони з кількох груп ---------- */
+function navGroups(items) {
+  const by = {}; for (const it of items) (by[NAV_GROUP[it[0]] || "tools"] ||= []).push(it);
+  const keys = ["res", "act", "tools"].filter(k => by[k]);
+  return items.length > 5 && keys.length > 1 ? keys.map(k => [k, by[k]]) : [[null, items]];
+}
+
 /* ---------- Пошук ---------- */
 function searchHits(q) {
   q = q.trim().toLowerCase(); if (!q) return [];
@@ -178,6 +185,7 @@ export default function App() {
   const mini = html.classList.contains("side-mini"), u = API.user;
   const [q, setQ] = useState(""), [sel, setSel] = useState(0), qRef = useRef(null), box = useRef(null);
   const hits = searchHits(q), ns = notesState();
+  const navG = navGroups(NAV.filter(n => n[3].includes(S.role)));
   html.dataset.role = S.role;
   useEffect(() => {
     const key = e => {
@@ -207,9 +215,12 @@ export default function App() {
           <span id="ic-search"><Ic n="search" size={17} /></span>
           <input id="q" placeholder="Пошук" aria-label="Пошук по сторінках і показниках" ref={qRef} value={q} onChange={e => { setQ(e.target.value); setSel(0); showSearch(e.target.value); }} onFocus={() => showSearch(q)} onKeyDown={qKey} />
           <span className="kbd" id="kbd" data-tip={`Швидкий пошук: ${isMac ? "⌘K" : "Ctrl+K"} або «/»`}>{isMac ? "⌘K" : "Ctrl K"}</span></label>
-        <div className="nav-label">Меню</div>
-        <nav className="nav" id="nav">{!login && NAV.filter(n => n[3].includes(S.role)).map(([nr, n, ic]) => <a key={nr} href={`#${nr}`} data-r={nr} className={nr === r ? "on" : ""} aria-current={nr === r ? "page" : undefined} aria-label={n} data-tip={mini ? n : undefined}
-          onClick={e => { if ("#" + nr === location.hash.split("/")[0]) { e.preventDefault(); ui.side = false; render(); } }}><Ic n={ic} /><span>{n}</span><Badge r={nr} /></a>)}</nav>
+        {!(navG.length > 1) && <div className="nav-label">Меню</div>}
+        <nav className="nav" id="nav" aria-label="Меню">{!login && navG.map(([g, items]) => {
+          const links = items.map(([nr, n, ic]) => <a key={nr} href={`#${nr}`} data-r={nr} className={nr === r ? "on" : ""} aria-current={nr === r ? "page" : undefined} aria-label={n} data-tip={mini ? n : undefined}
+            onClick={e => { if ("#" + nr === location.hash.split("/")[0]) { e.preventDefault(); ui.side = false; render(); } }}><Ic n={ic} /><span>{n}</span><Badge r={nr} /></a>);
+          return g ? <div key={g} className="nav-grp" role="group" aria-labelledby={`ng-${g}`}><div className="nav-g" id={`ng-${g}`}>{NAV_GROUP_T[g]}</div>{links}</div> : links;
+        })}</nav>
         <div className="side-foot"><div className="role-card">{API.down ? null : API.on ? (u ? <>
           <small>Ви увійшли як</small><b style={{ fontSize: 14 }}>{u.display_name}</b><small>{ROLE[S.role][0]} · {u.login}</small>
           <button className="btn btn-ghost" id="logoutBtn" type="button" onClick={logout}><Ic n="arrowL" />Вийти</button></> : null) : <>

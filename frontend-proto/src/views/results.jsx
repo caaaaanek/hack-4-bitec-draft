@@ -22,6 +22,13 @@ export function BackToInst() {
   return <div className="c12 crumbs rise"><a href="#institutions"><Ic n="arrowL" />Усі заклади</a><span className="lbl">/</span><b>{cur().name}</b></div>;
 }
 
+/* Вкладки «Результати»: ті самі маршрути, що й у меню */
+const RTABS = [["overview", "Огляд"], ["explain", "Розклад"], ["trends", "Динаміка"], ["compare", "Порівняння"]];
+export function ResultTabs({ at }) {
+  if (!RTABS.every(([r]) => can(r))) return null;
+  return <nav className="c12 rise rtabs seg" aria-label="Результати">{RTABS.map(([r, t]) => <a key={r} href={`#${r}`} className={r === at ? "on" : ""} aria-current={r === at ? "page" : undefined}>{t}</a>)}</nav>;
+}
+
 /* Блок «Як читати…» на екранах «Огляд» і «Заклади» */
 export function ReadGuide({ title }) {
   return <details className="card c12 rise guide" open={S.guideOpen} onToggle={e => { S.guideOpen = e.currentTarget.open; persist(); }}>
@@ -62,6 +69,7 @@ export function Overview() {
   const attn = S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX), strong = S.strAll ? m.strengths : m.strengths.slice(0, LIST_MAX), dg = digestTop();
   return <>
     <BackToInst />
+    <ResultTabs at="overview" />
     {(can("advocate") || canBriefing()) && <div className="c12 toolbar rise"><div className="sp" /><LeaderDocs /><PrepBtn /></div>}
     <div className="c12 kpi-row">
       <Tile ic="gauge" title="Індекс доброчесності" big={<span className="mid tnum"><Num v={m.index} /></span>} act={openWhy} info={openHow}
@@ -233,6 +241,7 @@ export function Explain() {
   </tbody></table></div>;
   return <>
     <BackToInst />
+    <ResultTabs at="explain" />
     <section className="c12 rise toolbar"><div className="sp" />
       <button className="btn btn-ghost" onClick={openHow}><Ic n="help" />Як це рахується</button>
       <div className="seg" role="group" aria-label="Що показувати">{Object.entries(MODES).map(([k, n]) => <button key={k} className={mode === k ? "on" : ""} aria-pressed={mode === k} onClick={() => { S.mode = k; persist(); render(true); }}>{n}</button>)}</div>
@@ -254,6 +263,7 @@ export function Trends() {
   const f = sr[0], l = sr[sr.length - 1], p = COMPS.filter(c => l.cr[c] > f.cr[c]), n = COMPS.filter(c => l.cr[c] < f.cr[c]);
   return <>
     <BackToInst />
+    <ResultTabs at="trends" />
     {m.noHistory && <section className="card c12 rise"><div className="note-box"><b>Попередні цикли недоступні</b><span className="lbl">Сервер не віддав історію оцінювань, тому показано лише поточний цикл. Оновіть сторінку пізніше.</span></div></section>}
     <section className="card c12 rise"><TrendCard m={m} /></section>
     <section className="card c7 rise">
@@ -289,6 +299,7 @@ export function Compare() {
   const Mk = ({ s }) => <i className={`mk ${s}`} />;
   return <>
     <BackToInst />
+    <ResultTabs at="compare" />
     <section className="card c12 rise">
       <div className="card-h" style={{ flexWrap: "wrap" }}><h2>Самооцінка проти фактів</h2><button type="button" className="kt-info" aria-label="Як читати" data-tip={`Точки показують середню оцінку кожної групи, риска це факти. Праворуч різниця «самооцінка мінус факти». Червоним позначено розрив понад ${CAP} пунктів: тоді самооцінку знижують до «факти + ${CAP}».`}><Ic n="info" /></button><div className="sp" /><div className="legend">{MARKS.map(([s, n]) => <span key={s}><Mk s={s} />{n}</span>)}<span><Mk s="f" />Факти</span></div></div>
       {m.components.map((c, i) => {
