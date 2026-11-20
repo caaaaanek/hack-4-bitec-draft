@@ -101,7 +101,7 @@ function userForm(u, units) {
   const self = !!u && u.id === (API.user && API.user.id); // свій запис техадмін змінює лише в межах імені
   openDrawer(u ? "Обліковий запис" : "Новий обліковий запис", () => {
     const [f, setF] = useState(u ? { login: u.login, display_name: u.display_name, role: u.role, category: u.category || "", unit_id: u.unit_id || "", is_active: u.is_active }
-      : { login: "", display_name: "", role: "respondent", category: ((cats.find(c => c.code === "staff") || cats[0]) || {}).code || "", // більшість людей це особовий склад unit_id: "", is_active: true });
+      : { login: "", display_name: "", role: "respondent", category: ((cats.find(c => c.code === "staff") || cats[0]) || {}).code || "" /* більшість людей це особовий склад */, unit_id: "", is_active: true });
     const [err, setErr] = useState(""), [busy, setBusy] = useState(false);
     const set = (k, v) => setF(x => ({ ...x, [k]: v }));
     const ok = async () => {
