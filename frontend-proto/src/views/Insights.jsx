@@ -134,7 +134,8 @@ const FixList = ({ fix }) => fix && fix.length ? <ol className="fix-l">{fix.slic
 /* Пункти чергового в блоці «Що потребує уваги» на «Огляді»: лише критичні й попередження, до трьох */
 // Сигнали, що потребують дії (критичні й попередження). «До відома» не показуємо ніде.
 // Окремої вкладки немає: сигнали видно в дзвіночку в шапці й у «Що потребує уваги» на «Огляді».
-export const SIG_ROLES = ["leader", "observer", "auditor", "admin"];
+// Сервер віддає кожній ролі лише те, що вона може виправити; Департаменту нічого (items: []), тож сигналів у нього немає
+export const SIG_ROLES = ["leader", "auditor", "admin"];
 export function signals() {
   if (!SIG_ROLES.includes(S.role)) return null;
   const r = useDigest();
