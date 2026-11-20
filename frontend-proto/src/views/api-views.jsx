@@ -2,7 +2,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Ic } from "../lib/icons.jsx";
 import { S } from "../lib/state.js";
-import { API, api, apiEnsure, apiRetry, apiRetryResults, apiLoadForm, apiFail, apiErrText, RESULT_VIEWS, dn, apiLoadAdm, apiAdmReload, apiCreateCampaign, apiCampaignAct, apiQrCreate, apiQrRevoke, apiQrTick,
+import { API, api, staffTokenOnly, apiEnsure, apiRetry, apiRetryResults, apiLoadForm, apiFail, apiErrText, RESULT_VIEWS, dn, apiLoadAdm, apiAdmReload, apiCreateCampaign, apiCampaignAct, apiQrCreate, apiQrRevoke, apiQrTick,
   QST, QCAT, apiQAct, bldOpen, CKS, apiLoadCk, apiCkReload, apiSaveItem, apiConfirm, apiDelFile, apiDownload, AUDIT_ENT, AUDIT_ACT, apiLoadLog, auditDetails, apiVerify } from "../lib/api.js";
 import { COMPS, COMP, level } from "../lib/model.js";
 import { fb, ua, plural } from "../lib/format.js";
@@ -61,7 +61,7 @@ function apiSurveyView() {
   const todo = API.assignments.filter(a => a.kind !== "checklist"), next = todo.find(a => !a.submitted);
   if (next && API.formError) return <Failed e={API.formError} />;
   if (next) { apiLoadForm(next); return <Loading t={next.questionnaire_title} />; }
-  return <Empty t="Зараз немає анкет до проходження">{todo.length ? `Ви вже пройшли: ${todo.map(a => a.questionnaire_title).join(", ")}.` : "Анкети зʼявляться, коли уповноважений відкриє хвилю оцінювання."}<br /><br /><a className="btn btn-soft" href="#me">Мої результати <Ic n="arrowR" /></a></Empty>;
+  return <Empty t="Зараз немає анкет до проходження">{todo.length ? `Ви вже пройшли: ${todo.map(a => a.questionnaire_title).join(", ")}.` : staffTokenOnly() ? "Особовий склад проходить анкету анонімно, без входу: за персональним посиланням або QR, які роздає уповноважений. Скористайтеся посиланням, коли його отримаєте." : "Анкети зʼявляться, коли уповноважений відкриє хвилю оцінювання."}<br /><br /><a className="btn btn-soft" href="#me">Мої результати <Ic n="arrowR" /></a></Empty>;
 }
 
 function ApiScope({ sc, title }) {
@@ -85,7 +85,7 @@ function ApiMe() {
   return <>
     <section className="c12 rise toolbar"><span className="lbl">Відповіді анонімні: вони не повʼязані з вашим обліковим записом.</span></section>
     <section className="card c12 rise"><div className="card-h"><h2>Анкети відкритих хвиль</h2></div>
-      <div className="rows">{todo.length ? todo.map((a, i) => <div key={i} className="row"><div className="grow"><div className="t">{a.questionnaire_title}</div><div className="s">{a.campaign_title}</div></div>{a.submitted ? <Pill cls="p-good">Пройдено</Pill> : <a className="btn btn-primary" href="#survey">Пройти анкету <Ic n="arrowR" /></a>}</div>) : <div className="lbl">Зараз немає відкритих анкет для вас.</div>}</div>
+      <div className="rows">{todo.length ? todo.map((a, i) => <div key={i} className="row"><div className="grow"><div className="t">{a.questionnaire_title}</div><div className="s">{a.campaign_title}</div></div>{a.submitted ? <Pill cls="p-good">Пройдено</Pill> : <a className="btn btn-primary" href="#survey">Пройти анкету <Ic n="arrowR" /></a>}</div>) : <div className="lbl">{staffTokenOnly() ? "Зараз немає відкритих анкет. Особовий склад проходить анкету анонімно: за персональним посиланням або QR від уповноваженого." : "Зараз немає відкритих анкет для вас."}</div>}</div>
       {S.role === "checklist_editor" && <div className="lbl" style={{ marginTop: 10 }}>Ви в робочій групі: <a className="link" href="#checklist">заповнити чек-лист</a>.</div>}</section>
     <LearnCard />
     {latest ? <>

@@ -48,7 +48,10 @@ const FIELD_UA = { planned_open_on: "Відкрити", planned_close_on: "За�
 const FIELD_RE = new RegExp(`\\b(${Object.keys(FIELD_UA).join("|")})\\b`, "g");
 export const uaFields = t => String(t || "").replace(FIELD_RE, k => `«${FIELD_UA[k]}»`);
 const errReasons = e => [...new Set(e.errors.map(i => uaFields(String((i && i.message) || "").replace(/^Value error,\s*/i, "").trim())).filter(Boolean))].slice(0, 3).join("; ");
-export const apiErrText = e => e instanceof ApiErr && e.code === "bad_transition" ? "Такий перехід статусу недоступний. Оновіть сторінку: статус могли змінити." : e instanceof ApiErr ? `${uaFields(e.message)}${errReasons(e) ? ": " + errReasons(e) : ""}${e.hint ? ". " + uaFields(e.hint) : ""}${e.status >= 500 && e.requestId ? ` Код запиту: ${e.requestId}` : ""}` : "Не вдалося виконати дію";
+// Політика STAFF_TOKEN_ONLY: сервер пояснює технічно (access_mode), показуємо людською мовою
+const STAFF_TOKEN_TXT = "Анкети особового складу проходять лише анонімно: за QR або одноразовими посиланнями. Створіть для особового складу окрему хвилю з режимом «QR або посилання», а за логіном лишіть робочу групу й експертів.";
+export const staffTokenOnly = () => !!(API.cfg && API.cfg.policies && API.cfg.policies.staff_token_only) && API.user && API.user.category === "staff";
+export const apiErrText = e => e instanceof ApiErr && e.code === "staff_token_only" ? STAFF_TOKEN_TXT : e instanceof ApiErr && e.code === "bad_transition" ? "Такий перехід статусу недоступний. Оновіть сторінку: статус могли змінити." : e instanceof ApiErr ? `${uaFields(e.message)}${errReasons(e) ? ": " + errReasons(e) : ""}${e.hint ? ". " + uaFields(e.hint) : ""}${e.status >= 500 && e.requestId ? ` Код запиту: ${e.requestId}` : ""}` : "Не вдалося виконати дію";
 export const apiFail = e => toast(apiErrText(e));
 
 /* --- Ролі: обліковий запис → роль інтерфейсу --- */
