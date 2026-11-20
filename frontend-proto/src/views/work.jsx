@@ -27,7 +27,6 @@ export function Recs() {
   const hidden = ranked && !more ? sorted.filter(r => r.collapsed) : [], list = sorted.filter(r => !hidden.includes(r));
   return <>
     <section className="c12 rise toolbar"><span className="lbl">Рекомендація це пропозиція системи, рішення приймає керівник.</span><div className="sp" />
-      {waves.length > 1 && <select className="inp" aria-label="Хвиля" value={wv} onChange={e => { S.trF.wave = e.target.value; persist(); render(true); }}><option value="all">Усі хвилі</option>{waves.map(w => <option key={w} value={w}>{dn(API.waveT && API.waveT[w] || "Попередня хвиля")}</option>)}</select>}
       <select className="inp" aria-label="Статус" value={f.st} onChange={e => { S.recF.st = e.target.value; persist(); render(true); }}><option value="all">Усі статуси</option>{Object.entries(REC_ST).map(([k, [n]]) => <option key={k} value={k}>{n}</option>)}</select>
       <select className="inp" aria-label="Компонент" value={f.c} onChange={e => { S.recF.c = e.target.value; persist(); render(true); }}><option value="all">Усі компоненти</option>{COMPS.map(c => <option key={c} value={c}>{COMP[c].n}</option>)}</select>
       <span className="lbl tnum">Показано {list.length} з {all.length}</span></section>
