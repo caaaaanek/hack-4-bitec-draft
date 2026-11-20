@@ -22,8 +22,9 @@ import { Autopilot } from "./views/Autopilot.jsx";
 import { Normative } from "./views/Normative.jsx";
 import { Checks } from "./views/Checks.jsx";
 import { ResultViews } from "./views/Oversight.jsx";
+import { Approvals, fourEyes, useApprovals } from "./views/Transparency.jsx";
 
-const V = { views: ResultViews, learn: Learn, watch: Watch, advocate: Advocate, autopilot: Autopilot, normative: Normative, checks: Checks, overview: Overview, explain: Explain, trends: Trends, compare: Compare, whatif: WhatIf, recs: Recs, tracker: Tracker, sources: Sources, report: Report, manage: Manage, surveys: Surveys, checklist: Checklist, audit: Audit, survey: Survey, me: Me, institutions: Institutions };
+const V = { approvals: Approvals, views: ResultViews, learn: Learn, watch: Watch, advocate: Advocate, autopilot: Autopilot, normative: Normative, checks: Checks, overview: Overview, explain: Explain, trends: Trends, compare: Compare, whatif: WhatIf, recs: Recs, tracker: Tracker, sources: Sources, report: Report, manage: Manage, surveys: Surveys, checklist: Checklist, audit: Audit, survey: Survey, me: Me, institutions: Institutions };
 const html = document.documentElement;
 
 /* ---------- Маршрут: що зробити при переході ---------- */
@@ -176,6 +177,8 @@ function View({ r, vk }) {
 
 function Badge({ r }) {
   const recs = pendingRecs(), ms = measures(), od = ms.filter(x => overdueDays(x) > 0).length, pend = Object.values(S.fpend).filter(p => !p.ret).length;
+  const ap = r === "approvals" ? useApprovals() : null;
+  if (r === "approvals") { const k = ap && ap.data ? ap.data.filter(x => x.requested_by_id !== (API.user && API.user.id)).length : 0; return k ? <span className="badge" aria-label={`Чекають на вас: ${k}`}>{k}</span> : null; }
   const n = r === "recs" ? recs : r === "tracker" ? (od ? `${ms.length} · ${od}!` : ms.length) : r === "checklist" && S.role === "checklist_approver" ? pend : 0;
   return n ? <span className={`badge ${r === "tracker" && !od ? "mute" : ""}`}>{n}</span> : null;
 }
@@ -186,7 +189,7 @@ export default function App() {
   const mini = html.classList.contains("side-mini"), u = API.user;
   const [q, setQ] = useState(""), [sel, setSel] = useState(0), qRef = useRef(null), box = useRef(null);
   const hits = searchHits(q), ns = notesState();
-  const navAll = NAV.filter(n => n[3].includes(S.role)), simple = simpleMode() && navAll.some(n => n[0] === "overview");
+  const navAll = NAV.filter(n => n[3].includes(S.role) && (n[0] !== "approvals" || fourEyes())), simple = simpleMode() && navAll.some(n => n[0] === "overview");
   const navG = navGroups(simple ? navAll.filter(n => SIMPLE_ROUTES.includes(n[0])) : navAll);
   html.dataset.role = S.role;
   useEffect(() => {
