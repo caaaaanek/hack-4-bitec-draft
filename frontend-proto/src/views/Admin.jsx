@@ -1,6 +1,7 @@
 /* Адміністрування з бекендом: «Люди» (лише технічний адміністратор: /admin/users, запрошення, імпорт CSV), «Довідники»
  * (/dictionaries/categories|facts|positions), «Реєстр ризиків» (/units/{id}/risk-register), сторінка запрошення /invite/<токен>.
  * Завантажується окремим чанком (React.lazy в App.jsx). */
+import { Mark } from "../components/Mark.jsx";
 import { useState, useEffect } from "react";
 import { Ic } from "../lib/icons.jsx";
 import { S } from "../lib/state.js";
@@ -223,7 +224,7 @@ export function InvitePage() {
     catch (er) { setErr(er instanceof ApiErr && er.status === 429 ? "Забагато спроб. Зачекайте й спробуйте ще раз." : apiErrText(er)); setBusy(false); }
   };
   return <div className="login-wrap c12"><section className="card rise login-card">
-    <div className="brand" style={{ padding: "0 0 6px" }}><span className="logo"><Ic n="pulse" size={20} /></span>Integra</div>
+    <div className="brand" style={{ padding: "0 0 6px" }}><span className="logo brand-mark"><Mark /></span>Integra</div>
     <h2 style={{ margin: "6px 0 2px", fontSize: 22 }}>Встановіть пароль</h2>
     <div className="lbl">Пароль знаєте лише ви: адміністратор його не бачить.</div>
     <form id="invF" style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 12 }} onSubmit={submit}>

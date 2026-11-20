@@ -74,6 +74,7 @@ frontend-proto/
 - `ui.jsx` — `Pill`, `LvPill`, `TrustPill`, `Num` (анімація числа), `Delta`, `LevelBar`, `Ticks`, `useWidth`.
 - `charts.jsx` — `MiniTrend`, `TrendChart`, `Radar` (SVG, ширина з `useWidth`).
 - `overlays.jsx` — підказка (`showTip`/`hideTip`, з урахуванням zoom через `Z()`/`zr()`), `Drawer`, `Pop` + `placePop`, `Toast`.
+- `Mark.jsx` — знак Integra (SVG, `currentColor`): у меню, на вході й у запрошенні; той самий знак у фавіконі (`index.html`).
 - `DatePicker.jsx` (`min` вимикає минулі дні), `UnitCombo.jsx` (`UnitCombo` — пошук і створення підрозділу; `UnitPick` — вибір рівнями: підрозділ, далі структурний підрозділ; у формі нової хвилі).
 
 **`views/`**
