@@ -1,9 +1,9 @@
 /* Автопілот хвилі: план, нагадування, автозакриття, автозвіт, ручний крок.
  * Уповноважений бачить його розділом вибраної хвилі в «Керуванні циклом» (#autopilot переадресовує туди).
- * Координатор і аудитор, у яких «Керування циклом» немає, дивляться його окремим екраном лише для читання. */
+ * Аудит, у якого «Керування циклом» немає, дивиться його окремим екраном лише для читання. */
 import { useEffect, useRef, useState } from "react";
 import { Ic } from "../lib/icons.jsx";
-import { API, apiMod, apiModReset, apiAutopilotCampaigns, apiAutopilot, apiAutopilotSet, apiAutopilotTick, apiAutopilotReport, apiFail, apiAdmReload, dn } from "../lib/api.js";
+import { API, apiMod, apiModReset, apiAutopilotCampaigns, apiAutopilot, apiAutopilotSet, apiAutopilotTick, apiAutopilotReport, apiFail, apiAdmReload, dn , fourEyesOn } from "../lib/api.js";
 import { S } from "../lib/state.js";
 import { render, toast, ui } from "../lib/store.js";
 import { dsh, ua } from "../lib/format.js";
@@ -15,7 +15,7 @@ import { TODAY } from "../lib/model.js";
 
 const CST = { draft: ["Чернетка", "p-mute"], open: ["Триває", "p-good"], closed: ["Завершено", "p-info"] };
 const STEP = { open: "Відкриття", close: "Закриття", reminder: "Нагадування", report: "Звіт", recommendations: "Рекомендації", theme2: "Черга заходів", daily: "Щоденний крок", tick: "Крок" };
-const EV = { ok: ["Виконано", "p-good"], error: ["Помилка", "p-bad"], skipped: ["Пропущено", "p-mute"] };
+const EV = { ok: ["Виконано", "p-good"], error: ["Помилка", "p-bad"], skipped: ["Пропущено", "p-mute"], waiting: ["Чекає підтвердження", "p-mute"] };
 const when = iso => { const d = new Date(iso); return `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()} ${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`; };
 
 const nextDay = iso => { const d = new Date(iso + "T00:00:00Z"); d.setUTCDate(d.getUTCDate() + 1); return d.toISOString().slice(0, 10); };
@@ -56,21 +56,28 @@ export function AutopilotSection({ id }) {
   const a = r.data, st = CST[a.status] || CST.draft;
   const tick = async () => { try { const t = await apiAutopilotTick(); toast(t.events.length ? `Крок виконано, подій: ${t.events.length}` : "Крок виконано: нічого робити не треба"); apiModReset(key); apiModReset("apc"); if (t.events.length && API.adm) apiAdmReload(id); } catch (e) { apiFail(e); } };
   const report = async () => { try { await apiAutopilotReport(id); } catch (e) { apiFail(e); } };
+  // Точний час наступного кроку з сервера: interval_seconds 0 — лише вручну, next_tick_at null — фоновий крок не запущено
+  const at = t => new Date(t).toLocaleTimeString("uk-UA", { hour: "2-digit", minute: "2-digit" }) + (new Date(t).toDateString() === new Date().toDateString() ? "" : ", " + new Date(t).toLocaleDateString("uk-UA"));
+  const manual = a.interval_seconds === 0 || (a.interval_seconds != null && !a.next_tick_at);
+  const nextT = a.next_tick_at ? `Наступний крок о ${at(a.next_tick_at)}` : manual ? "Автопілот кроків не робить: запускайте вручну" : null;
   const closeT = a.planned_close_on ? ua(a.planned_close_on) + (a.close_at_percent ? ` або участь ${a.close_at_percent} %` : "") : a.close_at_percent ? `участь ${a.close_at_percent} %` : "не задано";
   return <section className="card c12 rise" id="ap-sec" ref={ref}>
-    <ModHead ic="bolt" tone={a.enabled ? "teal" : "mute"} title={`Автопілот: ${dn(a.campaign_title)}`}><Pill cls={st[1]}>{st[0]}</Pill><Pill cls={a.enabled ? "p-good" : "p-mute"}>{a.enabled ? "Увімкнено" : "Вимкнено"}</Pill></ModHead>
+    <ModHead ic="bolt" tone={a.enabled ? "teal" : "mute"} title={`Автопілот: ${dn(a.campaign_title)}`}>{a.waiting_approval_id ? <Pill cls="p-warn">Чекає на підтвердження відкриття аудитом</Pill> : <Pill cls={st[1]}>{st[0]}</Pill>}<Pill cls={a.enabled ? "p-good" : "p-mute"}>{a.enabled ? "Увімкнено" : "Вимкнено"}</Pill></ModHead>
     <div className="ap-sum">
       {a.status === "draft" && <span><span className="lbl">Відкриття</span> {a.planned_open_on ? ua(a.planned_open_on) : "не задано"}</span>}
       <span><span className="lbl">Закриття</span> {closeT}</span>
+      {a.enabled && a.status !== "closed" && nextT && <span><span className="lbl">Крок</span> {nextT}</span>}
       <span><span className="lbl">Нагадування</span> {a.remind_every_days ? `кожні ${a.remind_every_days} дн.` : "немає"}{a.last_reminder_on ? `, останнє ${ua(a.last_reminder_on)}` : ""}</span>
     </div>
-    {a.status === "draft" && a.enabled && a.planned_open_on && <div className="note-box" style={{ marginTop: 12 }}>{a.planned_open_on <= TODAY
-      ? <><b>Чому досі чернетка</b><span className="lbl">Дата відкриття настала, але хвилю відкриває не календар, а крок автопілота. Сервер робить його сам кожні кілька хвилин, тож хвиля скоро стане «Триває».{admin ? " Щоб відкрити одразу, натисніть «Виконати крок зараз»." : ""}</span></>
-      : <><b>Коли відкриється</b><span className="lbl">До {ua(a.planned_open_on)} хвиля лишається чернеткою. Цього дня після 00:00 її відкриє найближчий крок автопілота, зазвичай за кілька хвилин.</span></>}</div>}
+    {a.status === "draft" && a.enabled && a.planned_open_on && <div className="note-box" style={{ marginTop: 12 }}>{a.waiting_approval_id
+      ? <><b>Чекає на підтвердження</b><span className="lbl">Автопілот попросив відкрити хвилю. Вона відкриється, щойно внутрішній аудит підтвердить запит у «Запитах другій людині».</span></>
+      : a.planned_open_on <= TODAY
+      ? <><b>Чому досі чернетка</b><span className="lbl">Дата відкриття настала, але хвилю відкриває не календар, а крок автопілота. {a.next_tick_at ? `Наступний крок о ${at(a.next_tick_at)}.` : manual ? "Автоматичних кроків на сервері немає." : ""}{admin ? " Щоб не чекати, натисніть «Виконати крок зараз»." : ""}</span></>
+      : <><b>Коли відкриється</b><span className="lbl">До {ua(a.planned_open_on)} хвиля лишається чернеткою. Цього дня її відкриє {manual ? "крок, запущений вручну" : "перший крок автопілота після 00:00"}{fourEyesOn() ? ", а потім відкриття має підтвердити внутрішній аудит" : ""}.</span></>}</div>}
     <div className="rows">{a.plan.map((t, i) => <div key={i} className="row"><span className="dot" style={{ background: "var(--teal)" }} /><div className="grow txt">{dsh(t)}</div></div>)}</div>
     <div className="ap-acts">
       {admin && <button type="button" className="btn btn-soft" onClick={tick}><Ic n="bolt" />Виконати крок зараз</button>}
-      {a.report_ready && S.role !== "coordinator" && <button type="button" className="btn btn-soft" onClick={report}><Ic n="download" />Звіт за Додатком Г (Word)</button>}
+      {a.report_ready && <button type="button" className="btn btn-soft" onClick={report}><Ic n="download" />Звіт за Додатком Г (Word)</button>}
       {!admin && <span className="lbl">Змінювати налаштування може лише уповноважений.</span>}
     </div>
     {admin && a.status !== "closed" && <Form key={a.enabled + String(a.planned_close_on) + String(a.planned_open_on)} a={a} onSaved={v => { API.mod[key] = { data: v }; render(true); }} />}
@@ -81,7 +88,7 @@ export function AutopilotSection({ id }) {
   </section>;
 }
 
-// Окремий екран для координатора й аудитора
+// Окремий екран для аудиту (уповноважений бачить автопілот у «Керуванні циклом»)
 export function Autopilot() {
   const [sel, setSel] = useState(null);
   if (!API.on) return <NeedServer t="Автопілот хвилі">Він відкриває хвилю за планом, нагадує учасникам, закриває за датою чи порогом участі й готує звіт за Додатком Г.</NeedServer>;

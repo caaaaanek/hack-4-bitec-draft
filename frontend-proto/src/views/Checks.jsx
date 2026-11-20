@@ -37,7 +37,7 @@ export function Checks() {
   const [unit, setUnit] = useState(""), [period, setPeriod] = useState(month()), [kind, setKind] = useState("procurement"), [busy, setBusy] = useState(false), [src, setSrc] = useState(liveChecks() ? "live" : "test"), [cp, setCp] = useState(""), [fk, setFk] = useState(""), [fs, setFs] = useState(""), [fr, setFr] = useState("");
   if (!API.on) return <NeedServer t="Перевірки">Тут уповноважений запускає перевірку закупівель і декларацій, розглядає знахідки й записує показники.</NeedServer>;
   if (S.role !== "admin") return <NoAccess />;
-  const units = apiMod("chk:units", () => api("/admin/units")), runs = apiMod("chk:runs", apiCheckRuns);
+  const units = apiMod("chk:units", () => api("/units")), runs = apiMod("chk:runs", apiCheckRuns);
   const fkey = "chk:f:" + [fk, fs, fr].join("|"), found = apiMod(fkey, () => apiCheckFindings({ kind: fk, status: fs, risk_level: fr }));
   const all = apiMod("chk:f:||", () => apiCheckFindings({})), allD = all && all.data;
   if (!units || !runs) return <Loading t="Перевірки" />;

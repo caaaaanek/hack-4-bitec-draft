@@ -90,7 +90,7 @@ frontend-proto/
 - `demo.jsx` — демо-екрани без бекенду: «Керування циклом», «Анкети», «Чек-лист», «Журнал», «Опитування», «Мої результати».
 - `api-views.jsx` — ті самі екрани з даними сервера; `apiView(route)` повертає `null`, якщо треба показати звичайний екран. У «Керуванні циклом» картка «QR для зали» і повноекранний QR (`QrScreen`); сам код малює `components/QrCode.jsx` (qrcode-generator, локально).
 - `Builder.jsx` — конструктор анкети (режим API).
-- `Admin.jsx` (окремий чанк через `React.lazy` в App.jsx) — лише з бекендом: «Люди» (`/admin/users`, запрошення показуються один раз), «Довідники» (категорії, факти, посади), «Реєстр ризиків» (`/units/{id}/risk-register`, імпорт CSV), сторінка запрошення `InvitePage`. Запрошення даємо як `/#invite/<токен>` (`inviteAbs`): сторінки `/invite/…` немає ні в API, ні в nginx, а фрагмент не потрапляє в журнали. Ролі цих пунктів меню виставляє `boot()` (у демо їх не видно; «Люди» при `separate_tech_admin` лише координатору).
+- `Admin.jsx` (окремий чанк через `React.lazy` в App.jsx) — лише з бекендом. Технічний адміністратор (`coordinator`): «Люди» (`/admin/users`, без пароля, лише запрошення, імпорт CSV `/admin/users/import`), «Підрозділи» (`/admin/units`; 202 — зміну підтвердить уповноважений), «Зведення» (`/admin/overview`). «Довідники»: категорії й посади — техадмін, категорії ще й Департамент, факти — лише уповноважений. «Реєстр ризиків» (`/units/{id}/risk-register`, імпорт — уповноважений). Сторінка запрошення `InvitePage`; вікно з посиланням — `views/invite.jsx`. Запрошення даємо як `/#invite/<токен>` (`inviteAbs`): сторінки `/invite/…` немає ні в API, ні в nginx, а фрагмент не потрапляє в журнали.
 - `WaveAdmin.jsx` — спільні помічники (`SROLE`, `importErr`, `unitOpts`) і секції «Керування циклом»: «Учасники» (`/participants`, імпорт CSV, лише в чернетці) і «Відповідальні за чек-лист» (`/checklist/assignments`). У чек-листі показано, хто вносить і хто підтверджує пункт; чужий пункт кнопки «Внести» не має.
 - `Learn.jsx`, `Insights.jsx`, `Autopilot.jsx`, `Normative.jsx`, `Checks.jsx` — модулі автоматизації (див. README). Дані з сервера беруть через `apiMod(ключ, завантажувач)` з `lib/api.js` (кеш у `API.mod`, `apiModReset` для повтору); стани екрана (`Loading`, `Failed`, `Empty`, `NoAccess`, `NeedServer`) у `components/states.jsx`. Тексти правил сервера з довгим тире показуємо через `dsh()`.
 
@@ -122,7 +122,9 @@ frontend-proto/
 - компоненти зараховано: Культура 57,5, Система 45, Підзвітність 60 (обмежувач: P 80, F 35);
 - інші заклади навмисно покривають усі рівні й варіанти достовірності: «Гамма» 93,2 / рівень 5 / A; «Сигма» 78,7 / 4 / B; «Бета» 30,5 / 2 / «Недостатньо даних» (7 відповідей < k); «Омега» 11,7 / 1 / C (−6,7 за цикл). Задаються в `OTHERS` (`flags`, `responses`, `declining: "all"`).
 
-**Ролі:** admin, commissioner, respondent, leader, observer, checklist_editor, checklist_approver, auditor, coordinator. Асистента бачать лише leader, observer і auditor.
+**Ролі:** admin (уповноважений), coordinator (технічний адміністратор), respondent, checklist_editor (член РГ), leader, auditor, observer (Департамент: заклади й анкети), у демо ще checklist_approver. Ролі `commissioner` більше немає. Асистента бачать лише leader, observer і auditor.
+- Принцип двох осіб: «Запити другій людині» (`Transparency.jsx`), кнопки лише при `can_decide`. Відкриття хвилі підтверджує аудит; поки чекає — `waitingOpen` у «Керуванні циклом» (з `/admin/approvals`).
+- Уповноважений бере підрозділи з `/units` (своя зона), людей хвилі — з `/campaigns/{id}/people` (`loadPeople` у WaveAdmin.jsx).
 
 ## Як робити правку
 

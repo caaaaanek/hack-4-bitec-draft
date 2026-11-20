@@ -10,6 +10,7 @@ import { copyText } from "../lib/util.js";
 import { Pill } from "../components/ui.jsx";
 import { QrCode } from "../components/QrCode.jsx";
 import { Loading, Failed, Empty, NoAccess } from "../components/states.jsx";
+import { loadPeople } from "./WaveAdmin.jsx";
 
 export const URN_WHY = "Ніхто сам не прочитає відповіді, навіть адміністратор сервера: ключ хвилі поділено на три частини, і відкрити урну можуть лише двоє з трьох власників разом.";
 const HOLDER_T = ["Уповноважений", "Внутрішній аудит", "Представник особового складу"];
@@ -29,7 +30,7 @@ export function UrnSection({ c }) {
   const key = "urn:" + c.id, r = apiMod(key, () => api(`/campaigns/${c.id}/urn`));
   const [busy, setBusy] = useState(""), [share, setShare] = useState(null), [input, setInput] = useState(""), [res, setRes] = useState(null), [pick, setPick] = useState(["", "", ""]);
   const isAdmin = S.role === "admin", me = API.user && API.user.id;
-  const users = isAdmin && c.status === "draft" ? apiMod("urnUsers", () => api("/admin/users")) : null;
+  const users = isAdmin && c.status === "draft" ? loadPeople(c.id) : null; // люди хвилі, без повного довідника
   const run = async (k, f) => { setBusy(k); try { await f(); } catch (e) { toast(apiErrText(e)); } finally { setBusy(""); apiModReset(key); render(true); } };
   const head = <div className="card-h" style={{ flexWrap: "wrap" }}><h2>Урна з трьома ключами</h2><div className="sp" />{r && r.data && <Pill cls={r.data.enabled ? "p-good" : "p-mute"}>{r.data.enabled ? "Увімкнено" : "Вимкнено"}</Pill>}</div>;
   if (!r) return <section className="card c12 rise">{head}<div className="lbl" role="status">Завантажуємо…</div></section>;
@@ -60,7 +61,7 @@ export function UrnSection({ c }) {
 function UrnSetup({ c, users, pick, setPick, busy, run }) {
   if (!users) return null;
   if (!users.data) return users.error ? <div className="lbl" role="alert">Не вдалося завантажити користувачів: {users.error}</div> : <div className="lbl" role="status">Завантажуємо користувачів…</div>;
-  const all = users.data.filter(x => x.is_active), groups = [all.filter(x => x.role === "admin"), all.filter(x => x.role === "auditor"), all.filter(x => x.role === "respondent")];
+  const all = users.data, groups = [all.filter(x => x.role === "admin"), all.filter(x => x.role === "auditor"), all.filter(x => x.role === "respondent")];
   const ok = pick.every(Boolean) && new Set(pick).size === 3;
   return <div className="urn-setup">
     <div className="lbl" style={{ margin: "10px 0 6px" }}>Оберіть трьох різних власників частин ключа:</div>
@@ -74,7 +75,7 @@ function UrnSetup({ c, users, pick, setPick, busy, run }) {
 export function UrnScreen() {
   if (!API.on) return <UrnDemo />;
   const id = route().p;
-  if (!id) return ["auditor", "commissioner", "admin"].includes(S.role) ? <UrnPick /> : <Empty t="Потрібне посилання">Відкрийте посилання на урну, яке надіслав уповноважений.</Empty>;
+  if (!id) return ["auditor", "admin"].includes(S.role) ? <UrnPick /> : <Empty t="Потрібне посилання">Відкрийте посилання на урну, яке надіслав уповноважений.</Empty>;
   const r = apiMod("urncamp:" + id, () => api(`/campaigns/${id}`).catch(e => e.status === 403 ? { id, title: "", status: "?" } : Promise.reject(e)));
   if (!r) return <Loading t="Урна" />;
   if (r.status === 404) return <Empty t="Хвилю не знайдено">Перевірте посилання.</Empty>;
