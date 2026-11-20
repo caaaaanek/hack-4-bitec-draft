@@ -273,10 +273,17 @@ def assignments_response(db: Session, campaign: Campaign, questionnaire: Questio
 @router.get("/assignments", response_model=list[AssignmentOut])
 def get_assignments(campaign_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
     """Хто вносить і хто підтверджує кожен пункт. Пункт без призначення: вносить будь-хто з робочої групи
-    хвилі, підтверджує будь-хто з CHECKLIST_CONFIRMERS (але не той, хто вніс)."""
-    campaign, questionnaire = checklist_of(db, campaign_id)
+    хвилі, підтверджує будь-хто з CHECKLIST_CONFIRMERS (але не той, хто вніс).
+
+    Хвиля без чек-листа — порожній список, а не 404: екран уповноваженого питає це для кожної хвилі.
+    """
+    campaign = db.get(Campaign, campaign_id)
+    if campaign is None:
+        raise HTTPException(status_code=404, detail="Хвилю не знайдено")
     ensure_view(db, user, campaign)
-    return assignments_response(db, campaign, questionnaire)
+    questionnaire = next((link.questionnaire for link in campaign.questionnaire_links
+                          if link.questionnaire.kind == QuestionnaireKind.CHECKLIST), None)
+    return assignments_response(db, campaign, questionnaire) if questionnaire is not None else []
 
 
 @router.put("/assignments", response_model=list[AssignmentOut])
@@ -343,14 +350,14 @@ def check_assigned_enterer(db: Session, campaign_id, question_id, user: User) ->
     a = db.get(ChecklistAssignment, (campaign_id, question_id))
     if a is not None and a.enterer_id is not None and a.enterer_id != user.id:
         raise ApiError(403, "Цей пункт призначено іншому члену робочої групи", code="not_assigned",
-                       hint="Відповідальних за пункти видно в GET /campaigns/{id}/checklist/assignments.")
+                       hint="Відповідальних за пункти видно в розподілі пунктів чек-листа.")
 
 
 def check_assigned_confirmer(db: Session, campaign_id, question_id, user: User) -> None:
     a = db.get(ChecklistAssignment, (campaign_id, question_id))
     if a is not None and a.confirmer_id is not None and a.confirmer_id != user.id:
         raise ApiError(403, "Підтвердження цього пункту призначено іншій людині", code="not_assigned",
-                       hint="Відповідальних за пункти видно в GET /campaigns/{id}/checklist/assignments.")
+                       hint="Відповідальних за пункти видно в розподілі пунктів чек-листа.")
 
 
 @router.put("/{question_id}", response_model=ChecklistItemOut)
@@ -433,6 +440,7 @@ def submit_entry(
     try:
         for upload in uploads:
             stored.append(storage.store(upload))
+        reject_duplicates(db, campaign.id, question.id, stored)
     except BaseException:
         drop_orphans(db, [sha for _, _, sha, _ in stored])
         raise
@@ -448,6 +456,20 @@ def submit_entry(
     db.commit()
     return to_item(question, entry, files_of(db, campaign.id, question.id),
                    db.get(ChecklistAssignment, (campaign.id, question.id)))
+
+
+def reject_duplicates(db: Session, campaign_id, question_id, stored: list[tuple[str, str, str, int]]) -> None:
+    """Той самий документ (той самий sha256) до пункту двічі не додається: раніше один файл прикріплявся тричі."""
+    attached = dict(db.execute(select(EvidenceFile.sha256, EvidenceFile.filename).where(
+        EvidenceFile.campaign_id == campaign_id, EvidenceFile.question_id == question_id,
+        EvidenceFile.deleted_at.is_(None))).all())
+    seen: set[str] = set()
+    for filename, _, sha, _ in stored:
+        if sha in attached or sha in seen:
+            same = attached.get(sha, filename)
+            raise ApiError(409, f"Цей документ уже додано до пункту («{same}»)", code="duplicate_file",
+                           hint="Той самий файл двічі не потрібен. Якщо документ змінився, збережіть нову версію.")
+        seen.add(sha)
 
 
 def drop_orphans(db: Session, shas: list[str]) -> None:
@@ -490,7 +512,7 @@ def confirm_entry(
     if needs_file(entry.status) and not files:
         raise ApiError(422, "Для підтвердження потрібен документ: одного текстового опису замало",
                        code="file_required",
-                       hint="Член робочої групи додає файл: POST .../files або POST .../submit.")
+                       hint="Попросіть робочу групу додати документ до пункту.")
     if entry.entered_by_id == user.id:
         raise HTTPException(status_code=409, detail="Не можна підтверджувати власний запис")
     entry.confirmed_by_id = user.id
@@ -574,7 +596,13 @@ def upload_file(
     if count >= limit:
         raise ApiError(409, f"До пункту вже додано {limit} файлів", code="too_many_files",
                        hint="Видаліть зайвий файл або об'єднайте документи.")
-    filename, mime, sha, size = storage.store(file)
+    stored = storage.store(file)
+    try:
+        reject_duplicates(db, campaign.id, question.id, [stored])
+    except ApiError:
+        drop_orphans(db, [stored[2]])
+        raise
+    filename, mime, sha, size = stored
     record = EvidenceFile(campaign_id=campaign.id, question_id=question.id, filename=filename, content_type=mime,
                           size=size, sha256=sha, uploaded_by_id=user.id)
     db.add(record)

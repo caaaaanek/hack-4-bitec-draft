@@ -82,7 +82,7 @@ def check_respondent_fields(role: Role, category, unit_id, db: Session) -> None:
         raise HTTPException(status_code=422, detail="Для респондента потрібна категорія")
     if category is not None and not categories.exists(db, category):
         raise ApiError(422, f"Категорії «{category}» немає в довіднику", code="unknown_category",
-                       hint="Додайте її: POST /dictionaries/categories.")
+                       hint="Додайте її в «Довідники» → «Категорії респондентів».")
     if unit_id is not None and db.get(Unit, unit_id) is None:
         raise HTTPException(status_code=422, detail="Підрозділ не знайдено")
 
@@ -566,7 +566,17 @@ def audit_log(
         query = query.where(AuditLog.at >= date_from)
     if date_to:
         query = query.where(AuditLog.at < date_to)
-    return db.scalars(query.offset(offset).limit(limit)).all()
+    rows = db.scalars(query.offset(offset).limit(limit)).all()
+    # Імена й ролі одразу: аудиту список /admin/users недоступний, і журнал показував «Користувач …f2a2».
+    ids = {r.actor_id for r in rows if r.actor_id is not None}
+    people = {u.id: u for u in db.scalars(select(User).where(User.id.in_(ids)))} if ids else {}
+    out = []
+    for r in rows:
+        item = AuditLogOut.model_validate(r)
+        if r.actor_id in people:
+            item.actor_name, item.actor_role = people[r.actor_id].display_name, people[r.actor_id].role.value
+        out.append(item)
+    return out
 
 
 @router.post("/audit-log/verify", response_model=AuditVerifyOut)
@@ -591,7 +601,7 @@ def accept_anchor(data: AnchorIn | None = None, db: Session = Depends(get_db),
     result = verify_chain(db)
     if not result["ok"]:
         raise ApiError(409, "Журнал уже пошкоджено: " + (result["reason"] or ""), code="chain_broken",
-                       hint="Спершу розберіться з пошкодженням (POST /admin/audit-log/verify).")
+                       hint="Спершу натисніть «Перевірити цілісність» у «Журналі» й з'ясуйте причину пошкодження.")
     anchor = AuditAnchor(seq=result["checked"], hash=result["head_hash"] or "0" * 64, accepted_by_id=user.id,
                          note=(data.note if data else ""))
     db.add(anchor)

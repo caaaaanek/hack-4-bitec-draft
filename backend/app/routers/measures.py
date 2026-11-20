@@ -135,6 +135,18 @@ class MeasureExternal(BaseModel):
     updated_at: datetime | None
 
 
+class MeasureHistoryItem(BaseModel):
+    at: datetime
+    action: str
+    action_title: str
+    actor: str | None = Field(description="Ім'я того, хто змінив; «Система» чи «Тема 2 (Mitra)» для автоматичних змін")
+    status: str | None = None
+    from_status: str | None = None
+    reason: str | None = None
+    evidence: str | None = None
+    text: str = Field(description="Готовий рядок для картки: «Статус: в роботі → виконано. Доказ: …»")
+
+
 class MeasureOut(BaseModel):
     id: uuid.UUID
     unit_id: uuid.UUID
@@ -157,6 +169,9 @@ class MeasureOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     verification: MeasureVerification | None = None
+    campaign_title: str | None = Field(default=None, description="Назва хвилі, з якої взято захід")
+    history: list[MeasureHistoryItem] | None = Field(
+        default=None, description="Лише в GET /measures/{id}: зміни з журналу дій, найстаріші першими")
 
 
 class MeasureStats(BaseModel):
@@ -229,7 +244,9 @@ def measure_stats(unit_id: uuid.UUID, db: Session = Depends(get_db), user: User 
 
 @router.get("/{measure_id}", response_model=MeasureOut)
 def get_measure(measure_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(readers)):
-    return service.to_dicts(db, [get_or_404(db, measure_id, user)])[0]
+    """Захід з історією змін (`history`) і доказом виконання (`evidence`, `done_on`)."""
+    measure = get_or_404(db, measure_id, user)
+    return {**service.to_dicts(db, [measure])[0], "history": service.history(db, measure)}
 
 
 @router.post("", response_model=MeasureOut, status_code=status.HTTP_201_CREATED)

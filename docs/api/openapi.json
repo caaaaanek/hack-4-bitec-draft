@@ -6531,7 +6531,7 @@
           "checklist"
         ],
         "summary": "Get Assignments",
-        "description": "Хто вносить і хто підтверджує кожен пункт. Пункт без призначення: вносить будь-хто з робочої групи\nхвилі, підтверджує будь-хто з CHECKLIST_CONFIRMERS (але не той, хто вніс).",
+        "description": "Хто вносить і хто підтверджує кожен пункт. Пункт без призначення: вносить будь-хто з робочої групи\nхвилі, підтверджує будь-хто з CHECKLIST_CONFIRMERS (але не той, хто вніс).\n\nХвиля без чек-листа — порожній список, а не 404: екран уповноваженого питає це для кожної хвилі.",
         "operationId": "get_assignments_api_v1_campaigns__campaign_id__checklist_assignments_get",
         "security": [
           {
@@ -9940,7 +9940,7 @@
           "results"
         ],
         "summary": "Children Levels",
-        "description": "Скільки дочірніх підрозділів (усіх рівнів вкладеності) на якому рівні зрілості — без назв і без індексів.\n\nДля вищого керівника замість карток кожного підрозділу: видно картину, але не видно, кого «карати».\nПідрозділи з недостатніми даними рахуються окремо. Якщо підрозділів з даними менше 3, розподіл\nприховано. Знімок хвилі: остання закрита хвиля, що охоплює підрозділ, або campaign_id.",
+        "description": "Скільки дочірніх підрозділів (усіх рівнів вкладеності) на якому рівні зрілості — без назв і без індексів.\n\nДля вищого керівника замість карток кожного підрозділу: видно картину, але не видно, кого «карати».\nПідрозділи з недостатніми даними рахуються окремо. Якщо підрозділів з даними менше 3, розподіл\nприховано. Знімок хвилі: campaign_id або остання закрита хвиля, що охоплює підрозділ і має знімки дочірніх\n(раніше бралася просто остання, зокрема тестова без даних, і розподіл «ховався»).",
         "operationId": "children_levels_api_v1_units__unit_id__children_levels_get",
         "security": [
           {
@@ -10817,6 +10817,7 @@
           "measures"
         ],
         "summary": "Get Measure",
+        "description": "Захід з історією змін (`history`) і доказом виконання (`evidence`, `done_on`).",
         "operationId": "get_measure_api_v1_measures__measure_id__get",
         "security": [
           {
@@ -15946,6 +15947,30 @@
             "additionalProperties": true,
             "type": "object",
             "title": "Details"
+          },
+          "actor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Name",
+            "description": "Ім'я того, хто діяв; None — система (автопілот)"
+          },
+          "actor_role": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Role",
+            "description": "Роль: admin, auditor, leader…"
           }
         },
         "type": "object",
@@ -21803,6 +21828,93 @@
         "title": "MeasureExternal",
         "description": "Стан заходу в Mitra (тема 2). Посилання ведуть лише на адресу Mitra з налаштувань."
       },
+      "MeasureHistoryItem": {
+        "properties": {
+          "at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "At"
+          },
+          "action": {
+            "type": "string",
+            "title": "Action"
+          },
+          "action_title": {
+            "type": "string",
+            "title": "Action Title"
+          },
+          "actor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor",
+            "description": "Ім'я того, хто змінив; «Система» чи «Тема 2 (Mitra)» для автоматичних змін"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status"
+          },
+          "from_status": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "From Status"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "evidence": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evidence"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text",
+            "description": "Готовий рядок для картки: «Статус: в роботі → виконано. Доказ: …»"
+          }
+        },
+        "type": "object",
+        "required": [
+          "at",
+          "action",
+          "action_title",
+          "actor",
+          "text"
+        ],
+        "title": "MeasureHistoryItem"
+      },
       "MeasureIn": {
         "properties": {
           "unit_id": {
@@ -22052,6 +22164,33 @@
                 "type": "null"
               }
             ]
+          },
+          "campaign_title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Title",
+            "description": "Назва хвилі, з якої взято захід"
+          },
+          "history": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/MeasureHistoryItem"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "History",
+            "description": "Лише в GET /measures/{id}: зміни з журналу дій, найстаріші першими"
           }
         },
         "type": "object",

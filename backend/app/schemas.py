@@ -199,6 +199,8 @@ class AuditLogOut(ORM):
     entity: str
     entity_id: str | None
     details: dict
+    actor_name: str | None = Field(default=None, description="Ім'я того, хто діяв; None — система (автопілот)")
+    actor_role: str | None = Field(default=None, description="Роль: admin, auditor, leader…")
 
 
 # ---------- Конструктор анкет ----------

@@ -168,7 +168,9 @@ def aggregate_rows(rows: Iterable[Indicator], periods: list[str], k: int, hidden
                 "level": level,
                 "score": (level - 1) * m.POINTS_PER_LEVEL,
                 "extra_counts": item["extra"],
-                "label": f"{meta['title']}: {meta['denominator']} {den} · {meta['numerator']} {num} · {meta['rest']} {den - num} ({round(percent)}%)",
+                # Бал рівня поруч із часткою: інакше «бал 0» читали як «0 справ» (UI-аудит 20.11, п. 2).
+                "label": (f"{meta['title']}: {meta['denominator']} {den} · {meta['numerator']} {num} · "
+                          f"{meta['rest']} {den - num} ({round(percent)}%), бал {(level - 1) * m.POINTS_PER_LEVEL:g} з 100"),
                 "rule": f"{num} з {den} = {percent}% → рівень {level} за порогами {meta['thresholds']} → {(level - 1) * m.POINTS_PER_LEVEL:g} балів.",
             }
         )

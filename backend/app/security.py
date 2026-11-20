@@ -319,7 +319,7 @@ def home_unit(db: Session, user: User) -> uuid.UUID | None:
         from app.errors import ApiError
 
         raise ApiError(422, "Оберіть заклад", code="unit_required",
-                       hint="Департамент дивиться кожен заклад окремо: GET /department/institutions.")
+                       hint="Департамент дивиться кожен заклад окремо: оберіть його в розділі «Заклади».")
     return root
 
 

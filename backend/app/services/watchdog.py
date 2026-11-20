@@ -35,7 +35,8 @@ from app.models import (
 from app.services import methodology as m
 from app.services.facts import months_back
 from app.services.measures import OPEN_STATUSES, overdue_days
-from app.services.text import shorten
+from app.services.plural import plural
+from app.services.text import percent, points, short_questionnaire, shorten
 from app.services.units import subtree_from, unit_tree
 
 SEVERITY_ORDER = {"critical": 0, "warning": 1, "info": 2}
@@ -184,14 +185,15 @@ def technical_items(db: Session) -> list[dict]:
         out.append(item("tech:theme2", "technical", "warning", "Тема 2 не приймає заходи",
                         f"Не надіслано повідомлень: {len(unsent)}, з них з помилками: {len(failing)}.",
                         f"Остання помилка: {(last.last_error or '—')[:200]}",
-                        ["Перевірити THEME2_URL і THEME2_API_KEY у .env.",
-                         "Повторити надсилання: POST /api/v1/integrations/theme2/sync.",
+                        ["Попросити технічного адміністратора перевірити адресу й ключ Mitra в налаштуваннях.",
+                         "Повторити надсилання: «Інтеграції» → «Надіслати повторно».",
                          "Заходи тим часом ведуться в нашому трекері — роботу це не зупиняє."], "manage",
                         {"unsent": len(unsent), "failing": len(failing)}))
     elif unsent and not get_settings().theme2_url:
         out.append(item("tech:theme2_off", "technical", "info", "Тема 2 не підключена",
-                        f"У черзі {len(unsent)} заходів для теми 2.", "THEME2_URL не задано.",
-                        ["Якщо інтеграція потрібна — задати THEME2_URL і THEME2_API_KEY; черга відправиться сама."],
+                        f"У черзі заходів для теми 2: {len(unsent)}.", "Адресу Mitra не задано.",
+                        ["Якщо інтеграція потрібна — технічний адміністратор задає адресу й ключ Mitra; черга "
+                         "відправиться сама."],
                         "manage", {"unsent": len(unsent)}))
     recent = set(months_back(today(), SILENT_MONTHS))
     for code, spec in m.FACTS.items():
@@ -199,15 +201,16 @@ def technical_items(db: Session) -> list[dict]:
         if last is None:
             out.append(item(f"tech:source:{code}", "technical", "info", f"Немає даних: «{spec['title']}»",
                             "Жодне джерело ще не передало цей показник.", "Без фактів компонент рахується лише за "
-                            "самооцінкою (прапорець no_facts).",
-                            ["Підключити джерело: POST /api/v1/indicators з ключем джерела (INTEGRATION_KEYS)."],
+                            "самооцінкою.",
+                            ["Попросити технічного адміністратора підключити джерело."],
                             None))
         elif last not in recent and last < min(recent):
             out.append(item(f"tech:source:{code}", "technical", "warning", f"Джерело мовчить: «{spec['title']}»",
                             f"Останні дані — за {last}.",
                             f"Немає жодного запису за останні {SILENT_MONTHS} місяці.",
                             ["Перевірити, чи система-джерело надсилає дані і чи не відкликано її ключ.",
-                             "Для демо: docker compose --profile mocks run --rm mocks."], None, {"last": last}))
+                             "Попросити технічного адміністратора перевірити підключення джерела."], None,
+                            {"last": last}))
     since = now() - timedelta(days=7)
     errors = db.scalars(select(AutopilotEvent).where(AutopilotEvent.status == "error", AutopilotEvent.at >= since)
                         .order_by(AutopilotEvent.at.desc())).all()
@@ -216,15 +219,15 @@ def technical_items(db: Session) -> list[dict]:
         out.append(item("tech:autopilot", "technical", "warning", "Автопілот не зміг виконати крок",
                         f"Помилок за тиждень: {len(errors)}. Остання: крок «{e.step}».", e.message[:300],
                         ["Відкрити журнал автопілота хвилі й виправити причину (наприклад, порожній склад).",
-                         "Повторити: POST /api/v1/autopilot/tick."], "manage",
+                         "Повторити: «Автопілот» → «Виконати крок зараз»."], "manage",
                         {"campaign_id": str(e.campaign_id) if e.campaign_id else None}))
     new_findings = db.scalar(select(func.count()).select_from(CheckFinding).where(CheckFinding.status == "new")) or 0
     if new_findings:
         out.append(item("tech:findings", "technical", "info", "Знахідки модуля «Перевірки» чекають розгляду",
                         f"Нерозглянутих знахідок: {new_findings}.",
                         "Доки знахідку не розглянуто, вона рахується як «не розібрано» в показниках КІ й закупівель.",
-                        ["Розглянути знахідки (статус reviewed або dismissed з коментарем).",
-                         "Опублікувати показники: POST /api/v1/checks/publish."], "checks", {"new": new_findings}))
+                        ["Позначити знахідки «Розглянуто» або «Відхилено» з коментарем.",
+                         "Натиснути «Записати показники» на екрані «Перевірки»."], "checks", {"new": new_findings}))
     return out
 
 
@@ -287,9 +290,11 @@ def process(db: Session, units: set[uuid.UUID], scope: uuid.UUID, decisions: boo
         if low and (days_left is None or days_left <= 3):
             out.append(item(f"process:participation:{c.id}", "process", "warning",
                             f"Низька участь у хвилі «{c.title}»",
-                            "; ".join(f"{i.questionnaire_title[:50]}: {plain(i.percent)}%" for i in low[:3]),
-                            (f"До запланованого закриття {days_left} дн." if days_left is not None else
-                             "Дату закриття не заплановано.") + f" Поріг надійності — {plain(m.PARTICIPATION_MIN_PERCENT)}%.",
+                            "; ".join(f"{short_questionnaire(i.questionnaire_title)}: {percent(i.percent)}"
+                                      for i in low[:3]),
+                            (f"До запланованого закриття: {plural(days_left, 'день', 'дні', 'днів')}."
+                             if days_left is not None else "Дату закриття не заплановано.")
+                            + f" Поріг надійності — {percent(m.PARTICIPATION_MIN_PERCENT)}.",
                             ["Нагадати всім учасникам (автопілот: нагадування кожні N днів).",
                              "Подовжити строк, якщо участь не набирається: результати з низькою участю мають гіршу "
                              "достовірність."], "manage", {"campaign_id": str(c.id)}))
@@ -304,7 +309,7 @@ def process(db: Session, units: set[uuid.UUID], scope: uuid.UUID, decisions: boo
                 out.append(item(f"process:checklist:{c.id}", "process", "info",
                                 f"Чек-лист хвилі «{c.title}» не завершено",
                                 f"Не заповнено: {unfilled} з {total}, не підтверджено: {unconfirmed}.",
-                                f"Непідтверджене «повністю» рахується як {plain(m.UNCONFIRMED_FULL_SCORE)} балів.",
+                                f"Непідтверджене «повністю» рахується як {points(m.UNCONFIRMED_FULL_SCORE)}.",
                                 ["Робоча група вносить, комісія підтверджує з доказом."], "checklist",
                                 {"campaign_id": str(c.id), "unfilled": unfilled, "unconfirmed": unconfirmed}))
     return out

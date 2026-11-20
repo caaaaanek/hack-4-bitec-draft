@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 
 from app.clock import today, utcnow
 from app.config import get_settings
-from app.models import Measure, MeasureStatus, OutboxMessage, Unit
+from app.models import AuditLog, Campaign, Measure, MeasureStatus, OutboxMessage, Unit, User
 from app.services import methodology as m
 from app.services import titles
 from app.services.units import subtree_from, unit_tree
@@ -119,9 +119,49 @@ def verify(db: Session, measure: Measure, cache: dict | None = None) -> dict:
 
 
 def to_dicts(db: Session, measures: list[Measure]) -> list[dict]:
-    """Заходи з перевіркою наступним оцінюванням (знімки підрозділу читаються один раз)."""
+    """Заходи з перевіркою наступним оцінюванням (знімки підрозділу читаються один раз) і назвою хвилі:
+    у трекері заходи різних хвиль з однаковою назвою інакше не розрізнити."""
     cache: dict = {}
-    return [to_dict(x, verify(db, x, cache)) for x in measures]
+    ids = {x.campaign_id for x in measures if x.campaign_id is not None}
+    names = dict(db.execute(select(Campaign.id, Campaign.title).where(Campaign.id.in_(ids))).all()) if ids else {}
+    return [{**to_dict(x, verify(db, x, cache)), "campaign_title": names.get(x.campaign_id)} for x in measures]
+
+
+HISTORY_ACTIONS = {"create": "Створено", "update": "Змінено", "external_status": "Оновлення з теми 2"}
+
+
+def history(db: Session, measure: Measure) -> list[dict]:
+    """Історія заходу з журналу дій (найстаріші першими): хто, коли, статус «було → стало», причина, доказ.
+
+    Раніше картка заходу брала історію з локального демо-журналу і писала «змін не було» після реальних змін.
+    """
+    rows = db.scalars(select(AuditLog).where(AuditLog.entity == "measure", AuditLog.entity_id == str(measure.id))
+                      .order_by(AuditLog.seq)).all()
+    actor_ids = {r.actor_id for r in rows if r.actor_id is not None}
+    people = dict(db.execute(select(User.id, User.display_name).where(User.id.in_(actor_ids))).all()) if actor_ids else {}
+    out = []
+    for r in rows:
+        d = r.details or {}
+        status, before = d.get("status"), d.get("from_status")
+        parts = []
+        if r.action == "create":
+            parts.append("Захід створено")
+        if status and before and status != before:
+            parts.append(f"Статус: {titles.measure_status(before)} → {titles.measure_status(status)}")
+        elif status and r.action != "create":
+            parts.append(f"Статус: {titles.measure_status(status)}")
+        for field, label in (("owner", "Відповідальний"), ("due_date", "Строк"), ("done_on", "Виконано")):
+            if d.get(field) and r.action != "create":
+                parts.append(f"{label}: {d[field]}")
+        if d.get("evidence"):
+            parts.append(f"Доказ: {d['evidence']}")
+        if d.get("reason"):
+            parts.append(f"Причина: {d['reason']}")
+        actor = people.get(r.actor_id) if r.actor_id else ("Тема 2 (Mitra)" if r.action == "external_status" else "Система")
+        out.append({"at": r.at, "action": r.action, "action_title": HISTORY_ACTIONS.get(r.action, r.action),
+                    "actor": actor, "status": status, "from_status": before, "reason": d.get("reason"),
+                    "evidence": d.get("evidence"), "text": ". ".join(parts) or HISTORY_ACTIONS.get(r.action, r.action)})
+    return out
 
 
 def stats(db: Session, unit_id: uuid.UUID) -> dict:

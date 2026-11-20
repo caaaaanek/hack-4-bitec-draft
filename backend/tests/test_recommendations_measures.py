@@ -124,7 +124,7 @@ def test_dashboard_and_report(client):
     assert report["index"]["score"] == d["index"]["score"] and report["recommendations"]
     csv = client.get(f"{API}/campaigns/{campaign_id}/report", params={"format": "csv"}, headers=leader)
     assert csv.status_code == 200 and csv.headers["content-type"].startswith("text/csv")
-    assert "Integrity Index" in csv.text and "рекомендація" in csv.text
+    assert "Індекс доброчесності" in csv.text and "рекомендація" in csv.text
     assert client.get(f"{API}/campaigns/{campaign_id}/report", headers=auth(client, "staff01")).status_code == 403
 
 

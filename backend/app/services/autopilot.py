@@ -32,6 +32,7 @@ from app.errors import ApiError
 from app.models import ApprovalRequest, AutopilotEvent, Campaign, CampaignStatus, GeneratedReport, Notice, Role, User
 from app.services import approvals, audit_anchor, learning, lifecycle, watchdog
 from app.services.plural import plural
+from app.services.text import percent, short_questionnaire
 
 log = logging.getLogger("app.autopilot")
 DAILY = "daily"
@@ -57,8 +58,16 @@ def participation_reached(db: Session, campaign: Campaign) -> tuple[bool, str]:
         return False, ""
     k = campaign.min_group_size
     short = [i for i in items if (i.percent or 0) < campaign.close_at_percent or (i.submitted or 0) < k]
-    text = "; ".join(f"{i.questionnaire_title[:40]}: {i.percent}%" for i in items)
+    text = "; ".join(f"{short_questionnaire(i.questionnaire_title)}: {percent(i.percent)}" for i in items)
     return not short, text
+
+
+def every_days(n: int) -> str:
+    """«щодня» для 1, «кожні 3 дні», «кожні 5 днів» (а не «кожні 1 день»)."""
+    if n == 1:
+        return "щодня"
+    word = plural(n, "день", "дні", "днів")
+    return f"кожні {word}" if n % 10 != 1 or n % 100 == 11 else f"кожен {word}"
 
 
 def remind_due(campaign: Campaign) -> bool:
@@ -82,35 +91,71 @@ def prepare_report(db: Session, campaign: Campaign) -> GeneratedReport:
     return row
 
 
-def after_close(db: Session, campaign: Campaign, out: list[dict]) -> None:
+def _step(db: Session, out: list[dict], campaign: Campaign, record: bool, step: str, action, ok, fail: str) -> None:
+    """Крок після закриття в окремій точці збереження: збій звіту чи рекомендацій не зриває саме закриття
+    (на PostgreSQL помилка в транзакції інакше зіпсувала б і коміт закриття)."""
+    try:
+        with db.begin_nested():
+            result = action()
+        if record:
+            text, details = ok(result)
+            out.append(event(db, campaign, step, "ok", text, **details))
+    except Exception as e:  # noqa: BLE001 — звіт і рекомендації можна зробити й вручну, цикл не має падати
+        log.warning("Після закриття «%s»: %s не вдалося: %s", campaign.title, step, e)
+        if record:
+            out.append(event(db, campaign, step, "error", f"{fail}: {e}"))
+
+
+def after_close(db: Session, campaign: Campaign, out: list[dict] | None = None, record: bool | None = None) -> None:
+    """Після будь-якого закриття (кнопка, урна, автопілот): Word-звіт за Додатком Г, сповіщення керівникам про
+    рекомендації й учасникам про результати. Події автопілота пишуться, лише коли він увімкнений для хвилі."""
     from app.routers.recommendations import build
     from app.services import measures as measures_service
-    try:
-        report = prepare_report(db, campaign)
-        out.append(event(db, campaign, "report", "ok", f"Звіт за Додатком Г підготовлено ({report.filename})",
-                         report_id=report.id))
-    except Exception as e:  # noqa: BLE001 — звіт можна зробити й вручну, цикл не має падати
-        out.append(event(db, campaign, "report", "error", f"Звіт не підготовлено: {e}"))
-    try:
+
+    out = out if out is not None else []
+    record = campaign.autopilot if record is None else record
+    _step(db, out, campaign, record, "report", lambda: prepare_report(db, campaign),
+          lambda report: (f"Звіт за Додатком Г підготовлено ({report.filename})", {"report_id": report.id}),
+          "Звіт не підготовлено")
+
+    def recommendations() -> tuple[int, int]:
         _, recs = build(db, campaign, None)
         high = sum(1 for r in recs if r.get("priority") == "high")
         notice(db, campaign, "leaders", "recommendations",
                f"Хвилю «{campaign.title}» закрито: {plural(len(recs), 'рекомендація чекає', 'рекомендації чекають', 'рекомендацій чекають')} рішення",
                f"Високого пріоритету: {high}. Рекомендацію приймає, уточнює чи відхиляє відповідальна посадова особа.")
-        out.append(event(db, campaign, "recommendations", "ok",
-                         f"Сформовано {plural(len(recs), 'рекомендацію', 'рекомендації', 'рекомендацій')}; "
-                         "рішення — за керівником (автопілот їх не приймає)", total=len(recs), high=high))
-    except Exception as e:  # noqa: BLE001
-        out.append(event(db, campaign, "recommendations", "error", f"Рекомендації не сформовано: {e}"))
+        return len(recs), high
+
+    _step(db, out, campaign, record, "recommendations", recommendations,
+          lambda r: (f"Сформовано {plural(r[0], 'рекомендацію', 'рекомендації', 'рекомендацій')}; "
+                     "рішення — за керівником (автопілот їх не приймає)", {"total": r[0], "high": r[1]}),
+          "Рекомендації не сформовано")
     notice(db, campaign, "participants", "results",
            f"Хвилю «{campaign.title}» завершено: узагальнені результати доступні",
-           "Лише узагальнені дані груп не менше k осіб, без окремих відповідей.")
+           f"Лише узагальнені дані груп не менше {campaign.min_group_size} осіб, без окремих відповідей.")
+    if not record:
+        return
     if get_settings().theme2_url:
         result = measures_service.send_pending(db)
         out.append(event(db, campaign, "theme2", "ok", "Черга заходів у тему 2 надіслана", **result))
     else:
         out.append(event(db, campaign, "theme2", "skipped",
-                         "Тема 2 не підключена (THEME2_URL): заходи ведуться в нашому трекері"))
+                         "Тема 2 (Mitra) не підключена: заходи ведуться в нашому трекері"))
+
+
+OPENED_BY = {"autopilot": "за планом", "four_eyes": "після підтвердження другою людиною", "manual": "вручну"}
+
+
+def after_open(db: Session, campaign: Campaign, via: str = "manual", out: list[dict] | None = None) -> None:
+    """Після будь-якого відкриття: сповіщення учасникам. Для хвилі на автопілоті — подія «Відкрито»
+    (раніше відкриття через підтвердження аудиту лишало журнал автопілота на «Чекає підтвердження»)."""
+    out = out if out is not None else []
+    if campaign.autopilot:
+        when = f" ({campaign.planned_open_on:%d.%m.%Y})" if via == "autopilot" and campaign.planned_open_on else ""
+        out.append(event(db, campaign, "open", "ok", f"Хвилю відкрито {OPENED_BY.get(via, 'вручну')}{when}"))
+    notice(db, campaign, "participants", "opened", f"Розпочато хвилю оцінювання «{campaign.title}»",
+           (f"Пройдіть анкету до {campaign.planned_close_on:%d.%m.%Y}. " if campaign.planned_close_on else "")
+           + f"Відповіді анонімні: результати показуються лише для груп не менше {campaign.min_group_size} осіб.")
 
 
 def tick_campaign(db: Session, campaign: Campaign) -> list[dict]:
@@ -121,10 +166,7 @@ def tick_campaign(db: Session, campaign: Campaign) -> list[dict]:
                 return out + request_open(db, campaign)
             try:
                 lifecycle.open_wave(db, campaign, None, via="autopilot")
-                out.append(event(db, campaign, "open", "ok", f"Хвилю відкрито за планом ({campaign.planned_open_on:%d.%m.%Y})"))
-                notice(db, campaign, "participants", "opened", f"Розпочато хвилю оцінювання «{campaign.title}»",
-                       (f"Пройдіть анкету до {campaign.planned_close_on:%d.%m.%Y}. " if campaign.planned_close_on else "")
-                       + "Відповіді анонімні: результати показуються лише для груп не менше k осіб.")
+                after_open(db, campaign, "autopilot", out)
             except ApiError as e:
                 already = db.scalar(select(AutopilotEvent.id).where(
                     AutopilotEvent.campaign_id == campaign.id, AutopilotEvent.step == "open",
@@ -138,7 +180,7 @@ def tick_campaign(db: Session, campaign: Campaign) -> list[dict]:
     reached, text = participation_reached(db, campaign)
     if due or reached:
         reason = (f"настав строк ({campaign.planned_close_on:%d.%m.%Y})" if due
-                  else f"участь досягла {campaign.close_at_percent:g}% у кожній анкеті ({text})")
+                  else f"участь досягла {percent(campaign.close_at_percent)} у кожній анкеті ({text})")
         if campaign.urn_enabled:
             # «Урна»: автопілот хвилю сам не закриє — ключа немає ні в кого, крім власників частин.
             if not campaign.urn_close_requested:
@@ -150,7 +192,7 @@ def tick_campaign(db: Session, campaign: Campaign) -> list[dict]:
             return out
         details = lifecycle.close_wave(db, campaign, None, via="autopilot")
         out.append(event(db, campaign, "close", "ok", f"Хвилю закрито: {reason}", **details))
-        after_close(db, campaign, out)
+        after_close(db, campaign, out, record=True)
         return out
     if remind_due(campaign):
         notice(db, campaign, "participants", "reminder", f"Нагадування: триває хвиля «{campaign.title}»",
@@ -242,10 +284,10 @@ def plan(campaign: Campaign) -> list[str]:
     steps = []
     if campaign.status == CampaignStatus.DRAFT:
         steps.append(f"Відкриє {campaign.planned_open_on:%d.%m.%Y}." if campaign.planned_open_on
-                     else "Дату відкриття не задано — відкрийте вручну або задайте planned_open_on.")
+                     else "Дату відкриття не задано — відкрийте вручну або задайте дату відкриття.")
     if campaign.status in (CampaignStatus.DRAFT, CampaignStatus.OPEN):
         if campaign.remind_every_days:
-            steps.append(f"Нагадуватиме всім учасникам кожні {plural(campaign.remind_every_days, 'день', 'дні', 'днів')}.")
+            steps.append("Нагадуватиме всім учасникам " + every_days(campaign.remind_every_days) + ".")
         close = []
         if campaign.planned_close_on:
             close.append(f"{campaign.planned_close_on:%d.%m.%Y}")

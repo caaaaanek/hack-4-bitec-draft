@@ -327,7 +327,7 @@ def issue_ballot(campaign_id: uuid.UUID, questionnaire_id: uuid.UUID, data: Ball
         key = ballots.group_key(db, data.key_id, campaign, questionnaire, unit_id)
         if key is None:
             raise ApiError(422, "Ключ не належить вашій групі", code="invalid",
-                           hint="Отримайте ключ ще раз: GET .../ballot-key.")
+                           hint="Оновіть сторінку анкети й спробуйте ще раз.")
     else:
         key = ballots.key_for(db, campaign, questionnaire, unit_id)
     try:

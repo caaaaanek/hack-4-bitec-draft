@@ -46,7 +46,7 @@ def _candidates(inputs, items, facts):
 
 def next_level_plan(db: Session, campaign: Campaign, unit_id: uuid.UUID | None) -> dict:
     inputs = results.load_inputs(db, campaign, unit_id)
-    base = inputs.compute()
+    base = inputs.compute(reuse_surveys=True)
     index = base["index"]
     if index["score"] is None:
         return {"status": "insufficient_data", "steps": [], "note": "Недостатньо даних для розрахунку індексу."}
@@ -68,7 +68,7 @@ def next_level_plan(db: Session, campaign: Campaign, unit_id: uuid.UUID | None) 
                 set_checklist(t_items, key, "full")
             else:
                 set_fact(t_facts, key, float(m.FACTS[key]["thresholds"][obj["level"] - 1]))
-            res = inputs.compute(checklist=t_items, facts=t_facts)
+            res = inputs.compute(checklist=t_items, facts=t_facts, reuse_surveys=True)
             gain = (res["index"]["score"] or 0) - score
             if gain > 0.05 and (best is None or gain > best[0]):
                 best = (gain, kind, key, obj, t_items, t_facts, res)
@@ -147,7 +147,7 @@ def briefing(data: dict, signals: list[dict] | None = None) -> dict:
     groups = [g for g in data.get("groups", []) if g.get("participation_percent") is not None]
     participation = round(sum(g["participation_percent"] for g in groups) / len(groups), 1) if groups else None
     numbers = [
-        {"label": "Integrity Index", "value": idx["score"],
+        {"label": "Індекс доброчесності", "value": idx["score"],
          "text": f"{fmt(idx['score'])} зі 100, рівень {idx['level']['level']}" if idx["score"] is not None else "—"},
         {"label": "Достовірність", "value": idx["reliability"], "text": idx["reliability"]},
         {"label": "Участь", "value": participation, "text": f"{fmt(participation)}%" if participation is not None else "—"},

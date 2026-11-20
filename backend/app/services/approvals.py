@@ -208,3 +208,6 @@ def apply(db: Session, row: ApprovalRequest, approver: User) -> None:
         if campaign.status.value == "draft" and (campaign.planned_open_on is None or campaign.planned_open_on <= today()):
             db.flush()
             lifecycle.open_wave(db, campaign, approver, via="four_eyes")
+            from app.services import autopilot  # уникаємо циклічного імпорту
+
+            autopilot.after_open(db, campaign, "four_eyes")
