@@ -7,6 +7,7 @@ import uuid
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.audit import log_action
@@ -29,6 +30,7 @@ from app.schemas_checks import (
 )
 from app.security import require_roles
 from app.services import checks as svc
+from app.services import counterparty
 from app.services import external_sources as ext
 
 router = APIRouter(prefix="/checks", tags=["checks"])
@@ -184,3 +186,46 @@ def fetch_nazk(data: NazkFetchIn, db: Session = Depends(get_db), user: User = De
                {"source": "nazk", "period": data.period, "limit": data.limit, "fetched": len(items)})
     db.commit()
     return {"unit_id": data.unit_id, "period": data.period, "source": "nazk", "year": year, "items": items}
+
+
+# ---------- Контрагенти (пункт 4.5.1 чек-листа) ----------
+
+class CounterpartyIn(BaseModel):
+    unit_id: uuid.UUID
+    period: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    edrpou: list[str] = Field(min_length=1, max_length=200, description="Коди ЄДРПОУ (8 цифр)")
+
+
+@router.post("/counterparty", response_model=RunOut, status_code=201)
+def check_counterparties(data: CounterpartyIn, db: Session = Depends(get_db),
+                         user: User = Depends(require_roles(Role.ADMIN, Role.COMMISSIONER))):
+    """Перевірити контрагентів: санкції, банкрутство, податковий борг, суди, «молода» компанія.
+
+    Живий режим — COUNTERPARTY_API_URL/KEY і EXTERNAL_FETCH_ENABLED=true (Youcontrol чи аналог), інакше мок.
+    Знахідки з ризиком потрапляють у GET /checks/findings і розглядаються як інші.
+    """
+    bad = [c for c in data.edrpou if not (len(c) == 8 and c.isdigit())]
+    if bad:
+        raise HTTPException(status_code=422, detail=f"ЄДРПОУ — 8 цифр: {', '.join(bad[:5])}")
+    check_unit(db, data.unit_id, user)
+    try:
+        source, rows = counterparty.check(data.edrpou)
+    except counterparty.CounterpartyError as e:
+        raise HTTPException(status_code=502, detail=str(e))
+    flagged = [r for r in rows if r["flags"]]
+    by_risk: dict[str, int] = {}
+    for r in flagged:
+        by_risk[r["risk_level"]] = by_risk.get(r["risk_level"], 0) + 1
+    run = CheckRun(kind="counterparty", unit_id=data.unit_id, period=data.period, source=source, total=len(rows),
+                   flagged=len(flagged), by_risk=by_risk, extra={}, created_by_id=user.id)
+    db.add(run)
+    db.flush()
+    for r in flagged:
+        db.add(CheckFinding(run_id=run.id, kind="counterparty", unit_id=data.unit_id, period=data.period,
+                            record_ref=f"ЄДРПОУ {r['edrpou']}", risk_level=r["risk_level"],
+                            flags=[{"rule_id": f"counterparty.{f}", "severity": "high" if f in counterparty.HIGH
+                                    else "medium", "title": counterparty.FLAG_TITLES[f],
+                                    "law_refs": ["Рекомендації НУОУ, пункт 4.5.1 чек-листа"]} for f in r["flags"]]))
+    log_run(db, IntegrationActor(user=user, any_source=True), run)
+    db.commit()
+    return run_out(run)

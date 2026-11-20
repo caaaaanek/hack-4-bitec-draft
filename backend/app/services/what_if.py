@@ -212,7 +212,7 @@ def levers(inputs: results.Inputs, base_index: float | None) -> list[dict]:
             continue
         items = copy.deepcopy(inputs.checklist)
         set_checklist(items, item.number, "full")
-        res = scoring.compute(inputs.groups, items, inputs.facts, inputs.k)
+        res = inputs.compute(checklist=items)
         measure = catalog_measure(item.number)
         found.append({"kind": "checklist", "number": item.number, "title": item.text, "component": item.component,
                       "change": f"пункт {item.number}: {item.status or 'не заповнено'} → повністю, підтверджено",
@@ -224,7 +224,7 @@ def levers(inputs: results.Inputs, base_index: float | None) -> list[dict]:
         target = float(m.FACTS[fact["indicator"]]["thresholds"][fact["level"] - 1])
         facts = copy.deepcopy(inputs.facts)
         set_fact(facts, fact["indicator"], target)
-        res = scoring.compute(inputs.groups, inputs.checklist, facts, inputs.k)
+        res = inputs.compute(facts=facts)
         found.append({"kind": "fact", "indicator": fact["indicator"], "title": fact["title"],
                       "component": fact["component"],
                       "change": f"{fmt(fact['percent'])}% → {fmt(target)}% (рівень {fact['level']} → {fact['level'] + 1})",
@@ -240,9 +240,9 @@ def levers(inputs: results.Inputs, base_index: float | None) -> list[dict]:
 def simulate(db: Session, campaign: Campaign, unit_id: uuid.UUID | None, measure_ids: list[uuid.UUID],
              checklist: dict[str, str], facts: dict[str, float], with_levers: bool = True) -> dict:
     inputs = results.load_inputs(db, campaign, unit_id)
-    base_res = scoring.compute(inputs.groups, inputs.checklist, inputs.facts, inputs.k)
+    base_res = inputs.compute()
     items, fact_list, applied = apply(db, inputs, measure_ids, checklist, facts)
-    scen_res = scoring.compute(inputs.groups, items, fact_list, inputs.k)
+    scen_res = inputs.compute(checklist=items, facts=fact_list)
     base, scen = summary(base_res), summary(scen_res)
     touched = touched_components(items, inputs.checklist, fact_list, inputs.facts)
     notes = explain(base, scen, touched)

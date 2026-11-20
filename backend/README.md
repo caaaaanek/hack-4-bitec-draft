@@ -8,7 +8,7 @@ API опитувальників, конструктора анкет, роле�
 2. `docker compose up --build`
 3. Відкрити `http://localhost:8000/docs`
 
-Під час старту застосовуються міграції й створюються синтетичні демо-дані: підрозділи, користувачі `admin`, `commissioner`, `leader`, `leader_a`, `auditor`, `wg1`…`wg6`, `staff01`…`staff75`, `expert1`…`expert5` (пароль: `DEMO_PASSWORD`), чотири опубліковані анкети з додатків Б і В і факти за 18 місяців. З `SEED_WITH_WAVES=true` (за замовчуванням у compose) ще дві закриті хвилі, рішення керівника й заходи. З `SEED_DEMO=false` — лише анкети й адміністратор `admin`, без демо-даних і хвиль.
+Під час старту застосовуються міграції й створюються синтетичні демо-дані: підрозділи, користувачі `admin`, `commissioner`, `leader`, `leader_a`, `auditor`, `coordinator`, `department`, `wg1`…`wg6`, `staff01`…`staff75`, `expert1`…`expert5` (пароль: `DEMO_PASSWORD`), чотири опубліковані анкети з додатків Б і В і факти за 18 місяців. З `SEED_WITH_WAVES=true` (за замовчуванням у compose) ще дві закриті хвилі, рішення керівника й заходи. З `SEED_DEMO=false` — лише анкети й адміністратор `admin`, без демо-даних і хвиль.
 
 ## Локальний запуск без Docker
 
@@ -49,8 +49,8 @@ cd backend && pytest
 | `app/models.py` | Таблиці БД |
 | `app/schemas.py` | Формати запитів і відповідей API |
 | `app/security.py` | Паролі, JWT, перевірка ролей |
-| `app/routers/` | Маршрути: `config` (налаштування й `/health`), `auth`, `admin`, `questionnaires`, `campaigns`, `respond`, `checklist`, `checks`, `indicators`, `results`, `dashboard`, `recommendations`, `measures`, `reports`, `integrations` (тема 2 / Mitra), `what_if`, `insights` (адвокат диявола, черговий), `normative`, `learning`, `autopilot`, `assistant` і `llm` (`/api/assistant` для frontend-proto) |
-| `app/services/` | Логіка: анкети й версії, перевірка відповідей, правила допуску, анонімність (буфер, вторинне приховування), методика й розрахунок Integrity Index, факти, знімки, рекомендації, заходи й черга для теми 2, «що, якщо», адвокат диявола, черговий, нормативка, автопілот, флешкартки, перевірки декларацій і закупівель |
+| `app/routers/` | Маршрути: `config` (налаштування й `/health`), `auth` (і запрошення), `admin` (і принцип двох осіб, якір журналу, звіт переглядів), `dictionaries`, `department`, `urn`, `risks`, `insights_plus` (відвертість, лотерея, план, брифінг, стійкість ваг), `questionnaires`, `campaigns`, `respond`, `checklist`, `checks`, `indicators`, `results`, `dashboard`, `recommendations`, `measures`, `reports`, `integrations` (тема 2 / Mitra), `what_if`, `insights` (адвокат диявола, черговий), `normative`, `learning`, `autopilot`, `assistant` і `llm` (`/api/assistant` для frontend-proto) |
+| `app/services/` | Логіка (з 20.11 ще: `categories`, `fact_registry`, `approvals`, `invites`, `candor`, `goodhart`, `urn`, `ballots`, `planning`, `counterparty`): анкети й версії, перевірка відповідей, правила допуску, анонімність (буфер, вторинне приховування), методика й розрахунок Integrity Index, факти, знімки, рекомендації, заходи й черга для теми 2, «що, якщо», адвокат диявола, черговий, нормативка, автопілот, флешкартки, перевірки декларацій і закупівель |
 | `app/seed/` | Демо-дані, анкети з додатків Б і В, каталог заходів з Додатку Д (JSON) |
 | `migrations/` | Міграції Alembic |
 | `scripts/demo_wave.py` | Демо-хвиля через API від початку до кінця |

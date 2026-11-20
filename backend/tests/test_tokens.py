@@ -38,7 +38,7 @@ def tok(token: str) -> dict:
 def answers_for(client, token, pick=0):
     form = client.get(f"{API}/respond/form", headers=tok(token))
     assert form.status_code == 200, form.text
-    return [{"question_id": q["id"], "option_ids": [q["options"][pick]["id"]]}
+    return [{"question_id": q["id"], "option_ids": [q["options"][min(pick, len(q["options"]) - 1)]["id"]]}
             for s in form.json()["sections"] for q in s["questions"]]
 
 
@@ -63,6 +63,10 @@ def test_anonymous_flow_and_reuse_is_409(client):
     issued = issue(client, campaign_id, q[STAFF], unit, 3, admin)
     assert issued["group_total"] == 3 and "менше за k" in issued["warning"]
     token = issued["tokens"][0]["token"]
+    # Анкету, на яку загалом може відповісти менше k людей, не відкриваємо: видаємо ще посилання іншій групі.
+    r = client.post(f"{API}/campaigns/{campaign_id}/open", headers=admin)
+    assert r.status_code == 409 and r.json()["code"] == "group_too_small"
+    issue(client, campaign_id, q[STAFF], units(client, admin)["Підрозділ Б"], 3, admin)
     assert issued["tokens"][0]["link"].endswith(f"/s/{token}")
 
     # До відкриття хвилі посилання не приймає відповіді.
@@ -110,8 +114,8 @@ def test_invalid_token_and_throttle(client):
 def test_valid_token_passes_after_invalid_attempts(client):
     """5 невірних посилань з однієї адреси не блокують дійсне посилання з тієї ж адреси."""
     campaign_id, q, admin = token_campaign(client)
-    token = issue(client, campaign_id, q[STAFF], units(client, admin)["Підрозділ А"], 1, admin)["tokens"][0]["token"]
-    client.post(f"{API}/campaigns/{campaign_id}/open", headers=admin)
+    token = issue(client, campaign_id, q[STAFF], units(client, admin)["Підрозділ А"], 5, admin)["tokens"][0]["token"]
+    assert client.post(f"{API}/campaigns/{campaign_id}/open", headers=admin).status_code == 200
     for _ in range(5):
         assert client.get(f"{API}/respond/form", headers=tok("x" * 43)).status_code == 404
     assert client.get(f"{API}/respond/form", headers=tok("x" * 43)).status_code == 429

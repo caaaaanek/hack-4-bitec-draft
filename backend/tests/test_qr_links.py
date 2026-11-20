@@ -71,9 +71,9 @@ def test_more_answers_than_expected_is_flagged(client):
 
 
 def test_open_limit_is_three_times_expected(client):
-    campaign_id, qr, admin = open_qr(client, expected=2)
-    codes = [scan(client, qr["code"]).status_code for _ in range(7)]
-    assert codes[:6] == [201] * 6 and codes[6] == 429
+    campaign_id, qr, admin = open_qr(client, expected=5)
+    codes = [scan(client, qr["code"]).status_code for _ in range(16)]
+    assert codes[:15] == [201] * 15 and codes[15] == 429
     assert scan(client, qr["code"]).json()["code"] == "qr_limit"
 
 

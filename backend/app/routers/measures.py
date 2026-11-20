@@ -165,7 +165,7 @@ class MeasureStats(BaseModel):
 def create_measure(db: Session, user: User, data: MeasureIn) -> Measure:
     if db.get(Unit, data.unit_id) is None:
         raise HTTPException(status_code=422, detail="Підрозділ не знайдено")
-    ensure_unit_access(db, user, data.unit_id)
+    ensure_unit_access(db, user, data.unit_id, "manage")
     if data.campaign_id is not None and db.get(Campaign, data.campaign_id) is None:
         raise HTTPException(status_code=422, detail="Хвилю не знайдено")
     measure = Measure(**data.model_dump(), created_by_id=user.id, status=MeasureStatus.PLANNED)
@@ -181,7 +181,7 @@ def get_or_404(db: Session, measure_id: uuid.UUID, user: User) -> Measure:
     measure = db.get(Measure, measure_id)
     if measure is None:
         raise HTTPException(status_code=404, detail="Захід не знайдено")
-    ensure_unit_access(db, user, measure.unit_id)
+    ensure_unit_access(db, user, measure.unit_id, "manage")
     return measure
 
 
@@ -197,7 +197,7 @@ def list_measures(
     scope = unit_id or (user.unit_id if user.role == Role.LEADER else None)
     query = select(Measure).order_by(Measure.due_date, Measure.created_at)
     if scope is not None:
-        ensure_unit_access(db, user, scope)
+        ensure_unit_access(db, user, scope, "manage")
         query = query.where(Measure.unit_id.in_(subtree_ids(db, scope)))
     if status_ is not None:
         query = query.where(Measure.status == status_)
@@ -211,7 +211,7 @@ def list_measures(
 
 @router.get("/stats", response_model=MeasureStats)
 def measure_stats(unit_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(readers)):
-    ensure_unit_access(db, user, unit_id)
+    ensure_unit_access(db, user, unit_id, "manage")
     return service.stats(db, unit_id)
 
 

@@ -9,6 +9,7 @@ from dataclasses import dataclass, field
 from statistics import fmean, pstdev
 
 from app.models import Question, Questionnaire, QuestionType
+from app.services import candor
 from app.services import methodology as m
 
 SURVEY_SOURCES = ("staff", "working_group", "expert")
@@ -20,6 +21,8 @@ class ResponseData:
 
     options: dict = field(default_factory=dict)
     values: dict = field(default_factory=dict)
+    # Варіант непрямого питання (list_count): question_id -> "A" | "B"
+    variants: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -100,10 +103,31 @@ def is_perfect(questions: list[Question], response: ResponseData) -> bool:
     return answered
 
 
+def modal_level(questions: list[tuple], responses: list[ResponseData]) -> int | None:
+    """Рівень, що переважає (як у Додатку Г): найчастіший бал варіанта серед відповідей на питання компонентів.
+    Лише для питань з варіантами-рівнями 1-5. За рівності — нижчий рівень (обережна оцінка)."""
+    counts: dict[int, int] = {}
+    for section, question in questions:
+        if m.survey_component(section.component) is None or question.type == QuestionType.SCALE:
+            continue
+        scores = {o.id: o.score for o in question.options}
+        if not scores or min(scores.values()) < 1 or max(scores.values()) > 5:
+            continue
+        for r in responses:
+            for option_id in r.options.get(question.id, []):
+                if option_id in scores:
+                    level = int(scores[option_id])
+                    counts[level] = counts.get(level, 0) + 1
+    if not counts:
+        return None
+    return max(counts, key=lambda lvl: (counts[lvl], -lvl))
+
+
 def score_group(group: GroupInput, k: int) -> dict:
     """Бали однієї групи (одна анкета = одна категорія) з порогом k."""
     q = group.questionnaire
-    questions = [(s, question) for s in q.sections for question in s.questions]
+    # Розділ «Відвертість» (непрямі питання, «дзеркало») в індекс не входить: його рахує services/candor.py.
+    questions = [(s, question) for s in q.sections if s.component != m.CANDOR_COMPONENT for question in s.questions]
     n = len(group.responses)
     sufficient = n >= k
     population_ok = group.eligible >= k and not group.suppressed
@@ -112,7 +136,7 @@ def score_group(group: GroupInput, k: int) -> dict:
     result = {
         "questionnaire_id": q.id,
         "title": q.title,
-        "category": q.target_category.value,
+        "category": str(q.target_category),
         # Кількості показуємо лише для груп від k людей.
         "eligible": group.eligible if population_ok else None,
         "submitted": group.submitted if population_ok else None,
@@ -123,6 +147,7 @@ def score_group(group: GroupInput, k: int) -> dict:
         "perfect_share": None,
         "declared_level": None,
         "computed_level": None,
+        "modal_level": None,
         "flags": [],
         "suppressed": group.suppressed,
         "components": {},
@@ -174,6 +199,7 @@ def score_group(group: GroupInput, k: int) -> dict:
         )
 
     result["components"] = {c: weighted_mean(pairs) for c, pairs in component_pairs.items()}
+    result["modal_level"] = modal_level(questions, group.responses)
 
     plain = [question for _, question in questions]
     per_response = [
@@ -205,7 +231,8 @@ def flag_list(codes: list[str]) -> list[dict]:
     return [{"code": c, "severity": m.FLAGS[c]["severity"], "title": m.FLAGS[c]["title"]} for c in seen]
 
 
-def combine(inputs: dict[str, dict]) -> dict:
+def combine(inputs: dict[str, dict], weights: dict[str, float] | None = None,
+            titles: dict[str, str] | None = None) -> dict:
     """Кроки 1-5 для трьох компонентів.
 
     inputs[component] = {
@@ -214,8 +241,11 @@ def combine(inputs: dict[str, dict]) -> dict:
         "facts": [бал факту 0-100, ...],
         "flags": [прапорці груп і чек-листа, що стосуються компонента],
     }
-    Бали — у шкалі 0-100.
+    Бали — у шкалі 0-100. weights: ваги джерел (за замовчуванням методики; довідник категорій
+    може додати категорію з вагою), titles: назви джерел.
     """
+    weights = weights or m.SOURCE_WEIGHTS
+    titles = {**m.SOURCE_TITLES, **(titles or {})}
     components = []
     for code, meta in m.COMPONENTS.items():
         data = inputs.get(code, {})
@@ -223,23 +253,23 @@ def combine(inputs: dict[str, dict]) -> dict:
         flags = list(data.get("flags", []))
 
         # Крок 1. Самооцінка: вага джерел без даних ділиться між рештою пропорційно.
-        available = {s: v for s, v in sources.items() if v is not None and s in m.SOURCE_WEIGHTS}
-        total_weight = sum(m.SOURCE_WEIGHTS[s] for s in available)
+        available = {s: v for s, v in sources.items() if v is not None and s in weights}
+        total_weight = sum(weights[s] for s in available)
         source_rows = []
-        for s, base_weight in m.SOURCE_WEIGHTS.items():
+        for s, base_weight in weights.items():
             value = sources.get(s)
             effective = base_weight / total_weight if value is not None and total_weight else 0.0
-            source_rows.append({"source": s, "title": m.SOURCE_TITLES[s], "weight": base_weight,
+            source_rows.append({"source": s, "title": titles.get(s, s), "weight": base_weight,
                                 "effective_weight": round(effective, 3), "score": r1(value)})
-        self_score = weighted_mean([(v, m.SOURCE_WEIGHTS[s]) for s, v in available.items()])
-        if self_score is not None and len(available) < len(m.SOURCE_WEIGHTS):
-            dropped_survey = [s for s in SURVEY_SOURCES if s in sources and sources[s] is None]
+        self_score = weighted_mean([(v, weights[s]) for s, v in available.items()])
+        if self_score is not None and len(available) < len(weights):
+            dropped_survey = [s for s in weights if s != "checklist" and s in sources and sources[s] is None]
             if dropped_survey:
                 flags.append("low_participation")
         self_rule = (
             "S = " + " + ".join(f"{str(round(r['effective_weight'], 3)).replace('.', ',')}·{r['title']} {fmt(r['score'])}" for r in source_rows if r["score"] is not None)
             + f" = {fmt(self_score)}"
-            + (" (вага джерел без даних поділена між рештою)" if len(available) < len(m.SOURCE_WEIGHTS) else "")
+            + (" (вага джерел без даних поділена між рештою)" if len(available) < len(weights) else "")
             if self_score is not None
             else "Немає жодного джерела з достатньою кількістю даних."
         )
@@ -343,8 +373,14 @@ def combine(inputs: dict[str, dict]) -> dict:
 
 # ---------- Повний розрахунок хвилі ----------
 
-def compute(groups: list[GroupInput], checklist: list[ChecklistItem] | None, facts: list[dict], k: int) -> dict:
+def compute(groups: list[GroupInput], checklist: list[ChecklistItem] | None, facts: list[dict], k: int,
+            weights: dict[str, float] | None = None, titles: dict[str, str] | None = None,
+            extra_flags: list[str] | None = None) -> dict:
+    """weights: ваги джерел самооцінки (методика + категорії довідника з вагою). Категорії без ваги
+    рахуються й показуються в групах і питаннях (порівняння), але в індекс не входять."""
+    weights = weights or m.SOURCE_WEIGHTS
     scored = [score_group(g, k) for g in groups]
+    candor_result = candor.analyze(groups, k)
     by_category = {g["category"]: g for g in scored}
     usable = [g for g in scored if g["sufficient"]]
 
@@ -355,6 +391,11 @@ def compute(groups: list[GroupInput], checklist: list[ChecklistItem] | None, fac
             group_flags.append("low_participation")
         if "suspiciously_perfect" in g["flags"]:
             group_flags.append("suspiciously_perfect")
+    # Детектор відвертості: «приховування» знижує достовірність усіх компонентів (страх відповідати чесно
+    # стосується анкети загалом), «плюралістичне незнання» — інформаційний.
+    group_flags.extend(candor_result["flags"])
+    # Прапорці, які рахуються поза ядром (детектор Гудхарта: services/goodhart.py).
+    group_flags.extend(extra_flags or [])
 
     # Чек-лист.
     checklist_summary = None
@@ -393,7 +434,7 @@ def compute(groups: list[GroupInput], checklist: list[ChecklistItem] | None, fac
     inputs = {}
     for code in m.COMPONENTS:
         sources: dict[str, float | None] = {}
-        for category in SURVEY_SOURCES:
+        for category in [c for c in weights if c != "checklist"]:
             g = by_category.get(category)
             if g is not None:
                 sources[category] = g["components"].get(code) if g["sufficient"] else None
@@ -405,7 +446,10 @@ def compute(groups: list[GroupInput], checklist: list[ChecklistItem] | None, fac
             "facts": [f["score"] for f in facts if f["component"] == code and f["status"] == "ok"],
             "flags": group_flags + checklist_flags,
         }
-    core = combine(inputs)
+    core = combine(inputs, weights, titles)
+    # Поруч із рівнем за середнім балом — рівень, що переважає, окремо по кожній групі (як у Додатку Г).
+    core["index"]["modal_levels"] = {g["category"]: g["modal_level"] for g in scored
+                                     if g["sufficient"] and g.get("modal_level") is not None}
     for c in core["components"]:
         c["facts"] = [f for f in facts if f["component"] == c["code"]]
 
@@ -437,6 +481,7 @@ def compute(groups: list[GroupInput], checklist: list[ChecklistItem] | None, fac
                      for c in reversed(ranked) if c["zone"]["code"] in ("critical", "attention")],
         "weakest_questions": [{"code": q["code"], "text": q["text"], "score": q["score"]} for q in weakest[:5]],
         "discrepancies": find_discrepancies(usable, questions),
+        "candor": candor_result,
     }
 
 

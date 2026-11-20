@@ -107,7 +107,9 @@ def test_seeded_instruments(client):
 
     staff = client.get(f"{API}/questionnaires/{items['nazk-maturity-staff']['id']}", headers=headers).json()
     questions = {q["code"]: q for s in staff["sections"] for q in s["questions"]}
-    assert len(questions) == 10
+    assert len(questions) == 14  # 10 питань Моделі зрілості + 4 розділу «Відвертість» (в індекс не входять)
+    assert questions["candor.favor_list"]["type"] == "list_count"
+    assert questions["candor.report_mirror"]["params"] == {"mirror_of": "candor.report_self"}
     assert [o["score"] for o in questions["accountability.whistleblowers"]["options"]] == [1, 2, 3, 4, 5, 5]
 
     checklist = client.get(f"{API}/questionnaires/{items['nazk-checklist']['id']}", headers=headers).json()

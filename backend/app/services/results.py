@@ -28,6 +28,7 @@ from app.models import (
     Unit,
     User,
 )
+from app.services import categories, fact_registry, goodhart
 from app.services import facts as facts_service
 from app.services import methodology as m
 from app.services import scoring
@@ -67,6 +68,7 @@ class WaveData:
 
 
 def load_wave(db: Session, campaign: Campaign) -> WaveData:
+    fact_registry.refresh(db)  # факти довідника, які додали в іншому процесі API
     children, _ = unit_tree(db)
     campaign_units = subtree_from(children, campaign.unit_id)
     end = campaign.closed_on or today()
@@ -168,6 +170,8 @@ def load_groups(wave: WaveData, scope: uuid.UUID, units: set[uuid.UUID]) -> list
                     item.options.setdefault(a.question_id, []).append(a.option_id)
                 elif a.value is not None:
                     item.values[a.question_id] = a.value
+                if a.variant:
+                    item.variants[a.question_id] = a.variant
             data.append(item)
         # Вторинне приховування: група сама не менша за k, але її показ дозволив би обчислити різницею
         # меншу сусідню групу (або її відповіді при зберіганні узагальнено до вищого підрозділу разом з такою).
@@ -217,6 +221,17 @@ class Inputs:
     checklist: list[scoring.ChecklistItem] | None
     facts: list[dict]
     k: int
+    # Ваги й назви джерел самооцінки: методика + категорії довідника з вагою.
+    weights: dict[str, float] = field(default_factory=lambda: dict(m.SOURCE_WEIGHTS))
+    titles: dict[str, str] = field(default_factory=dict)
+    goodhart: dict | None = None
+
+    def compute(self, checklist=None, facts=None) -> dict:
+        result = scoring.compute(self.groups, self.checklist if checklist is None else checklist,
+                                 self.facts if facts is None else facts, self.k, self.weights, self.titles,
+                                 (self.goodhart or {}).get("flags"))
+        result["goodhart"] = self.goodhart
+        return result
 
 
 def load_inputs(db: Session, campaign: Campaign, unit_id: uuid.UUID | None, wave: WaveData | None = None) -> Inputs:
@@ -229,15 +244,18 @@ def load_inputs(db: Session, campaign: Campaign, unit_id: uuid.UUID | None, wave
     hidden = facts_service.hidden_indicators(wave.indicator_rows, wave.children, campaign.unit_id, scope, k,
                                              wave.fact_hidden)
     facts = facts_service.aggregate_rows([r for r in wave.indicator_rows if r.unit_id in units], wave.periods, k, hidden)
-    return Inputs(wave=wave, scope=scope, units=units, groups=load_groups(wave, scope, units),
-                  checklist=load_checklist(wave, at_root), facts=facts, k=k)
+    groups = load_groups(wave, scope, units)
+    return Inputs(wave=wave, scope=scope, units=units, groups=groups,
+                  checklist=load_checklist(wave, at_root), facts=facts, k=k,
+                  weights=categories.weights(db), titles=categories.titles(db),
+                  goodhart=goodhart.analyze(db, wave, scope, units, groups, at_root))
 
 
 def compute_for(db: Session, campaign: Campaign, unit_id: uuid.UUID | None, wave: WaveData | None = None) -> dict:
     """Розрахунок за поточною методикою (без збереження)."""
     inputs = load_inputs(db, campaign, unit_id, wave)
     wave, scope, k = inputs.wave, inputs.scope, inputs.k
-    result = scoring.compute(inputs.groups, inputs.checklist, inputs.facts, k)
+    result = inputs.compute()
     return {
         "campaign_id": str(campaign.id),
         "campaign_title": campaign.title,

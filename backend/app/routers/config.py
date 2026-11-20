@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
+from app.config import ORG_TERMS, get_settings
 from app.db import get_db
 from app.services import methodology
 from app.services.evidence import ALLOWED_TYPES
@@ -28,6 +28,18 @@ class EvidenceLimits(BaseModel):
     allowed_extensions: list[str]
 
 
+class Policies(BaseModel):
+    """Політики розгортання, від яких залежить інтерфейс (які кнопки показувати)."""
+
+    four_eyes: bool
+    admin_sets_passwords: bool
+    staff_token_only: bool
+    leader_child_details: bool
+    separate_tech_admin: bool
+    checklist_confirmers: list[str]
+    external_fetch: bool
+
+
 class PublicConfig(BaseModel):
     api_version: str
     methodology_version: str
@@ -37,6 +49,9 @@ class PublicConfig(BaseModel):
     root_path: str
     auth: AuthModes
     evidence: EvidenceLimits
+    # Як називати кореневу одиницю (ORG_KIND): {"nominative": "заклад", "genitive": ..., "plural": ..., "full": ...}
+    org_terms: dict[str, str] = {}
+    policies: Policies | None = None
 
 
 @router.get("/config", response_model=PublicConfig)
@@ -56,6 +71,14 @@ def public_config():
             max_bytes=s.evidence_max_bytes,
             max_files_per_item=s.evidence_max_files_per_item,
             allowed_extensions=sorted(ALLOWED_TYPES),
+        ),
+        org_terms=ORG_TERMS[s.org_kind],
+        policies=Policies(
+            four_eyes=s.four_eyes_enabled, admin_sets_passwords=s.admin_sets_passwords,
+            staff_token_only=s.staff_token_only, leader_child_details=s.leader_child_details,
+            separate_tech_admin=s.separate_tech_admin,
+            checklist_confirmers=[c.strip() for c in s.checklist_confirmers.split(",") if c.strip()],
+            external_fetch=s.external_fetch_enabled,
         ),
     )
 

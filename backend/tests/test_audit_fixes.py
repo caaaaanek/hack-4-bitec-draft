@@ -93,7 +93,7 @@ def test_token_participant_sees_generalized_results_after_close(client):
     for t in tokens:
         h = {"X-Response-Token": t["token"]}
         form = client.get(f"{API}/respond/form", headers=h).json()
-        answers = [{"question_id": x["id"], "option_ids": [x["options"][2]["id"]]}
+        answers = [{"question_id": x["id"], "option_ids": [x["options"][min(2, len(x["options"]) - 1)]["id"]]}
                    for s in form["sections"] for x in s["questions"]]
         assert client.post(f"{API}/respond/responses", json={"answers": answers}, headers=h).status_code == 201
 

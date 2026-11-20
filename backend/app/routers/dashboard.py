@@ -9,12 +9,13 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_db
+from app.errors import ApiError
 from app.models import Campaign, CampaignStatus, Role, User
 from app.routers.indicators import RiskSignal
 from app.routers.measures import MeasureStats
 from app.routers.recommendations import RecommendationOut, with_decisions
 from app.schemas_results import IndexOut, Level, Significance, Zone
-from app.security import RESULT_READERS, ensure_unit_access, require_roles
+from app.security import RESULT_READERS, ensure_unit_access, record_view, require_roles
 from app.services import facts, results
 from app.services import measures as measures_service
 from app.services.recommendations import recommend
@@ -70,6 +71,10 @@ class DashboardOut(BaseModel):
     recommendations_total: int
     measures: MeasureStats
     risk_signals: list[RiskSignal]
+    # Картка «Що люди бояться сказати прямо» (детектор відвертості) і сигнали підгонки (детектор Гудхарта).
+    candor_card: list[str] = []
+    candor_flags: list[str] = []
+    gaming_signals: list[dict] = []
 
 
 def pick_campaign(db: Session, campaign_id: uuid.UUID | None, unit_id: uuid.UUID | None) -> Campaign:
@@ -101,6 +106,9 @@ def dashboard(
     """
     if unit_id is None and user.role == Role.LEADER:
         unit_id = user.unit_id
+    if unit_id is None and user.role == Role.DEPARTMENT:
+        raise ApiError(422, "Оберіть заклад", code="unit_required",
+                       hint="Департамент дивиться кожен заклад окремо: GET /department/institutions.")
     campaign = pick_campaign(db, campaign_id, unit_id)
     scope_id = unit_id or campaign.unit_id
     ensure_unit_access(db, user, scope_id)
@@ -109,6 +117,8 @@ def dashboard(
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     scope = uuid.UUID(data["unit_id"])
+    record_view(db, user, scope, campaign.id, "dashboard", campaign.unit_id)
+    db.commit()
     # Той самий поріг k, що й в індексі хвилі (а не загальний за замовчуванням).
     signals = facts.risk_signals(db, scope, 3, campaign.closed_on, campaign.min_group_size)
     recs = recommend(data, signals)
@@ -136,4 +146,7 @@ def dashboard(
         "recommendations_total": len(recs),
         "measures": measures_service.stats(db, scope),
         "risk_signals": signals,
+        "candor_card": (data.get("candor") or {}).get("card", []),
+        "candor_flags": (data.get("candor") or {}).get("flags", []),
+        "gaming_signals": (data.get("goodhart") or {}).get("signals", []),
     }

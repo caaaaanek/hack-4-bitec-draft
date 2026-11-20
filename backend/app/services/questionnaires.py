@@ -18,6 +18,8 @@ from app.schemas import SectionIn, ValidationIssue
 from app.services import methodology as m
 
 CHOICE_TYPES = {QuestionType.SINGLE_CHOICE, QuestionType.MULTIPLE_CHOICE}
+# Типи з варіантами: для list_count варіанти — твердження переліку, бал 1 у чутливого твердження, 0 у нейтральних.
+OPTION_TYPES = CHOICE_TYPES | {QuestionType.LIST_COUNT}
 
 
 def build_sections(sections_in: list[SectionIn]) -> list[Section]:
@@ -36,8 +38,9 @@ def build_sections(sections_in: list[SectionIn]) -> list[Section]:
                 weight=q_in.weight,
                 scale_min=q_in.scale_min if q_in.type == QuestionType.SCALE else None,
                 scale_max=q_in.scale_max if q_in.type == QuestionType.SCALE else None,
+                params=dict(q_in.params or {}),
             )
-            if q_in.type in CHOICE_TYPES:
+            if q_in.type in OPTION_TYPES:
                 question.options = [
                     Option(position=o_pos, text=o_in.text, score=o_in.score)
                     for o_pos, o_in in enumerate(q_in.options, start=1)
@@ -62,7 +65,8 @@ def validate_for_publish(questionnaire: Questionnaire) -> list[ValidationIssue]:
         issues.append(ValidationIssue(path="sections", message="Анкета не має жодного розділу"))
 
     seen_codes: set[str] = set()
-    survey_components = set(m.COMPONENTS) | {m.DECLARED_COMPONENT}
+    survey_components = set(m.COMPONENTS) | {m.DECLARED_COMPONENT, m.CANDOR_COMPONENT}
+    all_codes = {q.code for s in questionnaire.sections for q in s.questions}
     for s in questionnaire.sections:
         s_path = f"sections[{s.position}]"
         if not s.questions:
@@ -90,6 +94,30 @@ def validate_for_publish(questionnaire: Questionnaire) -> list[ValidationIssue]:
             elif q.type == QuestionType.SCALE:
                 if q.scale_min is None or q.scale_max is None or q.scale_min >= q.scale_max:
                     issues.append(ValidationIssue(path=q_path, message="Для шкали потрібні scale_min < scale_max"))
+            elif q.type == QuestionType.LIST_COUNT:
+                issues.extend(validate_list_count(q, q_path, s.component))
+            params = q.params or {}
+            for key in ("direct_code", "mirror_of"):
+                ref = params.get(key)
+                if ref is not None and ref not in all_codes:
+                    issues.append(ValidationIssue(path=q_path, message=f"{key}: питання з кодом «{ref}» немає в анкеті"))
+            if params.get("mirror_of") and s.component != m.CANDOR_COMPONENT:
+                issues.append(ValidationIssue(path=q_path, message="Питання-«дзеркало» має бути в розділі з компонентом candor"))
+    return issues
+
+
+def validate_list_count(q: Question, q_path: str, component: str) -> list[ValidationIssue]:
+    """Непряме питання: 3-8 тверджень, рівно одне чутливе (бал 1), решта нейтральні (бал 0), розділ candor."""
+    issues = []
+    sensitive = [o for o in q.options if o.score == 1]
+    neutral = [o for o in q.options if o.score == 0]
+    if not 3 <= len(q.options) <= 8:
+        issues.append(ValidationIssue(path=q_path, message="Непряме питання: від 3 до 8 тверджень (з них одне чутливе)"))
+    if len(sensitive) != 1 or len(sensitive) + len(neutral) != len(q.options):
+        issues.append(ValidationIssue(
+            path=q_path, message="Непряме питання: рівно одне чутливе твердження з балом 1, у решти бал 0"))
+    if component != m.CANDOR_COMPONENT:
+        issues.append(ValidationIssue(path=q_path, message="Непряме питання має бути в розділі з компонентом candor"))
     return issues
 
 
@@ -124,6 +152,7 @@ def create_new_version(db: Session, source: Questionnaire) -> Questionnaire:
                 weight=q.weight,
                 scale_min=q.scale_min,
                 scale_max=q.scale_max,
+                params=dict(q.params or {}),
                 options=[Option(position=o.position, text=o.text, score=o.score) for o in q.options],
             )
             new_s.questions.append(new_q)

@@ -321,10 +321,24 @@ def test_unit_can_be_given_by_name(client, llm_env, monkeypatch):
     full_wave(client)
     llm_env(LLM_ALLOW_EXTERNAL="true", LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma4-26b")
     calls = scripted_model(monkeypatch, [(200, tool_call("get_history", '{"unit_id": "підрозділ а"}')), (200, final("Ок."))])
-    r = client.post("/api/assistant", json={"question": "Динаміка Підрозділу А"}, headers=auth(client, "leader"))
+    # Уповноважений бачить усе дерево; вищий керівник деталей дочірнього підрозділу не бачить (див. нижче).
+    r = client.post("/api/assistant", json={"question": "Динаміка Підрозділу А"}, headers=auth(client, "commissioner"))
     assert r.status_code == 200, r.text
     tool_msg = next(m for m in calls[1]["messages"] if m["role"] == "tool")
     assert '"unit": "Підрозділ А"' in tool_msg["content"] and "error" not in tool_msg["content"]
+
+
+def test_leader_gets_no_child_unit_details_via_assistant(client, llm_env, monkeypatch):
+    """Захист від колективного покарання діє й через асистента: деталей дочірнього підрозділу модель не отримує."""
+    from tests.helpers import full_wave
+
+    full_wave(client)
+    llm_env(LLM_ALLOW_EXTERNAL="true", LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma4-26b")
+    calls = scripted_model(monkeypatch, [(200, tool_call("get_history", '{"unit_id": "підрозділ а"}')), (200, final("Ок."))])
+    r = client.post("/api/assistant", json={"question": "Динаміка Підрозділу А"}, headers=auth(client, "leader"))
+    assert r.status_code == 200, r.text
+    tool_msg = next(m for m in calls[1]["messages"] if m["role"] == "tool")
+    assert "error" in tool_msg["content"] and "index" not in tool_msg["content"]
 
 
 def test_key_without_url_does_not_enable_external_cloud(client, llm_env, monkeypatch):

@@ -532,6 +532,81 @@
         ]
       }
     },
+    "/api/v1/auth/invite": {
+      "post": {
+        "tags": [
+          "auth"
+        ],
+        "summary": "Accept Invite",
+        "description": "Поставити свій пароль за одноразовим запрошенням. Адміністратор пароля не бачить і не знає.\n\nЗапрошення діє один раз і до строку (INVITE_TTL_HOURS). Усі попередні сесії облікового запису закриваються.",
+        "operationId": "accept_invite_api_v1_auth_invite_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteAcceptIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/admin/users": {
       "get": {
         "tags": [
@@ -634,6 +709,7 @@
           "admin"
         ],
         "summary": "Create User",
+        "description": "Створити обліковий запис.\n\n- Без пароля (рекомендовано): відповідь містить одноразове запрошення, і людина ставить пароль сама.\n  ADMIN_SETS_PASSWORDS=false дозволяє лише так.\n- FOUR_EYES_ENABLED=true: обліковий запис створюється неактивним, доки його не підтвердить друга\n  людина (POST /admin/approvals/{id}/approve). Так закривається атака «n−1» підставними респондентами.",
         "operationId": "create_user_api_v1_admin_users_post",
         "security": [
           {
@@ -714,12 +790,102 @@
         }
       }
     },
+    "/api/v1/admin/users/{user_id}/invite": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Reissue Invite",
+        "description": "Нове запрошення (забув пароль, не встиг за строк). Попередні невикористані перестають діяти.\nПоточний пароль діє, доки людина не поставить новий за запрошенням.",
+        "operationId": "reissue_invite_api_v1_admin_users__user_id__invite_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "user_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "User Id"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InviteOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
     "/api/v1/admin/users/{user_id}": {
       "patch": {
         "tags": [
           "admin"
         ],
         "summary": "Update User",
+        "description": "Змінити обліковий запис. З FOUR_EYES_ENABLED привілейована роль і зміна категорії не застосовуються\nодразу: створюється запит, який підтверджує друга людина (pending_approval_id у відповіді).",
         "operationId": "update_user_api_v1_admin_users__user_id__patch",
         "security": [
           {
@@ -755,6 +921,318 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/UserOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/approvals": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List Approvals",
+        "description": "Запити на підтвердження другою людиною (FOUR_EYES_ENABLED).",
+        "operationId": "list_approvals_api_v1_admin_approvals_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(pending|approved|rejected)$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "default": "pending",
+              "title": "Status"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ApprovalOut"
+                  },
+                  "title": "Response List Approvals Api V1 Admin Approvals Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/approvals/{approval_id}/approve": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Approve",
+        "description": "Підтвердити: дія виконується від імені того, хто підтвердив. Підтверджує не той, хто просив.",
+        "operationId": "approve_api_v1_admin_approvals__approval_id__approve_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "approval_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Approval Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ApprovalDecisionIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Data"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/admin/approvals/{approval_id}/reject": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Reject",
+        "operationId": "reject_api_v1_admin_approvals__approval_id__reject_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "approval_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Approval Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/ApprovalDecisionIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Data"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApprovalOut"
                 }
               }
             }
@@ -1500,6 +1978,413 @@
         ]
       }
     },
+    "/api/v1/admin/audit-log/anchor": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Accept Anchor",
+        "description": "Аудитор приймає поточну голову ланцюжка (seq і hash) і зберігає її в себе: друк, окремий носій, лист.\n\nПеред прийняттям ланцюжок перевіряється. Якщо згодом журнал перепишуть (навіть разом із цією таблицею),\nзвірка з копією аудитора (POST /admin/audit-log/verify-anchor) це покаже.",
+        "operationId": "accept_anchor_api_v1_admin_audit_log_anchor_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "$ref": "#/components/schemas/AnchorIn"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "title": "Data"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnchorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/audit-log/anchors": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "List Anchors",
+        "operationId": "list_anchors_api_v1_admin_audit_log_anchors_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AnchorOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Anchors Api V1 Admin Audit Log Anchors Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/audit-log/verify-anchor": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Verify Anchor",
+        "description": "Звірити копію аудитора (seq, hash) з журналом: чи запис №seq має саме цей хеш і чи цілий ланцюжок.",
+        "operationId": "verify_anchor_api_v1_admin_audit_log_verify_anchor_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AnchorCheckIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Verify Anchor Api V1 Admin Audit Log Verify Anchor Post"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/admin/result-views": {
+      "get": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Result Views",
+        "description": "Звіт для аудиту: хто дивився результати дочірніх підрозділів (не кореня хвилі й не свого підрозділу).\n\nЗахист від колективного покарання: систематичний перегляд чужих підрозділів видно.",
+        "operationId": "result_views_api_v1_admin_result_views_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "date_from",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date From"
+            }
+          },
+          {
+            "name": "date_to",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "date-time"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Date To"
+            }
+          },
+          {
+            "name": "actor_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Actor Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 2000,
+              "minimum": 1,
+              "default": 200,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Result Views Api V1 Admin Result Views Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
     "/api/v1/questionnaires": {
       "get": {
         "tags": [
@@ -1552,7 +2437,7 @@
             "schema": {
               "anyOf": [
                 {
-                  "$ref": "#/components/schemas/RespondentCategory"
+                  "type": "string"
                 },
                 {
                   "type": "null"
@@ -2432,6 +3317,95 @@
         }
       }
     },
+    "/api/v1/questionnaires/{questionnaire_id}/restore": {
+      "post": {
+        "tags": [
+          "questionnaires"
+        ],
+        "summary": "Restore",
+        "description": "Повернути анкету з архіву в опубліковані. Зміст не змінюється, тож відповіді лишаються порівнюваними.",
+        "operationId": "restore_api_v1_questionnaires__questionnaire_id__restore_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "questionnaire_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Questionnaire Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/QuestionnaireOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
     "/api/v1/campaigns": {
       "get": {
         "tags": [
@@ -2779,6 +3753,86 @@
             "description": "Unprocessable Content"
           }
         }
+      },
+      "delete": {
+        "tags": [
+          "campaigns"
+        ],
+        "summary": "Delete Draft",
+        "description": "Видалити чернетку (наприклад, щоб звільнити людей зі складу, зафіксованого при створенні).",
+        "operationId": "delete_draft_api_v1_campaigns__campaign_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
       }
     },
     "/api/v1/campaigns/{campaign_id}/open": {
@@ -2787,6 +3841,7 @@
           "campaigns"
         ],
         "summary": "Open Campaign",
+        "description": "Відкрити хвилю. FOUR_EYES_ENABLED: перший виклик створює запит (pending_approval_id), хвилю відкриває\nпідтвердження другої людини, яка бачить склад учасників і скільки облікових записів створено нещодавно.",
         "operationId": "open_campaign_api_v1_campaigns__campaign_id__open_post",
         "security": [
           {
@@ -2875,6 +3930,7 @@
           "campaigns"
         ],
         "summary": "Close Campaign",
+        "description": "Закрити хвилю. З «урною» лише позначає запит на закриття: закриють двоє власників частин ключа.",
         "operationId": "close_campaign_api_v1_campaigns__campaign_id__close_post",
         "security": [
           {
@@ -3944,7 +5000,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/AssignmentOut"
+                    "$ref": "#/components/schemas/app__schemas__AssignmentOut"
                   },
                   "type": "array",
                   "title": "Response My Assignments Api V1 Me Assignments Get"
@@ -4490,6 +5546,544 @@
         }
       }
     },
+    "/api/v1/campaigns/{campaign_id}/questionnaires/{questionnaire_id}/ballot-key": {
+      "get": {
+        "tags": [
+          "respond"
+        ],
+        "summary": "Ballot Key",
+        "description": "Відкритий ключ групи (анкета хвилі + підрозділ) для засліплення жетона.",
+        "operationId": "ballot_key_api_v1_campaigns__campaign_id__questionnaires__questionnaire_id__ballot_key_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          },
+          {
+            "name": "questionnaire_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Questionnaire Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BallotKeyOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/campaigns/{campaign_id}/questionnaires/{questionnaire_id}/ballot": {
+      "post": {
+        "tags": [
+          "respond"
+        ],
+        "summary": "Issue Ballot",
+        "description": "Підписати засліплений жетон. Тут записується участь (хто), щоб не видати другий жетон.\nЩо саме підписано, сервер не знає: відповідь надійде пізніше без входу (POST /respond/ballot).",
+        "operationId": "issue_ballot_api_v1_campaigns__campaign_id__questionnaires__questionnaire_id__ballot_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          },
+          {
+            "name": "questionnaire_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Questionnaire Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BallotIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BallotOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/respond/ballot": {
+      "post": {
+        "tags": [
+          "respond"
+        ],
+        "summary": "Ballot Submit",
+        "description": "Відповідь за жетоном, без входу й без cookie. Повертає квитанцію sha256(nonce): після закриття хвилі\nза нею можна перевірити, що відповідь урахована. Час і користувач не зберігаються.",
+        "operationId": "ballot_submit_api_v1_respond_ballot_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BallotSubmissionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/respond/receipts/{receipt}": {
+      "get": {
+        "tags": [
+          "respond"
+        ],
+        "summary": "Check Receipt",
+        "description": "Чи врахована відповідь із цією квитанцією. Без входу: квитанцію знає лише сам учасник.",
+        "operationId": "check_receipt_api_v1_respond_receipts__receipt__get",
+        "parameters": [
+          {
+            "name": "receipt",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Receipt"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReceiptOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/campaigns/{campaign_id}/receipts": {
+      "get": {
+        "tags": [
+          "respond"
+        ],
+        "summary": "Campaign Receipts",
+        "description": "Публічний список квитанцій закритої хвилі (відсортований, без підрозділів): кожен знайде свою.",
+        "operationId": "campaign_receipts_api_v1_campaigns__campaign_id__receipts_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Campaign Receipts Api V1 Campaigns  Campaign Id  Receipts Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/respond/privacy": {
+      "get": {
+        "tags": [
+          "respond"
+        ],
+        "summary": "Privacy Notice",
+        "description": "«Що саме ми зберігаємо»: екран перед анкетою. Однаковий для всіх, без входу.",
+        "operationId": "privacy_notice_api_v1_respond_privacy_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "type": "object",
+                  "title": "Response Privacy Notice Api V1 Respond Privacy Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/campaigns/{campaign_id}/checklist": {
       "get": {
         "tags": [
@@ -4521,6 +6115,200 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ChecklistOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/campaigns/{campaign_id}/checklist/assignments": {
+      "get": {
+        "tags": [
+          "checklist"
+        ],
+        "summary": "Get Assignments",
+        "description": "Хто вносить і хто підтверджує кожен пункт. Пункт без призначення: вносить будь-хто з робочої групи\nхвилі, підтверджує будь-хто з CHECKLIST_CONFIRMERS (але не той, хто вніс).",
+        "operationId": "get_assignments_api_v1_campaigns__campaign_id__checklist_assignments_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/app__routers__checklist__AssignmentOut"
+                  },
+                  "title": "Response Get Assignments Api V1 Campaigns  Campaign Id  Checklist Assignments Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "checklist"
+        ],
+        "summary": "Set Assignments",
+        "description": "Розподілити пункти чек-листа між членами робочої групи і підтверджувачами (чернетка або відкрита хвиля).\n\nПередані пункти замінюються; enterer_id і confirmer_id null — зняти призначення. Вносить і підтверджує\nзавжди різні люди.",
+        "operationId": "set_assignments_api_v1_campaigns__campaign_id__checklist_assignments_put",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentsIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/app__routers__checklist__AssignmentOut"
+                  },
+                  "title": "Response Set Assignments Api V1 Campaigns  Campaign Id  Checklist Assignments Put"
                 }
               }
             }
@@ -4693,7 +6481,7 @@
           "checklist"
         ],
         "summary": "Confirm Entry",
-        "description": "Підтвердити пункт можна лише за наявності доказу.",
+        "description": "Підтвердити пункт можна лише за наявності доказу. Підтверджує не той, хто вніс.",
         "operationId": "confirm_entry_api_v1_campaigns__campaign_id__checklist__question_id__confirm_post",
         "security": [
           {
@@ -6354,6 +8142,93 @@
         ]
       }
     },
+    "/api/v1/checks/counterparty": {
+      "post": {
+        "tags": [
+          "checks"
+        ],
+        "summary": "Check Counterparties",
+        "description": "Перевірити контрагентів: санкції, банкрутство, податковий борг, суди, «молода» компанія.\n\nЖивий режим — COUNTERPARTY_API_URL/KEY і EXTERNAL_FETCH_ENABLED=true (Youcontrol чи аналог), інакше мок.\nЗнахідки з ризиком потрапляють у GET /checks/findings і розглядаються як інші.",
+        "operationId": "check_counterparties_api_v1_checks_counterparty_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CounterpartyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/indicators": {
       "post": {
         "tags": [
@@ -6812,7 +8687,7 @@
           "results"
         ],
         "summary": "Get Methodology",
-        "description": "Методика розрахунку: ваги, пороги, рівні, правила. Доступна всім, хто увійшов.",
+        "description": "Методика розрахунку: ваги, пороги, рівні, правила, ухвалені рішення. Доступна всім, хто увійшов.\n\n`source_weights` — вбудовані джерела (вага методики); `category_weights` — категорії з довідника, яким\nадміністратор задав вагу (без ваги категорія лише для порівняння).",
         "operationId": "get_methodology_api_v1_methodology_get",
         "responses": {
           "200": {
@@ -7397,6 +9272,114 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ParticipantResultOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/units/{unit_id}/children-levels": {
+      "get": {
+        "tags": [
+          "results"
+        ],
+        "summary": "Children Levels",
+        "description": "Скільки дочірніх підрозділів (усіх рівнів вкладеності) на якому рівні зрілості — без назв і без індексів.\n\nДля вищого керівника замість карток кожного підрозділу: видно картину, але не видно, кого «карати».\nПідрозділи з недостатніми даними рахуються окремо. Якщо підрозділів з даними менше 3, розподіл\nприховано. Знімок хвилі: остання закрита хвиля, що охоплює підрозділ, або campaign_id.",
+        "operationId": "children_levels_api_v1_units__unit_id__children_levels_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "campaign_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campaign Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Children Levels Api V1 Units  Unit Id  Children Levels Get"
                 }
               }
             }
@@ -10134,6 +12117,2159 @@
         ]
       }
     },
+    "/api/v1/dictionaries/categories": {
+      "get": {
+        "tags": [
+          "dictionaries"
+        ],
+        "summary": "List Categories",
+        "operationId": "list_categories_api_v1_dictionaries_categories_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Categories Api V1 Dictionaries Categories Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "dictionaries"
+        ],
+        "summary": "Create Category",
+        "description": "Нова категорія респондентів (наприклад, курсанти). Внутрішня: прив'язана до підрозділу.\n\nБез ваги — лише порівняння з іншими групами; з вагою — ще одне джерело самооцінки індексу.",
+        "operationId": "create_category_api_v1_dictionaries_categories_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/dictionaries/categories/{code}": {
+      "patch": {
+        "tags": [
+          "dictionaries"
+        ],
+        "summary": "Update Category",
+        "description": "Вага вбудованих категорій задана методикою і тут не змінюється (лише назва).",
+        "operationId": "update_category_api_v1_dictionaries_categories__code__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Code"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/dictionaries/positions": {
+      "get": {
+        "tags": [
+          "dictionaries"
+        ],
+        "summary": "List Positions",
+        "description": "Посади для поля «відповідальний» у заходах. Відповідальний — посада, не людина.",
+        "operationId": "list_positions_api_v1_dictionaries_positions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PositionOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Positions Api V1 Dictionaries Positions Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "dictionaries"
+        ],
+        "summary": "Create Position",
+        "operationId": "create_position_api_v1_dictionaries_positions_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PositionIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PositionOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/dictionaries/positions/{position_id}": {
+      "delete": {
+        "tags": [
+          "dictionaries"
+        ],
+        "summary": "Deactivate Position",
+        "description": "Посада зникає з вибору; заходи, де вона вже вказана, не змінюються.",
+        "operationId": "deactivate_position_api_v1_dictionaries_positions__position_id__delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "position_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Position Id"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/dictionaries/facts": {
+      "get": {
+        "tags": [
+          "dictionaries"
+        ],
+        "summary": "List Facts",
+        "description": "Факти методики: вбудовані (methodology.py) і додані в довідник.",
+        "operationId": "list_facts_api_v1_dictionaries_facts_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FactDefOut"
+                  },
+                  "type": "array",
+                  "title": "Response List Facts Api V1 Dictionaries Facts Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      },
+      "post": {
+        "tags": [
+          "dictionaries"
+        ],
+        "summary": "Create Fact",
+        "description": "Новий факт для правила реальності. Після цього інші системи можуть передавати його в POST /indicators.",
+        "operationId": "create_fact_api_v1_dictionaries_facts_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FactIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FactDefOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/dictionaries/facts/{code}": {
+      "patch": {
+        "tags": [
+          "dictionaries"
+        ],
+        "summary": "Update Fact",
+        "description": "Змінюються лише факти довідника. Вбудовані змінює методика (нова версія).",
+        "operationId": "update_fact_api_v1_dictionaries_facts__code__patch",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Code"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FactUpdate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FactDefOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/department/institutions": {
+      "get": {
+        "tags": [
+          "department"
+        ],
+        "summary": "List Institutions",
+        "description": "Заклади (корені хвиль) у зоні Департаменту. За назвою, без індексів і без рейтингу.",
+        "operationId": "list_institutions_api_v1_department_institutions_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "additionalProperties": true,
+                    "type": "object"
+                  },
+                  "type": "array",
+                  "title": "Response List Institutions Api V1 Department Institutions Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/department/institutions/{unit_id}": {
+      "get": {
+        "tags": [
+          "department"
+        ],
+        "summary": "Institution",
+        "description": "Один заклад: індекс останньої хвилі, достовірність, компоненти, динаміка відносно себе. Без дочірніх.",
+        "operationId": "institution_api_v1_department_institutions__unit_id__get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Unit Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Institution Api V1 Department Institutions  Unit Id  Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/campaigns/{campaign_id}/candor": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Candor Card",
+        "description": "«Що люди бояться сказати прямо»: непрямі оцінки з інтервалом, «дзеркала», картка для «Огляду»,\nа також сигнали детектора Гудхарта. Знімки до методики 2.3 цих розділів не мають.",
+        "operationId": "candor_card_api_v1_campaigns__campaign_id__candor_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          },
+          {
+            "name": "unit_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Unit Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Candor Card Api V1 Campaigns  Campaign Id  Candor Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/campaigns/{campaign_id}/next-level-plan": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Next Level Plan",
+        "description": "«Шлях до наступного рівня»: мінімальний набір заходів (формат Додатку Д), з посадами й строками; docx — Word.",
+        "operationId": "next_level_plan_api_v1_campaigns__campaign_id__next_level_plan_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          },
+          {
+            "name": "unit_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(json|docx)$",
+              "default": "json",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {}
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/campaigns/{campaign_id}/briefing": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Briefing",
+        "description": "«Брифінг за 30 секунд»: 3 числа, 3 ризики, 3 рішення. docx — одна сторінка Word.",
+        "operationId": "briefing_api_v1_campaigns__campaign_id__briefing_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          },
+          {
+            "name": "unit_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(json|docx)$",
+              "default": "json",
+              "title": "Format"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              },
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {}
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/campaigns/{campaign_id}/audit-lottery": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Audit Lottery",
+        "description": "«Лотерея перевірок»: які пункти чек-листа аудит перевіряє глибоко. Зерно — хеш знімка закритої хвилі.",
+        "operationId": "audit_lottery_api_v1_campaigns__campaign_id__audit_lottery_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          },
+          {
+            "name": "count",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 20,
+              "minimum": 1,
+              "default": 5,
+              "title": "Count"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Audit Lottery Api V1 Campaigns  Campaign Id  Audit Lottery Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/campaigns/{campaign_id}/sensitivity": {
+      "get": {
+        "tags": [
+          "insights"
+        ],
+        "summary": "Weight Sensitivity",
+        "description": "Перевірка стійкості ваг індексу: кожна вага джерела ±10 % → індекс і рівень.",
+        "operationId": "weight_sensitivity_api_v1_campaigns__campaign_id__sensitivity_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          },
+          {
+            "name": "unit_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Unit Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Weight Sensitivity Api V1 Campaigns  Campaign Id  Sensitivity Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/campaigns/{campaign_id}/urn": {
+      "get": {
+        "tags": [
+          "urn"
+        ],
+        "summary": "Urn Status",
+        "operationId": "urn_status_api_v1_campaigns__campaign_id__urn_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Urn Status Api V1 Campaigns  Campaign Id  Urn Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "urn"
+        ],
+        "summary": "Urn Setup",
+        "description": "Увімкнути урну для чернетки: ключ хвилі ділиться на 3 частини (2 з 3), сервер ключа не зберігає.",
+        "operationId": "urn_setup_api_v1_campaigns__campaign_id__urn_put",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UrnSetupIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Urn Setup Api V1 Campaigns  Campaign Id  Urn Put"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "urn"
+        ],
+        "summary": "Urn Disable",
+        "operationId": "urn_disable_api_v1_campaigns__campaign_id__urn_delete",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Urn Disable Api V1 Campaigns  Campaign Id  Urn Delete"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/campaigns/{campaign_id}/urn/my-share": {
+      "get": {
+        "tags": [
+          "urn"
+        ],
+        "summary": "My Share",
+        "description": "Забрати свою частину ключа. Видається один раз: збережіть її (друк, QR, окремий носій).",
+        "operationId": "my_share_api_v1_campaigns__campaign_id__urn_my_share_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response My Share Api V1 Campaigns  Campaign Id  Urn My Share Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/campaigns/{campaign_id}/urn/shares": {
+      "post": {
+        "tags": [
+          "urn"
+        ],
+        "summary": "Submit Share",
+        "description": "«Церемонія відкриття урни»: власник повертає частину. Друга частина відновлює ключ і закриває хвилю.",
+        "operationId": "submit_share_api_v1_campaigns__campaign_id__urn_shares_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShareIn"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Submit Share Api V1 Campaigns  Campaign Id  Urn Shares Post"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/units/{unit_id}/risk-register": {
+      "get": {
+        "tags": [
+          "risks"
+        ],
+        "summary": "List Risks",
+        "description": "Ризики підрозділу, від найвищого балу (ймовірність × вплив). Зведення по компонентах.",
+        "operationId": "list_risks_api_v1_units__unit_id__risk_register_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Unit Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
+    "/api/v1/units/{unit_id}/risk-register/import": {
+      "post": {
+        "tags": [
+          "risks"
+        ],
+        "summary": "Import Risks",
+        "operationId": "import_risks_api_v1_units__unit_id__risk_register_import_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Unit Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_risks_api_v1_units__unit_id__risk_register_import_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "additionalProperties": true,
+                  "title": "Response Import Risks Api V1 Units  Unit Id  Risk Register Import Post"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
     "/api/assistant": {
       "get": {
         "tags": [
@@ -10617,6 +14753,86 @@
         ],
         "title": "AnalyzeOut"
       },
+      "AnchorCheckIn": {
+        "properties": {
+          "seq": {
+            "type": "integer",
+            "minimum": 1.0,
+            "title": "Seq"
+          },
+          "hash": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$",
+            "title": "Hash"
+          }
+        },
+        "type": "object",
+        "required": [
+          "seq",
+          "hash"
+        ],
+        "title": "AnchorCheckIn"
+      },
+      "AnchorIn": {
+        "properties": {
+          "note": {
+            "type": "string",
+            "maxLength": 500,
+            "title": "Note",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "AnchorIn"
+      },
+      "AnchorOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "seq": {
+            "type": "integer",
+            "title": "Seq"
+          },
+          "hash": {
+            "type": "string",
+            "title": "Hash"
+          },
+          "accepted_by_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Accepted By Id"
+          },
+          "accepted_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Accepted At"
+          },
+          "note": {
+            "type": "string",
+            "title": "Note"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "seq",
+          "hash",
+          "accepted_by_id",
+          "accepted_at",
+          "note"
+        ],
+        "title": "AnchorOut"
+      },
       "AnswerIn": {
         "properties": {
           "question_id": {
@@ -10643,6 +14859,19 @@
               }
             ],
             "title": "Value"
+          },
+          "variant": {
+            "anyOf": [
+              {
+                "type": "string",
+                "pattern": "^[AB]$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variant",
+            "description": "Для list_count: варіант із форми"
           }
         },
         "type": "object",
@@ -10650,6 +14879,115 @@
           "question_id"
         ],
         "title": "AnswerIn"
+      },
+      "ApprovalDecisionIn": {
+        "properties": {
+          "comment": {
+            "type": "string",
+            "maxLength": 1000,
+            "title": "Comment",
+            "default": ""
+          }
+        },
+        "type": "object",
+        "title": "ApprovalDecisionIn"
+      },
+      "ApprovalOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "kind": {
+            "type": "string",
+            "title": "Kind"
+          },
+          "target_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Id"
+          },
+          "payload": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Payload"
+          },
+          "summary": {
+            "type": "string",
+            "title": "Summary"
+          },
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "requested_by_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requested By Id"
+          },
+          "requested_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Requested At"
+          },
+          "decided_by_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided By Id"
+          },
+          "decided_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Decided At"
+          },
+          "comment": {
+            "type": "string",
+            "title": "Comment"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "kind",
+          "target_id",
+          "payload",
+          "summary",
+          "status",
+          "requested_by_id",
+          "requested_at",
+          "decided_by_id",
+          "decided_at",
+          "comment"
+        ],
+        "title": "ApprovalOut"
       },
       "AskIn": {
         "properties": {
@@ -10716,44 +15054,64 @@
         ],
         "title": "AskOut"
       },
-      "AssignmentOut": {
+      "AssignmentItemIn": {
         "properties": {
-          "campaign_id": {
+          "question_id": {
             "type": "string",
             "format": "uuid",
-            "title": "Campaign Id"
+            "title": "Question Id"
           },
-          "campaign_title": {
-            "type": "string",
-            "title": "Campaign Title"
+          "enterer_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enterer Id",
+            "description": "Член робочої групи хвилі, який вносить пункт"
           },
-          "questionnaire_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Questionnaire Id"
-          },
-          "questionnaire_title": {
-            "type": "string",
-            "title": "Questionnaire Title"
-          },
-          "kind": {
-            "$ref": "#/components/schemas/QuestionnaireKind"
-          },
-          "submitted": {
-            "type": "boolean",
-            "title": "Submitted"
+          "confirmer_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmer Id",
+            "description": "Хто підтверджує (CHECKLIST_CONFIRMERS)"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
-          "campaign_id",
-          "campaign_title",
-          "questionnaire_id",
-          "questionnaire_title",
-          "kind",
-          "submitted"
+          "question_id"
         ],
-        "title": "AssignmentOut"
+        "title": "AssignmentItemIn"
+      },
+      "AssignmentsIn": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AssignmentItemIn"
+            },
+            "type": "array",
+            "maxItems": 500,
+            "title": "Items"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "items"
+        ],
+        "title": "AssignmentsIn"
       },
       "AuditLogOut": {
         "properties": {
@@ -11119,6 +15477,107 @@
         ],
         "title": "AutopilotOut"
       },
+      "BallotIn": {
+        "properties": {
+          "blinded": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{1,1024}$",
+            "title": "Blinded",
+            "description": "Засліплене повідомлення m·rᵉ mod n, hex"
+          }
+        },
+        "type": "object",
+        "required": [
+          "blinded"
+        ],
+        "title": "BallotIn"
+      },
+      "BallotKeyOut": {
+        "properties": {
+          "key_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Key Id"
+          },
+          "n": {
+            "type": "string",
+            "title": "N",
+            "description": "Модуль RSA, hex"
+          },
+          "e": {
+            "type": "integer",
+            "title": "E"
+          },
+          "hash": {
+            "type": "string",
+            "title": "Hash",
+            "description": "Як рахувати повідомлення m з випадкового nonce",
+            "default": "FDH-SHA512(integra-ballot-v1 ‖ лічильник ‖ nonce) mod n"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key_id",
+          "n",
+          "e"
+        ],
+        "title": "BallotKeyOut"
+      },
+      "BallotOut": {
+        "properties": {
+          "key_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Key Id"
+          },
+          "blinded_signature": {
+            "type": "string",
+            "title": "Blinded Signature"
+          }
+        },
+        "type": "object",
+        "required": [
+          "key_id",
+          "blinded_signature"
+        ],
+        "title": "BallotOut"
+      },
+      "BallotSubmissionIn": {
+        "properties": {
+          "answers": {
+            "items": {
+              "$ref": "#/components/schemas/AnswerIn"
+            },
+            "type": "array",
+            "title": "Answers"
+          },
+          "key_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Key Id"
+          },
+          "nonce": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{32,128}$",
+            "title": "Nonce",
+            "description": "Випадковий nonce (hex), з якого порахували m"
+          },
+          "signature": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{1,1024}$",
+            "title": "Signature",
+            "description": "Знятий із засліплення підпис s = mᵈ, hex"
+          }
+        },
+        "type": "object",
+        "required": [
+          "answers",
+          "key_id",
+          "nonce",
+          "signature"
+        ],
+        "title": "BallotSubmissionIn"
+      },
       "Body_analyze_api_v1_normative_analyze_post": {
         "properties": {
           "file": {
@@ -11176,6 +15635,20 @@
           "file"
         ],
         "title": "Body_import_participants_api_v1_campaigns__campaign_id__participants_import_post"
+      },
+      "Body_import_risks_api_v1_units__unit_id__risk_register_import_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_risks_api_v1_units__unit_id__risk_register_import_post"
       },
       "Body_login_api_v1_auth_login_post": {
         "properties": {
@@ -11369,6 +15842,33 @@
             "type": "boolean",
             "title": "Has Checklist",
             "default": false
+          },
+          "eligible_frozen": {
+            "type": "boolean",
+            "title": "Eligible Frozen",
+            "default": false
+          },
+          "urn_enabled": {
+            "type": "boolean",
+            "title": "Urn Enabled",
+            "default": false
+          },
+          "urn_close_requested": {
+            "type": "boolean",
+            "title": "Urn Close Requested",
+            "default": false
+          },
+          "pending_approval_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending Approval Id"
           }
         },
         "type": "object",
@@ -11543,6 +16043,30 @@
             },
             "type": "array",
             "title": "Summary"
+          },
+          "candor": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Candor"
+          },
+          "goodhart": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Goodhart"
           }
         },
         "type": "object",
@@ -11688,6 +16212,138 @@
         ],
         "title": "Card"
       },
+      "CategoryIn": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 2,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "title": "Code"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Title"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight",
+            "description": "Вага як джерела самооцінки. Порожньо: лише для порівняння"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "title"
+        ],
+        "title": "CategoryIn"
+      },
+      "CategoryOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          },
+          "builtin": {
+            "type": "boolean",
+            "title": "Builtin"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          },
+          "external": {
+            "type": "boolean",
+            "title": "External",
+            "default": false
+          },
+          "in_index": {
+            "type": "boolean",
+            "title": "In Index",
+            "default": false
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "title",
+          "weight",
+          "builtin",
+          "active"
+        ],
+        "title": "CategoryOut"
+      },
+      "CategoryUpdate": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 100,
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "weight": {
+            "anyOf": [
+              {
+                "type": "number",
+                "maximum": 1.0,
+                "exclusiveMinimum": 0.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weight"
+          },
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "CategoryUpdate"
+      },
       "ChecklistComponent": {
         "properties": {
           "score": {
@@ -11821,6 +16477,30 @@
             "type": "array",
             "title": "Files",
             "default": []
+          },
+          "enterer_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enterer Id"
+          },
+          "confirmer_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmer Id"
           }
         },
         "type": "object",
@@ -12432,6 +17112,37 @@
         ],
         "title": "ComponentOut"
       },
+      "CounterpartyIn": {
+        "properties": {
+          "unit_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Unit Id"
+          },
+          "period": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "title": "Period"
+          },
+          "edrpou": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Edrpou",
+            "description": "Коди ЄДРПОУ (8 цифр)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "unit_id",
+          "period",
+          "edrpou"
+        ],
+        "title": "CounterpartyIn"
+      },
       "DashboardComponent": {
         "properties": {
           "code": {
@@ -12666,6 +17377,31 @@
             },
             "type": "array",
             "title": "Risk Signals"
+          },
+          "candor_card": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Candor Card",
+            "default": []
+          },
+          "candor_flags": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Candor Flags",
+            "default": []
+          },
+          "gaming_signals": {
+            "items": {
+              "additionalProperties": true,
+              "type": "object"
+            },
+            "type": "array",
+            "title": "Gaming Signals",
+            "default": []
           }
         },
         "type": "object",
@@ -13959,6 +18695,116 @@
         "title": "ExternalStatusIn",
         "description": "Подія з Mitra. Новий формат: `state` + структурований `evidence`. Старий (`status` нашими словами,\n`evidence` рядком) теж приймається."
       },
+      "FactDefOut": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "component": {
+            "type": "string",
+            "title": "Component"
+          },
+          "thresholds": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Thresholds"
+          },
+          "numerator": {
+            "type": "string",
+            "title": "Numerator"
+          },
+          "denominator": {
+            "type": "string",
+            "title": "Denominator"
+          },
+          "rest": {
+            "type": "string",
+            "title": "Rest"
+          },
+          "builtin": {
+            "type": "boolean",
+            "title": "Builtin"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "title",
+          "component",
+          "thresholds",
+          "numerator",
+          "denominator",
+          "rest",
+          "builtin"
+        ],
+        "title": "FactDefOut"
+      },
+      "FactIn": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{1,63}$",
+            "title": "Code"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Title"
+          },
+          "component": {
+            "type": "string",
+            "title": "Component"
+          },
+          "thresholds": {
+            "items": {
+              "type": "number"
+            },
+            "type": "array",
+            "title": "Thresholds",
+            "description": "4 межі частки (%) для рівнів 2, 3, 4, 5"
+          },
+          "numerator": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Numerator",
+            "default": "так"
+          },
+          "denominator": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Denominator",
+            "default": "всього"
+          },
+          "rest": {
+            "type": "string",
+            "maxLength": 100,
+            "title": "Rest",
+            "default": "решта"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "code",
+          "title",
+          "component",
+          "thresholds"
+        ],
+        "title": "FactIn"
+      },
       "FactOut": {
         "properties": {
           "indicator": {
@@ -14075,6 +18921,51 @@
           "rule"
         ],
         "title": "FactOut"
+      },
+      "FactUpdate": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 200,
+                "minLength": 3
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          },
+          "thresholds": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "number"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thresholds"
+          },
+          "active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Active"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "title": "FactUpdate"
       },
       "FailedMessage": {
         "properties": {
@@ -14391,6 +19282,31 @@
             },
             "type": "array",
             "title": "Options"
+          },
+          "variant": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Variant"
+          },
+          "statements": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Statements"
           }
         },
         "type": "object",
@@ -14544,6 +19460,17 @@
               }
             ],
             "title": "Computed Level"
+          },
+          "modal_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modal Level"
           },
           "flags": {
             "items": {
@@ -14807,6 +19734,18 @@
             "type": "integer",
             "title": "Issued Tokens",
             "default": 0
+          },
+          "pending_approval_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending Approval Id"
           }
         },
         "type": "object",
@@ -14826,13 +19765,24 @@
           },
           "password": {
             "type": "string",
-            "title": "Password"
+            "title": "Password",
+            "default": ""
+          },
+          "invite_link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invite Link"
           }
         },
         "type": "object",
         "required": [
-          "login",
-          "password"
+          "login"
         ],
         "title": "ImportedCredential"
       },
@@ -14912,6 +19862,14 @@
           "rule": {
             "type": "string",
             "title": "Rule"
+          },
+          "modal_levels": {
+            "additionalProperties": {
+              "type": "integer"
+            },
+            "type": "object",
+            "title": "Modal Levels",
+            "default": {}
           }
         },
         "type": "object",
@@ -15137,6 +20095,58 @@
           "parent_id"
         ],
         "title": "IntegrationUnitOut"
+      },
+      "InviteAcceptIn": {
+        "properties": {
+          "token": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 10,
+            "title": "Token"
+          },
+          "password": {
+            "type": "string",
+            "maxLength": 128,
+            "minLength": 8,
+            "title": "Password"
+          }
+        },
+        "type": "object",
+        "required": [
+          "token",
+          "password"
+        ],
+        "title": "InviteAcceptIn"
+      },
+      "InviteOut": {
+        "properties": {
+          "user_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "User Id"
+          },
+          "invite_link": {
+            "type": "string",
+            "title": "Invite Link"
+          },
+          "invite_token": {
+            "type": "string",
+            "title": "Invite Token"
+          },
+          "expires_at": {
+            "type": "string",
+            "format": "date-time",
+            "title": "Expires At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "user_id",
+          "invite_link",
+          "invite_token",
+          "expires_at"
+        ],
+        "title": "InviteOut"
       },
       "IssuedToken": {
         "properties": {
@@ -15406,12 +20416,16 @@
           "category": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/RespondentCategory"
+                "type": "string",
+                "maxLength": 32,
+                "minLength": 2,
+                "pattern": "^[a-z][a-z0-9_]*$"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Category"
           },
           "unit_id": {
             "anyOf": [
@@ -16309,12 +21323,16 @@
           "category": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/RespondentCategory"
+                "type": "string",
+                "maxLength": 32,
+                "minLength": 2,
+                "pattern": "^[a-z][a-z0-9_]*$"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Category"
           },
           "unit_id": {
             "anyOf": [
@@ -16455,6 +21473,92 @@
           "participants"
         ],
         "title": "ParticipantsOut"
+      },
+      "Policies": {
+        "properties": {
+          "four_eyes": {
+            "type": "boolean",
+            "title": "Four Eyes"
+          },
+          "admin_sets_passwords": {
+            "type": "boolean",
+            "title": "Admin Sets Passwords"
+          },
+          "staff_token_only": {
+            "type": "boolean",
+            "title": "Staff Token Only"
+          },
+          "leader_child_details": {
+            "type": "boolean",
+            "title": "Leader Child Details"
+          },
+          "separate_tech_admin": {
+            "type": "boolean",
+            "title": "Separate Tech Admin"
+          },
+          "checklist_confirmers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Checklist Confirmers"
+          },
+          "external_fetch": {
+            "type": "boolean",
+            "title": "External Fetch"
+          }
+        },
+        "type": "object",
+        "required": [
+          "four_eyes",
+          "admin_sets_passwords",
+          "staff_token_only",
+          "leader_child_details",
+          "separate_tech_admin",
+          "checklist_confirmers",
+          "external_fetch"
+        ],
+        "title": "Policies",
+        "description": "Політики розгортання, від яких залежить інтерфейс (які кнопки показувати)."
+      },
+      "PositionIn": {
+        "properties": {
+          "title": {
+            "type": "string",
+            "maxLength": 200,
+            "minLength": 3,
+            "title": "Title"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "title"
+        ],
+        "title": "PositionIn"
+      },
+      "PositionOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "active": {
+            "type": "boolean",
+            "title": "Active"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "active"
+        ],
+        "title": "PositionOut"
       },
       "ProcurementBody": {
         "properties": {
@@ -16720,7 +21824,11 @@
             "title": "Questionnaire Title"
           },
           "target_category": {
-            "$ref": "#/components/schemas/RespondentCategory"
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 2,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "title": "Target Category"
           },
           "eligible": {
             "anyOf": [
@@ -16804,6 +21912,24 @@
           },
           "evidence": {
             "$ref": "#/components/schemas/EvidenceLimits"
+          },
+          "org_terms": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Org Terms",
+            "default": {}
+          },
+          "policies": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Policies"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "type": "object",
@@ -17119,6 +22245,12 @@
             "type": "array",
             "title": "Options",
             "default": []
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params",
+            "description": "list_count: {direct_code}; «дзеркало»: {mirror_of}"
           }
         },
         "type": "object",
@@ -17134,7 +22266,8 @@
         "enum": [
           "single_choice",
           "multiple_choice",
-          "scale"
+          "scale",
+          "list_count"
         ],
         "title": "QuestionType"
       },
@@ -17162,7 +22295,11 @@
             "$ref": "#/components/schemas/QuestionnaireKind"
           },
           "target_category": {
-            "$ref": "#/components/schemas/RespondentCategory"
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 2,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "title": "Target Category"
           },
           "sections": {
             "items": {
@@ -17229,12 +22366,16 @@
           "target_category": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/RespondentCategory"
+                "type": "string",
+                "maxLength": 32,
+                "minLength": 2,
+                "pattern": "^[a-z][a-z0-9_]*$"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Target Category"
           }
         },
         "type": "object",
@@ -17263,7 +22404,11 @@
             "$ref": "#/components/schemas/QuestionnaireKind"
           },
           "target_category": {
-            "$ref": "#/components/schemas/RespondentCategory"
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 2,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "title": "Target Category"
           },
           "status": {
             "$ref": "#/components/schemas/QuestionnaireStatus"
@@ -17358,7 +22503,11 @@
             "$ref": "#/components/schemas/QuestionnaireKind"
           },
           "target_category": {
-            "$ref": "#/components/schemas/RespondentCategory"
+            "type": "string",
+            "maxLength": 32,
+            "minLength": 2,
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "title": "Target Category"
           },
           "status": {
             "$ref": "#/components/schemas/QuestionnaireStatus"
@@ -17436,6 +22585,35 @@
           "after"
         ],
         "title": "RadarPoint"
+      },
+      "ReceiptOut": {
+        "properties": {
+          "receipt": {
+            "type": "string",
+            "title": "Receipt"
+          },
+          "counted": {
+            "type": "boolean",
+            "title": "Counted"
+          },
+          "campaign_closed": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Campaign Closed"
+          }
+        },
+        "type": "object",
+        "required": [
+          "receipt",
+          "counted"
+        ],
+        "title": "ReceiptOut"
       },
       "RecommendationDecisionType": {
         "type": "string",
@@ -17606,15 +22784,6 @@
         ],
         "title": "ReportTemplateOut"
       },
-      "RespondentCategory": {
-        "type": "string",
-        "enum": [
-          "working_group",
-          "staff",
-          "expert"
-        ],
-        "title": "RespondentCategory"
-      },
       "ReviewIn": {
         "properties": {
           "status": {
@@ -17737,7 +22906,8 @@
           "respondent",
           "leader",
           "auditor",
-          "coordinator"
+          "coordinator",
+          "department"
         ],
         "title": "Role"
       },
@@ -17971,6 +23141,21 @@
           "user"
         ],
         "title": "SessionOut"
+      },
+      "ShareIn": {
+        "properties": {
+          "share": {
+            "type": "string",
+            "maxLength": 400,
+            "minLength": 10,
+            "title": "Share"
+          }
+        },
+        "type": "object",
+        "required": [
+          "share"
+        ],
+        "title": "ShareIn"
       },
       "Significance": {
         "properties": {
@@ -18669,6 +23854,27 @@
         "type": "object",
         "title": "UnitUpdate"
       },
+      "UrnSetupIn": {
+        "properties": {
+          "holder_ids": {
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "type": "array",
+            "maxItems": 3,
+            "minItems": 3,
+            "title": "Holder Ids",
+            "description": "Уповноважений, внутрішній аудит, представник особового складу"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "holder_ids"
+        ],
+        "title": "UrnSetupIn"
+      },
       "UserCreate": {
         "properties": {
           "login": {
@@ -18685,9 +23891,16 @@
             "title": "Display Name"
           },
           "password": {
-            "type": "string",
-            "maxLength": 128,
-            "minLength": 8,
+            "anyOf": [
+              {
+                "type": "string",
+                "maxLength": 128,
+                "minLength": 8
+              },
+              {
+                "type": "null"
+              }
+            ],
             "title": "Password"
           },
           "role": {
@@ -18696,12 +23909,16 @@
           "category": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/RespondentCategory"
+                "type": "string",
+                "maxLength": 32,
+                "minLength": 2,
+                "pattern": "^[a-z][a-z0-9_]*$"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Category"
           },
           "unit_id": {
             "anyOf": [
@@ -18720,7 +23937,6 @@
         "required": [
           "login",
           "display_name",
-          "password",
           "role"
         ],
         "title": "UserCreate"
@@ -18746,12 +23962,16 @@
           "category": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/RespondentCategory"
+                "type": "string",
+                "maxLength": 32,
+                "minLength": 2,
+                "pattern": "^[a-z][a-z0-9_]*$"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Category"
           },
           "unit_id": {
             "anyOf": [
@@ -18773,6 +23993,41 @@
             "type": "string",
             "format": "date-time",
             "title": "Created At"
+          },
+          "invite_link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invite Link"
+          },
+          "invite_expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invite Expires At"
+          },
+          "pending_approval_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending Approval Id"
           }
         },
         "type": "object",
@@ -18829,12 +24084,16 @@
           "category": {
             "anyOf": [
               {
-                "$ref": "#/components/schemas/RespondentCategory"
+                "type": "string",
+                "maxLength": 32,
+                "minLength": 2,
+                "pattern": "^[a-z][a-z0-9_]*$"
               },
               {
                 "type": "null"
               }
-            ]
+            ],
+            "title": "Category"
           },
           "unit_id": {
             "anyOf": [
@@ -18982,6 +24241,80 @@
         ],
         "title": "Zone"
       },
+      "app__routers__checklist__AssignmentOut": {
+        "properties": {
+          "question_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Question Id"
+          },
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "number": {
+            "type": "string",
+            "title": "Number"
+          },
+          "enterer_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enterer Id"
+          },
+          "enterer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enterer"
+          },
+          "confirmer_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmer Id"
+          },
+          "confirmer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Confirmer"
+          }
+        },
+        "type": "object",
+        "required": [
+          "question_id",
+          "code",
+          "number",
+          "enterer_id",
+          "enterer",
+          "confirmer_id",
+          "confirmer"
+        ],
+        "title": "AssignmentOut"
+      },
       "app__routers__learning__PublishIn": {
         "properties": {
           "period": {
@@ -19028,6 +24361,45 @@
           "denominator"
         ],
         "title": "PublishOut"
+      },
+      "app__schemas__AssignmentOut": {
+        "properties": {
+          "campaign_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Campaign Id"
+          },
+          "campaign_title": {
+            "type": "string",
+            "title": "Campaign Title"
+          },
+          "questionnaire_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Questionnaire Id"
+          },
+          "questionnaire_title": {
+            "type": "string",
+            "title": "Questionnaire Title"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/QuestionnaireKind"
+          },
+          "submitted": {
+            "type": "boolean",
+            "title": "Submitted"
+          }
+        },
+        "type": "object",
+        "required": [
+          "campaign_id",
+          "campaign_title",
+          "questionnaire_id",
+          "questionnaire_title",
+          "kind",
+          "submitted"
+        ],
+        "title": "AssignmentOut"
       },
       "app__schemas__QuestionOut": {
         "properties": {
@@ -19091,6 +24463,12 @@
             },
             "type": "array",
             "title": "Options"
+          },
+          "params": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Params",
+            "default": {}
           }
         },
         "type": "object",

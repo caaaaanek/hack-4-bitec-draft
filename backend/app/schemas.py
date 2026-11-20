@@ -11,9 +11,12 @@ from app.models import (
     QuestionnaireKind,
     QuestionnaireStatus,
     QuestionType,
-    RespondentCategory,
     Role,
 )
+
+
+# Категорія респондентів: код із довідника (services/categories.py), вбудовані — working_group, staff, expert.
+CategoryCode = Annotated[str, Field(min_length=2, max_length=32, pattern=r"^[a-z][a-z0-9_]*$")]
 
 
 class ORM(BaseModel):
@@ -54,7 +57,7 @@ class MeOut(ORM):
     login: str
     display_name: str
     role: Role
-    category: RespondentCategory | None
+    category: CategoryCode | None
     unit_id: uuid.UUID | None
 
 
@@ -88,9 +91,11 @@ Password = Annotated[str, Field(min_length=8, max_length=128), AfterValidator(_p
 class UserCreate(BaseModel):
     login: str = Field(min_length=3, max_length=64, pattern=r"^[a-zA-Z0-9_.-]+$")
     display_name: str = Field(min_length=1, max_length=100)
-    password: Password
+    # Без пароля: створюється одноразове запрошення, і людина ставить пароль сама (адмін його не знає).
+    # ADMIN_SETS_PASSWORDS=false забороняє задавати пароль адміністратором узагалі.
+    password: Password | None = None
     role: Role
-    category: RespondentCategory | None = None
+    category: CategoryCode | None = None
     unit_id: uuid.UUID | None = None
 
 
@@ -98,7 +103,7 @@ class UserUpdate(BaseModel):
     display_name: str | None = Field(default=None, min_length=1, max_length=100)
     password: Password | None = None
     role: Role | None = None
-    category: RespondentCategory | None = None
+    category: CategoryCode | None = None
     unit_id: uuid.UUID | None = None
     is_active: bool | None = None
 
@@ -108,10 +113,63 @@ class UserOut(ORM):
     login: str
     display_name: str
     role: Role
-    category: RespondentCategory | None
+    category: CategoryCode | None
     unit_id: uuid.UUID | None
     is_active: bool
     created_at: datetime
+    # Запрошення (показується один раз): людина за ним сама ставить пароль.
+    invite_link: str | None = None
+    invite_expires_at: datetime | None = None
+    # Принцип двох осіб: зміна чи активація чекає підтвердження іншої людини.
+    pending_approval_id: uuid.UUID | None = None
+
+
+class InviteOut(BaseModel):
+    user_id: uuid.UUID
+    invite_link: str
+    invite_token: str
+    expires_at: datetime
+
+
+class InviteAcceptIn(BaseModel):
+    token: str = Field(min_length=10, max_length=200)
+    password: Password
+
+
+class ApprovalOut(ORM):
+    id: uuid.UUID
+    kind: str
+    target_id: str | None
+    payload: dict
+    summary: str
+    status: str
+    requested_by_id: uuid.UUID | None
+    requested_at: datetime
+    decided_by_id: uuid.UUID | None
+    decided_at: datetime | None
+    comment: str
+
+
+class ApprovalDecisionIn(BaseModel):
+    comment: str = Field(default="", max_length=1000)
+
+
+class AnchorOut(ORM):
+    id: uuid.UUID
+    seq: int
+    hash: str
+    accepted_by_id: uuid.UUID | None
+    accepted_at: datetime
+    note: str
+
+
+class AnchorIn(BaseModel):
+    note: str = Field(default="", max_length=500)
+
+
+class AnchorCheckIn(BaseModel):
+    seq: int = Field(ge=1)
+    hash: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
 class AuditVerifyOut(BaseModel):
@@ -152,6 +210,7 @@ class QuestionIn(BaseModel):
     scale_min: int | None = None
     scale_max: int | None = None
     options: list[OptionIn] = []
+    params: dict = Field(default_factory=dict, description="list_count: {direct_code}; «дзеркало»: {mirror_of}")
 
 
 class SectionIn(BaseModel):
@@ -165,7 +224,7 @@ class QuestionnaireCreate(BaseModel):
     title: str = Field(min_length=1, max_length=300)
     description: str = ""
     kind: QuestionnaireKind
-    target_category: RespondentCategory
+    target_category: CategoryCode
     sections: list[SectionIn] = []
 
 
@@ -173,7 +232,7 @@ class QuestionnaireMetaUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=300)
     description: str | None = None
     kind: QuestionnaireKind | None = None
-    target_category: RespondentCategory | None = None
+    target_category: CategoryCode | None = None
 
 
 class StructureIn(BaseModel):
@@ -201,6 +260,7 @@ class QuestionOut(ORM):
     scale_min: int | None
     scale_max: int | None
     options: list[OptionOut]
+    params: dict = {}
 
 
 class SectionOut(ORM):
@@ -217,7 +277,7 @@ class QuestionnaireSummary(ORM):
     version: int
     title: str
     kind: QuestionnaireKind
-    target_category: RespondentCategory
+    target_category: CategoryCode
     status: QuestionnaireStatus
     updated_at: datetime
     published_at: datetime | None
@@ -275,6 +335,13 @@ class CampaignOut(ORM):
     explicit_participants: bool = False
     # Чи є в хвилі контрольний чек-лист (інакше GET /campaigns/{id}/checklist відповідає 404)
     has_checklist: bool = False
+    # Склад учасників зафіксовано (з моменту створення хвилі за обліковими записами)
+    eligible_frozen: bool = False
+    # «Урна з трьома ключами»: відповіді розшифрують лише двоє з трьох власників частин ключа
+    urn_enabled: bool = False
+    urn_close_requested: bool = False
+    # Принцип двох осіб: відкриття чекає підтвердження
+    pending_approval_id: uuid.UUID | None = None
 
 
 class ParticipantsIn(BaseModel):
@@ -285,7 +352,7 @@ class ParticipantOut(BaseModel):
     id: uuid.UUID
     login: str
     display_name: str
-    category: RespondentCategory | None
+    category: CategoryCode | None
     unit_id: uuid.UUID | None
     # Чи підходить людина під анкети хвилі (категорія, підрозділ, активність). Хто вже пройшов — не показується.
     eligible: bool
@@ -304,7 +371,9 @@ class ImportIssue(BaseModel):
 
 class ImportedCredential(BaseModel):
     login: str
-    password: str
+    password: str = ""
+    # ADMIN_SETS_PASSWORDS=false: замість пароля одноразове запрошення.
+    invite_link: str | None = None
 
 
 class ImportOut(BaseModel):
@@ -315,6 +384,7 @@ class ImportOut(BaseModel):
     # Паролі нових облікових записів показуються один раз: передайте людям і не зберігайте.
     credentials: list[ImportedCredential] = []
     issued_tokens: int = 0
+    pending_approval_id: uuid.UUID | None = None
 
 
 class TokensIn(BaseModel):
@@ -379,7 +449,7 @@ class UnitUpdate(BaseModel):
 class ProgressItem(BaseModel):
     questionnaire_id: uuid.UUID
     questionnaire_title: str
-    target_category: RespondentCategory
+    target_category: CategoryCode
     eligible: int | None
     submitted: int | None
     percent: float | None
@@ -417,6 +487,11 @@ class FormQuestion(ORM):
     scale_min: int | None
     scale_max: int | None
     options: list[FormOption]
+    # Лише для list_count: варіант переліку ("A" без чутливого твердження, "B" з ним). Відповідь — кількість
+    # правдивих тверджень 0..len(options); варіант треба повернути разом з відповіддю.
+    variant: str | None = None
+    # Лише для list_count: твердження переліку (без позначки, яке з них чутливе).
+    statements: list[str] | None = None
 
 
 class FormSection(ORM):
@@ -438,6 +513,7 @@ class AnswerIn(BaseModel):
     question_id: uuid.UUID
     option_ids: list[uuid.UUID] = []
     value: float | None = None
+    variant: str | None = Field(default=None, pattern="^[AB]$", description="Для list_count: варіант із форми")
 
 
 class SubmissionIn(BaseModel):

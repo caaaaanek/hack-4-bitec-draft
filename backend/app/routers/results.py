@@ -13,8 +13,8 @@ from app.models import Campaign, CampaignStatus, Role, Unit, User
 from app.schemas import UnitOut
 from app.schemas_results import CampaignResultsOut, CompareOut, HistoryOut, ParticipantResultOut
 from app.routers.respond import TOKEN_HEADER, token_throttle
-from app.security import RESULT_READERS, client_ip, ensure_unit_access, get_current_user, require_roles
-from app.services import methodology, results, tokens
+from app.security import RESULT_READERS, client_ip, ensure_unit_access, get_current_user, record_view, require_roles
+from app.services import categories, fact_registry, methodology, results, tokens
 from app.services.eligibility import frozen_of, is_eligible, participants_of
 from app.services.units import subtree_ids
 
@@ -23,9 +23,21 @@ can_view = require_roles(*RESULT_READERS)
 
 
 @router.get("/methodology")
-def get_methodology(_: User = Depends(get_current_user)) -> dict:
-    """Методика розрахунку: ваги, пороги, рівні, правила. Доступна всім, хто увійшов."""
-    return methodology.as_dict()
+def get_methodology(db: Session = Depends(get_db), _: User = Depends(get_current_user)) -> dict:
+    """Методика розрахунку: ваги, пороги, рівні, правила, ухвалені рішення. Доступна всім, хто увійшов.
+
+    `source_weights` — вбудовані джерела (вага методики); `category_weights` — категорії з довідника, яким
+    адміністратор задав вагу (без ваги категорія лише для порівняння).
+    """
+    fact_registry.refresh(db)
+    data = methodology.as_dict()
+    extra = {k: v for k, v in categories.weights(db).items() if k not in methodology.SOURCE_WEIGHTS}
+    data["category_weights"] = extra
+    data["categories"] = [{"code": c.code, "title": c.title, "builtin": c.builtin, "active": c.active,
+                           "weight": methodology.SOURCE_WEIGHTS.get(c.code) if c.builtin else c.weight}
+                          for c in categories.all_defs(db)]
+    db.commit()
+    return data
 
 
 def closed_campaign(db: Session, campaign_id: uuid.UUID) -> Campaign:
@@ -55,6 +67,8 @@ def campaign_results(
         data = results.results_for(db, campaign, unit_id, recalculate)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
+    record_view(db, user, uuid.UUID(data["unit_id"]), campaign.id, "results", campaign.unit_id)
+    db.commit()
     # Звичайні перегляди не журналюються: кожен запис блокує голову ланцюжка (AuditHead FOR UPDATE), і паралельні
     # читання ставали б у чергу, а журнал засмічувався б переглядами. Перерахунок за поточною методикою — дія, її пишемо.
     if recalculate:
@@ -88,6 +102,8 @@ def unit_or_404(db: Session, unit_id: uuid.UUID, user: User | None = None) -> Un
 def unit_history(unit_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(can_view)):
     """Динаміка підрозділу за всі хвилі: лише порівняння із самим собою."""
     unit = unit_or_404(db, unit_id, user)
+    record_view(db, user, unit_id, None, "history", None if unit.parent_id else unit_id)
+    db.commit()
     points = []
     previous = None
     subtree = results.unit_subtree(db, unit_id)  # дерево один раз на всю історію, а не на кожну точку
@@ -122,7 +138,9 @@ def compare_waves(
     user: User = Depends(can_view),
 ):
     """Порівняння двох будь-яких хвиль одного підрозділу (картки з дельтами і радар 'було / стало')."""
-    unit_or_404(db, unit_id, user)
+    unit = unit_or_404(db, unit_id, user)
+    record_view(db, user, unit_id, to_campaign, "compare", None if unit.parent_id else unit_id)
+    db.commit()
     before = results.get_snapshot(db, from_campaign, unit_id)
     after = results.get_snapshot(db, to_campaign, unit_id)
     if before is None or after is None:
@@ -208,3 +226,58 @@ def token_results(request: Request, db: Session = Depends(get_db),
         raise ApiError(409, "Результати з'являться після закриття опитування", code="campaign_not_closed",
                        hint="Відкрийте це саме посилання після завершення опитування.")
     return participant_result(db, campaign, row.unit_id, subtree_ids(db, campaign.unit_id))
+
+
+# ---------- Розподіл рівнів дочірніх підрозділів без назв ----------
+
+# Менше стільки дочірніх підрозділів з даними — розподіл не показується: з двох рядків легко вгадати, хто де.
+CHILDREN_LEVELS_MIN = 3
+
+
+@router.get("/units/{unit_id}/children-levels")
+def children_levels(unit_id: uuid.UUID, campaign_id: uuid.UUID | None = None, db: Session = Depends(get_db),
+                    user: User = Depends(can_view)) -> dict:
+    """Скільки дочірніх підрозділів (усіх рівнів вкладеності) на якому рівні зрілості — без назв і без індексів.
+
+    Для вищого керівника замість карток кожного підрозділу: видно картину, але не видно, кого «карати».
+    Підрозділи з недостатніми даними рахуються окремо. Якщо підрозділів з даними менше 3, розподіл
+    приховано. Знімок хвилі: остання закрита хвиля, що охоплює підрозділ, або campaign_id.
+    """
+    unit = unit_or_404(db, unit_id, user)
+    query = select(Campaign).where(Campaign.status == CampaignStatus.CLOSED)
+    if campaign_id is not None:
+        query = query.where(Campaign.id == campaign_id)
+    campaign = None
+    for c in db.scalars(query.order_by(Campaign.closed_on.desc(), Campaign.created_at.desc())):
+        if unit_id in subtree_ids(db, c.unit_id):
+            campaign = c
+            break
+    if campaign is None:
+        raise HTTPException(status_code=404, detail="Немає закритої хвилі для цього підрозділу")
+    descendants = subtree_ids(db, unit_id) - {unit_id}
+    levels = {str(lvl["level"]): 0 for lvl in methodology.MATURITY_LEVELS}
+    insufficient = 0
+    with_data = 0
+    for unit_child in descendants:
+        snap = results.get_snapshot(db, campaign.id, unit_child)
+        if snap is None:
+            continue
+        level = (snap.payload.get("index") or {}).get("level")
+        if snap.index_score is None or not level:
+            insufficient += 1
+            continue
+        levels[str(level["level"])] += 1
+        with_data += 1
+    shown = with_data >= CHILDREN_LEVELS_MIN
+    return {
+        "unit_id": str(unit.id),
+        "campaign_id": str(campaign.id),
+        "campaign_title": campaign.title,
+        "children_total": len(descendants),
+        "with_data": with_data if shown else None,
+        "insufficient": insufficient,
+        "levels": levels if shown else None,
+        "hidden": not shown,
+        "rule": (f"Лише кількість підрозділів на кожному рівні, без назв. Менше {CHILDREN_LEVELS_MIN} підрозділів з "
+                 "даними: розподіл приховано. Деталі підрозділу бачить лише сам підрозділ."),
+    }

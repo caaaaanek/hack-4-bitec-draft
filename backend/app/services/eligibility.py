@@ -51,7 +51,7 @@ def is_eligible(
 
 def frozen_of(db: Session, campaign: Campaign) -> dict[uuid.UUID, dict[uuid.UUID, tuple]] | None:
     """questionnaire_id -> {user_id: (unit_id, category)} або None, якщо склад не зафіксовано
-    (хвиля за посиланнями, чернетка або хвиля, відкрита до міграції 0007)."""
+    (хвиля за посиланнями або хвиля, створена до міграції 0011 і ще не відкрита)."""
     if not campaign.eligible_frozen:
         return None
     result: dict[uuid.UUID, dict[uuid.UUID, tuple]] = {
@@ -85,6 +85,7 @@ def freeze(db: Session, campaign: Campaign, users: list[User] | None = None) -> 
             db.add(CampaignEligible(
                 campaign_id=campaign.id, questionnaire_id=q.id, user_id=user.id, category=user.category,
                 unit_id=None if user.category == RespondentCategory.EXPERT else user.unit_id))
+            existing.add((q.id, user.id))
             added += 1
     campaign.eligible_frozen = True
     return added
@@ -98,8 +99,28 @@ def can_answer(user: User, questionnaire: Questionnaire, campaign_units: set[uui
     return user.is_active and user.role == Role.RESPONDENT and user.id in frozen.get(questionnaire.id, {})
 
 
+def refreeze(db: Session, campaign: Campaign) -> int:
+    """Перефіксувати склад чернетки (змінилися область, анкети чи явний склад). Відкриту хвилю не чіпає."""
+    from sqlalchemy import delete
+
+    if campaign.status != CampaignStatus.DRAFT:
+        return 0
+    db.execute(delete(CampaignEligible).where(CampaignEligible.campaign_id == campaign.id))
+    from app.models import AccessMode
+
+    if campaign.access_mode != AccessMode.LOGIN:
+        campaign.eligible_frozen = False
+        return 0
+    return freeze(db, campaign)
+
+
 def open_frozen_campaigns_of(db: Session, user_id: uuid.UUID) -> list[Campaign]:
-    """Відкриті хвилі, у зафіксованому складі яких є ця людина."""
+    """Чернетки й відкриті хвилі, у зафіксованому складі яких є ця людина.
+
+    Склад фіксується з моменту створення хвилі: між створенням і відкриттям не можна непомітно
+    «підкинути» людей у групу, змінивши їм підрозділ чи категорію.
+    """
     return list(db.scalars(
         select(Campaign).join(CampaignEligible, CampaignEligible.campaign_id == Campaign.id)
-        .where(CampaignEligible.user_id == user_id, Campaign.status == CampaignStatus.OPEN).distinct()))
+        .where(CampaignEligible.user_id == user_id,
+               Campaign.status.in_([CampaignStatus.OPEN, CampaignStatus.DRAFT])).distinct()))

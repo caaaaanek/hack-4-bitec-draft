@@ -7,7 +7,7 @@ import secrets
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import PlainTextResponse, Response
 from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session, selectinload
 
@@ -53,8 +53,8 @@ from app.schemas import (
 )
 from app.security import hash_password, require_roles
 from app.services import tokens as token_service
-from app.services import lifecycle
-from app.services.eligibility import freeze, frozen_of, is_eligible, participants_of
+from app.services import approvals, categories, invites, lifecycle
+from app.services.eligibility import freeze, frozen_of, is_eligible, participants_of, refreeze
 from app.services.safe_export import FORMULA_PREFIXES, SafeCsvWriter
 from app.services.units import subtree_ids
 
@@ -78,7 +78,23 @@ def to_out(campaign: Campaign) -> CampaignOut:
         explicit_participants=campaign.explicit_participants,
         has_checklist=any(link.questionnaire.kind == QuestionnaireKind.CHECKLIST
                           for link in campaign.questionnaire_links),
+        urn_enabled=campaign.urn_enabled,
+        urn_close_requested=campaign.urn_close_requested,
+        eligible_frozen=campaign.eligible_frozen,
     )
+
+
+def check_staff_token_only(db: Session, campaign: Campaign) -> None:
+    """STAFF_TOKEN_ONLY=true: особовий склад проходить лише за QR чи посиланнями (логін видає факт участі)."""
+    if not get_settings().staff_token_only or campaign.access_mode != AccessMode.LOGIN:
+        return
+    linked = [db.get(Questionnaire, link.questionnaire_id) for link in campaign.questionnaire_links]
+    staff = [q.title for q in linked if q is not None and q.target_category == RespondentCategory.STAFF]
+    if staff:
+        raise ApiError(422, "Анкети особового складу проходять лише анонімно: " + ", ".join(staff),
+                       code="staff_token_only",
+                       hint="Створіть окрему хвилю з access_mode = token (QR або одноразові посилання) для особового "
+                            "складу; логін лишається для робочої групи й експертів.")
 
 
 def get_or_404(db: Session, campaign_id: uuid.UUID) -> Campaign:
@@ -123,11 +139,14 @@ def create_campaign(data: CampaignCreate, db: Session = Depends(get_db), admin: 
         created_by_id=admin.id,
     )
     set_questionnaires(db, campaign, data.questionnaire_ids)
+    check_staff_token_only(db, campaign)
 
     db.add(campaign)
     db.flush()
+    # Склад фіксується з моменту створення: між створенням і відкриттям не «підкинути» людей у групи.
+    frozen = freeze(db, campaign) if campaign.access_mode == AccessMode.LOGIN else 0
     log_action(db, admin, "create", "campaign", campaign.id,
-               {"title": campaign.title, "access_mode": campaign.access_mode.value})
+               {"title": campaign.title, "access_mode": campaign.access_mode.value, "eligible_frozen": frozen})
     db.commit()
     return to_out(campaign)
 
@@ -172,6 +191,10 @@ def update_campaign(campaign_id: uuid.UUID, data: CampaignUpdate, db: Session = 
     for key in ("title", "min_group_size", "access_mode"):
         if key in changes:
             setattr(campaign, key, changes[key])
+    check_staff_token_only(db, campaign)
+    if structural:
+        db.flush()
+        refreeze(db, campaign)
     log_action(db, admin, "update", "campaign", campaign.id,
                {k: (v.value if hasattr(v, "value") else [str(x) for x in v] if isinstance(v, list) else str(v))
                 for k, v in changes.items()})
@@ -184,9 +207,44 @@ def get_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db), _: User 
     return to_out(get_or_404(db, campaign_id))
 
 
+@router.delete("/{campaign_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_draft(campaign_id: uuid.UUID, db: Session = Depends(get_db), admin: User = Depends(admin_only)):
+    """Видалити чернетку (наприклад, щоб звільнити людей зі складу, зафіксованого при створенні)."""
+    campaign = get_locked_or_404(db, campaign_id)
+    if campaign.status != CampaignStatus.DRAFT:
+        raise ApiError(409, "Видалити можна лише чернетку", code="not_draft")
+    if active_tokens(db, campaign.id):
+        raise ApiError(409, "Для хвилі вже видано посилання", code="tokens_issued",
+                       hint="Відкличте посилання, потім видаляйте.")
+    log_action(db, admin, "delete", "campaign", campaign.id, {"title": campaign.title})
+    from app.models import (AccessToken as _T, AutopilotEvent, BlindKey, CampaignEligible, ChecklistAssignment,
+                            Notice, QrLink as _Q, UrnShare)
+
+    for model in (CampaignEligible, CampaignParticipant, ChecklistAssignment, UrnShare, BlindKey, _T, _Q,
+                  AutopilotEvent, Notice):
+        db.execute(delete(model).where(model.campaign_id == campaign.id))
+    db.delete(campaign)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post("/{campaign_id}/open", response_model=CampaignOut)
 def open_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db), admin: User = Depends(admin_only)):
+    """Відкрити хвилю. FOUR_EYES_ENABLED: перший виклик створює запит (pending_approval_id), хвилю відкриває
+    підтвердження другої людини, яка бачить склад учасників і скільки облікових записів створено нещодавно."""
     campaign = get_locked_or_404(db, campaign_id)
+    if approvals.enabled() and campaign.status == CampaignStatus.DRAFT and not approvals.open_approved(db, campaign):
+        if campaign.access_mode == AccessMode.LOGIN and not campaign.eligible_frozen:
+            freeze(db, campaign)
+            db.flush()
+        lifecycle.check_group_sizes(db, campaign)
+        summary = approvals.composition_summary(db, campaign)
+        req = approvals.request(db, admin, "open_campaign", campaign.id, summary,
+                                f"Відкрити хвилю «{campaign.title}»: склад "
+                                + ", ".join(f"{k} — {v}" for k, v in summary["eligible"].items())
+                                + f"; нових облікових записів за 30 днів: {summary['created_last_30_days']}")
+        db.commit()
+        return to_out(campaign).model_copy(update={"pending_approval_id": req.id})
     lifecycle.open_wave(db, campaign, admin)
     db.commit()
     return to_out(campaign)
@@ -194,7 +252,15 @@ def open_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db), admin: 
 
 @router.post("/{campaign_id}/close", response_model=CampaignOut)
 def close_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db), admin: User = Depends(admin_only)):
+    """Закрити хвилю. З «урною» лише позначає запит на закриття: закриють двоє власників частин ключа."""
     campaign = get_locked_or_404(db, campaign_id)
+    if campaign.urn_enabled and campaign.status == CampaignStatus.OPEN:
+        from app.services import urn
+
+        urn.request_close(db, campaign, admin)
+        db.commit()
+        raise ApiError(409, "Відповіді в урні: закриття чекає частин ключа двох власників", code="urn_pending",
+                       hint="Власники частин надсилають їх: POST /campaigns/{id}/urn/shares. Сервер ключа не має.")
     lifecycle.close_wave(db, campaign, admin)
     db.commit()
     return to_out(campaign)
@@ -298,6 +364,8 @@ def set_participants(campaign_id: uuid.UUID, data: ParticipantsIn, db: Session =
     db.execute(delete(CampaignParticipant).where(CampaignParticipant.campaign_id == campaign.id))
     db.add_all(CampaignParticipant(campaign_id=campaign.id, user_id=i) for i in ids)
     campaign.explicit_participants = True
+    db.flush()
+    refreeze(db, campaign)
     log_action(db, admin, "set_participants", "campaign", campaign.id, {"count": len(ids)})
     db.commit()
     return participants_response(db, campaign)
@@ -309,6 +377,8 @@ def clear_participants(campaign_id: uuid.UUID, db: Session = Depends(get_db), ad
     campaign = login_campaign_for_participants(db, campaign_id, allow_open=False)
     db.execute(delete(CampaignParticipant).where(CampaignParticipant.campaign_id == campaign.id))
     campaign.explicit_participants = False
+    db.flush()
+    refreeze(db, campaign)
     log_action(db, admin, "clear_participants", "campaign", campaign.id, {})
     db.commit()
     return participants_response(db, campaign)
@@ -404,10 +474,9 @@ async def import_participants(
         seen.add(login.lower())
         category = None
         if row.get("category"):
-            try:
-                category = RespondentCategory(row["category"])
-            except ValueError:
-                issues.append({"path": f"line {n}", "message": "category: working_group, staff або expert"})
+            category = row["category"]
+            if not categories.exists(db, category):
+                issues.append({"path": f"line {n}", "message": f"category «{category}» немає в довіднику категорій"})
                 continue
         unit = resolve_unit(row.get("unit", ""), units_by_name, units_by_id) if row.get("unit") else None
         if row.get("unit") and unit is None:
@@ -449,32 +518,51 @@ async def import_participants(
     if issues:
         raise ApiError(422, issues, code="import_failed", hint="Виправте рядки й завантажте файл ще раз. Нічого не змінено.")
 
+    by_invite = not get_settings().admin_sets_passwords
+    four_eyes = approvals.enabled()
+    new_ids: list[str] = []
     for user, password in new_users:
-        user.password_hash = hash_password(password)
+        # ADMIN_SETS_PASSWORDS=false: замість пароля — запрошення, людина ставить пароль сама.
+        user.password_hash = invites.NO_PASSWORD if by_invite else hash_password(password)
+        user.is_active = not four_eyes
         db.add(user)
         db.flush()
         to_add.append(user.id)
-        credentials.append(ImportedCredential(login=user.login, password=password))
+        new_ids.append(str(user.id))
+        if by_invite:
+            token, _ = invites.issue(db, user, admin)
+            credentials.append(ImportedCredential(login=user.login, password="", invite_link=invites.link(token)))
+        else:
+            credentials.append(ImportedCredential(login=user.login, password=password))
         created += 1
+    pending = None
+    if four_eyes and new_ids:
+        # Принцип двох осіб: нові облікові записи (а отже й склад хвилі) активує друга людина.
+        pending = approvals.request(db, admin, "activate_users", f"import:{campaign.id}:{len(new_ids)}:{new_ids[0]}",
+                                    {"user_ids": new_ids, "campaign_id": str(campaign.id)},
+                                    f"Імпорт у хвилю «{campaign.title}»: {len(new_ids)} нових облікових записів")
     if campaign.status == CampaignStatus.DRAFT or campaign.explicit_participants:
         db.add_all(CampaignParticipant(campaign_id=campaign.id, user_id=i) for i in dict.fromkeys(to_add))
         added = len(set(to_add))
         campaign.explicit_participants = True
-    if campaign.status == CampaignStatus.OPEN and campaign.eligible_frozen:
-        # Відкрита хвиля: склад зафіксовано, тож нових людей додаємо до нього явно.
+    if campaign.eligible_frozen:
+        # Склад зафіксовано (з моменту створення хвилі), тож нових людей додаємо до нього явно.
         db.flush()
-        freeze(db, campaign, list(db.scalars(select(User).where(User.id.in_(set(to_add))))) if to_add else [])
+        if campaign.explicit_participants and campaign.status == CampaignStatus.DRAFT:
+            refreeze(db, campaign)
+        else:
+            freeze(db, campaign, list(db.scalars(select(User).where(User.id.in_(set(to_add))))) if to_add else [])
     log_action(db, admin, "import_participants", "campaign", campaign.id,
                {"rows": len(rows), "created_users": created, "added": added})
     db.commit()
     result = ImportOut(campaign_id=campaign.id, rows=len(rows), created_users=created, added_participants=added,
-                       credentials=credentials)
+                       credentials=credentials, pending_approval_id=pending.id if pending else None)
     if format == "csv":
         out = io.StringIO()
         w = SafeCsvWriter(csv.writer(out))
-        w.writerow(["login", "password"])
+        w.writerow(["login", "password", "invite_link"])
         for c in credentials:
-            w.writerow([c.login, c.password])
+            w.writerow([c.login, c.password, c.invite_link or ""])
         return csv_attachment(out.getvalue(), f"credentials-{campaign.id}.csv")
     return result
 
@@ -502,7 +590,7 @@ def import_as_tokens(db: Session, campaign: Campaign, admin: User, parsed, issue
             continue
         targets = [q for q in surveys if q.target_category == category]
         if not targets:
-            issues.append({"path": f"line {n}", "message": f"{login}: у хвилі немає анкети для категорії {category.value}"})
+            issues.append({"path": f"line {n}", "message": f"{login}: у хвилі немає анкети для категорії {category}"})
             continue
         if category != RespondentCategory.EXPERT and unit is None:
             issues.append({"path": f"line {n}", "message": f"{login}: потрібен unit"})

@@ -85,6 +85,10 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, password_hash: str) -> bool:
+    if not password_hash or password_hash.startswith("!"):
+        # Пароля ще немає (очікує запрошення) або вхід паролем вимкнено для облікового запису.
+        verify_password_dummy("")
+        return False
     if password_too_long(password):
         # Такого пароля не могло бути збережено; час відповіді той самий, що й для звичайної спроби.
         verify_password_dummy("")
@@ -252,19 +256,83 @@ def require_roles(*roles: Role):
     return checker
 
 
-def ensure_unit_access(db: Session, user: User, unit_id: uuid.UUID) -> None:
-    """Керівник, прив'язаний до підрозділу, бачить лише свій підрозділ і дочірні.
+class UnitHidden(HTTPException):
+    """Деталі дочірнього підрозділу закриті: захист від колективного покарання (docs/abuse-analysis.md, Б-серія)."""
 
-    Інші ролі з правом читання результатів (admin, commissioner, auditor) і керівник
-    без підрозділу бачать усе дерево.
+    def __init__(self) -> None:
+        super().__init__(status_code=status.HTTP_403_FORBIDDEN,
+                         detail="Деталі іншого підрозділу бачить лише сам підрозділ")
+
+
+def allowed_units(db: Session, user: User) -> set[uuid.UUID] | None:
+    """Підрозділи, результати яких бачить користувач. None — усе дерево.
+
+    - Адміністратор, уповноважений, аудитор: усе дерево (перегляди дочірніх пишуться в result_views).
+    - Керівник: лише свій підрозділ (без підрозділу — кореневі). Про дочірні — розподіл рівнів без назв
+      (GET /units/{id}/children-levels). LEADER_CHILD_DETAILS=true повертає старе правило «усе піддерево».
+    - Департамент: лише заклади (корені хвиль) свого піддерева, кожен окремо.
     """
-    if user.role != Role.LEADER or user.unit_id is None:
-        return
     from app.services.units import subtree_ids  # уникаємо циклічного імпорту
 
-    if unit_id not in subtree_ids(db, user.unit_id):
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Підрозділ поза вашою зоною відповідальності")
+    if user.role == Role.LEADER:
+        if get_settings().leader_child_details:
+            return subtree_ids(db, user.unit_id) if user.unit_id is not None else None
+        if user.unit_id is not None:
+            return {user.unit_id}
+        from app.models import Unit
+
+        return set(db.scalars(select(Unit.id).where(Unit.parent_id.is_(None))))
+    if user.role == Role.DEPARTMENT:
+        from app.models import Campaign
+
+        roots = set(db.scalars(select(Campaign.unit_id).distinct()))
+        if user.unit_id is None:
+            return roots
+        return roots & subtree_ids(db, user.unit_id)
+    return None
+
+
+def ensure_unit_access(db: Session, user: User, unit_id: uuid.UUID, purpose: str = "results") -> None:
+    """Кидає 403, якщо підрозділ поза тим, що користувач може бачити (allowed_units).
+
+    purpose="manage" — керування заходами (без індексів): керівник діє в усьому своєму піддереві, як і раніше.
+    """
+    if purpose == "manage" and user.role == Role.LEADER:
+        from app.services.units import subtree_ids
+
+        if user.unit_id is not None and unit_id not in subtree_ids(db, user.unit_id):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Підрозділ поза вашою зоною відповідальності")
+        return
+    allowed = allowed_units(db, user)
+    if allowed is not None and unit_id not in allowed:
+        if user.role == Role.LEADER and get_settings().leader_child_details:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Підрозділ поза вашою зоною відповідальності")
+        raise UnitHidden()
+
+
+def record_view(db: Session, user: User, unit_id: uuid.UUID, campaign_id: uuid.UUID | None, endpoint: str,
+                root_id: uuid.UUID | None = None) -> None:
+    """Перегляд результатів підрозділу, який не є коренем хвилі й не своїм підрозділом. Комітить той, хто викликав.
+
+    Окремо від журналу дій: без блокування голови ланцюжка. Звіт для аудитора: GET /admin/result-views.
+    """
+    if unit_id == root_id or unit_id == user.unit_id:
+        return
+    from app.models import ResultView
+
+    db.add(ResultView(actor_id=user.id, unit_id=unit_id, campaign_id=campaign_id, endpoint=endpoint))
 
 
 # Хто читає результати, динаміку, факти, рекомендації, заходи.
-RESULT_READERS = (Role.ADMIN, Role.COMMISSIONER, Role.LEADER, Role.AUDITOR)
+RESULT_READERS = (Role.ADMIN, Role.COMMISSIONER, Role.LEADER, Role.AUDITOR, Role.DEPARTMENT)
+
+
+def people_managers_roles() -> tuple[Role, ...]:
+    """Хто керує людьми й підрозділами. SEPARATE_TECH_ADMIN=true: лише технічний адміністратор (coordinator)."""
+    return (Role.COORDINATOR,) if get_settings().separate_tech_admin else (Role.ADMIN, Role.COORDINATOR)
+
+
+def require_people_manager(user: User = Depends(get_current_user)) -> User:
+    if user.role not in people_managers_roles():
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Недостатньо прав")
+    return user

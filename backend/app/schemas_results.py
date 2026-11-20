@@ -38,6 +38,8 @@ class IndexOut(BaseModel):
     reliability: str  # A / B / C / insufficient_data
     reliability_reasons: list[str]
     rule: str
+    # Рівень, що переважає, по кожній групі (як у Додатку Г), поруч із рівнем за середнім балом. Знімки до v2.3 — {}.
+    modal_levels: dict[str, int] = {}
 
 
 class SourceOut(BaseModel):
@@ -97,6 +99,7 @@ class GroupOut(BaseModel):
     perfect_share: float | None
     declared_level: int | None
     computed_level: int | None
+    modal_level: int | None = None
     flags: list[str]
     suppressed: bool = False  # приховано вторинним приховуванням (див. docs/backend.md)
     hidden_questions: int = 0  # питань, на які відповіли менше k людей: бал і розподіл не показано
@@ -226,6 +229,10 @@ class CampaignResultsOut(BaseModel):
     discrepancies: list[Discrepancy]
     dynamics: DynamicsOut | None
     summary: list[str]
+    # Детектор відвертості (services/candor.py); знімки до v2.3 — None.
+    candor: dict | None = None
+    # Детектор Гудхарта (services/goodhart.py): ознаки підгонки показників; знімки до v2.3 — None.
+    goodhart: dict | None = None
 
 
 # ---------- Динаміка підрозділу ----------

@@ -9,6 +9,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -27,8 +28,10 @@ from app.models import (
     User,
 )
 from app.schemas import AssignmentOut, FormOut, QrOpenOut, SubmissionIn, SubmissionOut, TokenFormOut
-from app.security import LoginThrottle, client_ip, require_roles
-from app.services import tokens
+from app.security import LoginThrottle, client_ip, get_current_user, require_roles
+from app.config import get_settings
+from app.clock import today
+from app.services import ballots, candor, categories, tokens
 from app.services.eligibility import can_answer, frozen_of, participants_of
 from app.services.responses import pool_answers, save_submission, validate_submission
 from app.services.units import subtree_ids
@@ -38,6 +41,8 @@ respondent_only = require_roles(Role.RESPONDENT)
 
 
 def check_answers(questionnaire: Questionnaire, data: SubmissionIn) -> None:
+    # Непряме питання могли відповісти вибором варіанта «кількість»: перетворюємо на value + variant.
+    data.answers = candor.normalize_answers(questionnaire, data.answers)
     issues = validate_submission(questionnaire, data.answers)
     if issues:
         raise ApiError(422, [i.model_dump() for i in issues], code="incomplete",
@@ -117,7 +122,7 @@ def get_form(
         questionnaire_id=questionnaire.id,
         title=questionnaire.title,
         description=questionnaire.description,
-        sections=questionnaire.sections,
+        sections=candor.form_sections(questionnaire),
     )
 
 
@@ -229,7 +234,7 @@ def token_form(request: Request, db: Session = Depends(get_db),
         questionnaire_id=questionnaire.id,
         title=questionnaire.title,
         description=questionnaire.description,
-        sections=questionnaire.sections,
+        sections=candor.form_sections(questionnaire),
         min_group_size=campaign.min_group_size,
     )
 
@@ -251,3 +256,164 @@ def token_submit(data: SubmissionIn, request: Request, db: Session = Depends(get
     pool_answers(db, campaign, questionnaire, row.unit_id, data.answers)
     db.commit()
     return SubmissionOut(submitted_on=None)
+
+
+# ---------- Жетон зі сліпим підписом і квитанція (services/ballots.py) ----------
+
+class BallotKeyOut(BaseModel):
+    key_id: uuid.UUID
+    n: str = Field(description="Модуль RSA, hex")
+    e: int
+    hash: str = Field(default="FDH-SHA512(integra-ballot-v1 ‖ лічильник ‖ nonce) mod n",
+                      description="Як рахувати повідомлення m з випадкового nonce")
+
+
+class BallotIn(BaseModel):
+    blinded: str = Field(pattern=r"^[0-9a-f]{1,1024}$", description="Засліплене повідомлення m·rᵉ mod n, hex")
+
+
+class BallotOut(BaseModel):
+    key_id: uuid.UUID
+    blinded_signature: str
+
+
+class BallotSubmissionIn(SubmissionIn):
+    key_id: uuid.UUID
+    nonce: str = Field(pattern=r"^[0-9a-f]{32,128}$", description="Випадковий nonce (hex), з якого порахували m")
+    signature: str = Field(pattern=r"^[0-9a-f]{1,1024}$", description="Знятий із засліплення підпис s = mᵈ, hex")
+
+
+class ReceiptOut(BaseModel):
+    receipt: str
+    counted: bool
+    campaign_closed: bool | None = None
+
+
+def ballot_unit(db: Session, campaign: Campaign, questionnaire: Questionnaire, user: User) -> uuid.UUID | None:
+    if categories.is_external(questionnaire.target_category):
+        return None
+    frozen = frozen_of(db, campaign)
+    if frozen is not None and user.id in frozen.get(questionnaire.id, {}):
+        return frozen[questionnaire.id][user.id][0]
+    return user.unit_id
+
+
+@router.get("/campaigns/{campaign_id}/questionnaires/{questionnaire_id}/ballot-key", response_model=BallotKeyOut)
+def ballot_key(campaign_id: uuid.UUID, questionnaire_id: uuid.UUID, db: Session = Depends(get_db),
+               user: User = Depends(respondent_only)):
+    """Відкритий ключ групи (анкета хвилі + підрозділ) для засліплення жетона."""
+    campaign, questionnaire = load_assignment(db, user, campaign_id, questionnaire_id)
+    key = ballots.key_for(db, campaign, questionnaire, ballot_unit(db, campaign, questionnaire, user))
+    db.commit()
+    return BallotKeyOut(key_id=key.id, n=key.n, e=key.e)
+
+
+@router.post("/campaigns/{campaign_id}/questionnaires/{questionnaire_id}/ballot", response_model=BallotOut,
+             status_code=status.HTTP_201_CREATED)
+def issue_ballot(campaign_id: uuid.UUID, questionnaire_id: uuid.UUID, data: BallotIn, db: Session = Depends(get_db),
+                 user: User = Depends(respondent_only)):
+    """Підписати засліплений жетон. Тут записується участь (хто), щоб не видати другий жетон.
+    Що саме підписано, сервер не знає: відповідь надійде пізніше без входу (POST /respond/ballot)."""
+    campaign, questionnaire = load_assignment(db, user, campaign_id, questionnaire_id)
+    if already_submitted(db, campaign.id, questionnaire.id, user.id):
+        raise ApiError(409, "Ви вже отримали жетон або пройшли цю анкету", code="already_submitted")
+    key = ballots.key_for(db, campaign, questionnaire, ballot_unit(db, campaign, questionnaire, user))
+    try:
+        signature = ballots.sign_blinded(key, data.blinded)
+    except ValueError as e:
+        raise ApiError(422, str(e), code="invalid")
+    db.add(Participation(campaign_id=campaign.id, questionnaire_id=questionnaire.id, user_id=user.id,
+                         submitted_on=today()))
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise ApiError(409, "Ви вже отримали жетон або пройшли цю анкету", code="already_submitted")
+    return BallotOut(key_id=key.id, blinded_signature=signature)
+
+
+@router.post("/respond/ballot", response_model=ReceiptOut, status_code=status.HTTP_201_CREATED)
+def ballot_submit(data: BallotSubmissionIn, db: Session = Depends(get_db)):
+    """Відповідь за жетоном, без входу й без cookie. Повертає квитанцію sha256(nonce): після закриття хвилі
+    за нею можна перевірити, що відповідь урахована. Час і користувач не зберігаються."""
+    from app.models import BlindKey
+
+    key = db.get(BlindKey, data.key_id)
+    campaign = db.get(Campaign, key.campaign_id) if key else None
+    if key is None or campaign is None:
+        raise ApiError(404, "Жетон недійсний", code="ballot_invalid")
+    if campaign.status != CampaignStatus.OPEN:
+        raise ApiError(409, "Опитування зараз не приймає відповіді", code="campaign_not_open")
+    nonce = bytes.fromhex(data.nonce)
+    if not ballots.verify(key, nonce, data.signature):
+        raise ApiError(403, "Підпис жетона не дійсний", code="ballot_invalid")
+    questionnaire = db.get(Questionnaire, key.questionnaire_id)
+    check_answers(questionnaire, data)
+    receipt = ballots.spend(db, key, nonce)
+    if receipt is None:
+        raise ApiError(409, "Жетон уже використано", code="ballot_used")
+    pool_answers(db, campaign, questionnaire, key.unit_id, data.answers)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise ApiError(409, "Жетон уже використано", code="ballot_used")
+    return ReceiptOut(receipt=receipt, counted=True, campaign_closed=False)
+
+
+@router.get("/respond/receipts/{receipt}", response_model=ReceiptOut)
+def check_receipt(receipt: str, db: Session = Depends(get_db)):
+    """Чи врахована відповідь із цією квитанцією. Без входу: квитанцію знає лише сам учасник."""
+    from app.models import SpentBallot
+
+    if len(receipt) != 64 or any(c not in "0123456789abcdef" for c in receipt):
+        raise ApiError(422, "Квитанція — 64 шістнадцяткові символи", code="invalid")
+    row = db.scalar(select(SpentBallot).where(SpentBallot.receipt == receipt))
+    if row is None:
+        return ReceiptOut(receipt=receipt, counted=False)
+    campaign = db.get(Campaign, row.campaign_id)
+    return ReceiptOut(receipt=receipt, counted=True, campaign_closed=campaign.status == CampaignStatus.CLOSED)
+
+
+@router.get("/campaigns/{campaign_id}/receipts")
+def campaign_receipts(campaign_id: uuid.UUID, db: Session = Depends(get_db),
+                      _: User = Depends(get_current_user)) -> dict:
+    """Публічний список квитанцій закритої хвилі (відсортований, без підрозділів): кожен знайде свою."""
+    from app.models import SpentBallot
+
+    campaign = db.get(Campaign, campaign_id)
+    if campaign is None:
+        raise HTTPException(status_code=404, detail="Хвилю не знайдено")
+    if campaign.status != CampaignStatus.CLOSED:
+        raise ApiError(409, "Список квитанцій публікується після закриття хвилі", code="campaign_not_closed")
+    receipts = sorted(db.scalars(select(SpentBallot.receipt).where(SpentBallot.campaign_id == campaign.id)))
+    return {"campaign_id": str(campaign.id), "count": len(receipts), "receipts": receipts}
+
+
+@router.get("/respond/privacy")
+def privacy_notice() -> dict:
+    """«Що саме ми зберігаємо»: екран перед анкетою. Однаковий для всіх, без входу."""
+    s = get_settings()
+    return {
+        "title": "Що саме ми зберігаємо",
+        "modes": {
+            "login": [
+                "Що ви пройшли анкету (щоб не пустити вдруге) — без відповідей.",
+                "Ваші відповіді — окремо, без вашого імені, часу й дати, у зашифрованому буфері до закриття хвилі.",
+                "При закритті відповіді переносяться перемішаними, а підрозділ узагальнюється до групи щонайменше "
+                f"з {s.min_group_size} людей.",
+            ],
+            "ballot": [
+                "Жетон зі сліпим підписом: сервер підписує його, не бачачи вмісту, тож відповідь не пов'язати з вами.",
+                "Квитанція лишається лише у вас: після закриття хвилі перевірте, що відповідь урахована.",
+            ],
+            "token": [
+                "Посилання чи QR не пов'язані з вашим обліковим записом: система не знає навіть, хто пройшов.",
+                "Зберігається лише «посилання використано» і відповідь без часу.",
+            ],
+        },
+        "never": ["ПІБ, email, телефон", "вільний текст", "IP-адреса й час подання поруч із відповіддю",
+                  "результати груп, менших за k"],
+        "min_group_size": s.min_group_size,
+        "urn": "Якщо хвиля з «урною», відповіді розшифрують лише двоє з трьох власників частин ключа.",
+    }

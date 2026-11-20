@@ -21,7 +21,7 @@ from app.errors import ApiError
 from app.models import Indicator, Role, Unit, User
 from app.clock import today
 from app.security import RESULT_READERS, ensure_unit_access, get_current_user, keys_equal, require_roles
-from app.services import facts, methodology as m
+from app.services import fact_registry, facts, methodology as m
 
 router = APIRouter(tags=["indicators"])
 optional_token = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
@@ -42,7 +42,8 @@ class IndicatorIn(BaseModel):
     @field_validator("indicator")
     @classmethod
     def known_indicator(cls, value: str) -> str:
-        if value not in m.FACTS:
+        # Факти довідника (fact_definitions) перевіряються в обробнику, після оновлення реєстру з БД.
+        if value not in m.FACTS and not re.fullmatch(r"[a-z][a-z0-9_]{1,63}", value):
             raise ValueError(f"Невідомий показник. Дозволені: {', '.join(m.FACTS)}")
         return value
 
@@ -146,6 +147,10 @@ def post_indicator(data: IndicatorIn, db: Session = Depends(get_db), actor: Inte
     """Приймає або оновлює факт за місяць (одна пара підрозділ + місяць + показник)."""
     if not actor.any_source and data.source != actor.source:
         raise HTTPException(status_code=403, detail=f"Цей ключ дозволяє передавати лише джерело «{actor.source}»")
+    fact_registry.refresh(db)
+    if data.indicator not in m.FACTS:
+        raise ApiError(422, [{"path": "indicator", "message": f"Невідомий показник. Дозволені: {', '.join(m.FACTS)}"}],
+                       code="unknown_indicator", hint="Новий показник додає адміністратор: POST /dictionaries/facts.")
     if db.get(Unit, data.unit_id) is None:
         raise HTTPException(status_code=422, detail="Підрозділ не знайдено")
     row = db.scalar(
