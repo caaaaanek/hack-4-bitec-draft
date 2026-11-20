@@ -238,10 +238,10 @@ export function InvitePage() {
 /* ---------- Довідники ---------- */
 export function Dicts() {
   if (!API.on) return <NeedServer t="Довідники" />;
-  // Категорії й посади веде техадмін, категорії ще й Департамент (для анкет); факти — лише уповноважений
+  // Категорії й посади веде лише технічний адміністратор; Департамент категорії лише переглядає (сервер дає 403); факти — уповноважений
   if (S.role === "admin") return <FactsCard mgr />;
-  if (S.role === "observer") return <CatsCard mgr />;
-  return <><CatsCard mgr /><PosCard /></>;
+  if (S.role === "observer") return <CatsCard mgr={false} />;
+  return <><CatsCard mgr={S.role === "coordinator"} /><PosCard /></>;
 }
 function CatsCard({ mgr }) {
   const r = loadCats();
