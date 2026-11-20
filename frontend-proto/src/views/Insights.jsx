@@ -150,7 +150,7 @@ export function DigestRows({ items }) {
   return <div className="dg">
     {items.map(x => <details key={x.id} className="dg-i">
       <summary><span className="dot" style={{ background: x.severity === "critical" ? "var(--red)" : "var(--amber)" }} /><span className="grow txt">{dsh(x.title)}</span>{sevPill(x.severity)}<Ic n="chev" /></summary>
-      <div className="dg-b">{x.fix && x.fix.length ? <><b>Як виправити</b><FixList fix={x.fix} /></> : <span className="lbl txt">{dsh(x.why)}</span>}<div><GoBtn link={x.link} /></div></div>
+      <div className="dg-b">{x.fix && x.fix.length ? <><b>Як виправити</b><FixList fix={x.fix} /></> : <span className="lbl txt">{dsh(x.why)}</span>}<div>{linkTarget(x.link) ? <GoBtn link={x.link} /> : !(x.link && x.link.view) ? <span className="lbl">Окремого екрана немає: це налаштовується під час розгортання.</span> : null}</div></div>
     </details>)}
   </div>;
 }
