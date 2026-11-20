@@ -144,3 +144,9 @@
 .bf-num { background: var(--soft); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .bf-num b { font-size: 15px; overflow-wrap: anywhere; }
 .row .t.nl-t { white-space: normal; overflow-wrap: anywhere; }
+/* Підрозділи за рівнями: стовпчики без назв */
+.ch-bars { display: flex; align-items: flex-end; gap: 14px; height: 130px; padding-top: 8px; }
+.ch-b { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; max-width: 72px; }
+.ch-b i { width: 100%; border-radius: 8px 8px 3px 3px; }
+.ch-b small { color: var(--muted); }
+.rv-units { white-space: normal; overflow-wrap: anywhere; }

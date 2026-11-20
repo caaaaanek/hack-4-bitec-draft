@@ -12,6 +12,7 @@ import { DigestRows, digestTop, PrepBtn } from "./Insights.jsx";
 import { CandorCard, GamingCard } from "./Candor.jsx";
 import { IndexExtras } from "./IndexExtras.jsx";
 import { LeaderDocs, canBriefing } from "./Leadership.jsx";
+import { ChildrenLevels } from "./Oversight.jsx";
 import { API } from "../lib/api.js";
 import { openWhy, openTrust, openHow, openResp, openItem, openApiQ, openTrustHow, openTrackerHow, openRespHow, itemQs } from "./panels.jsx";
 
@@ -269,6 +270,7 @@ export function Trends() {
         {m.events.map((e, i) => <div key={i} className="row"><span className="ev-ic ev-c"><Ic n="diamond" /></span><div className="grow"><div className="t">{e.t}</div><div className="s">Після циклу {e.after}</div></div></div>)}
       </div>
     </section>
+    {["leader", "observer", "auditor"].includes(S.role) && <ChildrenLevels />}
   </>;
 }
 
