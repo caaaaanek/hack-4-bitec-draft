@@ -88,7 +88,7 @@ stateDiagram-v2
 3. `open`: для хвилі `login` склад **фіксується** (`campaign_eligible`): хто зараз за правилом (категорія анкети + підрозділ хвилі з дочірніми; за явного складу — лише він) має проходити кожну анкету і в якому підрозділі. Від цього складу рахується «мали пройти»; новий обліковий запис потрапляє у відкриту хвилю лише імпортом; підрозділ, категорію й роль учасника відкритої хвилі змінити не можна (`409 campaign_open`), заблокувати можна. Респонденти бачать анкету в `GET /me/assignments`. За посиланням анкета відкривається без входу.
 4. Респондент отримує форму **без балів** і надсилає відповіді. Сервер перевіряє повноту: на кожне обов'язкове питання є відповідь, варіанти належать саме цьому питанню, для single_choice обрано рівно один.
 5. Адмін бачить прогрес: скільки людей мають пройти анкету і скільки пройшли. **Імен немає.** Для груп, менших за поріг, кількості приховано (`too_few_people: true`).
-6. Член робочої групи вносить чек-лист (`PUT /campaigns/{id}/checklist/{question_id}`) і додає файли-докази, commissioner підтверджує його за доказами.
+6. Член робочої групи вносить чек-лист разом із документами (`POST /campaigns/{id}/checklist/{question_id}/submit`, multipart) або окремо (`PUT .../{question_id}` + `POST .../files`), commissioner підтверджує його за доказами. Пункт «повністю» чи «частково» без файлу не підтверджується (`CHECKLIST_REQUIRE_FILE`).
 7. `close`: прийом відповідей зупиняється, зашифрований буфер переноситься в `responses` (перемішано, з узагальненими підрозділами), для підрозділу хвилі і кожного дочірнього зберігається незмінний знімок результатів. Учасники бачать узагальнені результати: за обліковим записом `GET /me/results`, за посиланням `GET /respond/results` з тим самим токеном.
 
 ## Як забезпечено анонімність на рівні зберігання
@@ -213,7 +213,8 @@ stateDiagram-v2
 | `GET /respond/results` | без входу, заголовок `X-Response-Token` | Те саме для хвилі за посиланнями: після закриття тим самим посиланням (використаним чи ні) — заклад і група посилання. До закриття → 409 `campaign_not_closed` |
 | `GET /campaigns/{id}/checklist` | робоча група цієї хвилі (підрозділ у хвилі), admin, commissioner, auditor | Стан чек-листа: пункти, статус, доказ, підтвердження, бал. Компонент пункту: для кодів `checklist.N.N` — за таблицею додатка Б, для інших чек-листів (конструктор) — компонент розділу |
 | `PUT /campaigns/{id}/checklist/{question_id}` | робоча група цієї хвилі | Внести статус (`full` / `partial` / `none`), доказ, коментар |
-| `POST` / `DELETE /campaigns/{id}/checklist/{question_id}/confirm` | commissioner | Підтвердити (лише з доказом) або відкликати |
+| `POST /campaigns/{id}/checklist/{question_id}/submit` | робоча група цієї хвилі | Те саме разом із документами одним multipart-запитом: поля `status`, `evidence`, `comment`, `files` (кілька). Атомарно: файл не пройшов перевірку → не змінюється нічого. Нові файли додаються до наявних, підтвердження знімається |
+| `POST` / `DELETE /campaigns/{id}/checklist/{question_id}/confirm` | commissioner | Підтвердити (лише з доказом) або відкликати. За `CHECKLIST_REQUIRE_FILE=true` (за замовчуванням) `full` і `partial` потребують хоча б одного файлу: лише текст → 422 `file_required`. Для `none` досить тексту. У пункті чек-листа поле `file_required: true` показує, що файлу бракує |
 | `POST /indicators` | інша система (`X-Integration-Key`) або admin | Факт за місяць «X з Y». Ключ з `INTEGRATION_KEYS` дозволяє лише своє джерело (`source`) |
 | `GET /indicators/units` | інша система (`X-Integration-Key`) або admin | Довідник підрозділів для адаптерів: `id`, `name`, `parent_id` |
 | `GET /units/{id}/indicators?months=3\|6\|12&end=` | admin, commissioner, leader, auditor | Факти у форматі «X з Y» за цілі завершені квартали перед `end` (за замовчуванням сьогодні); k перевіряється і в кожному кварталі |
@@ -559,6 +560,7 @@ python -m adapters artemida --file export.json               # справжні�
 |---|---|---|
 | Довідники: категорії, посади, факти | `GET/POST/PATCH /dictionaries/categories`, `GET/POST/DELETE /dictionaries/positions`, `GET/POST/PATCH /dictionaries/facts` | — |
 | Відповідальні за пункти чек-листа | `GET/PUT /campaigns/{id}/checklist/assignments` | `CHECKLIST_CONFIRMERS` |
+| Документ до пункту чек-листа обов'язковий, внесення одним запитом | `POST /campaigns/{id}/checklist/{qid}/submit`; `422 file_required` на `.../confirm` | `CHECKLIST_REQUIRE_FILE` |
 | Департамент | `GET /department/institutions`, `GET /department/institutions/{unit_id}` | — |
 | Захист від колективного покарання | `GET /units/{id}/children-levels`, `GET /admin/result-views` | `LEADER_CHILD_DETAILS` |
 | Запрошення (пароль ставить сама людина) | `POST /admin/users` без пароля → `invite_link`; `POST /admin/users/{id}/invite`; `POST /auth/invite` | `ADMIN_SETS_PASSWORDS`, `INVITE_TTL_HOURS` |

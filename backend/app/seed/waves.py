@@ -105,6 +105,12 @@ def _candor_answer(question: dict, person: int) -> dict:
     return {"question_id": question["id"], "option_ids": [options[0 if yes else 1]["id"]]}
 
 
+def _synthetic_pdf(wave: str, number: str) -> bytes:
+    """Мінімальний PDF-заглушка: синтетичний наказ до пункту чек-листа."""
+    text = f"Synthetic evidence: wave '{wave}', checklist item {number}".encode("ascii", "replace")
+    return b"%PDF-1.4\n% " + text + b"\n1 0 obj << >> endobj\ntrailer << >>\n%%EOF\n"
+
+
 class _Demo:
     def __init__(self, db):
         self.client = None
@@ -128,6 +134,11 @@ class _Demo:
     def send(self, method: str, login: str, path: str, body: dict | None = None):
         r = self.client.request(method, f"{API}{path}", headers=self.headers[login], json=body)
         return _check(r, f"{method} {path}")
+
+    def submit(self, login: str, path: str, data: dict, files: list | None = None):
+        """Multipart-запит (пункт чек-листа разом із документами)."""
+        r = self.client.post(f"{API}{path}", headers=self.headers[login], data=data, files=files)
+        return _check(r, f"POST {path}")
 
     def answer(self, campaign_id: str, questionnaire_id: str, login: str, level: Callable[[int], int],
                person: int | None = None) -> None:
@@ -185,7 +196,10 @@ class _Demo:
                     status = "partial" if n % 3 == 2 else "full"
                     evidence = "" if n % 7 == 6 else "Наказ і звіт (синтетичні)"
                 path = f"/campaigns/{cid}/checklist/{item['question_id']}"
-                self.send("PUT", wg[0], path, {"status": status, "evidence": evidence})
+                # Доказ: короткий опис і синтетичний документ (без файлу «повністю»/«частково» не підтверджується).
+                files = [("files", (f"nakaz-{item['number']}.pdf", _synthetic_pdf(title, item["number"]),
+                                    "application/pdf"))] if evidence else None
+                self.submit(wg[0], f"{path}/submit", {"status": status, "evidence": evidence}, files)
                 if evidence:
                     self.send("POST", "commissioner", f"{path}/confirm")
                     confirmed += 1

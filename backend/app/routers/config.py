@@ -37,6 +37,8 @@ class Policies(BaseModel):
     leader_child_details: bool
     separate_tech_admin: bool
     checklist_confirmers: list[str]
+    # Пункт «повністю» чи «частково» підтверджується лише з файлом-доказом (CHECKLIST_REQUIRE_FILE).
+    checklist_require_file: bool = True
     external_fetch: bool
     # demo | production (SECURITY_PROFILE) і які запобіжники production явно вимкнено змінними оточення.
     security_profile: str = "demo"
@@ -81,6 +83,7 @@ def public_config():
             staff_token_only=s.staff_token_only, leader_child_details=s.leader_child_details,
             separate_tech_admin=s.separate_tech_admin,
             checklist_confirmers=[c.strip() for c in s.checklist_confirmers.split(",") if c.strip()],
+            checklist_require_file=s.checklist_require_file,
             external_fetch=s.external_fetch_enabled,
             security_profile=s.security_profile,
             overridden=s.profile_overrides,

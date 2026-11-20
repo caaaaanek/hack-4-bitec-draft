@@ -12,7 +12,8 @@ from app.models import AuditLog, ResponsePool
 from app.services import ballots, candor, goodhart, scoring, urn
 from tests.conftest import auth
 from tests.helpers import (
-    ALL, API, ROOT, answer, clamp, close, fill_checklist, full_wave, open_campaign, questionnaire_ids, results, units,
+    ALL, API, ROOT, answer, clamp, close, fill_checklist, full_wave, open_campaign, questionnaire_ids, results, submit_item,
+    units,
 )
 
 STAFF = "nazk-maturity-staff"
@@ -126,16 +127,14 @@ def test_checklist_assignment_enterer_and_auditor_confirmer(client):
     body = {"status": "full", "evidence": "Наказ"}
     r = client.put(f"{API}/campaigns/{campaign_id}/checklist/{item}", json=body, headers=auth(client, "wg1"))
     assert r.status_code == 403 and r.json()["code"] == "not_assigned"
-    assert client.put(f"{API}/campaigns/{campaign_id}/checklist/{item}", json=body,
-                      headers=auth(client, "wg2")).status_code == 200
+    assert submit_item(client, campaign_id, item, auth(client, "wg2")).status_code == 200
     r = client.post(f"{API}/campaigns/{campaign_id}/checklist/{item}/confirm", headers=auth(client, "commissioner"))
     assert r.status_code == 403
     r = client.post(f"{API}/campaigns/{campaign_id}/checklist/{item}/confirm", headers=auth(client, "auditor"))
     assert r.status_code == 200 and r.json()["confirmed"] and r.json()["confirmer_id"] == auditor
     # Пункт без призначення: вносить будь-хто з РГ, підтверджує й аудит.
     other = items[1]["question_id"]
-    assert client.put(f"{API}/campaigns/{campaign_id}/checklist/{other}", json=body,
-                      headers=auth(client, "wg1")).status_code == 200
+    assert submit_item(client, campaign_id, other, auth(client, "wg1")).status_code == 200
     assert client.post(f"{API}/campaigns/{campaign_id}/checklist/{other}/confirm",
                        headers=auth(client, "auditor")).status_code == 200
 

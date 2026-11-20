@@ -135,3 +135,87 @@ def test_safe_filename():
     assert storage.safe_filename('a"b<c>.pdf') == "a_b_c_.pdf"
     assert storage.safe_filename("") == "file"
     assert storage.safe_filename("x" * 300 + ".pdf").endswith(".pdf")
+
+
+# ---------- Документ обов'язковий і внесення одним запитом ----------
+
+def submit(client, base, headers, data, files=None):
+    return client.post(f"{base}/submit", data=data, files=files, headers=headers)
+
+
+def test_text_only_is_not_enough_for_full_or_partial(client):
+    _, base, wg, _ = setup_item(client)
+    commissioner = auth(client, "commissioner")
+    for status_ in ("full", "partial"):
+        r = client.put(base, json={"status": status_, "evidence": "Наказ №7 від 01.09"}, headers=wg)
+        assert r.status_code == 200 and r.json()["file_required"] is True
+        r = client.post(f"{base}/confirm", headers=commissioner)
+        assert r.status_code == 422 and r.json()["code"] == "file_required"
+    # «Підлягає впровадженню» підтверджується й текстом.
+    r = client.put(base, json={"status": "none", "evidence": "Положення ще не затверджено"}, headers=wg)
+    assert r.json()["file_required"] is False
+    assert client.post(f"{base}/confirm", headers=commissioner).status_code == 200
+
+
+def test_policy_can_be_switched_off(client, monkeypatch):
+    from app.config import get_settings
+    monkeypatch.setattr(get_settings(), "checklist_require_file", False)
+    _, base, wg, _ = setup_item(client)
+    assert client.put(base, json={"status": "full", "evidence": "Наказ"}, headers=wg).json()["file_required"] is False
+    assert client.post(f"{base}/confirm", headers=auth(client, "commissioner")).status_code == 200
+    assert client.get(f"{API}/config").json()["policies"]["checklist_require_file"] is False
+
+
+def test_submit_status_text_and_files_in_one_request(client):
+    campaign_id, base, wg, admin = setup_item(client)
+    files = [("files", ("Наказ.pdf", PDF, "application/pdf")), ("files", ("фото.png", PNG, "image/png"))]
+    r = submit(client, base, wg, {"status": "full", "evidence": "Наказ №3", "comment": "скан і фото"}, files)
+    assert r.status_code == 200, r.text
+    item = r.json()
+    assert item["status"] == "full" and item["evidence"] == "Наказ №3" and item["comment"] == "скан і фото"
+    assert [f["filename"] for f in item["files"]] == ["Наказ.pdf", "фото.png"] and item["file_required"] is False
+    assert client.post(f"{base}/confirm", headers=auth(client, "commissioner")).status_code == 200
+
+    # Повторне внесення додає файли до наявних і знімає підтвердження.
+    r = submit(client, base, wg, {"status": "partial"}, [("files", ("dodatok.txt", "текст".encode(), "text/plain"))])
+    assert r.status_code == 200 and len(r.json()["files"]) == 3 and r.json()["confirmed"] is False
+
+    log = client.get(f"{API}/admin/audit-log", params={"entity": "evidence_file", "action": "upload"},
+                     headers=admin).json()
+    assert len(log) == 3
+
+
+def test_submit_is_atomic(client):
+    _, base, wg, _ = setup_item(client)
+    assert client.put(base, json={"status": "none", "evidence": "було"}, headers=wg).status_code == 200
+    unique = PDF + b"% only-in-this-test\n"
+    files = [("files", ("ok.pdf", unique, "application/pdf")),
+             ("files", ("virus.exe", b"MZ\x90\x00", "application/octet-stream"))]
+    r = submit(client, base, wg, {"status": "full", "evidence": "стане"}, files)
+    assert r.status_code == 415 and r.json()["code"] == "unsupported_type"
+    item = client.get(base.rsplit("/", 1)[0], headers=wg).json()["items"][0]
+    assert item["status"] == "none" and item["evidence"] == "було" and item["files"] == []
+    # Перший, уже збережений файл прибрано з диска.
+    assert not storage.path_for(hashlib.sha256(unique).hexdigest()).exists()
+
+    # Кількість: у тестах ліміт 3 файли на пункт.
+    many = [("files", (f"d{i}.png", PNG + bytes([i]), "image/png")) for i in range(4)]
+    r = submit(client, base, wg, {"status": "full"}, many)
+    assert r.status_code == 409 and r.json()["code"] == "too_many_files"
+
+
+def test_submit_permissions_and_empty_file_part(client):
+    campaign_id, base, wg, admin = setup_item(client)
+    files = [("files", ("nakaz.pdf", PDF, "application/pdf"))]
+    assert submit(client, base, auth(client, "commissioner"), {"status": "full"}, files).status_code == 403
+    assert submit(client, base, wg, {"status": "maybe"}, files).status_code == 422
+    # Браузер шле порожню частину, коли файл не вибрано: це не помилка.
+    # (httpx викидає filename="", тому тіло складаємо вручну, як його шле браузер).
+    body = ("--B\r\nContent-Disposition: form-data; name=\"status\"\r\n\r\nnone\r\n"
+            "--B\r\nContent-Disposition: form-data; name=\"files\"; filename=\"\"\r\n"
+            "Content-Type: application/octet-stream\r\n\r\n\r\n--B--\r\n").encode()
+    r = client.post(f"{base}/submit", content=body,
+                    headers={**wg, "Content-Type": "multipart/form-data; boundary=B"})
+    assert r.status_code == 200 and r.json()["files"] == []
+    close(client, campaign_id, admin)
+    assert submit(client, base, wg, {"status": "full"}, files).status_code == 409

@@ -6499,7 +6499,7 @@
           "checklist"
         ],
         "summary": "Set Entry",
-        "description": "Член робочої групи вносить або змінює статус пункту. Зміна знімає підтвердження.",
+        "description": "Член робочої групи вносить або змінює статус пункту. Зміна знімає підтвердження.\n\nФайли-докази додаються окремо (POST .../files) або разом зі статусом (POST .../submit).",
         "operationId": "set_entry_api_v1_campaigns__campaign_id__checklist__question_id__put",
         "security": [
           {
@@ -6602,13 +6602,122 @@
         }
       }
     },
+    "/api/v1/campaigns/{campaign_id}/checklist/{question_id}/submit": {
+      "post": {
+        "tags": [
+          "checklist"
+        ],
+        "summary": "Submit Entry",
+        "description": "Внести пункт разом із документами одним multipart-запитом (поля status, evidence, comment, files[]).\n\nАтомарно: якщо хоч один файл не пройшов перевірку (тип, розмір, кількість), не змінюється нічого.\nНові файли додаються до вже прикріплених; видалити зайвий: DELETE .../files/{file_id}.\nЯк і PUT, знімає підтвердження. Ліміти: GET /config → evidence.",
+        "operationId": "submit_entry_api_v1_campaigns__campaign_id__checklist__question_id__submit_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          },
+          {
+            "name": "question_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Question Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_submit_entry_api_v1_campaigns__campaign_id__checklist__question_id__submit_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChecklistItemOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
     "/api/v1/campaigns/{campaign_id}/checklist/{question_id}/confirm": {
       "post": {
         "tags": [
           "checklist"
         ],
         "summary": "Confirm Entry",
-        "description": "Підтвердити пункт можна лише за наявності доказу. Підтверджує не той, хто вніс.",
+        "description": "Підтвердити пункт можна лише за наявності доказу. Підтверджує не той, хто вніс.\n\nЗа CHECKLIST_REQUIRE_FILE пункт «повністю» чи «частково» потребує хоча б одного файлу:\nтекстового опису замало (422, code=file_required).",
         "operationId": "confirm_entry_api_v1_campaigns__campaign_id__checklist__question_id__confirm_post",
         "security": [
           {
@@ -15836,6 +15945,42 @@
         ],
         "title": "Body_login_api_v1_auth_login_post"
       },
+      "Body_submit_entry_api_v1_campaigns__campaign_id__checklist__question_id__submit_post": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/ChecklistStatus",
+            "description": "full | partial | none"
+          },
+          "evidence": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Evidence",
+            "description": "Короткий опис доказу (необов'язково)",
+            "default": ""
+          },
+          "comment": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Comment",
+            "default": ""
+          },
+          "files": {
+            "items": {
+              "type": "string",
+              "contentMediaType": "application/octet-stream"
+            },
+            "type": "array",
+            "title": "Files",
+            "description": "Документи-докази: PDF, зображення, Office/ODF, TXT, CSV",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "Body_submit_entry_api_v1_campaigns__campaign_id__checklist__question_id__submit_post"
+      },
       "Body_upload_file_api_v1_campaigns__campaign_id__checklist__question_id__files_post": {
         "properties": {
           "file": {
@@ -16628,6 +16773,11 @@
               }
             ],
             "title": "Confirmer Id"
+          },
+          "file_required": {
+            "type": "boolean",
+            "title": "File Required",
+            "default": false
           }
         },
         "type": "object",
@@ -21661,6 +21811,11 @@
             },
             "type": "array",
             "title": "Checklist Confirmers"
+          },
+          "checklist_require_file": {
+            "type": "boolean",
+            "title": "Checklist Require File",
+            "default": true
           },
           "external_fetch": {
             "type": "boolean",
