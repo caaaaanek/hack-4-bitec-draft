@@ -147,6 +147,9 @@ export function signals() {
   // Лише те, що ця роль може виправити: сигнал з посиланням на недоступний їй екран не показуємо
   return r && r.data ? (r.data.items || []).filter(x => x.severity !== "info" && (!x.link || !x.link.view || linkTarget(x.link))) : null;
 }
+// Збій завантаження сигналів (не «сигналів немає»): дзвіночок показує помилку з повтором
+export function sigError() { if (!SIG_ROLES.includes(S.role) || !API.on) return null; const r = useDigest(); return r && r.error ? r.error : null; }
+export const sigRetry = () => apiModReset("digest");
 export function sigGo(x) { const t = linkTarget(x.link); if (t) goTo(t); }
 export const sigTarget = x => linkTarget(x.link);
 export function digestTop() { return (signals() || []).slice(0, 3); }
