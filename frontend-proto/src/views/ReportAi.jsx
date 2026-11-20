@@ -5,7 +5,6 @@ import { Ic } from "../lib/icons.jsx";
 import { S, AI_ROLES, addLog, me } from "../lib/state.js";
 import { API, apiAuth } from "../lib/api.js";
 import { toast } from "../lib/store.js";
-import { modelName } from "../ai/assistant.jsx";
 
 export const rtCanAi = () => S.aiOn && AI_ROLES.includes(S.role);
 const QUICK = [["Скоротити", "Скороти, зберігши всі числа"], ["Офіційніше", "Переклади в офіційно-діловий стиль"], ["Простіше", "Перепиши простішою мовою для особового складу"], ["Поясни", "Поясни, що означає цей фрагмент і звідки числа?"]];
@@ -116,11 +115,11 @@ function AiBox({ sel, range, edit, docRef, busy, close, onApplied }) {
     {j && (j.action === "replace" && edit ? <>
       <div className="lbl">Пропозиція{j.note ? `: ${j.note}` : ""}</div>
       <div className="rt-diff"><del>{sel}</del><ins>{j.text}</ins></div>{warn}
-      <div className="rt-act"><button type="button" className="btn btn-primary" onClick={() => apply(false)}><Ic n="ok" />Замінити</button><button type="button" className="btn btn-ghost" onClick={close}>Скасувати</button><span className="lbl">{modelName(j.model)}</span></div>
+      <div className="rt-act"><button type="button" className="btn btn-primary" onClick={() => apply(false)}><Ic n="ok" />Замінити</button><button type="button" className="btn btn-ghost" onClick={close}>Скасувати</button></div>
       <div className="lbl">Не те? Уточніть у полі вище, наприклад «коротше» чи «без другого речення».</div>
     </> : <>
       <div className="rt-answer" style={{ whiteSpace: "pre-line" }}>{j.text}</div>{warn}
-      <div className="rt-act">{edit && <button type="button" className="btn btn-soft" onClick={() => apply(true)}><Ic n="plus" />Вставити після фрагмента</button>}<button type="button" className="btn btn-ghost" onClick={close}>Закрити</button><span className="lbl">{modelName(j.model)}</span></div>
+      <div className="rt-act">{edit && <button type="button" className="btn btn-soft" onClick={() => apply(true)}><Ic n="plus" />Вставити після фрагмента</button>}<button type="button" className="btn btn-ghost" onClick={close}>Закрити</button></div>
     </>)}
   </div>;
 }

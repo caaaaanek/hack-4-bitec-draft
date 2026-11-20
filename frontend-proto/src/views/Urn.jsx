@@ -86,7 +86,7 @@ function UrnPick() {
   if (!r) return <Loading t="Хвилі" />;
   if (r.status === 403) return <NoAccess />;
   if (r.error) return <Failed e={r.error} onRetry={() => apiModReset("urnCamps")} />;
-  return <section className="card c12 rise"><div className="card-h"><h2>Оберіть хвилю</h2></div><div className="lbl" style={{ marginBottom: 8 }}>{URN_WHY}</div><div className="rows">{r.data.map(c => <a key={c.id} className="row click" href={`#urn/${c.id}`}><div className="grow">{dn(c.title)}</div><Ic n="arrowR" /></a>)}</div></section>;
+  return <section className="card c12 rise"><div className="card-h"><h2>Оберіть хвилю</h2></div><div className="lbl" style={{ marginBottom: 8 }}>{URN_WHY}</div><div className="rows">{r.data.map(c => <a key={c.id} className="row click" href={`#urn/${c.id}`}><div className="grow">{dn(c.title)}</div><Ic n="arrowR" size={16} /></a>)}</div></section>;
 }
 
 /* Демо: покрокова демонстрація з вигаданими частинами */

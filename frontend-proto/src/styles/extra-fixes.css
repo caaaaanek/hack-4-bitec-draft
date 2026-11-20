@@ -56,9 +56,14 @@
 .tg-s { font-size: 12px; fill: var(--muted); font-variant-numeric: tabular-nums; }
 .tg-hit { fill: transparent; }
 .tg-leaf { cursor: pointer; outline: none; }
-.tg-leaf:hover .tg-hit, .tg-leaf:focus-visible .tg-hit { fill: var(--soft); }
-.tg-leaf:hover .tg-l { fill: var(--teal-deep); }
+.tg-leaf circle { transition: stroke-width .15s; }
+.tg-leaf:hover circle:not(.tg-hl), .tg-leaf:focus-visible circle:not(.tg-hl) { stroke-width: 3.5; }
+.tg-leaf:hover .tg-l, .tg-leaf:focus-visible .tg-l { fill: var(--teal-deep); text-decoration: underline; }
 .tg-leaf:focus-visible .tg-hit { stroke: var(--teal); stroke-width: 2; }
+.tg-eh { fill: none; stroke: transparent; stroke-width: 16; pointer-events: stroke; }
+.tg-eg { cursor: help; }
+.tg-eg .tg-e { transition: opacity .15s; }
+.tg-eg:hover .tg-e { opacity: .9; }
 .tg-hl { fill: none; stroke: var(--teal); stroke-width: 2.5 !important; }
 @media (max-width: 760px) { .tg-legend .tg-w { margin-left: 0; } }
 /* Таблиця з групами, що згортаються */
@@ -101,11 +106,6 @@ html.dlg-open { overflow: hidden; }
 .nav-g { font-size: 11px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 2px 10px 4px; }
 @media (min-width: 901px) { html.side-mini .nav-g { height: 0; padding: 0; overflow: hidden; opacity: 0; } html.side-mini .nav-grp + .nav-grp { margin-top: 6px; border-top: 1px solid var(--line); padding-top: 6px; } }
 /* Вкладки «Результати» над екранами Огляд, Розклад, Динаміка, Порівняння */
-.rtabs { display: flex; flex-wrap: wrap; width: fit-content; max-width: 100%; }
-.rtabs a { text-decoration: none; color: inherit; }
-.rtabs a { border-radius: 9px; padding: 6px 12px; font-weight: 500; color: var(--muted); }
-.rtabs a.on { background: var(--panel); color: var(--fg); box-shadow: var(--shadow); }
-.rtabs a:focus-visible { outline: 2px solid var(--teal-deep); outline-offset: 1px; }
 .nav-all { margin: 10px 10px 0; text-align: left; font-size: 12.5px; }
 @media (min-width: 901px) { html.side-mini .nav-all { display: none; } }
 /* Дробова частина великих чисел: частина значення, тож контраст як у підписів (не світло-сірий) */
@@ -114,3 +114,44 @@ html.dlg-open { overflow: hidden; }
 .avatar, .pill.lv3, .pill.lv4 { color: color-mix(in srgb, var(--teal-deep) 60%, var(--fg)); }
 .pill.lv1 { color: color-mix(in srgb, var(--red) 60%, var(--fg)); }
 .pill.lv2 { color: color-mix(in srgb, var(--amber) 60%, var(--fg)); }
+
+/* Рівень і достовірність на плитках «Огляду»: колір як у пігулок, без самих пігулок */
+.lv-txt, .tr-txt { font-weight: 600; }
+.lv-txt i, .tr-txt i { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: currentColor; margin: 0 6px 1px 2px; vertical-align: middle; }
+.lv-t1, .tr-C { color: color-mix(in srgb, var(--red) 70%, var(--fg)); }
+.lv-t2, .tr-B { color: color-mix(in srgb, var(--amber) 70%, var(--fg)); }
+.lv-t3, .lv-t4, .lv-t5, .tr-A { color: color-mix(in srgb, var(--teal-deep) 75%, var(--fg)); }
+.tr-insufficient { color: var(--muted); }
+.mid.tr-txt i { display: none; }
+/* Бічне меню: при збільшенні масштабу елементи не стискаються, меню прокручується */
+.side > * { flex-shrink: 0; }
+/* «Порівняння»: показники по три в ряд поруч із радаром, достовірність окремим рядком нижче */
+.cmp-facts .kpis { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.cmp-trust .rows { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(340px, 100%), 1fr)); column-gap: 24px; }
+@media (max-width: 600px) { .cmp-facts .kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+/* Картка анкети: дата оновлення в рядку кнопок, унизу */
+.q-foot { display: flex; flex-wrap: wrap-reverse; align-items: center; gap: 10px 8px; margin-top: 14px; }
+.q-foot > .lbl { margin-right: auto; }
+.q-acts { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; margin-left: auto; }
+/* Демо-облікові записи на сторінці входу: роль ліворуч, логіни праворуч */
+.demo-role { align-items: flex-start; gap: 12px; }
+.demo-role b { font-weight: 600; }
+.demo-logins { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+.demo-logins a { color: var(--teal-deep); font-weight: 600; text-decoration: none; font-variant-numeric: tabular-nums; }
+.demo-logins a:hover, .demo-logins a:focus-visible { text-decoration: underline; }
+/* Документи-підтвердження (FileDrop) */
+.fd { display: flex; flex-direction: column; gap: 8px; }
+.fd-zone { display: flex; align-items: center; gap: 12px; padding: 14px; border: 1.5px dashed var(--line); border-radius: 12px; background: var(--soft); cursor: pointer; transition: border-color .15s, background .15s; }
+.fd-zone:hover, .fd-zone:focus-visible, .fd-zone.over { border-color: var(--teal); background: color-mix(in srgb, var(--teal) 8%, var(--panel)); outline: none; }
+.fd-zone b { font-weight: 600; }
+.fd-ic { width: 36px; height: 36px; border-radius: 10px; background: var(--panel); color: var(--teal-deep); display: grid; place-items: center; flex: none; }
+.fd-ic svg { width: 18px; height: 18px; }
+.fd-list { display: flex; flex-direction: column; gap: 4px; }
+.fd-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 8px; background: var(--soft); font-size: 13.5px; min-width: 0; }
+.fd-row > svg { width: 16px; height: 16px; flex: none; color: var(--muted); }
+.fd-row .grow { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fd-err { color: color-mix(in srgb, var(--red) 60%, var(--fg)); }
+.ck-docs { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.ck-docs a { display: inline-flex; align-items: center; gap: 4px; }
+.ck-nodoc { margin-top: 6px; }
+.ck-nodoc.warn { color: color-mix(in srgb, var(--amber) 70%, var(--fg)); font-weight: 600; }

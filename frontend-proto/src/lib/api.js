@@ -490,10 +490,12 @@ export async function apiLoadCk(sel) {
   return { camps, sel: cur, data, err };
 }
 export function apiCkReload(sel) { API.ck = null; API.loading.ck = true; render(true); apiLoadCk(sel).then(v => { API.ck = v; }, e => { API.ck = { error: apiErrText(e) }; }).finally(() => { API.loading.ck = false; render(true); }); }
-export async function apiSaveItem(camp, qid, body, file) {
+// Зберегти пункт і завантажити документи по одному (сервер приймає один файл за запит)
+export async function apiSaveItem(camp, qid, body, files = []) {
   await api(`/campaigns/${camp}/checklist/${qid}`, { method: "PUT", body });
-  if (file) { const fd = new FormData(); fd.append("file", file); const r = await api(`/campaigns/${camp}/checklist/${qid}/files`, { method: "POST", body: fd }); return r; }
-  return null;
+  const out = [];
+  for (const file of files) { const fd = new FormData(); fd.append("file", file); out.push(await api(`/campaigns/${camp}/checklist/${qid}/files`, { method: "POST", body: fd })); }
+  return out;
 }
 export async function apiConfirm(qid, yes) {
   const camp = API.ck.sel;

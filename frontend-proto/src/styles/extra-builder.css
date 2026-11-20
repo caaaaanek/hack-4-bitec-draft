@@ -18,7 +18,9 @@ body.bld-open { overflow: hidden; }
 .bld-req { padding-bottom: 10px; }
 .bld-sec { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); padding: 18px; display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 .bld-sec-h { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
-.bld-sec-h .pv-num { align-self: center; }
+/* Номер і кнопки стоять по центру поля вводу (42 px), а не всього блоку з підписом */
+.bld-sec-h .pv-num { align-self: flex-end; margin-bottom: 7px; }
+.bld-sec-h .bld-move { align-self: flex-end; height: 42px; }
 .bld-move { display: inline-flex; gap: 6px; margin-left: auto; align-items: center; }
 .bld-q { border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: flex; flex-direction: column; gap: 12px; background: var(--bg); min-width: 0; }
 .bld-q-h { display: flex; align-items: center; gap: 10px; }
