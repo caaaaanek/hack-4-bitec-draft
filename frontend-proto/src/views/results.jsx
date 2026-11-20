@@ -9,6 +9,7 @@ import { cur, go, can } from "../lib/nav.js";
 import { Pill, LvPill, TrustPill, SrcDot, Num, Delta, LevelBar, useWidth } from "../components/ui.jsx";
 import { MiniTrend, TrendChart, Radar } from "../components/charts.jsx";
 import { DigestRows, digestTop, PrepBtn } from "./Insights.jsx";
+import { CandorCard } from "./Candor.jsx";
 import { openWhy, openTrust, openHow, openResp, openItem, openApiQ, openTrustHow, openTrackerHow, openRespHow, itemQs } from "./panels.jsx";
 
 const enter = f => e => { if (e.key === "Enter") f(e); };
@@ -67,6 +68,7 @@ export function Overview() {
         ? <Tile ic="users" title="Відповідей у циклі" big={<span className="mid tnum">{m.responses}</span>} sub={<span className="lbl">Мінімальна група k = {S.k}</span>} act={openResp} info={openRespHow} tip="Що таке мінімальна група k" />
         : <Tile ic="target" title="Заходи в трекері" big={<span className="mid tnum">{ms.length}</span>} sub={od ? <span style={{ color: "var(--red)", fontWeight: 600 }}>З них {od} прострочено</span> : <span className="lbl">Прострочених немає</span>} act={can("tracker") ? () => go("tracker") : undefined} info={openTrackerHow} tip="Як працює трекер заходів" />}
     </div>
+    <CandorCard />
     <section className="card c8 rise" id="attn">
       <div className="card-h"><h2>Що потребує уваги</h2></div>
       {m.attention.length ? <div className="rows">{attn.map((a, i) => <a key={i} className="row click" href={`#explain/${a.c}`} onClick={a.q ? e => { e.preventDefault(); openApiQ(a.q); } : undefined} data-tip={a.hint}><span className="dot" style={{ background: SCOL[status(a.v)] }} /><div className="grow"><div className="t">{a.t}</div></div><Pill cls="p-mute nodot">{COMP[a.c].n}</Pill><b className="tnum">{fb(a.v)}</b></a>)}</div> : dg.length ? null : <div className="lbl">Зауважень немає: нічого не потребує уваги.</div>}
