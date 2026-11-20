@@ -2,7 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, lazy, Suspense } from "react";
 import { Ic } from "./lib/icons.jsx";
 import { S, ROLE, NAV, NAV_GROUP, NAV_GROUP_T, HOME, AI_ROLES, persist, resetDemo, addLog, simpleMode, setSimpleMode, simpleRoute } from "./lib/state.js";
-import { API, login, loginProxy, logout, apiErrText, retryBoot, startDemo, apiModReset, dn } from "./lib/api.js";
+import { API, login, loginProxy, logout, apiErrText, retryBoot, startDemo, apiModReset, dn, RESULT_VIEWS } from "./lib/api.js";
 import { NotesPop, notesState, markNotesSeen } from "./components/NotesPop.jsx";
 import { COMPS, COMP, INSTITUTIONS, allItems, pendingRecs, measures, overdueDays, clamp, CYCLE } from "./lib/model.js";
 import { useStore, getViewKey, render, toast, ui, openPop, closePop, closeDrawer } from "./lib/store.js";
@@ -195,6 +195,8 @@ function Badge({ r }) {
   return n ? <span className={`badge ${r === "tracker" && !od ? "mute" : ""}`}>{n}</span> : null;
 }
 
+// Департамент із кількома закладами: екрани результатів недоступні, доки заклад не обрано (з одним закладом він відкривається сам)
+const needInst = nr => S.role === "observer" && API.on && !API.deptUnit && (RESULT_VIEWS.includes(nr) || nr === "advocate") && Array.isArray(API.dept) && API.dept.filter(x => x.closed_waves).length > 1;
 export default function App() {
   useStore();
   const login = isLogin(), anon = API.on && API.anon, { r } = API.booting || login ? { r: null } : route(), vk = getViewKey();
@@ -235,8 +237,8 @@ export default function App() {
           <span className="kbd" id="kbd" data-tip={`Швидкий пошук: ${isMac ? "⌘K" : "Ctrl+K"} або «/»`}>{isMac ? "⌘K" : "Ctrl K"}</span></label>
         {!(navG.length > 1) && <div className="nav-label">Меню</div>}
         <nav className="nav" id="nav" aria-label="Меню">{!login && navG.map(([g, items]) => {
-          const links = items.map(([nr, n, ic]) => <a key={nr} href={`#${nr}`} data-r={nr} className={nr === r ? "on" : ""} aria-current={nr === r ? "page" : undefined} aria-label={n} data-tip={mini ? n : undefined}
-            onClick={e => { if ("#" + nr === location.hash.split("/")[0]) { e.preventDefault(); ui.side = false; render(); } }}><Ic n={ic} /><span>{n}</span><Badge r={nr} /></a>);
+          const links = items.map(([nr, n, ic]) => { const off = needInst(nr); return <a key={nr} href={`#${nr}`} data-r={nr} className={nr === r ? "on" : off ? "nav-off" : ""} aria-current={nr === r ? "page" : undefined} aria-label={n} aria-disabled={off || undefined} data-tip={off ? "Спершу оберіть заклад" : mini ? n : undefined}
+            onClick={e => { if (off) { e.preventDefault(); return; } if ("#" + nr === location.hash.split("/")[0]) { e.preventDefault(); ui.side = false; render(); } }}><Ic n={ic} /><span>{n}</span><Badge r={nr} /></a>; });
           return g ? <div key={g} className="nav-grp" role="group" aria-labelledby={`ng-${g}`}><div className="nav-g" id={`ng-${g}`}>{NAV_GROUP_T[g]}</div>{links}</div> : links;
         })}{!login && simple && <button type="button" className="link-btn nav-all" onClick={() => setSimpleMode(false)}>Простий режим: показати все меню</button>}</nav>
         {/* Хто увійшов і «Вийти» з бекендом показує лише меню аватара вгорі; тут лишився вибір ролі для демо */}

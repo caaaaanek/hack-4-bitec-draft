@@ -471,3 +471,4 @@ html[data-role="respondent"] .top .synthetic, html[data-role="checklist_editor"]
 /* Назва хвилі в шапці: плоский текст, не кнопка */
 #cycleBtn { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 #cycleBtn svg { flex: none; width: 16px; height: 16px; }
+.nav a.nav-off { opacity: .45; cursor: not-allowed; }
