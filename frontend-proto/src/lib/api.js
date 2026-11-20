@@ -6,7 +6,7 @@
  */
 import { S, NAV, HOME, ROLE, freshSurvey, loadDraft, clearDraft } from "./state.js";
 import { TITLES } from "./nav.js";
-import { COMPS, COMP, ALPHA, r1, finish, setClock, TRUST, factText } from "./model.js";
+import { COMPS, COMP, ALPHA, r1, finish, setClock, TRUST, factText, M_ST } from "./model.js";
 import { fb, esc, quarters } from "./format.js";
 import { render, toast, closeDrawer, ui } from "./store.js";
 
@@ -293,11 +293,23 @@ function applyMethodology() {
 const MEAS_ST = { planned: "accepted", in_progress: "inprogress", done: "done", cancelled: "cancelled" };
 // Перевірка наступною хвилею (бекенд, services/measures.verify): зріс компонент заходу — підтверджено; не зріс — потрібен перегляд
 const VERIFY_ST = { improved: "confirmed", worsened: "notconfirmed", within_error: "notconfirmed" };
+// Історія заходу з журналу дій: журнал читають лише уповноважений і аудит; фільтра за id у сервера немає, тож беремо записи заходів і відбираємо свій
+export function apiMeasureHist(id) {
+  if (!["admin", "auditor"].includes(S.role)) return { status: 403 };
+  const r = apiMod("mhist", () => api("/admin/audit-log?entity=measure&limit=1000"));
+  if (!r || !r.data) return r;
+  return { data: r.data.filter(l => l.entity_id === String(id)).reverse().map(l => {
+    const d = l.details || {}, st = s => (M_ST[MEAS_ST[s]] || [s])[0];
+    const a = l.action === "create" ? "Захід створено" : d.from_status && d.status ? `Статус: ${st(d.from_status)} → ${st(d.status)}` : l.action === "external_status" ? "Оновлено стан у Mitra" : Object.keys(d).some(k => FIELD_T[k]) ? "Змінено: " + Object.keys(d).filter(k => FIELD_T[k]).map(k => FIELD_T[k]).join(", ") : "Захід змінено";
+    return { a: a + (d.reason ? `. Причина: ${d.reason}` : ""), who: l.actor_display || (l.actor_id ? `Користувач …${String(l.actor_id).slice(-4)}` : "Система"), t: new Date(l.at).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) };
+  }) };
+}
+const FIELD_T = { title: "назва", owner: "відповідальна посада", due_date: "строк", status: "статус", done_on: "дата виконання", evidence: "доказ" };
 function apiMeasure(x, titles) {
   const v = x.verification || {}, st = x.status === "done" && VERIFY_ST[v.status] ? VERIFY_ST[v.status] : MEAS_ST[x.status] || "accepted";
   const d = v.delta != null ? ` (${v.delta > 0 ? "+" : ""}${fb(v.delta)})` : "";
   const vf = x.status === "done" ? (st === "confirmed" ? [`Підтверджено: компонент зріс${d}`, "p-good"] : st === "notconfirmed" ? [`Не підтверджено: ${v.title || "без змін"}${d}`, "p-bad"] : v.status === "check_data" ? ["Перевірити дані: достовірність C", "p-warn"] : ["Очікує наступного оцінювання", "p-info"]) : null;
-  return { id: x.id, rec: titles[x.recommendation_code] || (x.recommendation_code ? "попередньої хвилі" : "окремий захід"), t: x.title, who: x.owner, due: x.due_date, st, ind: x.component, vf, vrule: v.rule, ext: apiExternal(x.external) };
+  return { id: x.id, rec: titles[x.recommendation_code] || (x.recommendation_code ? "попередньої хвилі" : "окремий захід"), t: x.title, who: x.owner, due: x.due_date, st, ind: x.component, vf, vrule: v.rule, ext: apiExternal(x.external), ev: x.evidence || "", doneOn: x.done_on || null };
 }
 // Стан заходу в Mitra (тема 2): бекенд приймає лише посилання на адресу Mitra з налаштувань (THEME2_PUBLIC_URL)
 function apiExternal(e) {
@@ -355,6 +367,7 @@ export async function apiSendMSt(id, st, evidence, reason) {
   // Невідомий статус не підміняємо на in_progress: краще помилка, ніж тихо не той перехід.
   if (!MEAS_BACK[st]) throw new Error(`Невідомий статус заходу: ${st}`);
   await api(`/measures/${id}`, { method: "PATCH", body: { status: MEAS_BACK[st], ...(st === "done" ? { evidence } : {}), ...(reason ? { reason } : {}) } });
+  delete API.mod.mhist;
   await apiReloadResults();
 }
 
