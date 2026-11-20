@@ -2,7 +2,7 @@
 import { LearnCard } from "./Learn.jsx";
 import { useEffect, useRef, useState } from "react";
 import { Ic } from "../lib/icons.jsx";
-import { S, SURVEY, SV, SQ, persist, addLog, me, logItems, fnv } from "../lib/state.js";
+import { S, SURVEY, SV, SQ, persist, addLog, me, logItems, fnv, saveDraft, clearDraft } from "../lib/state.js";
 import { API, apiSubmitSurvey } from "../lib/api.js";
 import { COMPS, COMP, FACTS, GROUPS, UNITS, UNIT_RESP, UNIT_CR, ALPHA, factValue, inst, level, indexOf, resolveUnit, CYCLE, TODAY_UA } from "../lib/model.js";
 import { fb, f1, dsh } from "../lib/format.js";
@@ -170,12 +170,12 @@ function openLog(n, n2) {
 
 /* Опитування за жетоном */
 const answered = () => SQ().filter(q => S.survey.a[q.id] != null).length;
-function pick(id, i) { S.survey.a[id] = i; try { localStorage.setItem("ii-survey-draft", JSON.stringify(S.survey.a)); } catch (e) { /* немає */ } render(true); }
+function pick(id, i) { S.survey.a[id] = i; saveDraft(S.survey.a); render(true); }
 function submitSurvey() {
   if (answered() < SQ().length) { S.survey.miss = true; render(true); return; }
   if (API.on) return apiSubmitSurvey();
   S.survey = { phase: "done", sec: 0, a: {}, miss: false }; S.tokenUsed = true; UNIT_RESP[S.unit] = (UNIT_RESP[S.unit] || 0) + 1;
-  try { localStorage.removeItem("ii-survey-draft"); } catch (e) { /* немає */ }
+  clearDraft();
   addLog("Система", "Отримано анонімну відповідь, жетон погашено"); persist(); render();
 }
 // Підказка до питання: рядки «• …» показуємо списком (твердження непрямого питання), решту абзацом

@@ -4,7 +4,7 @@
  * чек-лист із файлами-доказами, хвилі й посилання, журнал. Без API (відкрито з файлу, Vercel) — демо-дані
  * в браузері. Решта коду бере дані через гачки: inst(), buildRecs(), measures(), SV()/SQ() і екрани в views/Api*.
  */
-import { S, NAV, HOME, freshSurvey } from "./state.js";
+import { S, NAV, HOME, freshSurvey, loadDraft, clearDraft } from "./state.js";
 import { COMPS, COMP, ALPHA, r1, finish, setClock } from "./model.js";
 import { fb, esc, quarters } from "./format.js";
 import { render, toast, closeDrawer, ui } from "./store.js";
@@ -112,7 +112,7 @@ export async function loginProxy() {
 }
 export async function logout() {
   try { await api("/auth/session", { method: "DELETE" }); } catch (e) { /* сесія вже закрита */ }
-  apiSetToken(null); API.user = null; API.model = null; API.mod = {}; history.replaceState(null, "", "/"); showLogin();
+  apiSetToken(null); API.user = null; API.model = null; API.mod = {}; clearDraft(true); S.survey = freshSurvey(); history.replaceState(null, "", "/"); showLogin();
 }
 
 async function afterLogin(user) {
@@ -130,7 +130,7 @@ async function bootToken(token) {
   API.surveyTarget = { kind: "token", token };
   location.hash = "survey";
   S.survey = freshSurvey();
-  try { API.survey = apiSurveyModel(await api("/respond/form", { auth: false, headers: { "X-Response-Token": token } }), "token"); }
+  try { API.survey = apiSurveyModel(await api("/respond/form", { auth: false, headers: { "X-Response-Token": token } }), "token"); S.survey.a = loadDraft(Object.keys(API.survey.opt)); }
   catch (e) {
     API.survey = null; API.surveyMsg = e.code === "token_used" ? "used" : e.code === "campaign_not_open" ? "closed" : "invalid";
     // Після закриття хвилі те саме посилання показує узагальнені результати (GET /respond/results).
@@ -330,7 +330,7 @@ export async function apiSubmitSurvey() {
     toast(apiErrText(e)); render(true); return;
   }
   S.survey = { phase: "done", sec: 0, a: {}, miss: false, receipt }; API.surveyUsed = sv.kind === "token";
-  try { localStorage.removeItem("ii-survey-draft"); } catch (e) { /* немає */ }
+  clearDraft();
   if (sv.kind !== "token") { sv.submitted = true; API.assignments = null; API.my = null; }
   render();
 }
@@ -362,7 +362,7 @@ export function apiLoadForm(next) {
   if (API.loading.form || API.formError) return;
   API.loading.form = true;
   api(`/campaigns/${next.campaign_id}/questionnaires/${next.questionnaire_id}/form`)
-    .then(f => { API.survey = apiSurveyModel(f, "account", API.user.category); S.survey = freshSurvey(); }, e => { API.formError = apiErrText(e); })
+    .then(f => { API.survey = apiSurveyModel(f, "account", API.user.category); S.survey = freshSurvey(); S.survey.a = loadDraft(Object.keys(API.survey.opt)); }, e => { API.formError = apiErrText(e); })
     .finally(() => { API.loading.form = false; render(true); });
 }
 

@@ -99,12 +99,22 @@ export const S = Object.assign(DEFAULTS(), { chat: [], survey: freshSurvey(), op
 const KEY = "ii-proto-v2";
 const SAVE = ["role", "k", "inst", "unit", "cycleOpen", "facts", "fpend", "dec", "qs", "log", "notes", "aiOn", "tokenUsed", "mode", "trackView", "recF", "trF", "trend", "cmp", "cmpCycle", "a11y", "insts", "instArch", "guideOpen", "advDone"];
 try { const saved = JSON.parse(localStorage.getItem(KEY) || "null"); if (saved) SAVE.forEach(k => { if (saved[k] !== undefined) S[k] = saved[k]; }); } catch (e) { /* без збереженого стану */ }
-try { const d = JSON.parse(localStorage.getItem("ii-survey-draft") || "null"); if (d) S.survey.a = d; } catch (e) { /* без чернетки */ }
+/* Чернетка анкети: окремий ключ для кожної хвилі й анкети (за обліковим записом) або для кожного посилання
+   (хеш токена, не сам токен). Підставляється після завантаження форми; очищається після надсилання й при виході. */
+const DRAFT = "ii-survey-draft";
+export const draftKey = () => !API.on ? `${DRAFT}:demo` : API.anon ? `${DRAFT}:t:${fnv(String(API.token || ""))}` : API.survey ? `${DRAFT}:${API.survey.campaignId}:${API.survey.questionnaireId}` : null;
+export function loadDraft(ids) {
+  const k = draftKey(); if (!k) return {};
+  try { const d = JSON.parse(localStorage.getItem(k) || "null") || {}; return ids ? Object.fromEntries(Object.entries(d).filter(([q]) => ids.includes(q))) : d; } catch (e) { return {}; }
+}
+export function saveDraft(a) { const k = draftKey(); if (k) try { localStorage.setItem(k, JSON.stringify(a)); } catch (e) { /* сховище недоступне */ } }
+export function clearDraft(all) { try { for (const k of Object.keys(localStorage)) if (all ? k.startsWith(DRAFT) : k === draftKey() || k === DRAFT) localStorage.removeItem(k); } catch (e) { /* немає */ } }
+S.survey.a = loadDraft();
 export const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(SAVE.map(k => [k, S[k]])))); } catch (e) { /* сховище недоступне */ } };
 export function resetDemo() {
   const role = S.role, a11y = S.a11y;
   Object.assign(S, DEFAULTS(), { role, a11y, chat: [], survey: freshSurvey() });
-  try { localStorage.removeItem("ii-survey-draft"); } catch (e) { /* немає */ }
+  clearDraft(true);
   addLog(me(), "Демо-дані скинуто"); persist(); render(); toast("Демо-дані скинуто");
 }
 
