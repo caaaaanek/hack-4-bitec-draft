@@ -9,6 +9,7 @@ import { cur, can, route } from "../lib/nav.js";
 import { whyText, checkText, flagTitle, trustBecause } from "../lib/texts.js";
 import { aiOpen } from "../ai/assistant.jsx";
 import { Pill, TrustPill, CapBars } from "../components/ui.jsx";
+import { IndexExtras } from "./IndexExtras.jsx";
 
 const FlagIc = ({ f, ok }) => <span className={`flag-ic ${ok ? "ok" : f.w}`}><Ic n={ok ? "ok" : f.w === "major" ? "alert" : "flag"} /></span>;
 const Link = ({ href, children, cls = "link", style }) => <a className={cls} href={href} onClick={closeDrawer} style={style}>{children}</a>;
@@ -54,6 +55,7 @@ export function openHow() {
         <li>Рівень зрілості від 1 до 5 визначають межі шкали нижче.</li>
         <li>Достовірність показує, наскільки результату можна довіряти. Вона залежить від прапорців: автоматичних перевірок даних.</li></ol>
         {route().r !== "explain" && <Link href="#explain">Відкрити розклад індексу <Ic n="arrowR" /></Link>}</div>
+      <IndexExtras />
       <div><div className="lbl" style={{ marginBottom: 4 }}>Шкала рівнів зрілості</div><div className="rows">{[1, 2, 3, 4, 5].map(l => {
         const lo = [0, ...BOUNDS][l - 1], hi = [...BOUNDS, 100][l - 1];
         return <div key={l} className="row" style={{ alignItems: "flex-start" }}><span className={`lvsq lvdot lv${l} ${l === m.level ? "on" : ""}`} aria-hidden="true" /><div className="grow">{LEVELS[l - 1]} <span className="lbl">{l === 1 ? `від 0 до ${fb(hi)}` : l === 5 ? `вище ${fb(lo)}` : `вище ${fb(lo)} до ${fb(hi)}`}</span><div className="lbl" style={{ fontSize: 12.5, marginTop: 2 }}>{LDESC[l - 1]}</div></div>{l === m.level && <Pill cls="p-good nodot">Поточний</Pill>}</div>;

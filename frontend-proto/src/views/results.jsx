@@ -10,6 +10,8 @@ import { Pill, LvPill, TrustPill, SrcDot, Num, Delta, LevelBar, useWidth } from 
 import { MiniTrend, TrendChart, Radar } from "../components/charts.jsx";
 import { DigestRows, digestTop, PrepBtn } from "./Insights.jsx";
 import { CandorCard, GamingCard } from "./Candor.jsx";
+import { IndexExtras } from "./IndexExtras.jsx";
+import { API } from "../lib/api.js";
 import { openWhy, openTrust, openHow, openResp, openItem, openApiQ, openTrustHow, openTrackerHow, openRespHow, itemQs } from "./panels.jsx";
 
 const enter = f => e => { if (e.key === "Enter") f(e); };
@@ -237,6 +239,7 @@ export function Explain() {
       {mode === "credited" && T.some(c => c.lim) && <div className="lim-callout" role="note"><span className="lim-ic"><Ic n="alert" /></span><div><b>Результат знижено обмежувачем</b>{T.filter(c => c.lim).map(c => <div key={c.id}><b>{COMP[c.id].n}:</b> {c.cr.reason}</div>)}</div></div>}
       {S.exTable ? table : <TreeGraph T={T} sum={sum} hl={hl} maxC={maxC} fallback={table} />}
     </section>
+    {API.on && API.res && <section className="card c12 rise ix-card"><div className="card-h"><h2>Перевірки розрахунку</h2></div><IndexExtras /></section>}
   </>;
 }
 
