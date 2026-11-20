@@ -67,6 +67,8 @@ export const FACTS = [
   ["ac-f3", "accountability", "Рівень за анкетою «Звітність і оприлюднення»", 20, "lvl", 2, "Чек-лист закладу"],
 ].map(([id, c, t, w, kind, val, from]) => ({ id, c, t, w, kind, base: val, from }));
 export const factValue = (f, val) => f.kind === "pct" ? Math.round(val[0] / val[1] * 1000) / 10 : lvl100(val);
+// Один запис факту скрізь (рекомендації, звіт, асистент): частка, з чого вона, і бал рівня за порогами методики
+export const factText = f => f.kind === "pct" && Array.isArray(f.val) ? `${fb(f.val[1] ? f.val[0] / f.val[1] * 100 : 0)} % (${f.val[0]} з ${f.val[1]}), бал ${fb(f.v)} з 100` : f.val != null && f.kind ? `рівень ${f.val}, бал ${fb(f.v)} з 100` : `${fb(f.v)} з 100`;
 
 export function credit(P, F) {
   const lim = F + CAP;

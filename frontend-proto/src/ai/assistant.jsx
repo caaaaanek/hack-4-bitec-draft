@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Ic } from "../lib/icons.jsx";
 import { S, AI_ROLES, persist, addLog, me } from "../lib/state.js";
 import { API, apiAuth } from "../lib/api.js";
-import { COMPS, COMP, LEVELS, TRUST, SRC, ST, PRI, REC_ST, M_ST, CAP, ALPHA, level, status, allItems, buildRecs, measures, dispSt, CYCLE, TODAY } from "../lib/model.js";
+import { COMPS, COMP, LEVELS, TRUST, SRC, ST, PRI, REC_ST, M_ST, CAP, ALPHA, level, status, allItems, buildRecs, measures, dispSt, CYCLE, TODAY, factText } from "../lib/model.js";
 import { fb, f1, pts, dsh } from "../lib/format.js";
 import { whyText, flagsText, trustText } from "../lib/texts.js";
 import { ui, render, toast } from "../lib/store.js";
@@ -41,8 +41,8 @@ export function aiTemplate(q) {
 
 Найвищий результат має компонент «${COMP[sorted[0].id].n}» (${fb(sorted[0].cr.v)}), найнижчий – «${COMP[sorted[2].id].n}» (${fb(sorted[2].cr.v)}).${m.limited ? ` Для компонента «${COMP[m.limited.id].n}» самооцінку не підтверджують факти: самооцінка ${fb(m.limited.P)} проти фактів ${fb(m.limited.F)}, тому зараховано ${fb(m.limited.cr.v)}.` : ""}
 
-Першочергової уваги потребують: ${low.map(x => `«${x.t}» (${fb(x.v)})`).join(", ")}. Достовірність результату: ${TRUST[m.trust][0]}, ${TRUST[m.trust][1].toLowerCase()}${m.raised.length ? `; прапорці: ${m.raised.map(f => f.t.toLowerCase()).join("; ")}` : ""}.`;
-    return { t, draft: true, src: ["Методика v1.0", `Індекс ${f1(m.index)}`, ...low.map(x => `${x.t}: ${fb(x.v)}`)] };
+Першочергової уваги потребують: ${low.map(x => `«${x.t}» (${factText(x)})`).join(", ")}. Достовірність результату: ${TRUST[m.trust][0]}, ${TRUST[m.trust][1].toLowerCase()}${m.raised.length ? `; прапорці: ${m.raised.map(f => f.t.toLowerCase()).join("; ")}` : ""}.`;
+    return { t, draft: true, src: ["Методика v1.0", `Індекс ${f1(m.index)}`, ...low.map(x => `${x.t}: ${factText(x)}`)] };
   }
   if (/перш|пріоритет|що робити|почати/.test(s)) {
     const open = recs.filter(r => r.st === "proposed" || r.st === "clarified").slice(0, 3);

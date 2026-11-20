@@ -6,7 +6,7 @@
  */
 import { S, NAV, HOME, ROLE, freshSurvey, loadDraft, clearDraft } from "./state.js";
 import { TITLES } from "./nav.js";
-import { COMPS, COMP, ALPHA, r1, finish, setClock, TRUST } from "./model.js";
+import { COMPS, COMP, ALPHA, r1, finish, setClock, TRUST, factText } from "./model.js";
 import { fb, esc, quarters } from "./format.js";
 import { render, toast, closeDrawer, ui } from "./store.js";
 
@@ -264,7 +264,7 @@ const CK_ST = { full: "впроваджено повністю", partial: "ча�
 const DEC_ST = { accepted: "accepted", clarify: "clarified", rejected: "rejected" };
 const BASIS = { self_score: "Самооцінка", facts_score: "Факти", score: "Зараховано", percent: "Відсоток", confirmed: "Підтверджено пунктів", total: "Усього", found: "Знайдено", pending: "Не розглянуто", change: "Зміна", level: "Рівень" };
 // Значення факту для «На підставі»: сам факт (96 з 168, 57,1 %) і бал методики, а не лише бал (0 читається як «нічого не розібрано»)
-const factV = f => f.kind === "pct" ? `${f.val[0]} з ${f.val[1]} (${fb(f.val[0] / f.val[1] * 100)} %), бал ${fb(f.v)}` : `рівень ${f.val}, бал ${fb(f.v)}`;
+const factV = factText;
 // Правило, що лише переказує опис тими самими числами й словами, не повторюємо
 const words = t => String(t || "").toLowerCase().match(/[\p{L}]+|\d+/gu) || [];
 const sameText = (rule, desc) => { const r = words(rule), d = new Set(words(desc)); return r.length > 0 && r.filter(w => d.has(w)).length / r.length >= 0.6; };

@@ -4,7 +4,7 @@
 import { Fragment } from "react";
 import { S } from "../lib/state.js";
 import { API } from "../lib/api.js";
-import { COMPS, COMP, LEVELS, CAP, TRUST, REC_ST, M_ST, PRI, ALPHA, level, allItems, buildRecs, measures, dispSt, overdueDays, daysWord, verif, r1, CYCLE, TODAY_UA } from "../lib/model.js";
+import { COMPS, COMP, LEVELS, CAP, TRUST, REC_ST, M_ST, PRI, ALPHA, level, allItems, buildRecs, measures, dispSt, overdueDays, daysWord, verif, r1, CYCLE, TODAY_UA, factText } from "../lib/model.js";
 import { fb, f1, pts, ua, plural } from "../lib/format.js";
 import { respGroups } from "./panels.jsx";
 
@@ -49,7 +49,7 @@ function ReportG({ m }) {
   const low = [...m.components].sort((a, b) => a.cr.v - b.cr.v).filter(c => (c.cr.v < 65 || c.cr.lim) && !best.includes(c));
   const weakItems = [...allItems(m)].sort((a, b) => a.v - b.v).slice(0, 3);
   const props = recs.filter(r => r.st !== "rejected");
-  const lowList = [...low.map(c => `${COMP[c.id].n}: ${c.cr.lim ? "самооцінку не підтверджують факти" : `зараховано ${fb(c.cr.v)}`}.`), ...weakItems.map(x => `${x.t}: ${fb(x.v)} з 100.`)].slice(0, 4);
+  const lowList = [...low.map(c => `${COMP[c.id].n}: ${c.cr.lim ? "самооцінку не підтверджують факти" : `зараховано ${fb(c.cr.v)}`}.`), ...weakItems.map(x => `${x.t}: ${factText(x)}.`)].slice(0, 4);
   return <>
     <Head m={m} title="ЗВІТ" sub="про результати опитувань з визначення поточного рівня зрілості доброчесності" />
     <p>На підставі наказу керівника закладу {m.name} від «___» ____________ 2026 року № ___ «Про організацію роботи з трансформації функціонування закладу на засадах прозорості та доброчесності» проведено роботу з визначення поточного рівня зрілості доброчесності за Моделлю зрілості НАЗК.</p>
@@ -81,7 +81,7 @@ function ReportG({ m }) {
     {m.raised.length > 0 && <ol>{m.raised.map(f => <li key={f.id}>{f.t} ({f.w === "major" ? "серйозна" : "незначна"}). {f.ex}</li>)}</ol>}
     <h3>Висновок</h3>
     <p>На основі аналізу відповідей респондентів за критеріями розділів «Культура», «Система» та «Підзвітність» Моделі зрілості НАЗК <b>загальний рівень зрілості доброчесності у {m.name} {m.level ? <>можна оцінити як «{LEVELS[m.level - 1]}»</> : "не вдалося оцінити: замало даних"}</b> ({m.level ? `рівень ${m.level} з 5; ` : ""}індекс доброчесності {m.index == null ? "не пораховано" : `${f1(m.index)} з 100`}; {m.delta == null ? "дані про попередній цикл недоступні" : `${m.delta > 0 ? `на ${pts(m.delta)} вище` : m.delta < 0 ? `на ${pts(m.delta)} нижче` : "без змін"} порівняно з попереднім циклом`}).</p>
-    <p><i>Довідково:</i> {m.fItems.filter(x => x.kind === "pct").map(x => `${x.t.toLowerCase()}: ${x.val[0]} з ${x.val[1]}`).join("; ")}.</p>
+    <p><i>Довідково:</i> {m.fItems.filter(x => x.kind === "pct").map(x => `${x.t.toLowerCase()}: ${factText(x)}`).join("; ")}.</p>
     <p><b>Найбільш ефективні напрями:</b></p>
     {best.length ? <ol>{best.slice(0, 2).map(c => <li key={c.id}>{COMP[c.id].n}: зараховано {fb(c.cr.v)}, рівень {lvT(c.cr.v)}.</li>)}</ol> : <p>Компонентів на рівні 4 і вище немає.</p>}
     <p><b>Напрями, що потребують більшої уваги:</b></p>
