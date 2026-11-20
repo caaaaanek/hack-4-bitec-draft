@@ -76,6 +76,8 @@ export const NAV_GROUP_T = { res: "Результати", act: "Дії", tools: 
 // Вибір зберігається в localStorage (лише "1" або "0", без персональних даних); за замовчуванням увімкнено для Департаменту.
 const SIMPLE_KEY = "ii-simple-mode";
 export const SIMPLE_ROUTES = ["institutions", "overview", "report", "surveys"]; // анкети Департаменту лишаються і в простому режимі
+// Департамент і в простому режимі бачить реєстри ризиків своїх закладів (лише перегляд)
+export const simpleRoute = r => SIMPLE_ROUTES.includes(r) || (S.role === "observer" && r === "risks");
 export function simpleMode() { try { const v = localStorage.getItem(SIMPLE_KEY); if (v === "1" || v === "0") return v === "1"; } catch (e) { /* сховище недоступне */ } return S.role === "observer"; }
 export function setSimpleMode(on) { try { localStorage.setItem(SIMPLE_KEY, on ? "1" : "0"); } catch (e) { /* сховище недоступне */ } render(true); }
 export const HOME = { admin: "manage", respondent: "me", leader: "overview", observer: "institutions", checklist_editor: "checklist", checklist_approver: "checklist", auditor: "overview", coordinator: "people" };

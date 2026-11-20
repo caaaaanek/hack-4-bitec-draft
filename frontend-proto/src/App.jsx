@@ -1,7 +1,7 @@
 /* Оболонка застосунку: бічне меню, шапка, екран, оверлеї. */
 import { useEffect, useLayoutEffect, useRef, useState, lazy, Suspense } from "react";
 import { Ic } from "./lib/icons.jsx";
-import { S, ROLE, NAV, NAV_GROUP, NAV_GROUP_T, HOME, AI_ROLES, persist, resetDemo, addLog, simpleMode, setSimpleMode, SIMPLE_ROUTES } from "./lib/state.js";
+import { S, ROLE, NAV, NAV_GROUP, NAV_GROUP_T, HOME, AI_ROLES, persist, resetDemo, addLog, simpleMode, setSimpleMode, simpleRoute } from "./lib/state.js";
 import { API, login, loginProxy, logout, apiErrText, retryBoot, startDemo, apiModReset, dn } from "./lib/api.js";
 import { NotesPop, notesState, markNotesSeen } from "./components/NotesPop.jsx";
 import { COMPS, COMP, INSTITUTIONS, allItems, pendingRecs, measures, overdueDays, clamp, CYCLE } from "./lib/model.js";
@@ -201,8 +201,8 @@ export default function App() {
   const mini = html.classList.contains("side-mini"), u = API.user;
   const [q, setQ] = useState(""), [sel, setSel] = useState(0), qRef = useRef(null), box = useRef(null);
   const hits = searchHits(q), ns = notesState();
-  const navAll = NAV.filter(n => n[3].includes(S.role) && (n[0] !== "approvals" || fourEyes()) && (n[0] !== "urn" || S.role === "auditor")), simple = simpleMode() && navAll.some(n => n[0] === "overview") && navAll.some(n => !SIMPLE_ROUTES.includes(n[0]));
-  const navG = navGroups(simple ? navAll.filter(n => SIMPLE_ROUTES.includes(n[0])) : navAll);
+  const navAll = NAV.filter(n => n[3].includes(S.role) && (n[0] !== "approvals" || fourEyes()) && (n[0] !== "urn" || S.role === "auditor")), simple = simpleMode() && navAll.some(n => n[0] === "overview") && navAll.some(n => !simpleRoute(n[0]));
+  const navG = navGroups(simple ? navAll.filter(n => simpleRoute(n[0])) : navAll);
   html.dataset.role = S.role;
   useEffect(() => {
     const key = e => {

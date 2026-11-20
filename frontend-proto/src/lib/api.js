@@ -52,7 +52,9 @@ const errReasons = e => [...new Set(e.errors.map(i => uaFields(String((i && i.me
 // Політика STAFF_TOKEN_ONLY: сервер пояснює технічно (access_mode), показуємо людською мовою
 const STAFF_TOKEN_TXT = "Анкети особового складу проходять лише анонімно: за QR або одноразовими посиланнями. Створіть для особового складу окрему хвилю з режимом «QR або посилання», а за логіном лишіть робочу групу й експертів.";
 export const staffTokenOnly = () => !!(API.cfg && API.cfg.policies && API.cfg.policies.staff_token_only) && API.user && API.user.category === "staff";
-export const apiErrText = e => e instanceof ApiErr && e.code === "staff_token_only" ? STAFF_TOKEN_TXT : e instanceof ApiErr && e.code === "bad_transition" ? "Такий перехід статусу недоступний. Оновіть сторінку: статус могли змінити." : e instanceof ApiErr ? `${uaFields(e.message)}${errReasons(e) ? ": " + errReasons(e) : ""}${e.hint ? ". " + uaFields(e.hint) : ""}${e.status >= 500 && e.requestId ? ` Код запиту: ${e.requestId}` : ""}` : "Не вдалося виконати дію";
+// Нові коди помилок сервера (20.11): короткий людський текст замість технічного пояснення
+const CODE_TXT = { null_value: "Заповніть обов'язкові поля", unit_required: "Оберіть заклад", weight_from_methodology: "Вагу цієї категорії задає методика", not_assigned: "Підтвердження цього пункту призначено іншій людині" };
+export const apiErrText = e => e instanceof ApiErr && CODE_TXT[e.code] ? CODE_TXT[e.code] : e instanceof ApiErr && e.code === "staff_token_only" ? STAFF_TOKEN_TXT : e instanceof ApiErr && e.code === "bad_transition" ? "Такий перехід статусу недоступний. Оновіть сторінку: статус могли змінити." : e instanceof ApiErr ? `${uaFields(e.message)}${errReasons(e) ? ": " + errReasons(e) : ""}${e.hint ? ". " + uaFields(e.hint) : ""}${e.status >= 500 && e.requestId ? ` Код запиту: ${e.requestId}` : ""}` : "Не вдалося виконати дію";
 export const apiFail = e => toast(apiErrText(e));
 
 /* --- Ролі: обліковий запис → роль інтерфейсу --- */
@@ -93,9 +95,9 @@ export async function boot() {
   nr("people", ["coordinator"]);
   nr("units", ["coordinator"]);
   nr("summary", ["coordinator"]);
-  // Довідники: категорії й посади веде техадмін, категорії ще й Департамент (для анкет), факти лише уповноважений
+  // Довідники: категорії й посади веде техадмін, Департамент категорії лише переглядає, факти веде уповноважений
   nr("dicts", ["admin", "coordinator", "observer"]);
-  nr("risks", ["leader", "admin", "auditor"]); // Департаменту реєстр закладів недоступний (сервер відповідає 403)
+  nr("risks", ["leader", "admin", "auditor", "observer"]); // Департамент читає реєстри закладів своєї зони; імпорт лише уповноважений
   const tm = location.pathname.match(/^\/s\/([^/?#]+)/);
   if (tm) return bootToken(decodeURIComponent(tm[1]));
   const qm = location.pathname.match(/^\/q\/([^/?#]+)/);
@@ -222,15 +224,18 @@ function apiModel(r, h) {
   // Назви й пояснення прапорців — лише з GET /methodology (reliability.flags), власних текстів фронтенд не тримає
   const MF = (API.meth && API.meth.reliability && API.meth.reliability.flags) || {};
   const sev = x => x === "serious" ? "major" : x === "info" ? "info" : "minor";
-  // Однаковий прапорець сервер дає окремо для кожного компонента: показуємо один раз зі списком компонентів
-  const flagBy = {};
-  for (const c of r.components) for (const f of c.flags || []) {
-    const d = MF[f.code] || {}, ex = f.code === "self_not_confirmed" && c.rule ? c.rule : d.explain || c.rule || f.title;
-    if (flagBy[f.code] && f.code !== "self_not_confirmed") { flagBy[f.code].comps.push(c.title); continue; }
-    const x = { id: f.code === "self_not_confirmed" ? `${f.code}:${c.code}` : f.code, w: sev(d.severity || f.severity), sevT: d.severity_title, title: d.title || f.title, comps: [c.title], ex, raised: true };
-    if (f.code !== "self_not_confirmed") flagBy[f.code] = x; flags.push(x);
+  // Прапорці хвилі сервер віддає один раз у reliability_flags (зі списком компонентів); у components[].flags лишився
+  // тільки self_not_confirmed, він стосується свого компонента
+  const compT = code => (r.components.find(c => c.code === code) || {}).title || (COMP[code] && COMP[code].n) || code;
+  for (const f of r.reliability_flags || []) {
+    const d = MF[f.code] || {};
+    flags.push({ id: f.code, w: sev(d.severity || f.severity), sevT: d.severity_title, title: d.title || f.title, comps: (f.components || []).map(compT), ex: d.explain || f.title, raised: true });
   }
-  for (const x of flags) x.t = x.comps.length >= COMPS.length ? x.title : `${x.comps.join(", ")}: ${x.title}`;
+  for (const c of r.components) for (const f of c.flags || []) if (f.code === "self_not_confirmed") {
+    const d = MF[f.code] || {};
+    flags.push({ id: `${f.code}:${c.code}`, w: sev(d.severity || f.severity), sevT: d.severity_title, title: d.title || f.title, comps: [c.title], ex: c.rule || d.explain || f.title, raised: true });
+  }
+  for (const x of flags) x.t = !x.comps.length || x.comps.length >= COMPS.length ? x.title : `${x.comps.join(", ")}: ${x.title}`;
   for (const g of r.groups) for (const code of g.flags || []) { const d = MF[code], o = GROUP_FLAG[code]; if (d || o) flags.push({ id: `${code}:${g.category}`, w: d ? sev(d.severity) : o[0], sevT: d && d.severity_title, t: `${g.title}: ${d ? d.title : o[1]}`, ex: d ? d.explain : o[2], raised: true }); }
   // Кількість відповідей — готові submitted із груп сервера; група, менша за поріг, має null і не додається
   const responses = r.groups.reduce((a, g) => a + (g.submitted ?? 0), 0);

@@ -4,7 +4,7 @@
 import { Ic } from "../lib/icons.jsx";
 import { API, apiMod, apiModReset, apiAdvocate, apiDigest } from "../lib/api.js";
 import { S, persist } from "../lib/state.js";
-import { COMPS } from "../lib/model.js";
+import { COMPS, pendingRecs, measures, overdueDays, daysWord } from "../lib/model.js";
 import { can, go, cur, TITLES } from "../lib/nav.js";
 import { render, openDrawer, closeDrawer } from "../lib/store.js";
 import { Pill } from "../components/ui.jsx";
@@ -20,13 +20,18 @@ const DEMO_Q = { total_found: 1, note: "Приклад із документац
   why: "Самооцінка 58,9 знижена до 43,8: факти показують 18,8 (+25).",
   evidence: [{ label: "«Підзвітність»: самооцінка", text: "58,9", path: "components.accountability.self_score" }, { label: "за фактами", text: "18,8", path: "components.accountability.facts_score" }, { label: "Підозрілі закупівлі розібрано", text: "40% (48 з 120)", path: "facts.procurement_flags_reviewed" }],
   prepare: "Пояснення розриву по кожному факту: що саме не розглянуто вчасно і чому; план, коли частка досягне наступного порогу.", link: { view: "compare", ref: "accountability" } }] };
-const DEMO_D = { status: "attention", summary: "Приклад із документації (docs/features.md).", counts: { critical: 0, warning: 1, info: 0 }, items: [{
-  id: "drop:culture", category: "drop", severity: "warning", title: "«Культура» знизилась між двома останніми хвилями",
-  what: "Компонент змінився більше ніж на 5 балів.", why: "чек-лист: −15,6 бала; робоча група: −15,6 бала. Найбільше впало питання «Яку цінність відіграє доброчесність…» (−6,2).", fix: [], link: { view: "explain", ref: "culture" } }] };
+// Демо-сигнали будуються з тих самих демо-даних, що й «Огляд» і «Трекер» (як сервер віддає керівнику):
+// рекомендації без рішення і прострочені заходи. Раніше тут був приклад із документації, що суперечив демо-моделі.
+function demoDigest() {
+  const recs = pendingRecs(), od = measures().filter(x => overdueDays(x) > 0), items = [];
+  if (recs) items.push({ id: "process:recs", category: "process", severity: "warning", title: `Рекомендації без рішення: ${recs}`, why: "Прийміть, уточніть або відхиліть рекомендації, щоб вони не лишалися без відповіді.", fix: [], link: { view: "recs" } });
+  if (od.length) items.push({ id: "process:overdue", category: "process", severity: "warning", title: `Прострочено заходів: ${od.length}`, why: od.map(x => `«${x.t}»: ${overdueDays(x)} ${daysWord(overdueDays(x))}`).join("; "), fix: ["Виконайте з доказом, перенесіть строк із причиною або скасуйте з причиною."], link: { view: "tracker" } });
+  return { status: items.length ? "attention" : "ok", counts: { critical: 0, warning: items.length }, items };
+}
 
-const SEV = { critical: ["Критично", "p-bad", "red"], warning: ["Потрібна увага", "p-warn", "amber"], info: ["До відома", "p-info", "blue"] };
+// Сервер без ?include_info=true не віддає пунктів «до відома» (і ключа info в counts), тож їх тут немає
+const SEV = { critical: ["Критично", "p-bad", "red"], warning: ["Потрібна увага", "p-warn", "amber"] };
 
-const CAT = { drop: ["Падіння", "down"], rise: ["Зростання", "up"], process: ["Процес", "target"], technical: ["Технічне", "plug"] };
 const HIGH = 80; // вага питання, з якої воно вважається гострим (шкала правил 0-100)
 
 /* --- Куди веде число: екран, де його видно (розклад, порівняння, динаміка), лише якщо екран доступний ролі --- */
@@ -127,20 +132,24 @@ export const openAdvocate = () => openDrawer("Підготуватися до п
 export const PrepBtn = () => can("advocate") ? <button type="button" className="btn btn-primary" onClick={openAdvocate}><Ic n="scale" />Підготуватися до перевірки</button> : null;
 
 /* --- «Черговий» --- */
-const useDigest = () => API.on ? apiMod("digest", apiDigest) : { data: DEMO_D };
-const sevPill = s => { const x = SEV[s] || SEV.info; return <Pill cls={x[1]}>{x[0]}</Pill>; };
+const useDigest = () => API.on ? apiMod("digest", apiDigest) : { data: demoDigest() };
+const sevPill = s => { const x = SEV[s] || SEV.warning; return <Pill cls={x[1]}>{x[0]}</Pill>; };
 const FixList = ({ fix }) => fix && fix.length ? <ol className="fix-l">{fix.slice(0, 3).map((t, i) => <li key={i} className="txt">{dsh(t)}</li>)}</ol> : null;
 
 /* Пункти чергового в блоці «Що потребує уваги» на «Огляді»: лише критичні й попередження, до трьох */
 // Сигнали, що потребують дії (критичні й попередження). «До відома» не показуємо ніде.
 // Окремої вкладки немає: сигнали видно в дзвіночку в шапці й у «Що потребує уваги» на «Огляді».
-export const SIG_ROLES = ["leader", "observer", "auditor", "admin"];
+// Сервер віддає кожній ролі лише те, що вона може виправити; Департаменту нічого (items: []), тож сигналів у нього немає
+export const SIG_ROLES = ["leader", "auditor", "admin"];
 export function signals() {
   if (!SIG_ROLES.includes(S.role)) return null;
   const r = useDigest();
   // Лише те, що ця роль може виправити: сигнал з посиланням на недоступний їй екран не показуємо
-  return r && r.data ? r.data.items.filter(x => x.severity !== "info" && (!x.link || !x.link.view || linkTarget(x.link))) : null;
+  return r && r.data ? (r.data.items || []).filter(x => x.severity !== "info" && (!x.link || !x.link.view || linkTarget(x.link))) : null;
 }
+// Збій завантаження сигналів (не «сигналів немає»): дзвіночок показує помилку з повтором
+export function sigError() { if (!SIG_ROLES.includes(S.role) || !API.on) return null; const r = useDigest(); return r && r.error ? r.error : null; }
+export const sigRetry = () => apiModReset("digest");
 export function sigGo(x) { const t = linkTarget(x.link); if (t) goTo(t); }
 export const sigTarget = x => linkTarget(x.link);
 export function digestTop() { return (signals() || []).slice(0, 3); }
@@ -149,7 +158,7 @@ export function DigestRows({ items }) {
   return <div className="dg">
     {items.map(x => <details key={x.id} className="dg-i">
       <summary><span className="dot" style={{ background: x.severity === "critical" ? "var(--red)" : "var(--amber)" }} /><span className="grow txt">{dsh(x.title)}</span>{sevPill(x.severity)}<Ic n="chev" /></summary>
-      <div className="dg-b">{x.fix && x.fix.length ? <><b>Як виправити</b><FixList fix={x.fix} /></> : <span className="lbl txt">{dsh(x.why)}</span>}<div><GoBtn link={x.link} /></div></div>
+      <div className="dg-b">{x.fix && x.fix.length ? <><b>Як виправити</b><FixList fix={x.fix} /></> : <span className="lbl txt">{dsh(x.why)}</span>}<div>{linkTarget(x.link) ? <GoBtn link={x.link} /> : !(x.link && x.link.view) ? <span className="lbl">Окремого екрана немає: це налаштовується під час розгортання.</span> : null}</div></div>
     </details>)}
   </div>;
 }

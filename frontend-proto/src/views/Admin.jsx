@@ -238,16 +238,16 @@ export function InvitePage() {
 /* ---------- Довідники ---------- */
 export function Dicts() {
   if (!API.on) return <NeedServer t="Довідники" />;
-  // Категорії й посади веде техадмін, категорії ще й Департамент (для анкет); факти — лише уповноважений
+  // Категорії й посади веде лише технічний адміністратор; Департамент категорії лише переглядає (сервер дає 403); факти — уповноважений
   if (S.role === "admin") return <FactsCard mgr />;
-  if (S.role === "observer") return <CatsCard mgr />;
-  return <><CatsCard mgr /><PosCard /></>;
+  if (S.role === "observer") return <CatsCard mgr={false} />;
+  return <><CatsCard mgr={S.role === "coordinator"} /><PosCard /></>;
 }
 function CatsCard({ mgr }) {
   const r = loadCats();
   return <section className="card c12 rise">
     <div className="card-h"><h2>Категорії респондентів</h2><div className="sp" />{mgr && <button type="button" className="btn btn-soft btn-s" id="dcNew" onClick={() => catForm(null)}><Ic n="plus" />Додати</button>}</div>
-    {!r ? <span className="lbl">Завантажуємо…</span> : r.error ? <Err t={r.error} /> : <div className="tbl-wrap"><table className="adm-tbl"><thead><tr><th>Назва</th><th>Код</th><th>Вага в індексі</th><th>Стан</th><th></th></tr></thead><tbody>
+    {!r ? <span className="lbl">Завантажуємо…</span> : r.error ? <div><Err t={r.error} /> <button type="button" className="link-btn" onClick={() => apiModReset("dCats")}>Спробувати ще раз</button></div> : <div className="tbl-wrap"><table className="adm-tbl"><thead><tr><th>Назва</th><th>Код</th><th>Вага в індексі</th><th>Стан</th><th></th></tr></thead><tbody>
       {r.data.map(c => <tr key={c.code}><td>{c.title}</td><td className="tnum lbl">{c.code}</td><td className="tnum">{c.weight != null && c.in_index ? Math.round(c.weight * 100) + " %" : <span className="lbl">лише порівняння</span>}</td>
         <td className="adm-st">{c.active ? <><Dot c="var(--teal)" />Діє</> : <><Dot c="var(--muted)" />Вимкнено</>}</td>
         <td className="adm-acts">{mgr && <button type="button" className="btn btn-ghost btn-s" onClick={() => catForm(c)}><Ic n="edit" />Змінити</button>}</td></tr>)}
@@ -256,24 +256,32 @@ function CatsCard({ mgr }) {
 }
 function catForm(c) {
   openDrawer(c ? "Категорія" : "Нова категорія", () => {
-    const [code, setCode] = useState(c ? c.code : ""), [title, setTitle] = useState(c ? c.title : ""), [w, setW] = useState(c && c.weight != null ? String(Math.round(c.weight * 100)) : ""), [act, setAct] = useState(c ? c.active : true), [err, setErr] = useState("");
+    const [code, setCode] = useState(c ? c.code : ""), [title, setTitle] = useState(c ? c.title : ""), [w, setW] = useState(c && c.weight != null ? String(Math.round(c.weight * 100)) : ""), [act, setAct] = useState(c ? c.active : true), [err, setErr] = useState(""), [busy, setBusy] = useState(false);
+    // Вагу вбудованих категорій задає методика (weight_editable: false); редагується лише вага з довідника
+    const wEdit = !!(c && c.weight_editable === true);
     const ok = async () => {
       if (!c && !/^[a-z][a-z0-9_]{1,31}$/.test(code)) return setErr("Код: латиниця з малої літери, цифри, «_», від 2 символів.");
       if (!title.trim()) return setErr("Вкажіть назву.");
+      const wt = w.trim() ? Number(w.replace(",", ".")) / 100 : null;
+      if (wEdit && wt != null && !(wt > 0 && wt <= 1)) return setErr("Вага: від 1 до 100 %, або порожньо, щоб категорія лише порівнювалась.");
+      // Вбудованій категорії шлемо лише назву: вага й стан ідуть із методики (інакше 409 weight_from_methodology)
+      const body = !c ? { code, title: title.trim() } : c.builtin ? { title: title.trim() } : { title: title.trim(), active: act, ...(wEdit && wt != null ? { weight: wt } : {}) };
+      setBusy(true); setErr("");
       try {
-        if (c) await api(`/dictionaries/categories/${encodeURIComponent(c.code)}`, { method: "PATCH", body: { title: title.trim(), active: act } });
-        else await api("/dictionaries/categories", { method: "POST", body: { code, title: title.trim() } });
+        if (c) await api(`/dictionaries/categories/${encodeURIComponent(c.code)}`, { method: "PATCH", body });
+        else await api("/dictionaries/categories", { method: "POST", body });
         apiModReset("dCats"); closeDrawer(); toast("Збережено");
-      } catch (e) { setErr(apiErrText(e)); }
+      } catch (e) { setErr(apiErrText(e)); } finally { setBusy(false); }
     };
     return <>
       {!c && <div className="field"><label htmlFor="cf-c">Код</label><input className="inp" id="cf-c" placeholder="cadets" value={code} onChange={e => setCode(e.target.value.trim())} /></div>}
       <div className="field"><label htmlFor="cf-t">Назва</label><input className="inp" id="cf-t" value={title} onChange={e => setTitle(e.target.value)} /></div>
       {/* Вага впливає на індекс напряму, тому тут лише показується: її задає методика */}
-      <div className="field"><span className="lbl">Вага в індексі</span><div className="tnum">{w ? `${w} %` : "лише порівняння"}</div><span className="lbl">Змінюється лише в методиці.</span></div>
-      {c && <label className="adm-chk"><input type="checkbox" checked={act} onChange={e => setAct(e.target.checked)} />Категорія діє</label>}
+      {wEdit ? <div className="field"><label htmlFor="cf-w">Вага в індексі, % (порожньо: лише порівняння)</label><input className="inp" id="cf-w" inputMode="decimal" value={w} onChange={e => setW(e.target.value)} /><span className="lbl">Джерело ваги: довідник.</span></div>
+        : <div className="field"><span className="lbl">Вага з методики</span><div className="tnum">{w ? `${w} %` : "лише порівняння"}</div><span className="lbl">{c && c.weight_source === "dictionary" ? "Джерело ваги: довідник." : "Джерело ваги: методика. Змінюється лише в методиці."}</span></div>}
+      {c && !c.builtin && <label className="adm-chk"><input type="checkbox" checked={act} onChange={e => setAct(e.target.checked)} />Категорія діє</label>}
       <Err t={err} />
-      <button type="button" className="btn btn-primary" id="cf-ok" style={{ justifyContent: "center" }} onClick={ok}><Ic n="ok" />Зберегти</button>
+      <button type="button" className="btn btn-primary" id="cf-ok" style={{ justifyContent: "center" }} onClick={ok} disabled={busy}><Ic n="ok" />{busy ? "Зберігаємо…" : "Зберегти"}</button>
     </>;
   });
 }
