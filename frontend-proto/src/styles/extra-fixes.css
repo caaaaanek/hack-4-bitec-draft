@@ -83,3 +83,6 @@
 .p-warn { color: color-mix(in srgb, var(--amber) 60%, var(--fg)); }
 .p-bad, .nav a .badge { color: color-mix(in srgb, var(--red) 60%, var(--fg)); }
 .p-info { color: color-mix(in srgb, var(--blue) 60%, var(--fg)); }
+/* Відкрита бічна панель: фон не прокручується, заголовок панелі отримує фокус без рамки */
+html.dlg-open { overflow: hidden; }
+#dTitle:focus { outline: none; }

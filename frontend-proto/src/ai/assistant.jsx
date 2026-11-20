@@ -125,7 +125,7 @@ export function AiPanel() {
   const mode = !S.aiOn ? [<i key="i" style={{ background: "var(--faint)" }} />, "Вимкнено · розрахунки працюють без ШІ"]
     : AI.live ? [<i key="i" style={{ background: "var(--teal)" }} />, `${modelName(AI.model)} · відповіді є лише чернетками`]
     : [<i key="i" style={{ background: "var(--amber)" }} />, "Демо-режим · відповіді з шаблонів правил"];
-  return <aside className={`drawer ${on ? "on" : ""}`} id="ai" aria-hidden={!on} aria-label="ШІ-асистент">
+  return <aside className={`drawer ${on ? "on" : ""}`} id="ai" role="dialog" aria-modal="true" aria-label="ШІ-асистент" inert={on ? undefined : ""}>
     <div className="drawer-h"><span className="logo" id="aiLogo"><Ic n="spark" size={17} /></span><h3>Асистент</h3>
       <label className="sw" title="Увімкнути / вимкнути ШІ"><input type="checkbox" id="aiOn" checked={!!S.aiOn} onChange={e => { S.aiOn = e.target.checked; persist(); addLog(me(), S.aiOn ? "ШІ-асистента увімкнено" : "ШІ-асистента вимкнено"); render(true); if (S.aiOn) checkLive(); }} /><span /></label>
       <button className="icon-btn" id="aiClose" aria-label="Закрити" onClick={aiClose}><Ic n="x" /></button></div>

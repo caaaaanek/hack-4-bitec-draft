@@ -198,7 +198,7 @@ export default function App() {
   const pk = ui.pop && ui.pop.kind;
   const profile = el => { hideTip(); openPop("profile", el); };
   return <>
-    <div className={`app ${login ? "login" : ""} ${anon ? "anon" : ""}`}>
+    <div className={`app ${login ? "login" : ""} ${anon ? "anon" : ""}`} inert={ui.drawer || ui.ai ? "" : undefined}>
       <aside className={`side ${ui.side ? "on" : ""}`} id="side">
         <div className="brand"><span className="logo" id="logo"><Ic n="pulse" size={20} /></span><span className="brand-t">Integra</span>
           <button type="button" className="side-btn" id="sideBtn" aria-label={mini ? "Розгорнути меню" : "Згорнути меню"} aria-expanded={!mini} data-tip={mini ? "Розгорнути меню" : "Згорнути меню"} data-tip-pos={mini ? "right" : undefined} onClick={() => setSide(!mini)}><Ic n={mini ? "chevR" : "chevL"} /></button></div>
