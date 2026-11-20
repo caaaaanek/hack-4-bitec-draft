@@ -20,13 +20,13 @@ const DEMO_Q = { total_found: 1, note: "Приклад із документац
   why: "Самооцінка 58,9 знижена до 43,8: факти показують 18,8 (+25).",
   evidence: [{ label: "«Підзвітність»: самооцінка", text: "58,9", path: "components.accountability.self_score" }, { label: "за фактами", text: "18,8", path: "components.accountability.facts_score" }, { label: "Підозрілі закупівлі розібрано", text: "40% (48 з 120)", path: "facts.procurement_flags_reviewed" }],
   prepare: "Пояснення розриву по кожному факту: що саме не розглянуто вчасно і чому; план, коли частка досягне наступного порогу.", link: { view: "compare", ref: "accountability" } }] };
-const DEMO_D = { status: "attention", summary: "Приклад із документації (docs/features.md).", counts: { critical: 0, warning: 1, info: 0 }, items: [{
+const DEMO_D = { status: "attention", summary: "Приклад із документації (docs/features.md).", counts: { critical: 0, warning: 1 }, items: [{
   id: "drop:culture", category: "drop", severity: "warning", title: "«Культура» знизилась між двома останніми хвилями",
   what: "Компонент змінився більше ніж на 5 балів.", why: "чек-лист: −15,6 бала; робоча група: −15,6 бала. Найбільше впало питання «Яку цінність відіграє доброчесність…» (−6,2).", fix: [], link: { view: "explain", ref: "culture" } }] };
 
-const SEV = { critical: ["Критично", "p-bad", "red"], warning: ["Потрібна увага", "p-warn", "amber"], info: ["До відома", "p-info", "blue"] };
+// Сервер без ?include_info=true не віддає пунктів «до відома» (і ключа info в counts), тож їх тут немає
+const SEV = { critical: ["Критично", "p-bad", "red"], warning: ["Потрібна увага", "p-warn", "amber"] };
 
-const CAT = { drop: ["Падіння", "down"], rise: ["Зростання", "up"], process: ["Процес", "target"], technical: ["Технічне", "plug"] };
 const HIGH = 80; // вага питання, з якої воно вважається гострим (шкала правил 0-100)
 
 /* --- Куди веде число: екран, де його видно (розклад, порівняння, динаміка), лише якщо екран доступний ролі --- */
@@ -128,7 +128,7 @@ export const PrepBtn = () => can("advocate") ? <button type="button" className="
 
 /* --- «Черговий» --- */
 const useDigest = () => API.on ? apiMod("digest", apiDigest) : { data: DEMO_D };
-const sevPill = s => { const x = SEV[s] || SEV.info; return <Pill cls={x[1]}>{x[0]}</Pill>; };
+const sevPill = s => { const x = SEV[s] || SEV.warning; return <Pill cls={x[1]}>{x[0]}</Pill>; };
 const FixList = ({ fix }) => fix && fix.length ? <ol className="fix-l">{fix.slice(0, 3).map((t, i) => <li key={i} className="txt">{dsh(t)}</li>)}</ol> : null;
 
 /* Пункти чергового в блоці «Що потребує уваги» на «Огляді»: лише критичні й попередження, до трьох */
