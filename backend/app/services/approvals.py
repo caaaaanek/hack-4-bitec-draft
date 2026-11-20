@@ -1,11 +1,17 @@
-"""Принцип двох осіб (FOUR_EYES_ENABLED): дії, які одна людина лише просить, а виконує підтвердження іншої.
+"""Принцип двох осіб (FOUR_EYES_ENABLED, за замовчуванням увімкнено): одна людина лише просить, виконує
+підтвердження іншої. Хто що підтверджує — APPROVERS (docs/backend.md, «Два адміністратори»):
 
-- user_role / user_category: призначення привілейованої ролі чи зміна категорії (впливає на групи й індекс);
-- activate_users: нові облікові записи (у т. ч. імпорт). Закриває атаку «n−1»: адміністратор не може сам
-  створити k−1 підставних респондентів, щоб відніманням дізнатися відповідь однієї людини;
-- open_campaign: відкриття хвилі зі складом учасників, який бачить підтверджувач.
+| kind | хто просить | хто підтверджує |
+|---|---|---|
+| activate_users — нові облікові записи, імпорт | технічний адміністратор | уповноважений |
+| user_role — привілейована роль, блокування чи підрозділ привілейованого запису | технічний адміністратор | уповноважений; якщо запис — уповноважений, то аудит |
+| user_category — категорія (впливає на групи й k) | технічний адміністратор | уповноважений |
+| user_invite — скидання пароля привілейованого запису | технічний адміністратор | уповноважений; запис уповноваженого — аудит. Посилання отримує той, хто підтвердив |
+| unit_change — підрозділ у межах чернетки хвилі | технічний адміністратор | уповноважений |
+| open_campaign — відкриття хвилі (підтверджувач бачить склад) | уповноважений | внутрішній аудит |
 
-Підтверджує не той, хто просив. Усе пишеться в журнал дій.
+Технічний адміністратор нічого не підтверджує. Підтверджує не той, хто просив, і лише в межах своєї зони
+(security.zone_of): уповноважений одного закладу не підтверджує людей іншого. Усе пишеться в журнал дій.
 """
 
 import uuid
@@ -19,9 +25,18 @@ from app.config import get_settings
 from app.errors import ApiError
 from app.models import ApprovalRequest, Campaign, CampaignEligible, Role, User
 
-PRIVILEGED = (Role.ADMIN, Role.COORDINATOR, Role.COMMISSIONER, Role.AUDITOR, Role.LEADER, Role.DEPARTMENT)
-USER_APPROVERS = (Role.ADMIN, Role.COORDINATOR)
-CAMPAIGN_APPROVERS = (Role.ADMIN, Role.COMMISSIONER, Role.AUDITOR)
+PRIVILEGED = (Role.ADMIN, Role.COORDINATOR, Role.AUDITOR, Role.LEADER, Role.DEPARTMENT)
+APPROVERS: dict[str, tuple[Role, ...]] = {
+    "activate_users": (Role.ADMIN,),
+    "user_role": (Role.ADMIN,),
+    "user_category": (Role.ADMIN,),
+    "user_invite": (Role.ADMIN,),
+    "unit_change": (Role.ADMIN,),
+    "open_campaign": (Role.AUDITOR,),
+}
+# Хто може бачити й вирішувати запити (хоч якогось виду).
+APPROVER_ROLES = tuple(dict.fromkeys(r for roles in APPROVERS.values() for r in roles))
+ROLE_TITLES = {Role.ADMIN: "уповноважений", Role.AUDITOR: "внутрішній аудит", Role.COORDINATOR: "технічний адміністратор"}
 
 
 def enabled() -> bool:
@@ -62,15 +77,71 @@ def composition_summary(db: Session, campaign: Campaign) -> dict:
     return {"eligible": {titles.get(q, str(q)): n for q, n in rows}, "created_last_30_days": recent}
 
 
+def approvers_for(db: Session, row: ApprovalRequest) -> tuple[Role, ...]:
+    """Ролі, що підтверджують запит. Зміну облікового запису самого уповноваженого підтверджує аудит."""
+    if row.kind in ("user_role", "user_category", "user_invite", "activate_users") and row.target_id:
+        try:
+            target = db.get(User, uuid.UUID(row.target_id))
+        except ValueError:
+            target = None
+        if target is not None and target.role == Role.ADMIN:
+            return (Role.AUDITOR,)
+    return APPROVERS.get(row.kind, ())
+
+
+def approvers_text(roles: tuple[Role, ...]) -> str:
+    return ", ".join(ROLE_TITLES.get(r, r.value) for r in roles) or "нікому"
+
+
+def units_of(db: Session, row: ApprovalRequest) -> set[uuid.UUID]:
+    """Підрозділи, яких стосується запит: для перевірки зони підтверджувача."""
+    payload = row.payload or {}
+    ids: set[uuid.UUID] = set()
+    try:
+        if row.kind == "open_campaign" and row.target_id:
+            campaign = db.get(Campaign, uuid.UUID(row.target_id))
+            if campaign is not None:
+                ids.add(campaign.unit_id)
+        elif row.kind == "unit_change":
+            for key in ("unit_id", "parent_id", "new_parent_id"):
+                if payload.get(key):
+                    ids.add(uuid.UUID(payload[key]))
+        else:
+            user_ids = payload.get("user_ids") or ([row.target_id] if row.target_id else [])
+            for user in db.scalars(select(User).where(User.id.in_([uuid.UUID(x) for x in user_ids]))):
+                if user.unit_id is not None:
+                    ids.add(user.unit_id)
+            new_unit = (payload.get("changes") or {}).get("unit_id")
+            if new_unit:
+                ids.add(uuid.UUID(new_unit))
+    except ValueError:
+        pass
+    return ids
+
+
+def can_decide(db: Session, row: ApprovalRequest, user: User) -> bool:
+    from app.security import zone_of
+
+    if user.role not in approvers_for(db, row) or row.requested_by_id == user.id:
+        return False
+    zone = zone_of(db, user)
+    return zone is None or units_of(db, row) <= zone
+
+
 def decide(db: Session, row: ApprovalRequest, approver: User, approve: bool, comment: str = "") -> ApprovalRequest:
+    from app.security import zone_of
+
     if row.status != "pending":
         raise ApiError(409, "Запит уже розглянуто", code="decided")
+    allowed = approvers_for(db, row)
     if row.requested_by_id == approver.id:
         raise ApiError(403, "Підтверджує не той, хто просив", code="same_person",
-                       hint="Попросіть іншого адміністратора (принцип двох осіб).")
-    allowed = CAMPAIGN_APPROVERS if row.kind == "open_campaign" else USER_APPROVERS
+                       hint=f"Цей запит підтверджує: {approvers_text(allowed)} (принцип двох осіб).")
     if approver.role not in allowed:
-        raise ApiError(403, "Цей запит підтверджує: " + ", ".join(r.value for r in allowed), code="forbidden_role")
+        raise ApiError(403, "Цей запит підтверджує: " + approvers_text(allowed), code="forbidden_role")
+    zone = zone_of(db, approver)
+    if zone is not None and not units_of(db, row) <= zone:
+        raise ApiError(403, "Запит стосується підрозділу поза вашою зоною", code="out_of_zone")
     row.status = "approved" if approve else "rejected"
     row.decided_by_id = approver.id
     row.decided_at = datetime.now(timezone.utc)
@@ -107,8 +178,27 @@ def apply(db: Session, row: ApprovalRequest, approver: User) -> None:
             raise ApiError(409, "Людина в складі хвилі: " + ", ".join(c.title for c in busy), code="campaign_open",
                            hint="Підтвердьте після закриття хвилі.")
         for field, value in (payload.get("changes") or {}).items():
-            setattr(user, field, Role(value) if field == "role" and value else value)
+            if field == "role" and value:
+                value = Role(value)
+            elif field == "unit_id" and value:
+                value = uuid.UUID(value)
+            setattr(user, field, value)
         revoke_all_tokens(user)
+    elif row.kind == "user_invite":
+        from app.services import invites
+
+        user = db.get(User, uuid.UUID(row.target_id))
+        if user is None:
+            raise ApiError(404, "Користувача вже немає")
+        token, expires = invites.issue(db, user, approver)
+        user.password_hash = invites.NO_PASSWORD
+        revoke_all_tokens(user)
+        # Посилання не зберігається: його один раз показує відповідь підтвердження (ApprovalOut.invite_link).
+        db.info.setdefault("issued_invites", {})[row.id] = (invites.link(token), expires)
+    elif row.kind == "unit_change":
+        from app.services.units import apply_unit_change
+
+        apply_unit_change(db, payload, approver)
     elif row.kind == "open_campaign":
         campaign = db.get(Campaign, uuid.UUID(row.target_id), with_for_update=True)
         if campaign is None:

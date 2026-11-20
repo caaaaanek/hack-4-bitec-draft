@@ -6,7 +6,6 @@ from datetime import date, timedelta
 
 from openpyxl import load_workbook
 
-from app.routers.campaigns import new_password
 from app.services.safe_export import FORMULA_PREFIXES, safe_cell, safe_row
 from tests.conftest import auth
 from tests.helpers import API, full_wave
@@ -20,10 +19,6 @@ def test_safe_cell():
     for harmless in ("Захід", "", "a=b", "−5 (юнікод-мінус)", " =1"):
         assert safe_cell(harmless) == harmless
     assert safe_row([-5, 3.5, None, date(2026, 1, 1), "=1"]) == [-5, 3.5, None, date(2026, 1, 1), "'=1"]
-
-
-def test_generated_password_never_looks_like_formula():
-    assert not any(new_password().startswith(FORMULA_PREFIXES) for _ in range(500))
 
 
 def test_measure_title_with_formula_is_text_in_xlsx_and_csv(client):

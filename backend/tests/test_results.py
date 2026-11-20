@@ -193,10 +193,11 @@ def test_methodology_endpoint(client):
     assert sum(c["weight"] for c in data["components"].values()) == pytest.approx(1.0)
 
 
-def test_commissioner_reads_units_and_campaigns_but_not_progress(client):
+def test_department_reads_units_but_not_waves(client):
     campaign_id, _, _ = open_campaign(client, ("nazk-maturity-staff",))
-    commissioner = auth(client, "commissioner")
-    assert len(client.get(f"{API}/units", headers=commissioner).json()) == 7
-    assert client.get(f"{API}/campaigns", headers=commissioner).status_code == 200
-    assert client.get(f"{API}/campaigns/{campaign_id}/progress", headers=commissioner).status_code == 403
+    department = auth(client, "department")
+    assert len(client.get(f"{API}/units", headers=department).json()) == 7
+    # Хвилі веде уповноважений; Департамент бачить зведення закладів (/department/...), а не керування хвилями.
+    assert client.get(f"{API}/campaigns", headers=department).status_code == 403
+    assert client.get(f"{API}/campaigns/{campaign_id}/progress", headers=department).status_code == 403
     assert client.get(f"{API}/units", headers=auth(client, "staff01")).status_code == 403

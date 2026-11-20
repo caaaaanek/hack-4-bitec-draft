@@ -268,7 +268,8 @@ class UnitHidden(HTTPException):
 def allowed_units(db: Session, user: User) -> set[uuid.UUID] | None:
     """Підрозділи, результати яких бачить користувач. None — усе дерево.
 
-    - Адміністратор, уповноважений, аудитор: усе дерево (перегляди дочірніх пишуться в result_views).
+    - Уповноважений (admin) і аудитор: своя зона (zone_of): підрозділ unit_id і його піддерево; без unit_id —
+      усе дерево (розгортання на один заклад). Перегляди дочірніх пишуться в result_views.
     - Керівник: лише свій підрозділ (без підрозділу — кореневі). Про дочірні — розподіл рівнів без назв
       (GET /units/{id}/children-levels). LEADER_CHILD_DETAILS=true повертає старе правило «усе піддерево».
     - Департамент: лише заклади (корені хвиль) свого піддерева, кожен окремо.
@@ -290,7 +291,64 @@ def allowed_units(db: Session, user: User) -> set[uuid.UUID] | None:
         if user.unit_id is None:
             return roots
         return roots & subtree_ids(db, user.unit_id)
-    return None
+    return zone_of(db, user)
+
+
+ZONED_ROLES = (Role.ADMIN, Role.AUDITOR)
+
+
+def zone_of(db: Session, user: User) -> set[uuid.UUID] | None:
+    """Зона уповноваженого й аудитора: свій підрозділ і піддерево. None — без обмеження (немає unit_id)
+    або роль без зони. Уповноважений одного закладу чи департаменту не бачить і не обирає чужих підрозділів."""
+    if user.role not in ZONED_ROLES or user.unit_id is None:
+        return None
+    from app.services.units import subtree_ids
+
+    return subtree_ids(db, user.unit_id)
+
+
+def ensure_in_zone(db: Session, user: User, unit_id: uuid.UUID) -> None:
+    """422, якщо уповноважений обирає підрозділ поза своєю зоною (створення чи зміна хвилі)."""
+    zone = zone_of(db, user)
+    if zone is not None and unit_id not in zone:
+        from app.errors import ApiError
+
+        raise ApiError(422, "Підрозділ поза вашою зоною відповідальності", code="out_of_zone",
+                       hint="Хвилю можна створити лише для свого підрозділу або його дочірніх.")
+
+
+def campaign_visible(db: Session, user: User, campaign) -> bool:
+    """Чи бачить користувач хвилю. Уповноважений, аудитор, Департамент — лише хвилі свого піддерева;
+    керівник — хвилі, що охоплюють його підрозділ або лежать у його піддереві."""
+    if user.unit_id is None or user.role not in (*ZONED_ROLES, Role.DEPARTMENT, Role.LEADER):
+        return True
+    from app.services.units import subtree_ids
+
+    if campaign.unit_id in subtree_ids(db, user.unit_id):
+        return True
+    return user.role == Role.LEADER and user.unit_id in subtree_ids(db, campaign.unit_id)
+
+
+def campaign_zone_guard(request: Request, db: Session = Depends(get_db)) -> None:
+    """Залежність усіх роутерів: хвиля з чужої зони (campaign_id у шляху чи запиті) — 404, ніби її немає.
+
+    Одна перевірка замість десятків у кожному ендпойнті. Автентифікацію не замінює: без токена чи з
+    недійсним токеном нічого не робить, далі спрацює звичайна перевірка ендпойнта.
+    """
+    raw = request.path_params.get("campaign_id") or request.query_params.get("campaign_id")
+    header = request.headers.get("authorization", "")
+    if not raw or not header.lower().startswith("bearer "):
+        return
+    try:
+        campaign_id = uuid.UUID(str(raw))
+        user = user_from_payload(decode_token(header[7:].strip()), db)
+    except (ValueError, jwt.PyJWTError, HTTPException):
+        return
+    from app.models import Campaign
+
+    campaign = db.get(Campaign, campaign_id)
+    if campaign is not None and not campaign_visible(db, user, campaign):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Хвилю не знайдено")
 
 
 def ensure_unit_access(db: Session, user: User, unit_id: uuid.UUID, purpose: str = "results",
@@ -352,13 +410,14 @@ def record_view(db: Session, user: User, unit_id: uuid.UUID, campaign_id: uuid.U
         pending.append(item)
 
 
-# Хто читає результати, динаміку, факти, рекомендації, заходи.
-RESULT_READERS = (Role.ADMIN, Role.COMMISSIONER, Role.LEADER, Role.AUDITOR, Role.DEPARTMENT)
+# Хто читає результати, динаміку, факти, рекомендації, заходи. Лише агрегати з порогом k: відповіді окремих
+# людей не бачить ніхто, зокрема уповноважений. Технічний адміністратор (coordinator) результатів не бачить.
+RESULT_READERS = (Role.ADMIN, Role.LEADER, Role.AUDITOR, Role.DEPARTMENT)
 
 
 def people_managers_roles() -> tuple[Role, ...]:
-    """Хто керує людьми й підрозділами. SEPARATE_TECH_ADMIN=true: лише технічний адміністратор (coordinator)."""
-    return (Role.COORDINATOR,) if get_settings().separate_tech_admin else (Role.ADMIN, Role.COORDINATOR)
+    """Хто керує людьми й підрозділами: лише технічний адміністратор (coordinator)."""
+    return (Role.COORDINATOR,)
 
 
 def require_people_manager(user: User = Depends(get_current_user)) -> User:

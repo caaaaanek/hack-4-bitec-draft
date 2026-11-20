@@ -20,8 +20,9 @@ def draft(client, codes=(STAFF,), access_mode="login"):
     return r.json()["id"], q, admin
 
 
-def user_ids(client, admin) -> dict[str, str]:
-    return {u["login"]: u["id"] for u in client.get(f"{API}/admin/users", headers=admin).json()}
+def user_ids(client, _=None) -> dict[str, str]:
+    co = auth(client, "coordinator")
+    return {u["login"]: u["id"] for u in client.get(f"{API}/admin/users", headers=co).json()}
 
 
 def upload_csv(client, campaign_id, text, admin, fmt="json"):
@@ -105,31 +106,56 @@ def test_open_with_empty_explicit_list_is_409(client):
 
 # ---------- Імпорт CSV ----------
 
-def test_import_csv_creates_pseudonymous_accounts(client):
+def test_import_csv_adds_existing_accounts_only(client):
     campaign_id, q, admin = draft(client)
     text = ("login;category;unit;display_name\n"
-            "anon-a1;staff;Підрозділ А;Респондент А1\n"
-            "anon-a2;staff;Підрозділ А;\n"
+            "staff02;staff;Підрозділ Б;\n"
             "staff01;;;\n")
     r = upload_csv(client, campaign_id, text, admin)
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["rows"] == 3 and body["created_users"] == 2 and body["added_participants"] == 3
-    creds = {c["login"]: c["password"] for c in body["credentials"]}
-    assert set(creds) == {"anon-a1", "anon-a2"}
-    login = client.post(f"{API}/auth/login", data={"username": "anon-a1", "password": creds["anon-a1"]})
-    assert login.status_code == 200
+    assert body["rows"] == 2 and body["created_users"] == 0 and body["added_participants"] == 2
+    assert body["credentials"] == []
     participants = client.get(f"{API}/campaigns/{campaign_id}/participants", headers=admin).json()
-    assert participants["explicit"] and len(participants["participants"]) == 3
-    # Паролі не потрапляють у журнал.
-    log = client.get(f"{API}/admin/audit-log", params={"action": "import_participants"}, headers=admin).json()
-    assert creds["anon-a1"] not in str(log)
+    assert participants["explicit"] and len(participants["participants"]) == 2
+    # Нових людей уповноважений не заводить: це робить технічний адміністратор.
+    r = upload_csv(client, campaign_id, "login,category,unit\nanon-a1,staff,Підрозділ А\n", admin)
+    assert r.status_code == 422 and "технічний адміністратор" in r.json()["errors"][0]["message"]
+    assert "anon-a1" not in user_ids(client)
+
+
+def test_tech_admin_imports_people_with_invites(client, setting):
+    setting(four_eyes_enabled=True)
+    co = auth(client, "coordinator")
+    text = ("login;category;unit;display_name\n"
+            "anon-a1;staff;Підрозділ А;Респондент А1\n"
+            "anon-a2;staff;Підрозділ А;\n")
+    r = client.post(f"{API}/admin/users/import", files={"file": ("p.csv", text.encode(), "text/csv")}, headers=co)
+    assert r.status_code == 201, r.text
+    body = r.json()
+    assert body["created_users"] == 2 and all(c["password"] == "" and "/invite/" in c["invite_link"]
+                                              for c in body["credentials"])
+    # Записи неактивні, доки імпорт не підтвердить уповноважений.
+    users = {u["login"]: u for u in client.get(f"{API}/admin/users", headers=co).json()}
+    assert not users["anon-a1"]["is_active"]
+    assert client.post(f"{API}/admin/approvals/{body['pending_approval_id']}/approve", headers=co).status_code == 403
+    r = client.post(f"{API}/admin/approvals/{body['pending_approval_id']}/approve", headers=auth(client, "admin"))
+    assert r.status_code == 200, r.text
+    users = {u["login"]: u for u in client.get(f"{API}/admin/users", headers=co).json()}
+    assert users["anon-a1"]["is_active"] and users["anon-a2"]["is_active"]
+    # Усе або нічого.
+    bad = "login,category,unit\nok-person,staff,Підрозділ А\nanon-a1,staff,Підрозділ А\nnounit,staff,Немає\n"
+    r = client.post(f"{API}/admin/users/import", files={"file": ("p.csv", bad.encode(), "text/csv")}, headers=co)
+    assert r.status_code == 422 and {e["path"] for e in r.json()["errors"]} == {"line 3", "line 4"}
+    assert "ok-person" not in user_ids(client)
+    assert client.post(f"{API}/admin/users/import", files={"file": ("p.csv", bad.encode(), "text/csv")},
+                       headers=auth(client, "admin")).status_code == 403
 
 
 def test_import_csv_is_all_or_nothing_with_line_numbers(client):
     campaign_id, _, admin = draft(client)
     text = ("login,category,unit\n"
-            "ok-person,staff,Підрозділ А\n"
+            "staff01,staff,\n"
             "x,staff,Підрозділ А\n"
             "nounit,staff,Немає такого\n"
             "leader,,\n")
@@ -137,7 +163,7 @@ def test_import_csv_is_all_or_nothing_with_line_numbers(client):
     assert r.status_code == 422 and r.json()["code"] == "import_failed"
     lines = {e["path"] for e in r.json()["errors"]}
     assert lines == {"line 3", "line 4", "line 5"}
-    assert "ok-person" not in user_ids(client, admin)
+    assert client.get(f"{API}/campaigns/{campaign_id}/participants", headers=admin).json()["explicit"] is False
 
 
 def test_import_csv_rejects_personal_data_columns(client):
@@ -169,35 +195,65 @@ def test_import_csv_in_token_mode_returns_links_and_stores_no_pseudonyms(client)
 # ---------- Підрозділи ----------
 
 def test_unit_rename_move_and_cycle(client):
-    admin = auth(client, "admin")
-    u = units(client, admin)
-    r = client.patch(f"{API}/admin/units/{u['Підрозділ В']}", json={"name": "Підрозділ В (новий)"}, headers=admin)
+    co = auth(client, "coordinator")
+    u = units(client, auth(client, "admin"))
+    r = client.patch(f"{API}/admin/units/{u['Підрозділ В']}", json={"name": "Підрозділ В (новий)"}, headers=co)
     assert r.status_code == 200 and r.json()["name"] == "Підрозділ В (новий)"
-    r = client.patch(f"{API}/admin/units/{u['Підрозділ В']}", json={"parent_id": u["Підрозділ А"]}, headers=admin)
+    r = client.patch(f"{API}/admin/units/{u['Підрозділ В']}", json={"parent_id": u["Підрозділ А"]}, headers=co)
     assert r.status_code == 200 and r.json()["parent_id"] == u["Підрозділ А"]
-    r = client.patch(f"{API}/admin/units/{u['Підрозділ А']}", json={"parent_id": u["Підрозділ А-1"]}, headers=admin)
+    r = client.patch(f"{API}/admin/units/{u['Підрозділ А']}", json={"parent_id": u["Підрозділ А-1"]}, headers=co)
     assert r.status_code == 422 and r.json()["code"] == "unit_cycle"
-    log = client.get(f"{API}/admin/audit-log", params={"entity": "unit", "action": "update"}, headers=admin).json()
+    log = client.get(f"{API}/admin/audit-log", params={"entity": "unit", "action": "update"},
+                     headers=auth(client, "auditor")).json()
     assert len(log) == 2
 
 
 def test_unit_move_blocked_during_open_campaign(client):
     campaign_id, _, admin = open_campaign(client, (STAFF,))
+    co = auth(client, "coordinator")
     u = units(client, admin)
-    r = client.patch(f"{API}/admin/units/{u['Підрозділ В']}", json={"parent_id": u["Підрозділ А"]}, headers=admin)
+    r = client.patch(f"{API}/admin/units/{u['Підрозділ В']}", json={"parent_id": u["Підрозділ А"]}, headers=co)
     assert r.status_code == 409 and r.json()["code"] == "campaign_open"
+    r = client.post(f"{API}/admin/units", json={"name": "Новий", "parent_id": u["Підрозділ А"]}, headers=co)
+    assert r.status_code == 409
     # Перейменування не змінює складу груп і дозволене.
-    assert client.patch(f"{API}/admin/units/{u['Підрозділ В']}", json={"name": "В"}, headers=admin).status_code == 200
+    assert client.patch(f"{API}/admin/units/{u['Підрозділ В']}", json={"name": "В"}, headers=co).status_code == 200
+
+
+def test_unit_structure_frozen_from_draft(client, setting):
+    campaign_id, _, admin = draft(client)
+    co = auth(client, "coordinator")
+    u = units(client, admin)
+    # Без принципу двох осіб — 409 вже в чернетці.
+    r = client.patch(f"{API}/admin/units/{u['Підрозділ В']}", json={"parent_id": u["Підрозділ А"]}, headers=co)
+    assert r.status_code == 409 and r.json()["code"] == "campaign_draft"
+    # З ним — запит unit_change, який підтверджує уповноважений.
+    setting(four_eyes_enabled=True)
+    r = client.patch(f"{API}/admin/units/{u['Підрозділ В']}", json={"parent_id": u["Підрозділ А"]}, headers=co)
+    assert r.status_code == 202 and r.json()["kind"] == "unit_change"
+    approval = r.json()["pending_approval_id"]
+    assert units(client, admin)["Підрозділ В"] == u["Підрозділ В"]
+    tree = {x["id"]: x["parent_id"] for x in client.get(f"{API}/units", headers=admin).json()}
+    assert tree[u["Підрозділ В"]] == u[ROOT]  # ще не перенесено
+    r = client.post(f"{API}/admin/approvals/{approval}/approve", headers=admin)
+    assert r.status_code == 200, r.text
+    tree = {x["id"]: x["parent_id"] for x in client.get(f"{API}/units", headers=admin).json()}
+    assert tree[u["Підрозділ В"]] == u["Підрозділ А"]
+    r = client.post(f"{API}/admin/units", json={"name": "Новий", "parent_id": u["Підрозділ А"]}, headers=co)
+    assert r.status_code == 202
+    assert client.post(f"{API}/admin/approvals/{r.json()['pending_approval_id']}/approve",
+                       headers=admin).status_code == 200
+    assert "Новий" in units(client, admin)
 
 
 def test_unit_delete_only_when_unused(client):
-    admin = auth(client, "admin")
-    u = units(client, admin)
-    r = client.delete(f"{API}/admin/units/{u['Підрозділ А']}", headers=admin)
+    co = auth(client, "coordinator")
+    u = units(client, auth(client, "admin"))
+    r = client.delete(f"{API}/admin/units/{u['Підрозділ А']}", headers=co)
     assert r.status_code == 409 and r.json()["code"] == "unit_in_use"
-    new = client.post(f"{API}/admin/units", json={"name": "Тимчасовий", "parent_id": u[ROOT]}, headers=admin).json()
-    assert client.delete(f"{API}/admin/units/{new['id']}", headers=admin).status_code == 204
-    assert "Тимчасовий" not in units(client, admin)
+    new = client.post(f"{API}/admin/units", json={"name": "Тимчасовий", "parent_id": u[ROOT]}, headers=co).json()
+    assert client.delete(f"{API}/admin/units/{new['id']}", headers=co).status_code == 204
+    assert "Тимчасовий" not in units(client, auth(client, "admin"))
 
 
 def test_campaign_reports_has_checklist(client):

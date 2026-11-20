@@ -168,7 +168,10 @@ class _Demo:
         with frozen_on(opened):
             campaign = self.send("POST", "admin", "/campaigns",
                                  {"title": title, "unit_id": self.root_id, "questionnaire_ids": list(questionnaires.values())})
-            self.send("POST", "admin", f"/campaigns/{campaign['id']}/open")
+            opened_wave = self.send("POST", "admin", f"/campaigns/{campaign['id']}/open")
+            if opened_wave.get("pending_approval_id"):
+                # Принцип двох осіб: відкриття підтверджує внутрішній аудит.
+                self.send("POST", "auditor", f"/admin/approvals/{opened_wave['pending_approval_id']}/approve")
         cid = campaign["id"]
         profile = _profiles(wave)
 
@@ -201,7 +204,7 @@ class _Demo:
                                     "application/pdf"))] if evidence else None
                 self.submit(wg[0], f"{path}/submit", {"status": status, "evidence": evidence}, files)
                 if evidence:
-                    self.send("POST", "commissioner", f"{path}/confirm")
+                    self.send("POST", "auditor", f"{path}/confirm")
                     confirmed += 1
 
         with frozen_on(closed):

@@ -13,7 +13,7 @@ from app.models import Campaign, CampaignStatus, Role, Unit, User
 from app.schemas import UnitOut
 from app.schemas_results import CampaignResultsOut, CompareOut, HistoryOut, ParticipantResultOut
 from app.routers.respond import TOKEN_HEADER, token_throttle
-from app.security import RESULT_READERS, client_ip, ensure_unit_access, get_current_user, require_roles
+from app.security import RESULT_READERS, client_ip, ensure_unit_access, get_current_user, require_roles, zone_of
 from app.services import categories, fact_registry, methodology, results, tokens
 from app.services.eligibility import frozen_of, is_eligible, participants_of
 from app.services.units import subtree_ids
@@ -80,11 +80,15 @@ def campaign_results(
 def list_units(db: Session = Depends(get_db), user: User = Depends(can_view)):
     """Дерево підрозділів (id, name, parent_id) для вибору області перегляду.
 
-    Керівник, прив'язаний до підрозділу, бачить лише своє піддерево (як і в результатах).
+    Керівник, прив'язаний до підрозділу, бачить лише своє піддерево (як і в результатах). Уповноважений і аудит —
+    лише свою зону: з цього ж списку обирається підрозділ нової хвилі.
     """
     query = select(Unit).order_by(Unit.name)
+    zone = zone_of(db, user)
     if user.role == Role.LEADER and user.unit_id is not None:
         query = query.where(Unit.id.in_(subtree_ids(db, user.unit_id)))
+    elif zone is not None:
+        query = query.where(Unit.id.in_(zone))
     return db.scalars(query).all()
 
 

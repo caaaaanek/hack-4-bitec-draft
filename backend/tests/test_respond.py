@@ -8,9 +8,9 @@ API = "/api/v1"
 
 def open_campaign(client) -> tuple[str, dict[str, str]]:
     admin = auth(client, "admin")
-    commissioner = auth(client, "commissioner")
+    commissioner = auth(client, "department")
     questionnaires = {q["code"]: q["id"] for q in client.get(f"{API}/questionnaires", headers=commissioner).json()}
-    root = next(u for u in client.get(f"{API}/admin/units", headers=admin).json() if u["parent_id"] is None)
+    root = next(u for u in client.get(f"{API}/units", headers=admin).json() if u["parent_id"] is None)
     r = client.post(
         f"{API}/campaigns",
         json={
@@ -89,14 +89,14 @@ def test_closed_campaign_rejects_answers(client):
 
 
 def test_campaign_requires_published_questionnaire(client):
-    commissioner = auth(client, "commissioner")
+    commissioner = auth(client, "department")
     draft = client.post(
         f"{API}/questionnaires",
         json={"code": "draft-only", "title": "Чернетка", "kind": "survey", "target_category": "staff"},
         headers=commissioner,
     ).json()
     admin = auth(client, "admin")
-    root = next(u for u in client.get(f"{API}/admin/units", headers=admin).json() if u["parent_id"] is None)
+    root = next(u for u in client.get(f"{API}/units", headers=admin).json() if u["parent_id"] is None)
     r = client.post(
         f"{API}/campaigns",
         json={"title": "Х", "unit_id": root["id"], "questionnaire_ids": [draft["id"]]},

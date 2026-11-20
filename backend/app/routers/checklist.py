@@ -110,8 +110,8 @@ def wg_of_campaign(db: Session, user: User, campaign: Campaign) -> bool:
 
 
 def ensure_view(db: Session, user: User, campaign: Campaign) -> None:
-    # Аудитор лише читає: бачить пункти й завантажує докази. Робоча група — лише чек-лист своєї хвилі.
-    if user.role in (Role.ADMIN, Role.COMMISSIONER, Role.AUDITOR) or wg_of_campaign(db, user, campaign):
+    # Аудитор бачить пункти, завантажує й підтверджує докази. Робоча група — лише чек-лист своєї хвилі.
+    if user.role in (Role.ADMIN, Role.AUDITOR) or wg_of_campaign(db, user, campaign):
         return
     raise HTTPException(status_code=403, detail="Недостатньо прав")
 
@@ -214,14 +214,14 @@ def assignments_of(db: Session, campaign_id) -> dict[uuid.UUID, ChecklistAssignm
 
 
 def confirmer_roles() -> tuple[Role, ...]:
-    """Хто може підтверджувати пункти: CHECKLIST_CONFIRMERS (за замовчуванням уповноважений і внутрішній аудит)."""
+    """Хто може підтверджувати пункти: CHECKLIST_CONFIRMERS (за замовчуванням внутрішній аудит)."""
     roles = []
     for name in get_settings().checklist_confirmers.split(","):
         try:
             roles.append(Role(name.strip()))
         except ValueError:
             continue
-    return tuple(r for r in roles if r in (Role.COMMISSIONER, Role.AUDITOR, Role.ADMIN)) or (Role.COMMISSIONER,)
+    return tuple(r for r in roles if r in (Role.AUDITOR, Role.ADMIN)) or (Role.AUDITOR,)
 
 
 def require_confirmer(user: User = Depends(get_current_user)) -> User:
@@ -280,7 +280,7 @@ def get_assignments(campaign_id: uuid.UUID, db: Session = Depends(get_db), user:
 
 @router.put("/assignments", response_model=list[AssignmentOut])
 def set_assignments(campaign_id: uuid.UUID, data: AssignmentsIn, db: Session = Depends(get_db),
-                    user: User = Depends(require_roles(Role.ADMIN, Role.COMMISSIONER))):
+                    user: User = Depends(require_roles(Role.ADMIN))):
     """Розподілити пункти чек-листа між членами робочої групи і підтверджувачами (чернетка або відкрита хвиля).
 
     Передані пункти замінюються; enterer_id і confirmer_id null — зняти призначення. Вносить і підтверджує

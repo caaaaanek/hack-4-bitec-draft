@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import errors
 from app.config import check_settings, get_settings
 from app.schemas import ERROR_RESPONSES
-from app.security import remember_route
+from app.security import campaign_zone_guard, remember_route
 from app.routers import (
     admin,
     assistant,
@@ -124,8 +124,9 @@ for module in (config_router, auth, admin, questionnaires, campaigns, respond, c
                dashboard, recommendations, measures, reports, integrations, assistant, what_if, insights, normative,
                learning, autopilot_router, dictionaries, department, insights_plus, urn, risks):
     # remember_route: шаблон маршруту для журналу переглядів чужих підрозділів (security.record_view).
+    # campaign_zone_guard: хвиля поза зоною користувача (campaign_id у шляху чи запиті) — 404.
     app.include_router(module.router, prefix=API_PREFIX, responses=ERROR_RESPONSES,
-                       dependencies=[Depends(remember_route)])
+                       dependencies=[Depends(remember_route), Depends(campaign_zone_guard)])
 
 # /api/assistant — асистент frontend-proto (шлях без /api/v1, як очікує фронтенд).
 app.include_router(llm_router.router, responses=ERROR_RESPONSES, dependencies=[Depends(remember_route)])

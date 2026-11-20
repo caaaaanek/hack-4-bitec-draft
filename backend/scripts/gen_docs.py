@@ -88,7 +88,7 @@ class Run:
     def _collect(self) -> None:
         campaigns = sorted(self.get("/campaigns", "admin"), key=lambda c: c["closed_on"])
         self.w1, self.w2 = campaigns[0], campaigns[-1]
-        units = self.get("/admin/units", "admin")
+        units = self.get("/units", "admin")
         self.root = next(u for u in units if u["parent_id"] is None)
         self.children = sorted((u for u in units if u["parent_id"] == self.root["id"]), key=lambda u: u["name"])
         self.r1 = self.get(f"/campaigns/{self.w1['id']}/results", "admin")

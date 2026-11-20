@@ -76,7 +76,7 @@ healthcheck чекає до 3 хв).
 - `https://<назва>.csit-mitit.com/api/assistant` → `{"live":true,"model":"gemma4-26b"}` (якщо задано `LLM_*`);
 - вхід `leader` / `DEMO_PASSWORD` → дашборд «Хвиля 2 (демо)»; кнопка «Асистент» відповідає українською.
 
-Інші демо-логіни: `admin`, `coordinator`, `commissioner`, `auditor`, `leader_a`, `wg1`, `staff01`, `expert1`
+Інші демо-логіни: `admin`, `coordinator`, `department`, `auditor`, `leader_a`, `wg1`, `staff01`, `expert1`
 (пароль той самий). Swagger (`/docs`) назовні не відкривається: бекенд без домену.
 
 ## 6. Автодеплой і бекап

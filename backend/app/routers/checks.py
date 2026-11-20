@@ -198,7 +198,7 @@ class CounterpartyIn(BaseModel):
 
 @router.post("/counterparty", response_model=RunOut, status_code=201)
 def check_counterparties(data: CounterpartyIn, db: Session = Depends(get_db),
-                         user: User = Depends(require_roles(Role.ADMIN, Role.COMMISSIONER))):
+                         user: User = Depends(require_roles(Role.ADMIN))):
     """Перевірити контрагентів: санкції, банкрутство, податковий борг, суди, «молода» компанія.
 
     Живий режим — COUNTERPARTY_API_URL/KEY і EXTERNAL_FETCH_ENABLED=true (Youcontrol чи аналог), інакше мок.

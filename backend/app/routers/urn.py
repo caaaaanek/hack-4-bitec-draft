@@ -42,7 +42,7 @@ def is_holder(db: Session, campaign: Campaign, user: User) -> bool:
 @router.get("")
 def urn_status(campaign_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
     campaign = campaign_or_404(db, campaign_id)
-    if user.role not in (Role.ADMIN, Role.COMMISSIONER, Role.AUDITOR) and not is_holder(db, campaign, user):
+    if user.role not in (Role.ADMIN, Role.AUDITOR) and not is_holder(db, campaign, user):
         raise HTTPException(status_code=403, detail="Недостатньо прав")
     return urn.status_of(db, campaign)
 

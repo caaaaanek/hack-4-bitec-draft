@@ -14,7 +14,7 @@ from app.security import require_roles
 from app.services import normative
 
 router = APIRouter(prefix="/normative", tags=["normative"])
-readers = require_roles(Role.ADMIN, Role.COORDINATOR, Role.COMMISSIONER, Role.LEADER, Role.AUDITOR)
+readers = require_roles(Role.ADMIN, Role.DEPARTMENT, Role.LEADER, Role.AUDITOR)
 MAX_BYTES = 10 * 1024 * 1024
 
 
