@@ -26,4 +26,4 @@ export function ChooseInst() {
   if (ok.length === 1) { if (!API.deptAuto) { API.deptAuto = true; setTimeout(() => apiSelectInst(ok[0].unit_id, true)); } return <Loading t={dn(ok[0].name)} />; }
   return <ChooseEmpty />;
 }
-const ChooseEmpty = () => <Empty t="Спершу оберіть зі списку">Департамент дивиться результати по одному, без рейтингу.<br /><br /><a className="btn btn-soft" href="#institutions"><Ic n="building" />{orgCap("plural")}</a></Empty>;
+const ChooseEmpty = () => <Empty t="Спершу оберіть заклад">Департамент дивиться результати по одному, без рейтингу.<br /><br /><a className="btn btn-soft" href="#institutions"><Ic n="building" />{orgCap("plural")}</a></Empty>;

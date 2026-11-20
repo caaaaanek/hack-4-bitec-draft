@@ -24,7 +24,7 @@ import { ParticipantsSection, AssignSection, loadAsg } from "./WaveAdmin.jsx";
 
 export function apiView(r) {
   if (!API.on) return null;
-  if (S.role === "observer") { if (r === "institutions") return <DeptInstitutions />; if (RESULT_VIEWS.includes(r) && !API.deptUnit) return <ChooseInst />; }
+  if (S.role === "observer") { if (r === "institutions") return <DeptInstitutions />; if ((RESULT_VIEWS.includes(r) || r === "advocate") && !API.deptUnit) return <ChooseInst />; }
   if (RESULT_VIEWS.includes(r) && r !== "sources" && !API.model && API.resErr) return <Failed e={API.resErr} onRetry={apiRetryResults} />;
   if (RESULT_VIEWS.includes(r) && r !== "sources" && !API.model)
     return API.empty ? (API.emptyCode === "no_indexed_wave"
