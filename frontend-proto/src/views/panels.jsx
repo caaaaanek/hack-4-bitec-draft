@@ -223,7 +223,8 @@ function MeasureHist({ hist, id }) {
 }
 
 // Захід: подробиці й перехід у Mitra
-const MEASURES_APP = { name: "Mitra", url: "" };
+// Адреса застосунку заходів (тема 2). Перевизначається змінною VITE_MITRA_URL під час збирання.
+const MEASURES_APP = { name: "Mitra", url: import.meta.env.VITE_MITRA_URL || "https://mitra.csit-mitit.com" };
 export function openMeasure(id) {
   if (!measures().find(m => m.id === id)) return;
   openDrawer("Захід", () => {
@@ -241,7 +242,7 @@ export function openMeasure(id) {
         {x.ext.docs.map(d => <span key={d.sha} className="lbl" style={{ overflowWrap: "anywhere" }}>{d.name} · sha256 <span className="tnum" title={d.sha}>{d.sha.slice(0, 12)}…</span>{d.url && <> · <a href={d.url} target="_blank" rel="noopener noreferrer">Перевірити справжність у {x.ext.system}</a></>}</span>)}
         {x.ext.url ? <a className="btn btn-soft" href={x.ext.url} target="_blank" rel="noopener noreferrer" style={{ justifyContent: "center" }}><Ic n="arrowR" />Відкрити в {x.ext.system}</a> : (!x.ext.state || x.ext.state === "inbox") && <span className="lbl" style={{ fontSize: 12 }}>Координатор {x.ext.system} ще не повʼязав захід із програмою.</span>}</div>
       : <div className="note-box"><b>Звіт виконавця</b><span className="lbl">Документи й звіти про виконання ведуться в Mitra.</span>
-        {MEASURES_APP.url ? <a className="btn btn-soft" href={MEASURES_APP.url} target="_blank" rel="noopener" style={{ justifyContent: "center" }}><Ic n="arrowR" />Відкрити в Mitra</a> : <><button className="btn btn-soft" disabled style={{ justifyContent: "center", opacity: .6 }}><Ic n="arrowR" />Відкрити в Mitra</button><span className="lbl" style={{ fontSize: 12 }}>Посилання зʼявиться, коли Mitra підключать.</span></>}</div>}
+        {MEASURES_APP.url ? <a className="btn btn-soft" href={MEASURES_APP.url} target="_blank" rel="noopener noreferrer" style={{ justifyContent: "center" }}><Ic n="arrowR" />Відкрити в Mitra</a> : <><button className="btn btn-soft" disabled style={{ justifyContent: "center", opacity: .6 }}><Ic n="arrowR" />Відкрити в Mitra</button><span className="lbl" style={{ fontSize: 12 }}>Посилання зʼявиться, коли Mitra підключать.</span></>}</div>}
     </>;
   });
 }
