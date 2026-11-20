@@ -297,6 +297,50 @@ def allowed_units(db: Session, user: User) -> set[uuid.UUID] | None:
 ZONED_ROLES = (Role.ADMIN, Role.AUDITOR)
 
 
+def home_unit(db: Session, user: User) -> uuid.UUID | None:
+    """Підрозділ «за замовчуванням», коли в запиті немає unit_id.
+
+    Керівник, уповноважений і аудит, прив'язані до підрозділу, — свій підрозділ (а не корінь дерева, якого вони
+    не бачать: раніше дашборд зонального уповноваженого без unit_id давав 403). Департамент — корінь дерева, якщо
+    він у зоні, або єдиний заклад зони; кілька закладів — 422 unit_required. Решта — корінь дерева.
+    None — підрозділів немає зовсім.
+    """
+    from app.models import Unit
+
+    if user.unit_id is not None and user.role in (Role.LEADER, *ZONED_ROLES):
+        return user.unit_id
+    root = db.scalars(select(Unit.id).where(Unit.parent_id.is_(None)).order_by(Unit.name)).first()
+    if user.role == Role.DEPARTMENT:
+        allowed = allowed_units(db, user) or set()
+        if root is not None and root in allowed:
+            return root
+        if len(allowed) == 1:
+            return next(iter(allowed))
+        from app.errors import ApiError
+
+        raise ApiError(422, "Оберіть заклад", code="unit_required",
+                       hint="Департамент дивиться кожен заклад окремо: GET /department/institutions.")
+    return root
+
+
+def visible_unit_filter(db: Session, user: User) -> set[uuid.UUID] | None:
+    """Усі підрозділи, дані яких (заходи, перевірки) користувач бачить у списках без unit_id. None — без обмеження.
+
+    Для департаменту — піддерева його закладів (allowed_units дає лише корені), для решти — allowed_units.
+    """
+    allowed = allowed_units(db, user)
+    if allowed is None:
+        return None
+    if user.role == Role.DEPARTMENT or (user.role == Role.LEADER and user.unit_id is None):
+        from app.services.units import subtree_ids
+
+        out: set[uuid.UUID] = set()
+        for unit_id in allowed:
+            out |= subtree_ids(db, unit_id)
+        return out
+    return allowed
+
+
 def zone_of(db: Session, user: User) -> set[uuid.UUID] | None:
     """Зона уповноваженого й аудитора: свій підрозділ і піддерево. None — без обмеження (немає unit_id)
     або роль без зони. Уповноважений одного закладу чи департаменту не бачить і не обирає чужих підрозділів."""

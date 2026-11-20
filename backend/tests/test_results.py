@@ -65,8 +65,13 @@ def test_full_wave_with_facts(client):
     assert data["index"]["level"]["level"] == 3
     # РГ відповіла лише найвищими варіантами і на 50 балів вище за ОС: серйозні прапорці.
     assert data["index"]["reliability"] == "C"
-    flags = {f["code"] for f in c["culture"]["flags"]}
-    assert {"suspiciously_perfect", "category_gap", "low_participation"} <= flags
+    # Прапорці хвилі — один раз у reliability_flags зі списком компонентів; у компоненті лише self_not_confirmed.
+    wave_flags = {f["code"]: f for f in data["reliability_flags"]}
+    assert {"suspiciously_perfect", "category_gap", "low_participation"} <= set(wave_flags)
+    assert "culture" in wave_flags["suspiciously_perfect"]["components"]
+    assert len(data["reliability_flags"]) == len(wave_flags)  # без повторів
+    assert [f["code"] for f in c["accountability"]["flags"]] == ["self_not_confirmed"]
+    assert c["culture"]["flags"] == []
 
     sources = {s["source"]: s for s in c["culture"]["sources"]}
     assert sources["checklist"]["score"] == 100.0 and sources["expert"]["effective_weight"] == 0.2

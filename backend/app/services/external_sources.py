@@ -6,7 +6,7 @@ id, тип, рік і дата декларації: ПІБ та інше від
 """
 
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 
 import httpx
 
@@ -40,16 +40,21 @@ def get_json(url: str, params: dict | None = None) -> dict:
 # ---------- Prozorro ----------
 
 def _amount(value) -> float | None:
-    if not value or value.get("amount") is None:
+    if not isinstance(value, dict) or value.get("amount") is None:
         return None
-    return float(value["amount"])
+    try:
+        return float(value["amount"])
+    except (TypeError, ValueError):
+        return None
 
 
 def _parse_date(s):
     try:
-        return datetime.fromisoformat(s) if s else None
+        dt = datetime.fromisoformat(s) if isinstance(s, str) and s else None
     except ValueError:
         return None
+    # Дата з поясом і без нього не віднімаються (TypeError): наївну вважаємо UTC.
+    return dt.replace(tzinfo=timezone.utc) if dt is not None and dt.tzinfo is None else dt
 
 
 def _days_between(start, end):
@@ -165,7 +170,8 @@ def fetch_prozorro(limit: int) -> list[dict]:
     feed = get_json(f"{PROZORRO_API}/tenders",
                     {"descending": 1, "limit": min(limit * 2, 100), "opt_fields": "status,procurementMethodType"})
     ids = [i["id"] for i in feed.get("data") or []
-           if i.get("status") == "complete" and i.get("procurementMethodType") not in LIMITED_TYPES][:limit]
+           if isinstance(i, dict) and i.get("id") and i.get("status") == "complete"
+           and i.get("procurementMethodType") not in LIMITED_TYPES][:limit]
     records: list[dict] = []
     for tender_id in ids:
         try:
@@ -173,7 +179,10 @@ def fetch_prozorro(limit: int) -> list[dict]:
         except ExternalSourceError:
             continue
         if isinstance(tender, dict):
-            records.extend(normalize_tender(tender))
+            try:
+                records.extend(normalize_tender(tender))
+            except (AttributeError, KeyError, TypeError, ValueError, IndexError):
+                continue  # нерозбірлива структура одного тендера не має валити весь запуск (502/500)
     return records
 
 

@@ -7761,7 +7761,7 @@
           "checks"
         ],
         "summary": "Get Runs",
-        "description": "Журнал запусків.",
+        "description": "Журнал запусків (уповноважений зі своєю зоною — лише підрозділи зони).",
         "operationId": "get_runs_api_v1_checks_runs_get",
         "security": [
           {
@@ -7910,7 +7910,7 @@
           "checks"
         ],
         "summary": "Get Findings",
-        "description": "Знахідки з фільтрами.",
+        "description": "Знахідки з фільтрами (уповноважений зі своєю зоною — лише підрозділи зони).",
         "operationId": "get_findings_api_v1_checks_findings_get",
         "security": [
           {
@@ -11788,7 +11788,7 @@
           "insights"
         ],
         "summary": "Agent Digest",
-        "description": "Агент-черговий: що знизилось і чому (за джерелами), технічні збої, що прострочено — і як виправити.\n\nТехнічні пункти (тема 2, джерела фактів, журнал дій, автопілот) бачать уповноважений і аудит.",
+        "description": "Агент-черговий: що знизилось і чому (за джерелами), технічні збої, що прострочено — і як виправити.\n\nКожна роль отримує лише те, що може виправити (watchdog.audience): керівник — падіння, рекомендації без\nрішення, заходи; уповноважений — технічні збої, участь, план хвилі; аудит — цілісність журналу й\nпідтвердження чек-листа; Департамент — нічого. Інформаційні пункти — лише з include_info=true.",
         "operationId": "agent_digest_api_v1_agent_digest_get",
         "security": [
           {
@@ -11812,6 +11812,18 @@
               ],
               "title": "Unit Id"
             }
+          },
+          {
+            "name": "include_info",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Додати інформаційні пункти («падінь немає», «зросло на…»)",
+              "default": false,
+              "title": "Include Info"
+            },
+            "description": "Додати інформаційні пункти («падінь немає», «зросло на…»)"
           }
         ],
         "responses": {
@@ -14812,7 +14824,7 @@
           "risks"
         ],
         "summary": "List Risks",
-        "description": "Ризики підрозділу, від найвищого балу (ймовірність × вплив). Зведення по компонентах.",
+        "description": "Ризики підрозділу, від найвищого балу (ймовірність × вплив). Зведення по компонентах.\n\nДепартамент — лише читання реєстрів своїх закладів (заклад і його підрозділи), хоча результати він бачить\nлише на рівні закладу. Імпорт — як і раніше, лише уповноважений.",
         "operationId": "list_risks_api_v1_units__unit_id__risk_register_get",
         "security": [
           {
@@ -16355,9 +16367,9 @@
           },
           "nonce": {
             "type": "string",
-            "pattern": "^[0-9a-f]{32,128}$",
+            "pattern": "^(?:[0-9a-f]{2}){16,64}$",
             "title": "Nonce",
-            "description": "Випадковий nonce (hex), з якого порахували m"
+            "description": "Випадковий nonce (hex, парна довжина 32–128), з якого порахували m"
           },
           "signature": {
             "type": "string",
@@ -17160,6 +17172,14 @@
               }
             ],
             "title": "Goodhart"
+          },
+          "reliability_flags": {
+            "items": {
+              "$ref": "#/components/schemas/WaveFlag"
+            },
+            "type": "array",
+            "title": "Reliability Flags",
+            "default": []
           }
         },
         "type": "object",
@@ -17381,6 +17401,17 @@
             "type": "boolean",
             "title": "In Index",
             "default": false
+          },
+          "weight_editable": {
+            "type": "boolean",
+            "title": "Weight Editable",
+            "default": false
+          },
+          "weight_source": {
+            "type": "string",
+            "title": "Weight Source",
+            "description": "methodology | dictionary",
+            "default": "dictionary"
           }
         },
         "type": "object",
@@ -21587,7 +21618,8 @@
             "anyOf": [
               {
                 "type": "string",
-                "maxLength": 500
+                "maxLength": 500,
+                "minLength": 3
               },
               {
                 "type": "null"
@@ -21618,7 +21650,8 @@
           "catalog_number": {
             "anyOf": [
               {
-                "type": "string"
+                "type": "string",
+                "maxLength": 16
               },
               {
                 "type": "null"
@@ -21628,6 +21661,7 @@
           },
           "description": {
             "type": "string",
+            "maxLength": 4000,
             "title": "Description",
             "default": ""
           }
@@ -25386,6 +25420,38 @@
           "message"
         ],
         "title": "ValidationIssue"
+      },
+      "WaveFlag": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "severity": {
+            "type": "string",
+            "title": "Severity"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "components": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Components"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "severity",
+          "title",
+          "components"
+        ],
+        "title": "WaveFlag",
+        "description": "Прапорець достовірності рівня хвилі: показується один раз, зі списком компонентів, яких стосується."
       },
       "WaveOption": {
         "properties": {

@@ -279,7 +279,9 @@ class BallotOut(BaseModel):
 
 class BallotSubmissionIn(SubmissionIn):
     key_id: uuid.UUID
-    nonce: str = Field(pattern=r"^[0-9a-f]{32,128}$", description="Випадковий nonce (hex), з якого порахували m")
+    # Парна кількість символів: інакше bytes.fromhex падав з ValueError, і непарний nonce давав 500.
+    nonce: str = Field(pattern=r"^(?:[0-9a-f]{2}){16,64}$", description="Випадковий nonce (hex, парна довжина 32–128), "
+                                                                       "з якого порахували m")
     signature: str = Field(pattern=r"^[0-9a-f]{1,1024}$", description="Знятий із засліплення підпис s = mᵈ, hex")
 
 

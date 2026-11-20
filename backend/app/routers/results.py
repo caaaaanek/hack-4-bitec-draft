@@ -13,7 +13,8 @@ from app.models import Campaign, CampaignStatus, Role, Unit, User
 from app.schemas import UnitOut
 from app.schemas_results import BreakdownOut, CampaignResultsOut, CompareOut, HistoryOut, ParticipantResultOut
 from app.routers.respond import TOKEN_HEADER, token_throttle
-from app.security import RESULT_READERS, client_ip, ensure_unit_access, get_current_user, require_roles, zone_of
+from app.security import (RESULT_READERS, campaign_visible, client_ip, ensure_unit_access, get_current_user,
+                          require_roles, zone_of)
 from app.services import categories, fact_registry, methodology, results, tokens
 from app.services.eligibility import frozen_of, is_eligible, participants_of
 from app.services.units import subtree_ids
@@ -73,7 +74,7 @@ def campaign_results(
     if recalculate:
         log_action(db, user, "recalculate_results", "campaign", campaign.id, {"unit_id": data["unit_id"]})
         db.commit()
-    return data
+    return results.present_flags(data)
 
 
 @router.get("/campaigns/{campaign_id}/breakdown", response_model=BreakdownOut)
@@ -149,6 +150,9 @@ def list_units(db: Session = Depends(get_db), user: User = Depends(can_view)):
         query = query.where(Unit.id.in_(subtree_ids(db, user.unit_id)))
     elif zone is not None:
         query = query.where(Unit.id.in_(zone))
+    elif user.role == Role.DEPARTMENT and user.unit_id is not None:
+        # Департамент зі своєю зоною: лише своє піддерево, а не назви всіх підрозділів.
+        query = query.where(Unit.id.in_(subtree_ids(db, user.unit_id)))
     return db.scalars(query).all()
 
 
@@ -200,8 +204,14 @@ def compare_waves(
     user: User = Depends(can_view),
 ):
     """Порівняння двох будь-яких хвиль одного підрозділу (картки з дельтами і радар 'було / стало')."""
-    unit = unit_or_404(db, unit_id, user)
+    unit_or_404(db, unit_id, user)
     db.commit()
+    # campaign_zone_guard перевіряє лише параметр campaign_id: хвилі з from_campaign/to_campaign поза зоною
+    # користувача відповідають так само, як відсутні (раніше тут можна було прочитати знімок чужої хвилі).
+    for cid in (from_campaign, to_campaign):
+        c = db.get(Campaign, cid)
+        if c is None or not campaign_visible(db, user, c):
+            raise HTTPException(status_code=404, detail="Хвилю не знайдено")
     before = results.get_snapshot(db, from_campaign, unit_id)
     after = results.get_snapshot(db, to_campaign, unit_id)
     if before is None or after is None:

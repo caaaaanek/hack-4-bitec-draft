@@ -1,8 +1,10 @@
 """Довідники замість зашитих у код списків: категорії респондентів, посади, факти.
 
 Читати може кожен, хто увійшов (конструктор, форми, трекер). Змінюють:
-- категорії й факти — адміністратор або технічний адміністратор (координатор);
-- посади — ще й уповноважений (commissioner), бо він веде заходи.
+- категорії респондентів і посади — лише технічний адміністратор (coordinator);
+- факти — уповноважений (admin).
+Вага вбудованих категорій (staff, working_group, expert) задається лише методикою (methodology.SOURCE_WEIGHTS,
+нова версія методики); вагу власних категорій задає довідник (weight_editable у відповіді).
 Зміни пишуться в журнал дій.
 """
 
@@ -23,9 +25,9 @@ from app.services import categories, fact_registry
 from app.services import methodology as m
 
 router = APIRouter(prefix="/dictionaries", tags=["dictionaries"])
-# Категорії респондентів і посади — довідники людей: веде технічний адміністратор. Категорію може додати й
-# Департамент: на неї спрямовуються анкети (target_category).
-managers = require_roles(Role.COORDINATOR, Role.DEPARTMENT)
+# Категорії респондентів і посади — довідники людей: веде лише технічний адміністратор. Департамент категорії
+# читає (GET) і спрямовує на них анкети (target_category), але не створює й не змінює (рішення 20.11).
+managers = require_roles(Role.COORDINATOR)
 position_editors = require_roles(Role.COORDINATOR)
 # Факти (що приходить з інших систем і як впливає на індекс) — методика, а не люди: веде уповноважений.
 fact_editors = require_roles(Role.ADMIN)
@@ -72,12 +74,16 @@ class CategoryOut(BaseModel):
     active: bool
     external: bool = False
     in_index: bool = False
+    # Вага вбудованої категорії — з методики (лише читання); власної — з довідника (змінюється PATCH).
+    weight_editable: bool = False
+    weight_source: str = Field(default="dictionary", description="methodology | dictionary")
 
 
 def category_out(row: RespondentCategoryDef) -> CategoryOut:
     weight = m.SOURCE_WEIGHTS.get(row.code) if row.builtin else row.weight
     return CategoryOut(code=row.code, title=row.title, weight=weight, builtin=row.builtin, active=row.active,
-                       external=categories.is_external(row.code), in_index=bool(weight) and row.active)
+                       external=categories.is_external(row.code), in_index=bool(weight) and row.active,
+                       weight_editable=not row.builtin, weight_source="methodology" if row.builtin else "dictionary")
 
 
 @router.get("/categories", response_model=list[CategoryOut])
@@ -111,8 +117,15 @@ def update_category(code: str, data: CategoryUpdate, db: Session = Depends(get_d
     if row is None:
         raise HTTPException(status_code=404, detail="Категорію не знайдено")
     changes = data.model_dump(exclude_unset=True)
+    if row.builtin:
+        # Форма редагування надсилає всі поля разом: незмінені вага й активність вбудованої категорії — не спроба
+        # їх змінити (інакше перейменування вбудованої категорії завжди давало б 409).
+        if "weight" in changes and changes["weight"] == m.SOURCE_WEIGHTS.get(row.code):
+            changes.pop("weight")
+        if "active" in changes and changes["active"] == row.active:
+            changes.pop("active")
     if row.builtin and ({"weight", "active"} & changes.keys()):
-        raise ApiError(409, "Вагу й активність вбудованої категорії задає методика", code="builtin",
+        raise ApiError(409, "Вагу й активність вбудованої категорії задає методика", code="weight_from_methodology",
                        hint="Ваги вбудованих джерел змінюються лише в methodology.py з новою версією методики.")
     for key, value in changes.items():
         setattr(row, key, value)

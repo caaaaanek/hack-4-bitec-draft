@@ -85,6 +85,14 @@ def submit_share(campaign_id: uuid.UUID, data: ShareIn, db: Session = Depends(ge
                  user: User = Depends(get_current_user)) -> dict:
     """«Церемонія відкриття урни»: власник повертає частину. Друга частина відновлює ключ і закриває хвилю."""
     campaign = campaign_or_404(db, campaign_id, lock=True)
-    result = urn.submit_share(db, campaign, user, data.share)
+    try:
+        result = urn.submit_share(db, campaign, user, data.share)
+    except ApiError as e:
+        if e.code == "urn_mismatch":
+            # Частини не відновили ключ: їх скинуто, і це треба зберегти. Без коміту відкат повертав надіслані
+            # частини (разом із чужою чи зміненою), і кожна наступна спроба знову давала urn_mismatch — хвиля
+            # з урною не закривалася ніколи.
+            db.commit()
+        raise
     db.commit()
     return result

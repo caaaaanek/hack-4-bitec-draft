@@ -115,8 +115,8 @@ def test_rephrase_keeps_numbers(monkeypatch):
 def test_digest_explains_drop_by_sources(client):
     full_wave(client, title="Хвиля 1", staff_pick=-1)  # високі відповіді ОС
     full_wave(client, title="Хвиля 2", staff_pick=0)   # низькі відповіді ОС
-    admin = auth(client, "admin")
-    r = client.get(f"{API}/agent/digest", headers=admin)
+    # Падіння виправляє керівник (рекомендації й заходи): саме він їх і отримує.
+    r = client.get(f"{API}/agent/digest", headers=auth(client, "leader"))
     assert r.status_code == 200, r.text
     data = r.json()
     drops = [i for i in data["items"] if i["category"] == "drop" and i["id"].startswith("drop:") and i["id"] != "drop:none"]
@@ -126,9 +126,19 @@ def test_digest_explains_drop_by_sources(client):
     staff = [p for p in d["data"]["contributions"] if p["source"] == "staff"][0]
     assert staff["contribution"] < 0  # падіння пояснено внеском особового складу
     assert data["status"] in ("attention", "critical")
-    assert any(i["category"] == "technical" for i in data["items"])  # адмін бачить технічні пункти
-    leader = client.get(f"{API}/agent/digest", headers=auth(client, "leader")).json()
-    assert not any(i["category"] == "technical" for i in leader["items"])
+    assert not any(i["category"] == "technical" for i in data["items"])
+    # Без include_info — жодних пунктів «до відома», і counts без info.
+    assert all(i["severity"] != "info" for i in data["items"]) and "info" not in data["counts"]
+    full = client.get(f"{API}/agent/digest", params={"include_info": True}, headers=auth(client, "leader")).json()
+    assert "info" in full["counts"] and len(full["items"]) >= len(data["items"])
+
+    admin = client.get(f"{API}/agent/digest", params={"include_info": True}, headers=auth(client, "admin")).json()
+    assert any(i["category"] == "technical" for i in admin["items"])  # технічні збої — уповноваженому
+    assert not any(i["category"] in ("drop", "rise") or i["id"] == "process:decisions" for i in admin["items"])
+    assert all(i["link"]["view"] not in ("tracker", "recs", "sources", "trends") for i in admin["items"])
+    # Департамент нічого з цього не виправляє.
+    dep = client.get(f"{API}/agent/digest", params={"include_info": True}, headers=auth(client, "department")).json()
+    assert dep["items"] == [] and dep["status"] == "ok"
     assert client.get(f"{API}/agent/digest", headers=auth(client, "staff01")).status_code == 403
 
 

@@ -29,6 +29,7 @@ from app.models import (
     OutboxMessage,
     QuestionnaireKind,
     RecommendationDecision,
+    Role,
     Unit,
 )
 from app.services import methodology as m
@@ -54,7 +55,7 @@ def plain(value) -> str:
 
 
 def item(id: str, category: str, severity: str, title: str, what: str, why: str, fix: list[str],
-         view: str, data: dict | None = None) -> dict:
+         view: str | None, data: dict | None = None) -> dict:
     return {"id": id, "category": category, "severity": severity, "title": title, "what": what, "why": why,
             "fix": fix, "link": {"view": view, "ref": id}, "data": data or {}}
 
@@ -185,13 +186,13 @@ def technical_items(db: Session) -> list[dict]:
                         f"Остання помилка: {(last.last_error or '—')[:200]}",
                         ["Перевірити THEME2_URL і THEME2_API_KEY у .env.",
                          "Повторити надсилання: POST /api/v1/integrations/theme2/sync.",
-                         "Заходи тим часом ведуться в нашому трекері — роботу це не зупиняє."], "tracker",
+                         "Заходи тим часом ведуться в нашому трекері — роботу це не зупиняє."], "manage",
                         {"unsent": len(unsent), "failing": len(failing)}))
     elif unsent and not get_settings().theme2_url:
         out.append(item("tech:theme2_off", "technical", "info", "Тема 2 не підключена",
                         f"У черзі {len(unsent)} заходів для теми 2.", "THEME2_URL не задано.",
                         ["Якщо інтеграція потрібна — задати THEME2_URL і THEME2_API_KEY; черга відправиться сама."],
-                        "tracker", {"unsent": len(unsent)}))
+                        "manage", {"unsent": len(unsent)}))
     recent = set(months_back(today(), SILENT_MONTHS))
     for code, spec in m.FACTS.items():
         last = db.scalar(select(func.max(Indicator.period)).where(Indicator.indicator == code))
@@ -200,13 +201,13 @@ def technical_items(db: Session) -> list[dict]:
                             "Жодне джерело ще не передало цей показник.", "Без фактів компонент рахується лише за "
                             "самооцінкою (прапорець no_facts).",
                             ["Підключити джерело: POST /api/v1/indicators з ключем джерела (INTEGRATION_KEYS)."],
-                            "sources"))
+                            None))
         elif last not in recent and last < min(recent):
             out.append(item(f"tech:source:{code}", "technical", "warning", f"Джерело мовчить: «{spec['title']}»",
                             f"Останні дані — за {last}.",
                             f"Немає жодного запису за останні {SILENT_MONTHS} місяці.",
                             ["Перевірити, чи система-джерело надсилає дані і чи не відкликано її ключ.",
-                             "Для демо: docker compose --profile mocks run --rm mocks."], "sources", {"last": last}))
+                             "Для демо: docker compose --profile mocks run --rm mocks."], None, {"last": last}))
     since = now() - timedelta(days=7)
     errors = db.scalars(select(AutopilotEvent).where(AutopilotEvent.status == "error", AutopilotEvent.at >= since)
                         .order_by(AutopilotEvent.at.desc())).all()
@@ -223,13 +224,14 @@ def technical_items(db: Session) -> list[dict]:
                         f"Нерозглянутих знахідок: {new_findings}.",
                         "Доки знахідку не розглянуто, вона рахується як «не розібрано» в показниках КІ й закупівель.",
                         ["Розглянути знахідки (статус reviewed або dismissed з коментарем).",
-                         "Опублікувати показники: POST /api/v1/checks/publish."], "sources", {"new": new_findings}))
+                         "Опублікувати показники: POST /api/v1/checks/publish."], "checks", {"new": new_findings}))
     return out
 
 
 # ---------- Процес ----------
 
-def process(db: Session, units: set[uuid.UUID], scope: uuid.UUID) -> list[dict]:
+def process(db: Session, units: set[uuid.UUID], scope: uuid.UUID, decisions: bool = True) -> list[dict]:
+    """decisions=False — не рахувати «Рекомендації без рішення» (це розрахунок результатів хвилі)."""
     out = []
     measures = db.scalars(select(Measure).where(Measure.unit_id.in_(units))).all()
     overdue = sorted([x for x in measures if overdue_days(x) is not None], key=lambda x: -overdue_days(x))
@@ -251,7 +253,7 @@ def process(db: Session, units: set[uuid.UUID], scope: uuid.UUID) -> list[dict]:
         if scope in subtree_from(unit_tree(db)[0], c.unit_id):
             latest = c
             break
-    if latest is not None:
+    if latest is not None and decisions:
         from app.services.recommendations import recommend
         from app.services.results import results_for
         from app.services import facts
@@ -308,24 +310,65 @@ def process(db: Session, units: set[uuid.UUID], scope: uuid.UUID) -> list[dict]:
     return out
 
 
-def digest(db: Session, unit_id: uuid.UUID | None, technical: bool = True) -> dict:
+# ---------- Хто може виправити ----------
+
+def _confirmers() -> set[Role]:
+    from app.routers.checklist import confirmer_roles  # уникаємо циклічного імпорту
+
+    return set(confirmer_roles())
+
+
+def audience(item_id: str) -> set[Role]:
+    """Ролі, які можуть виправити пункт (і мають екран, куди веде link.view). Решті пункт не віддається.
+
+    Падіння, рекомендації й заходи — керівник (рішення й заходи приймає він); технічні збої, участь і план
+    наступної хвилі — уповноважений; цілісність журналу — уповноважений і аудит; чек-лист — підтверджувачі
+    (CHECKLIST_CONFIRMERS). Департамент нічого з цього не виправляє, тож сигналів не отримує.
+    """
+    if item_id.startswith(("drop:", "rise:", "process:overdue", "process:due_soon", "process:decisions")):
+        return {Role.LEADER}
+    if item_id == "tech:audit_chain":
+        return {Role.ADMIN, Role.AUDITOR}
+    if item_id.startswith("process:checklist:"):
+        return _confirmers()
+    if item_id.startswith(("tech:", "process:participation:", "trend:")):
+        return {Role.ADMIN}
+    return set()
+
+
+def digest(db: Session, unit_id: uuid.UUID | None, role: Role | None = None, include_info: bool = False) -> dict:
+    """role: лише пункти, які ця роль може виправити (None — усі, для внутрішнього використання).
+    include_info: додати інформаційні пункти («падінь немає», «зросло на…»); за замовчуванням лише критичні
+    й попередження, і counts без info."""
     root = root_unit(db)
     scope = unit_id or (root.id if root else None)
+
+    def wants(*roles: Role) -> bool:
+        return role is None or role in roles
+
     items: list[dict] = []
     unit_name = None
     if scope is not None:
         unit = db.get(Unit, scope)
         unit_name = unit.name if unit else None
         units = subtree_from(unit_tree(db)[0], scope)
-        items += changes(db, scope)
-        items += process(db, units, scope)
-    if technical:
+        if wants(Role.LEADER, Role.ADMIN):
+            items += changes(db, scope)
+        if wants(Role.LEADER, Role.ADMIN, *_confirmers()):
+            items += process(db, units, scope, decisions=wants(Role.LEADER))
+    if wants(Role.ADMIN, Role.AUDITOR):
         items += technical_items(db)
+    if role is not None:
+        items = [x for x in items if role in audience(x["id"])]
+    if not include_info:
+        items = [x for x in items if x["severity"] != "info"]
     items.sort(key=lambda x: (SEVERITY_ORDER[x["severity"]], x["category"], x["id"]))
-    counts = {s: sum(1 for x in items if x["severity"] == s) for s in SEVERITY_ORDER}
+    shown = SEVERITY_ORDER if include_info else {k: v for k, v in SEVERITY_ORDER.items() if k != "info"}
+    counts = {s: sum(1 for x in items if x["severity"] == s) for s in shown}
     status = "critical" if counts["critical"] else "attention" if counts["warning"] else "ok"
     head = {"critical": "Є критичні проблеми", "attention": "Є що виправити", "ok": "Усе гаразд"}[status]
-    summary = f"{head}: критичних {counts['critical']}, попереджень {counts['warning']}, до відома {counts['info']}."
+    summary = f"{head}: критичних {counts['critical']}, попереджень {counts['warning']}" + (
+        f", до відома {counts['info']}." if include_info else ".")
     return {"generated_at": now().isoformat(timespec="seconds"), "unit_id": scope, "unit_name": unit_name,
             "status": status, "summary": summary, "counts": counts, "items": items,
             "note": "Огляд зібрано явними правилами з даних системи; ШІ не використовується."}

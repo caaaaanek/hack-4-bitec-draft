@@ -7,7 +7,7 @@
 | Модуль | Для кого | Ендпоінти | Код |
 |---|---|---|---|
 | «Питання перевірки» | керівник перед перевіркою | `GET /campaigns/{id}/devils-advocate` | `services/devils_advocate.py`, `routers/insights.py` |
-| Агент-черговий | керівник, адміністратор | `GET /agent/digest` | `services/watchdog.py`, `routers/insights.py` |
+| Агент-черговий | кожна роль — своє (див. розділ 2) | `GET /agent/digest` | `services/watchdog.py`, `routers/insights.py` |
 | «Що змінилося для нас» (нормативка) | керівник, комісія, аудитор | `POST /normative/analyze` | `services/normative.py`, `routers/normative.py` |
 | Автопілот хвилі | адміністратор | `PUT/GET /campaigns/{id}/autopilot`, `POST /autopilot/tick`, `GET /campaigns/{id}/autopilot/report`, `GET /me/notifications` | `services/autopilot.py`, `services/lifecycle.py`, `routers/autopilot.py` |
 | Флешкартки доброчесності | усі учасники | `GET /learning/decks`, `GET /learning/decks/{code}`, `POST /learning/decks/{code}/complete`, `GET /learning/stats`, `POST /learning/publish` | `services/learning.py`, `routers/learning.py`, `seed/data/flashcards.json` |
@@ -86,8 +86,18 @@
 | `process` | прострочені заходи; строк за тиждень; рекомендації без рішення; відкриті хвилі з участю < 60% за ≤ 3 дні до закриття; незавершений чек-лист |
 | `technical` | ланцюжок журналу дій (критично), черга теми 2 з помилками, джерела фактів без даних > 3 міс., помилки автопілота, нерозглянуті знахідки модуля «Перевірки» |
 
-Технічні пункти бачать `admin`, `coordinator`, `auditor`; керівник — лише свій підрозділ без технічних.
-Автопілот раз на день кладе адміністраторам підсумок у сповіщення, якщо `status ≠ ok`.
+**Кожна роль отримує лише те, що може виправити** (`watchdog.audience`), і `link.view` веде на екран цієї ролі:
+
+| Роль | Пункти |
+|---|---|
+| `leader` | `drop:*`, `rise:*`, прострочені заходи і строк за тиждень (`tracker`), рекомендації без рішення (`recs`) |
+| `admin` | технічні збої: тема 2 й автопілот (`manage`), знахідки «Перевірок» (`checks`), джерела фактів (без посилання: налаштування розгортання); низька участь і «динаміки ще немає» (`manage`); журнал дій (`audit`) |
+| `auditor` | пошкоджений журнал дій (`audit`); незавершений чек-лист, якщо аудит серед `CHECKLIST_CONFIRMERS` |
+| `department` | нічого: Департамент лише переглядає, тож `items: []`, `status: ok` |
+
+Інформаційні пункти (`severity: info`: «падінь немає», «зросло на…», «строк за тиждень» тощо) повертаються лише
+з `?include_info=true`; без нього їх немає і в `counts` (лише `critical`, `warning`) — на них спирається дзвоник.
+Автопілот раз на день кладе уповноваженим підсумок їхніх пунктів у сповіщення, якщо `status ≠ ok`.
 
 Приклад (`why` для падіння «Культури» після третьої хвилі): «чек-лист: −15,6 бала; робоча група: −15,6 бала.
 Найбільше впало питання «Яку цінність відіграє доброчесність…» (−6,2)».
@@ -172,7 +182,7 @@
 | Метод і шлях | Ролі | Тіло / параметри | Відповідь |
 |---|---|---|---|
 | `GET /campaigns/{id}/devils-advocate` | admin, leader, auditor, department | `unit_id?`, `limit` 1–30 (10), `rephrase` (false) | `{questions[], total_found, rules[], rephrased_by_model, note}`; 409 для незакритої хвилі |
-| `GET /agent/digest` | admin, leader, auditor, department | `unit_id?` | `{status, summary, counts, items[]}` |
+| `GET /agent/digest` | admin, leader, auditor, department | `unit_id?`, `include_info?` | `{status, summary, counts, items[]}`; лише пункти, які роль може виправити |
 | `POST /normative/analyze` | admin, leader, auditor, department | multipart: `file` або `text`, `title?` | `{document, matches[], by_kind, corpus_size, method, note}` |
 | `GET /campaigns/{id}/autopilot` | admin, coordinator, auditor | — | `{enabled, planned_*, close_at_percent, remind_every_days, plan[], report_ready, events[]}` |
 | `PUT /campaigns/{id}/autopilot` | admin | `{enabled, planned_open_on?, planned_close_on?, close_at_percent?, remind_every_days?}` | те саме; 422 без умови закриття, 409 для закритої |

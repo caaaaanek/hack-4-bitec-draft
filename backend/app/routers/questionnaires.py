@@ -119,6 +119,11 @@ def update_meta(
     questionnaire = get_or_404(db, questionnaire_id)
     require_draft(questionnaire)
     changes = data.model_dump(exclude_unset=True)
+    for key in ("title", "kind", "target_category"):
+        if key in changes and changes[key] is None:
+            raise HTTPException(status_code=422, detail=f"Поле {key} не може бути порожнім")
+    if "description" in changes and changes["description"] is None:
+        changes["description"] = ""
     if "target_category" in changes:
         require_category(db, changes["target_category"])
     for field, value in changes.items():

@@ -51,7 +51,18 @@ services:
       PROXY_AUTH_ENABLED: "false"
       # Мережа стеку Coolify: IP клієнта для лімітів спроб беремо з X-Forwarded-For лише від nginx фронтенду.
       FORWARDED_PROXIES: 172.16.0.0/12,192.168.0.0/16,10.0.0.0/8
+      # Живі запити до відкритих API (Prozorro, НАЗК) для «Перевірок»; без цього — мок.
       EXTERNAL_FETCH_ENABLED: "true"
+      # Перевірка контрагентів (Youcontrol чи аналог). Порожньо — мок.
+      COUNTERPARTY_API_URL: ${COUNTERPARTY_API_URL}
+      COUNTERPARTY_API_KEY: ${COUNTERPARTY_API_KEY}
+      # Mitra (тема 2). Без THEME2_URL заходи туди не йдуть, а в «Джерелах» Mitra — ручний ввід.
+      #   THEME2_URL=https://<mitra>/api/integrations/integra, THEME2_API_KEY=<спільний ключ>;
+      #   THEME2_PUBLIC_URL — адреса інтерфейсу Mitra для посилань на докази, якщо хост інший, ніж у THEME2_URL.
+      THEME2_URL: ${THEME2_URL}
+      THEME2_API_KEY: ${THEME2_API_KEY}
+      THEME2_PUBLIC_URL: ${THEME2_PUBLIC_URL}
+      THEME2_SYNC_SECONDS: "10"
       # demo для показу; production вмикає всі запобіжники безпеки разом (docs/backend.md, «Профіль безпеки»)
       SECURITY_PROFILE: ${SECURITY_PROFILE:-demo}
     volumes:

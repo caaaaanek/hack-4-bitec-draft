@@ -14,7 +14,7 @@ from app.clock import today
 from app.db import get_db
 from app.errors import ApiError
 from app.models import Campaign, Measure, MeasureStatus, Role, Unit, User
-from app.security import RESULT_READERS, ensure_unit_access, require_roles
+from app.security import RESULT_READERS, campaign_visible, ensure_unit_access, require_roles, visible_unit_filter
 from app.services import measures as service
 from app.services import methodology as m
 from app.services import titles
@@ -169,8 +169,11 @@ def create_measure(db: Session, user: User, data: MeasureIn) -> Measure:
     if db.get(Unit, data.unit_id) is None:
         raise HTTPException(status_code=422, detail="Підрозділ не знайдено")
     ensure_unit_access(db, user, data.unit_id, "manage")
-    if data.campaign_id is not None and db.get(Campaign, data.campaign_id) is None:
-        raise HTTPException(status_code=422, detail="Хвилю не знайдено")
+    if data.campaign_id is not None:
+        campaign = db.get(Campaign, data.campaign_id)
+        # campaign_id у тілі: campaign_zone_guard його не перевіряє, тож хвиля поза зоною — як відсутня.
+        if campaign is None or not campaign_visible(db, user, campaign):
+            raise HTTPException(status_code=422, detail="Хвилю не знайдено")
     measure = Measure(**data.model_dump(), created_by_id=user.id, status=MeasureStatus.PLANNED)
     db.add(measure)
     db.flush()
@@ -203,6 +206,11 @@ def list_measures(
     if scope is not None:
         ensure_unit_access(db, user, scope, "manage")
         query = query.where(Measure.unit_id.in_(subtree_ids(db, scope)))
+    else:
+        # Департамент (і будь-хто з обмеженою зоною) без unit_id — лише заклади своєї зони, а не всі заходи.
+        visible = visible_unit_filter(db, user)
+        if visible is not None:
+            query = query.where(Measure.unit_id.in_(visible))
     if status_ is not None:
         query = query.where(Measure.status == status_)
     if campaign_id is not None:
@@ -245,6 +253,10 @@ def patch_measure(measure_id: uuid.UUID, data: MeasureUpdate, db: Session = Depe
         if needs_reason(old_status, new_status) and len(reason) < 3:
             raise ApiError(422, "Вкажіть причину зміни статусу (reason)", code="reason_required",
                            hint="Скасування і повернення виконаного чи скасованого заходу фіксуються з причиною.")
+    for field, minimum in (("title", 3), ("owner", 2)):
+        # Обмеження min_length перевіряються до strip(): «  ab  » проходило як назва з двох літер.
+        if isinstance(changes.get(field), str) and len(changes[field].strip()) < minimum:
+            raise ApiError(422, f"{field}: щонайменше {minimum} символи без пробілів по краях", code="invalid")
     for field in ("title", "description", "owner", "due_date", "evidence"):
         if field in changes and changes[field] is not None:
             setattr(measure, field, changes[field].strip() if isinstance(changes[field], str) else changes[field])

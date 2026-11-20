@@ -22,7 +22,7 @@ from app.db import get_db
 from app.errors import ApiError
 from app.models import Measure, RiskRegisterItem, Role, Unit, User
 from app.routers.measures import PERSON_NAME
-from app.security import RESULT_READERS, ensure_unit_access, require_roles
+from app.security import RESULT_READERS, ensure_unit_access, record_view, require_roles, visible_unit_filter
 from app.services import methodology as m
 from app.services.units import subtree_ids
 
@@ -41,10 +41,20 @@ def to_out(r: RiskRegisterItem) -> dict:
 
 @router.get("/units/{unit_id}/risk-register")
 def list_risks(unit_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(require_roles(*RESULT_READERS))):
-    """Ризики підрозділу, від найвищого балу (ймовірність × вплив). Зведення по компонентах."""
+    """Ризики підрозділу, від найвищого балу (ймовірність × вплив). Зведення по компонентах.
+
+    Департамент — лише читання реєстрів своїх закладів (заклад і його підрозділи), хоча результати він бачить
+    лише на рівні закладу. Імпорт — як і раніше, лише уповноважений.
+    """
     if db.get(Unit, unit_id) is None:
         raise HTTPException(status_code=404, detail="Підрозділ не знайдено")
-    ensure_unit_access(db, user, unit_id)
+    if user.role == Role.DEPARTMENT:
+        visible = visible_unit_filter(db, user)
+        if visible is not None and unit_id not in visible:
+            raise HTTPException(status_code=403, detail="Заклад поза зоною Департаменту")
+        record_view(db, user, unit_id, None, None)
+    else:
+        ensure_unit_access(db, user, unit_id)
     rows = [to_out(r) for r in db.scalars(select(RiskRegisterItem).where(RiskRegisterItem.unit_id == unit_id))]
     rows.sort(key=lambda r: (-(r["score"] or 0), r["code"]))
     by_component = {c: {"total": 0, "open": 0, "without_measure": 0} for c in m.COMPONENTS}
@@ -75,6 +85,8 @@ async def import_risks(unit_id: uuid.UUID, file: UploadFile = File(...), db: Ses
                        user: User = Depends(require_roles(Role.ADMIN))) -> dict:
     if db.get(Unit, unit_id) is None:
         raise HTTPException(status_code=404, detail="Підрозділ не знайдено")
+    # Уповноважений зі своєю зоною імпортує ризики лише своїх підрозділів.
+    ensure_unit_access(db, user, unit_id, "manage")
     raw = await file.read(MAX_BYTES + 1)
     if len(raw) > MAX_BYTES:
         raise ApiError(413, "Файл завеликий (до 512 КБ)")
@@ -124,6 +136,7 @@ async def import_risks(unit_id: uuid.UUID, file: UploadFile = File(...), db: Ses
         if row is None:
             row = RiskRegisterItem(unit_id=unit_id, code=code)
             db.add(row)
+            existing[code] = row  # повтор коду у файлі оновлює той самий ризик, а не створює дубль
             created += 1
         else:
             updated += 1

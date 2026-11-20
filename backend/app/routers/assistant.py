@@ -26,7 +26,7 @@ from app.config import get_settings
 from app.db import get_db
 from app.models import User
 from app.routers.recommendations import build, closed_campaign
-from app.security import RESULT_READERS, ensure_unit_access, require_roles
+from app.security import RESULT_READERS, campaign_visible, ensure_unit_access, require_roles
 
 router = APIRouter(prefix="/assistant", tags=["assistant"])
 
@@ -135,6 +135,9 @@ def ask(data: AskIn, db: Session = Depends(get_db), user: User = Depends(require
     url, model = target()
     check_allowed(url, model)
     campaign = closed_campaign(db, data.campaign_id)
+    # campaign_id тут у тілі запиту, тож campaign_zone_guard його не бачить: хвиля поза зоною — як відсутня.
+    if not campaign_visible(db, user, campaign):
+        raise HTTPException(status_code=404, detail="Хвилю не знайдено")
     ensure_unit_access(db, user, data.unit_id or campaign.unit_id, campaign_id=campaign.id, root_id=campaign.unit_id)
     result, recs = build(db, campaign, data.unit_id)
     context = build_context(result, recs)

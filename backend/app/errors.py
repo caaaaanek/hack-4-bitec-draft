@@ -172,6 +172,20 @@ class BodyLimit:
                 raise
 
 
+def integrity_kind(exc: IntegrityError) -> str:
+    """unique | not_null | foreign_key | other — за SQLSTATE (PostgreSQL) чи текстом помилки (SQLite)."""
+    orig = exc.orig
+    code = getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
+    text = str(orig).lower() if orig is not None else ""
+    if code == "23502" or "not null constraint" in text or "null value in column" in text:
+        return "not_null"
+    if code == "23503" or "foreign key" in text:
+        return "foreign_key"
+    if code == "23505" or "unique" in text or "duplicate key" in text:
+        return "unique"
+    return "other"
+
+
 def install(app: FastAPI) -> None:
     configure_logging()
 
@@ -214,12 +228,23 @@ def install(app: FastAPI) -> None:
         # Паралельний запит (подвійний клік, адмін і автопілот одночасно) уже створив такий самий запис:
         # це конфлікт стану, а не збій сервера. Транзакцію відкотить get_db при закритті сесії.
         rid = _request_id(request)
-        log.warning("%s → 409: порушення унікальності (request_id=%s): %s", _where(request), rid,
-                    str(exc.orig).splitlines()[0] if exc.orig else type(exc).__name__)
-        body = error_body(409, "Такий запис уже існує: схоже, запит надіслано двічі", code="conflict",
-                          hint="Оновіть сторінку: перша дія вже виконана.")
+        reason = str(exc.orig).splitlines()[0] if exc.orig else type(exc).__name__
+        kind = integrity_kind(exc)
+        if kind == "not_null":
+            # Явний null в обов'язковому полі (PATCH {"title": null}) — помилка запиту, а не «надіслано двічі».
+            status, body = 422, error_body(422, "Обов'язкове поле не може бути порожнім (null)", code="null_value",
+                                           hint="Не передавайте null для обов'язкових полів: пропустіть поле, "
+                                                "щоб лишити як є.")
+        elif kind == "foreign_key":
+            status, body = 409, error_body(409, "Запис пов'язаний з іншими даними або посилається на відсутні",
+                                           code="conflict", hint="Оновіть сторінку й перевірте пов'язані записи.")
+        else:
+            status, body = 409, error_body(409, "Такий запис уже існує: схоже, запит надіслано двічі", code="conflict",
+                                           hint="Оновіть сторінку: перша дія вже виконана.")
+        log.warning("%s → %s: порушення цілісності БД (%s, request_id=%s): %s", _where(request), status, kind, rid,
+                    reason)
         body["request_id"] = rid
-        return JSONResponse(body, status_code=409, headers={REQUEST_ID_HEADER: rid})
+        return JSONResponse(body, status_code=status, headers={REQUEST_ID_HEADER: rid})
 
     @app.exception_handler(Exception)
     async def unhandled(request: Request, exc: Exception):

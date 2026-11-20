@@ -42,7 +42,10 @@ def test_custom_category_without_weight_is_compared_but_not_in_index(client):
     r = client.post(f"{API}/dictionaries/categories", json={"code": "cadet", "title": "Курсанти"}, headers=co)
     assert r.status_code == 201 and r.json()["in_index"] is False
     assert client.post(f"{API}/dictionaries/categories", json={"code": "cadet", "title": "X"},
-                       headers=commissioner).status_code == 409
+                       headers=co).status_code == 409
+    # Департамент довідник категорій лише читає (рішення 20.11).
+    assert client.post(f"{API}/dictionaries/categories", json={"code": "cadet2", "title": "X"},
+                       headers=commissioner).status_code == 403
     codes = {c["code"] for c in client.get(f"{API}/dictionaries/categories", headers=auth(client, "staff01")).json()}
     assert {"working_group", "staff", "expert", "cadet"} <= codes
     # Невідому категорію не призначити.
