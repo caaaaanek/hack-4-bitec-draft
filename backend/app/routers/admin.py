@@ -50,7 +50,7 @@ from app.services.eligibility import open_frozen_campaigns_of
 from app.services.units import subtree_from, subtree_ids, unit_tree
 from app.config import get_settings
 from app.security import hash_password, require_people_manager, require_roles, revoke_all_tokens
-from app.services import approvals, invites
+from app.services import approvals, audit_anchor, invites
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 managers = require_roles(Role.ADMIN, Role.COORDINATOR)  # користувачі, підрозділи, зведення
@@ -450,6 +450,22 @@ def accept_anchor(data: AnchorIn | None = None, db: Session = Depends(get_db),
     return anchor
 
 
+@router.post("/audit-log/export-anchor", response_model=AnchorOut, status_code=status.HTTP_201_CREATED)
+def export_anchor(db: Session = Depends(get_db), user: User = Depends(require_roles(Role.AUDITOR, Role.ADMIN))):
+    """Експортувати голову журналу назовні зараз: файл у AUDIT_ANCHOR_DIR і/або мітка часу RFC 3161.
+
+    Автопілот робить це щодня сам. 409 anchor_disabled — назовнішнє сховище не налаштовано.
+    """
+    try:
+        anchor = audit_anchor.export_head(db, user, reason="manual")
+    except audit_anchor.AnchorError as e:
+        raise ApiError(409 if e.code in ("anchor_disabled", "chain_broken") else 502, str(e), code=e.code)
+    except OSError as e:
+        raise ApiError(502, f"Не вдалося записати файл якоря: {e}", code="anchor_write_failed")
+    db.commit()
+    return anchor
+
+
 @router.get("/audit-log/anchors", response_model=list[AnchorOut])
 def list_anchors(db: Session = Depends(get_db), _: User = Depends(audit_readers)):
     return db.scalars(select(AuditAnchor).order_by(AuditAnchor.accepted_at.desc())).all()
@@ -481,15 +497,26 @@ def result_views(
     date_from: datetime | None = Query(default=None),
     date_to: datetime | None = Query(default=None),
     actor_id: uuid.UUID | None = None,
+    role: Role | None = None,
+    unit_id: uuid.UUID | None = None,
+    campaign_id: uuid.UUID | None = None,
     limit: int = Query(default=200, ge=1, le=2000),
     db: Session = Depends(get_db),
     _: User = Depends(audit_readers),
 ) -> dict:
     """Звіт для аудиту: хто дивився результати дочірніх підрозділів (не кореня хвилі й не свого підрозділу).
 
-    Захист від колективного покарання: систематичний перегляд чужих підрозділів видно.
+    Захист від колективного покарання: систематичний перегляд чужих підрозділів видно. Перегляди пише
+    ensure_unit_access для кожного ендпойнта результатів (дашборд, результати, рекомендації, «Що, якщо», звіти,
+    факти, ризики, «Питання перевірки», асистент). Фільтри: період, хто, роль, підрозділ, хвиля.
     """
     query = select(ResultView).order_by(ResultView.at.desc())
+    if role:
+        query = query.where(ResultView.actor_id.in_(select(User.id).where(User.role == role)))
+    if unit_id:
+        query = query.where(ResultView.unit_id == unit_id)
+    if campaign_id:
+        query = query.where(ResultView.campaign_id == campaign_id)
     if date_from:
         query = query.where(ResultView.at >= date_from)
     if date_to:
@@ -508,6 +535,7 @@ def result_views(
         item["units"].add(units.get(r.unit_id, str(r.unit_id)))
     summary = sorted(({**v, "units": sorted(v["units"])} for v in by_actor.values()), key=lambda x: -x["views"])
     return {
+        "total": len(rows),
         "by_actor": summary,
         "items": [{"at": r.at, "actor_id": str(r.actor_id) if r.actor_id else None,
                    "login": users[r.actor_id].login if r.actor_id in users else None,

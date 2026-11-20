@@ -77,7 +77,10 @@ def test_mocks_cover_all_facts_and_are_deterministic():
         assert all(0 <= f.numerator <= f.denominator and f.period in periods for f in first)
         assert {f.indicator for f in first} <= set(source.indicators)
         covered |= {f.indicator for f in first}
-    assert covered == set(m.FACTS)
+    # Факти, якими володіють лише модулі самої системи («Перевірки», флешкартки), адаптери не передають.
+    from app.services.fact_registry import BUILTIN_OWNERS
+    internal = {code for code, owners in BUILTIN_OWNERS.items() if set(owners) <= {"checks", "learning"}}
+    assert covered | internal == set(m.FACTS) and not covered & internal
     assert set(load_unit_codes().values()) >= set(ORG_QUALITY_UNITS)
 
 

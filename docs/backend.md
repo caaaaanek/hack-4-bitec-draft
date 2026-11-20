@@ -123,14 +123,30 @@ stateDiagram-v2
 ## Журнал дій
 
 `audit_log` фіксує дії адміністраторів, розробників анкет, керівників і аудиторів: користувачі, підрозділи, анкети, публікація,
-версії, хвилі, чек-лист, факти, перегляди результатів, рішення щодо рекомендацій, заходи, експорт звітів. Паролі не логуються
-(лише позначка `changed`). Подання анкет не логуються.
+версії, хвилі, чек-лист, факти, рішення щодо рекомендацій, заходи, експорт звітів. Паролі не логуються
+(лише позначка `changed`). Подання анкет і проходження флешкарток не логуються (інакше журнал став би поіменним списком).
+
+**Перегляди чужих підрозділів** пишуться окремо, у `result_views`, а не в журнал дій. Їх ставить у чергу
+`security.ensure_unit_access(purpose="results")` — тобто кожен ендпойнт результатів, без ручних викликів, — а `db.get_db`
+зберігає окремою транзакцією після успішного запиту (навіть якщо ендпойнт лише читає). Не пишуться: свій підрозділ,
+корінь хвилі, корінь дерева (заклад), відмови в доступі. Назва ендпойнта — шаблон маршруту (`/campaigns/{campaign_id}/what-if`).
+Звіт: `GET /admin/result-views?date_from=&date_to=&actor_id=&role=&unit_id=&campaign_id=` (admin, auditor).
 
 **Ланцюжок хешів.** Кожен запис має `seq`, `prev_hash` і `hash = sha256(prev_hash + канонічний JSON запису)`. Голова ланцюжка
 (`audit_head`) блокується на час запису, тож паралельні запити не розгалужують ланцюжок. Зміна будь-якого запису чи видалення
 записів (зокрема останніх) виявляється перевіркою `POST /admin/audit-log/verify`: вона повертає номер першого зламаного запису.
 
 Перегляд: `GET /admin/audit-log?entity=&action=&actor_id=&date_from=&date_to=&limit=&offset=` (admin, auditor).
+
+**Якір назовні** (`services/audit_anchor.py`). Хто має доступ до БД, може переписати ланцюжок разом із `audit_anchors`. Тому:
+- аудитор приймає голову вручну (`POST /admin/audit-log/anchor`) і зберігає копію в себе;
+- раз на день (щоденний крок автопілота) або на вимогу (`POST /admin/audit-log/export-anchor`, auditor/admin) голова
+  перевіреного ланцюжка йде у файл `anchor-<час>-<seq>.json` у `AUDIT_ANCHOR_DIR` (окремий том лише на дописування, під
+  іншою людиною, ніж БД) і/або в сервіс міток часу RFC 3161 (`AUDIT_ANCHOR_TSA_URL`, квитанція `.tsr` поруч). Пошкоджений
+  ланцюжок не експортується (409 `chain_broken`), відмова TSA — 502 `tsa_rejected`;
+- звірка будь-якої копії: `POST /admin/audit-log/verify-anchor`.
+
+Без `AUDIT_ANCHOR_DIR` і `AUDIT_ANCHOR_TSA_URL` автоматичний експорт вимкнено (409 `anchor_disabled`).
 
 ## Демо-дані (seed)
 
@@ -317,7 +333,7 @@ stateDiagram-v2
 - Кожен компонент має `self_score` (S), `facts_score` (F), `score` (L), `sources` з ефективними вагами, `facts` у форматі «X з Y», `flags`, `reliability` і `rule`.
 - `reliability`: `A` / `B` / `C` / `insufficient_data`. Причини лежать в `index.reliability_reasons`.
 - `null` замість числа означає «недостатньо даних» або «замало людей для показу».
-- Звичайні перегляди (огляд, результати, історія, порівняння, рекомендації) у журнал не пишуться: запис блокує голову ланцюжка хешів, і паралельні читання ставали б у чергу. Пишуться дії: перерахунок результатів (`recalculate_results`), експорт звіту, рішення, зміни.
+- Звичайні перегляди у журнал дій не пишуться: запис блокує голову ланцюжка хешів, і паралельні читання ставали б у чергу. Пишуться дії: перерахунок результатів (`recalculate_results`), експорт звіту, рішення, зміни. Перегляди **чужого** підрозділу йдуть у `result_views` (див. «Журнал дій»).
 
 ## Рекомендації, заходи, тема 2, асистент
 
@@ -473,7 +489,7 @@ Prozorro) і нашої методики (S, F, правило реальнос�
 | Джерело (`source`) | Що це | Факт | Чисельник / знаменник |
 |---|---|---|---|
 | `artemida` | ARTEMIDA, рішення з попереднього хакатону щодо конфліктів інтересів. Читає експорт (`--file`) або мок | `coi_reviewed` | справи, закриті до строку / виявлені за місяць |
-| `atestat` | Атестація персоналу (мок) | `declarations_on_time`, `hiring_checks` | декларації до строку / мали подати; призначення з перевіркою / усі |
+| `atestat` | Атестація персоналу (мок) | `hiring_checks` (`declarations_on_time` — лише з `ATESTAT_SEND_DECLARATIONS=1`, якщо власником призначено кадрову ІС) | призначення з перевіркою / усі; декларації до строку / мали подати |
 | `training` | Облік навчання (мок) | `training_coverage` | навчання до строку / мали пройти |
 | `procurement` | Оцінка закупівель (мок) | `procurement_flags_reviewed` | розглянуто / позначено |
 | `reports` | Журнал повідомлень (мок) | `reports_handled` | розглянуто до строку / надійшло |
@@ -483,6 +499,22 @@ Prozorro) і нашої методики (S, F, правило реальнос�
 - Коди підрозділів джерела зіставляються з нашими через `adapters/units.json` (код → назва) і `GET /indicators/units`
   (ключ інтеграції: лише `id`, `name`, `parent_id`).
 - Ключ: `--key`, `ADAPTER_KEY_<ДЖЕРЕЛО>` або пара з `INTEGRATION_KEYS`. Ключ одного джерела не пускає факти іншого (403).
+- **Власник факту.** Кожен факт передають лише його джерела-власники (`fact_registry.BUILTIN_OWNERS`, для фактів довідника —
+  `owner_sources`, для розгортання — `FACT_OWNERS="факт=джерело1,джерело2;…"`). Не-власник отримує 409 `not_fact_owner` з назвою
+  власника. Якщо власників кілька (заклад обирає джерело), серед них діє «хто перший передав показник за місяць» — 409
+  `source_conflict`. Модулі «Перевірки» і флешкарток не пишуть факт, власником якого призначено іншу систему. Типово:
+
+  | Факт | Власники |
+  |---|---|
+  | `declarations_on_time` | `checks` (модуль «Перевірки» з реєстру декларацій НАЗК) |
+  | `hiring_checks` | `atestat` |
+  | `coi_reviewed` | `checks`, `artemida` |
+  | `procurement_flags_reviewed` | `checks`, `procurement` |
+  | `training_coverage` | `learning` (флешкарти), `training` |
+  | `reports_handled` | `reports` |
+  | `program_measures_on_time` | `mitra` |
+
+  Адмін і застарілий спільний ключ (`INTEGRATION_API_KEY`) можуть виправити будь-який факт, і це пишеться в журнал.
 - **Припущення.** Формат експорту ARTEMIDA (`{"system": "ARTEMIDA", "cases": [{case_id, org_code, detected_on, deadline_on,
   status, closed_on}]}`) і назви систем-моків запропонувала команда для демо. Справжні контракти погоджуються з власниками систем.
 
@@ -503,6 +535,22 @@ python -m adapters artemida --file export.json               # справжні�
 - Enum-и зберігаються рядками (`native_enum=False`), щоб нові значення (ролі, статуси) не вимагали міграції типу.
 - Знімки — JSON зі всіма поясненнями: незмінні, читаються без перерахунку, версія методики всередині.
 
+## Профіль безпеки
+
+`SECURITY_PROFILE=demo` (за замовчуванням) — для показу: адмін задає паролі, усе в одних руках, особовий склад може входити
+логіном. `SECURITY_PROFILE=production` вмикає всі запобіжники разом (`config.PRODUCTION_PROFILE`):
+
+| Запобіжник | demo | production |
+|---|---|---|
+| `ADMIN_SETS_PASSWORDS` (імпорт CSV повертає паролі) | true | false: запрошення, пароль ставить сама людина |
+| `FOUR_EYES_ENABLED` | false | true |
+| `SEPARATE_TECH_ADMIN` | false | true |
+| `STAFF_TOKEN_ONLY` | false | true |
+| `LEADER_CHILD_DETAILS` | false | false |
+
+Явно задана змінна перекриває профіль; `GET /config` → `policies.security_profile` і `policies.overridden` показують, які
+запобіжники production вимкнено вручну. У `docker-compose.yml` ці змінні порожні за замовчуванням, тож значення бере профіль.
+
 ## Зміни за аналізом 20.11
 
 Повна відповідність пунктам аналізу — [`analysis-20-11.md`](analysis-20-11.md). Коротко, що з'явилося в API:
@@ -517,7 +565,10 @@ python -m adapters artemida --file export.json               # справжні�
 | Принцип двох осіб | `GET /admin/approvals`, `POST /admin/approvals/{id}/approve`, `/reject` | `FOUR_EYES_ENABLED` |
 | Склад фіксується з моменту створення хвилі | `POST /campaigns` (склад у `campaign_eligible`), `DELETE /campaigns/{id}` (чернетка) | — |
 | Анкету з групою < k не відкрити | `POST /campaigns/{id}/open` → 409 `group_too_small` | — |
-| Якір журналу | `POST /admin/audit-log/anchor`, `GET /admin/audit-log/anchors`, `POST /admin/audit-log/verify-anchor` | — |
+| Якір журналу | `POST /admin/audit-log/anchor`, `GET /admin/audit-log/anchors`, `POST /admin/audit-log/verify-anchor`, `POST /admin/audit-log/export-anchor` | `AUDIT_ANCHOR_DIR`, `AUDIT_ANCHOR_TSA_URL` |
+| Профіль безпеки | `GET /config` → `policies.security_profile`, `policies.overridden` | `SECURITY_PROFILE` |
+| Власники фактів | `GET /dictionaries/facts` → `owner_sources`; 409 `not_fact_owner` у `POST /indicators` | `FACT_OWNERS` |
+| Ознака накрутки QR | `GET /campaigns/{id}/qr-links` → `over_expected`, `scan_limit_reached` | — |
 | Ключ буфера з файлу | — | `POOL_ENCRYPTION_KEY_FILE` |
 | Особовий склад лише анонімно | 422 `staff_token_only` при створенні хвилі за логінами з анкетою ОС | `STAFF_TOKEN_ONLY` |
 | «Що саме ми зберігаємо» | `GET /respond/privacy` | — |

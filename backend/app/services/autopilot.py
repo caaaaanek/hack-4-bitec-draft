@@ -11,8 +11,9 @@
 Чого автопілот свідомо НЕ робить: не приймає й не відхиляє рекомендації і не створює заходів —
 це рішення відповідальної посадової особи. У тему 2 йдуть лише заходи, які вже створила людина.
 
-Раз на день (перший tick дня) автопілот також: публікує training_coverage з флешкарток за поточний місяць
-і кладе адміністраторам підсумок агента-чергового, якщо є що виправити.
+Раз на день (перший tick дня) автопілот також: публікує training_coverage з флешкарток за поточний місяць,
+кладе адміністраторам підсумок агента-чергового, якщо є що виправити, і експортує голову журналу назовні
+(services/audit_anchor.py), якщо задано AUDIT_ANCHOR_DIR чи AUDIT_ANCHOR_TSA_URL.
 """
 
 import logging
@@ -29,7 +30,7 @@ from app.clock import now, today
 from app.config import get_settings
 from app.errors import ApiError
 from app.models import AutopilotEvent, Campaign, CampaignStatus, GeneratedReport, Notice
-from app.services import learning, lifecycle, watchdog
+from app.services import audit_anchor, learning, lifecycle, watchdog
 from app.services.plural import plural
 
 log = logging.getLogger("app.autopilot")
@@ -171,9 +172,11 @@ def daily(db: Session) -> list[dict]:
     if report["status"] != "ok":
         notice(db, None, "admins", "digest", f"Агент-черговий: {report['summary']}",
                "\n".join(f"• {x['title']}" for x in report["items"] if x["severity"] != "info")[:4000])
+    anchor = audit_anchor.daily_export(db)
     out.append(event(db, None, DAILY, "ok",
                      f"Охоплення навчанням оновлено ({plural(len(rows), 'підрозділ', 'підрозділи', 'підрозділів')}); "
-                     f"агент-черговий: {report['summary']}", digest_status=report["status"]))
+                     f"агент-черговий: {report['summary']}" + (f"; {anchor}" if anchor else ""),
+                     digest_status=report["status"]))
     return out
 
 

@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Абсолютний мінімум розміру групи для показу агрегатів. Менше задати не можна навіть адміну.
@@ -13,6 +14,18 @@ ORG_TERMS: dict[str, dict[str, str]] = {
 }
 # Мінімальна довжина секрету JWT (байтів) для HS256.
 JWT_SECRET_MIN_LENGTH = 32
+
+# Профіль безпеки (SECURITY_PROFILE). demo — як для показу журі: адмін задає паролі, усе в одних руках, особовий
+# склад може входити логіном. production — запобіжники з аналізу 20.11 увімкнено разом. Змінна, задана явно
+# (у .env чи оточенні), має пріоритет над профілем, і тоді /config показує це в policies.overridden.
+SECURITY_PROFILES = ("demo", "production")
+PRODUCTION_PROFILE: dict[str, object] = {
+    "admin_sets_passwords": False,   # пароль людина ставить сама за запрошенням; імпорт CSV повертає посилання
+    "four_eyes_enabled": True,       # привілейовані ролі, нові облікові записи, відкриття хвилі — друга людина
+    "separate_tech_admin": True,     # люди й підрозділи — технічний адміністратор без доступу до результатів
+    "staff_token_only": True,        # особовий склад — лише QR і одноразові посилання
+    "leader_child_details": False,   # керівник бачить деталі лише свого підрозділу
+}
 
 
 class Settings(BaseSettings):
@@ -50,6 +63,9 @@ class Settings(BaseSettings):
     integration_api_key: str = ""
     # Окремий ключ на кожне джерело: "artemida=ключ1;atestat=ключ2". Джерело в запиті має збігатися з ключем.
     integration_keys: str = ""
+    # Власники фактів: "факт=джерело1,джерело2;факт2=джерело". Замінює типових власників (fact_registry.BUILTIN_OWNERS)
+    # для перелічених фактів. Наприклад, заклад рахує КІ в ARTEMIDA, а не в модулі «Перевірки»: "coi_reviewed=artemida".
+    fact_owners: str = ""
 
     # Інтеграція з темою 2 (трекер заходів колег). Порожня адреса: інтеграцію вимкнено.
     # Mitra: THEME2_URL=http://mitra/api/integrations/integra (ми шлемо POST {THEME2_URL}/measures).
@@ -97,6 +113,10 @@ class Settings(BaseSettings):
     # POOL_ENCRYPTION_KEY: ключа немає ні в .env, ні в змінних оточення контейнера.
     pool_encryption_key_file: str = ""
 
+    # ---------- Профіль безпеки ----------
+    # demo | production. Див. PRODUCTION_PROFILE вище: production вмикає всі запобіжники разом.
+    security_profile: str = "demo"
+
     # ---------- Ролі й розподіл обов'язків ----------
     # Хто підтверджує пункти чек-листа (через кому): уповноважений і/або внутрішній аудит.
     checklist_confirmers: str = "commissioner,auditor"
@@ -125,6 +145,11 @@ class Settings(BaseSettings):
     staff_token_only: bool = False
     # Детектор відвертості: мінімум відповідей на кожен варіант непрямого питання (і не менше k).
     candor_min_per_variant: int = 30
+
+    # Якір журналу назовні (services/audit_anchor.py): раз на день голова ланцюжка хешів іде у файл на окремому
+    # томі (WORM, під іншою людиною) і/або в сервіс міток часу RFC 3161. Порожньо — лише ручний якір аудитора.
+    audit_anchor_dir: str = ""
+    audit_anchor_tsa_url: str = ""
 
     # Автопілот хвиль (services/autopilot.py): як часто робити крок, у секундах. 0 — лише вручну (POST /autopilot/tick).
     autopilot_interval_seconds: float = 0
@@ -164,6 +189,22 @@ class Settings(BaseSettings):
     # (для нього окремо TRUSTED_PROXIES). Порожньо: адреса клієнта — безпосередній співрозмовник TCP.
     forwarded_proxies: str = ""
 
+    @model_validator(mode="after")
+    def apply_security_profile(self) -> "Settings":
+        """production: запобіжники, яких не задано явно, беруть значення профілю."""
+        if self.security_profile == "production":
+            for key, value in PRODUCTION_PROFILE.items():
+                if key not in self.model_fields_set:
+                    object.__setattr__(self, key, value)
+        return self
+
+    @property
+    def profile_overrides(self) -> list[str]:
+        """Запобіжники профілю production, які явно вимкнено змінними оточення."""
+        if self.security_profile != "production":
+            return []
+        return sorted(k for k, v in PRODUCTION_PROFILE.items() if getattr(self, k) != v)
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
@@ -177,6 +218,18 @@ class Settings(BaseSettings):
                 source, key = pair.split("=", 1)
                 if source.strip() and key.strip():
                     result[source.strip()] = key.strip()
+        return result
+
+    @property
+    def fact_owner_map(self) -> dict[str, tuple[str, ...]]:
+        """факт -> джерела, яким дозволено його передавати."""
+        result = {}
+        for pair in self.fact_owners.split(";"):
+            if "=" in pair:
+                code, sources = pair.split("=", 1)
+                owners = tuple(s.strip() for s in sources.split(",") if s.strip())
+                if code.strip() and owners:
+                    result[code.strip()] = owners
         return result
 
     @property
@@ -217,6 +270,8 @@ def check_settings(settings: "Settings") -> None:
         raise RuntimeError("CORS_ORIGINS не може містити «*»: перелічіть адреси фронтенду явно.")
     if settings.root_path and (not settings.root_path.startswith("/") or settings.root_path.endswith("/")):
         raise RuntimeError("ROOT_PATH має починатися з «/» і не закінчуватися нею, наприклад /imd.")
+    if settings.security_profile not in SECURITY_PROFILES:
+        raise RuntimeError(f"SECURITY_PROFILE: один із {', '.join(SECURITY_PROFILES)}")
     if settings.org_kind not in ORG_TERMS:
         raise RuntimeError(f"ORG_KIND: один із {', '.join(ORG_TERMS)}")
     if settings.pool_encryption_key_file:

@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from app.clock import today
 from app.models import Indicator, RespondentCategory, Role, TrainingCompletion, User
+from app.services import fact_registry
 from app.services.facts import months_back
 from app.services.units import subtree_from, unit_tree
 
@@ -104,6 +105,8 @@ def publish(db: Session, period: str | None = None) -> list[dict]:
         counts[1] += 1
         counts[0] += u.id in done
     out = []
+    if not fact_registry.may_write(INDICATOR, SOURCE):
+        return out  # власник охоплення навчанням у цьому розгортанні інша система (FACT_OWNERS)
     for unit_id, (num, den) in sorted(per_unit.items(), key=lambda x: str(x[0])):
         row = db.scalar(select(Indicator).where(Indicator.unit_id == unit_id, Indicator.period == period,
                                                 Indicator.indicator == INDICATOR))

@@ -755,6 +755,9 @@ class FactDefinition(Base):
     denominator: Mapped[str] = mapped_column(String(100), default="всього")
     rest: Mapped[str] = mapped_column(String(100), default="решта")
     active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Джерела, яким дозволено передавати факт, через кому (fact_registry.owners). Порожньо — будь-яке джерело,
+    # і тоді діє правило «хто перший передав показник за місяць, той ним і володіє».
+    owner_sources: Mapped[str | None] = mapped_column(String(200))
 
 
 # ---------- Чек-лист: відповідальні за пункти ----------

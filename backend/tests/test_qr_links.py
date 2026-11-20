@@ -68,12 +68,17 @@ def test_more_answers_than_expected_is_flagged(client):
         assert fill(client, scan(client, qr["code"]).json()["token"]).status_code == 201
     it = item(client, campaign_id, admin)
     assert it["submitted"] == 6 and it["eligible"] == 5 and it["over_expected"] is True
+    # Ознаку дає й сам QR (аудит 20.11: раніше її рахував лише фронтенд).
+    listed = client.get(f"{API}/campaigns/{campaign_id}/qr-links", headers=admin).json()[0]
+    assert listed["completed"] == 6 and listed["over_expected"] is True and listed["scan_limit_reached"] is False
 
 
 def test_open_limit_is_three_times_expected(client):
     campaign_id, qr, admin = open_qr(client, expected=5)
     codes = [scan(client, qr["code"]).status_code for _ in range(16)]
     assert codes[:15] == [201] * 15 and codes[15] == 429
+    listed = client.get(f"{API}/campaigns/{campaign_id}/qr-links", headers=admin).json()[0]
+    assert listed["scan_limit_reached"] is True and listed["over_expected"] is False
     assert scan(client, qr["code"]).json()["code"] == "qr_limit"
 
 

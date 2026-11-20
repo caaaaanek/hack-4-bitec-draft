@@ -145,7 +145,7 @@ def list_recommendations(
 ):
     """Рекомендації за явними правилами для закритої хвилі. Кожна має `rule`: чому запропоновано."""
     campaign = closed_campaign(db, campaign_id)
-    ensure_unit_access(db, user, unit_id or campaign.unit_id)
+    ensure_unit_access(db, user, unit_id or campaign.unit_id, campaign_id=campaign.id, root_id=campaign.unit_id)
     data, recs = build(db, campaign, unit_id)
     scope = uuid.UUID(data["unit_id"])
     return {"campaign_id": campaign.id, "unit_id": scope, "unit_name": data["unit_name"],
@@ -162,7 +162,7 @@ def decide(
 ):
     """Рішення керівника: прийняти (і одразу створити захід), уточнити або відхилити з обґрунтуванням."""
     campaign = closed_campaign(db, campaign_id)
-    ensure_unit_access(db, user, data.unit_id or campaign.unit_id)
+    ensure_unit_access(db, user, data.unit_id or campaign.unit_id, campaign_id=campaign.id, root_id=campaign.unit_id)
     # Рішення щодо рекомендацій хвилі — по черзі: подвійний клік «Прийняти» не створить два рішення чи два заходи.
     db.get(Campaign, campaign.id, with_for_update=True, populate_existing=True)
     result, recs = build(db, campaign, data.unit_id)

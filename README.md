@@ -56,22 +56,22 @@ flowchart LR
 
 ## Модулі
 
-Модулі з умови завдання і де вони реалізовані («—» — ще немає).
+Модулі з умови завдання і де вони реалізовані. Фронтенд — `frontend-proto` (маршрути `#…`); «—» — екрана ще немає.
 
 | Модуль | Backend | Frontend |
 |---|---|---|
 | Assessment Manager — хвилі, учасники, підрозділи | `routers/campaigns.py` (зміна чернетки, явні учасники, імпорт CSV псевдонімів, одноразові посилання, QR для зали), `routers/admin.py` | `#manage` хвилі, QR |
 | Digital Questionnaire — анкети 1–3, конструктор, версії | `routers/questionnaires.py`, `routers/respond.py` (вхід або анонімно за QR чи посиланням) | `/q/<код>`, `/s/<токен>`, `#survey`, `#surveys` |
 | Evidence Repository — чек-лист, файли-докази з sha256 | `routers/checklist.py`, `services/evidence.py` | `#checklist` з файлами |
-| Integrity Index Engine — детермінований розрахунок | `services/scoring.py`, `services/methodology.py`, `routers/results.py` | `/explain` розклад індексу, `lib/scoring/` |
-| Executive Dashboard — один екран | `GET /dashboard` | `/` |
-| Comparative Analytics — РГ / ОС / експерти / факти, динаміка | `routers/results.py` (history, compare), `routers/indicators.py` (факти, сигнали ризику) | `/compare`, `/trends`, `/institutions` |
-| Recommendations Engine — явні правила | `services/recommendations.py`, `routers/recommendations.py`, каталог з Додатку Д | `/recommendations`, `lib/recommendations.ts` |
-| Recommendations Tracker — відповідальний, строк, статус | `routers/measures.py`, синхронізація з темою 2 (`routers/integrations.py`) | `/tracker`, `lib/measures.ts` |
-| Audit Trail — журнал дій | `audit.py` (ланцюжок хешів), `GET /admin/audit-log`, `POST /admin/audit-log/verify` | `#audit` з перевіркою |
-| Reporting Module | `GET /campaigns/{id}/report?format=json\|csv` | `/reports` |
+| Integrity Index Engine — детермінований розрахунок | `services/scoring.py`, `services/methodology.py`, `routers/results.py` | `#explain` розклад індексу |
+| Executive Dashboard — один екран | `GET /dashboard` | `#overview` |
+| Comparative Analytics — РГ / ОС / експерти / факти, динаміка | `routers/results.py` (history, compare), `routers/indicators.py` (факти, сигнали ризику) | `#compare`, `#trends`, `#institutions` |
+| Recommendations Engine — явні правила | `services/recommendations.py`, `routers/recommendations.py`, каталог з Додатку Д | `#recs`, `#whatif` «Що, якщо» |
+| Recommendations Tracker — відповідальний, строк, статус | `routers/measures.py`, синхронізація з темою 2 (`routers/integrations.py`) | `#tracker` |
+| Audit Trail — журнал дій | `audit.py` (ланцюжок хешів), `GET /admin/audit-log`, `POST /admin/audit-log/verify`; якір назовні (файл WORM / мітка часу RFC 3161, `services/audit_anchor.py`); перегляди чужих підрозділів — `GET /admin/result-views` | `#audit` з перевіркою; якір і перегляди — API готове |
+| Reporting Module | `GET /campaigns/{id}/report?format=json\|csv\|xlsx\|docx` | `#report` |
 | Кабінет учасника — узагальнені результати свого підрозділу | `GET /me/results`, за посиланням `GET /respond/results` | `#me`, `/s/<токен>` після закриття |
-| Інтеграція з іншими системами | `POST /indicators` (ключ на джерело), тема 2: `/integrations/theme2/*`, вхід через проксі організації (`POST /auth/proxy`), `ROOT_PATH` | `/integrations` карта інтеграції |
+| Інтеграція з іншими системами | `POST /indicators` (ключ на джерело), тема 2: `/integrations/theme2/*`, вхід через проксі організації (`POST /auth/proxy`), `ROOT_PATH` | `#sources` джерела фактів |
 | «Адвокат диявола» — питання аудитора до хвилі за правилами | `GET /campaigns/{id}/devils-advocate` | `#advocate` «Питання перевірки» |
 | Агент-черговий — що впало, чому, як виправити | `GET /agent/digest` | `#watch` «Черговий» |
 | Аналіз нормативки — які пункти зачіпає новий наказ | `POST /normative/analyze` (локальний пошук, без моделей) | `#normative` «Нормативка» |
@@ -81,10 +81,12 @@ flowchart LR
 | Урна з трьома ключами — відповіді розшифрують лише двоє з трьох власників | `services/urn.py`, `routers/urn.py` | — (API готове) |
 | Квитанції — жетон зі сліпим підписом, перевірка «моя відповідь урахована» | `services/ballots.py`, `/campaigns/{id}/questionnaires/{qid}/ballot`, `/respond/ballot`, `/respond/receipts/{квитанція}` | — (API готове) |
 | Детектор Гудхарта, лотерея перевірок, шлях до наступного рівня, брифінг, стійкість ваг | `services/goodhart.py`, `services/planning.py`, `routers/insights_plus.py` | — (API готове) |
-| Довідники (категорії, посади, факти), Департамент, реєстр ризиків, принцип двох осіб, запрошення | `routers/dictionaries.py`, `routers/department.py`, `routers/risks.py`, `services/approvals.py`, `services/invites.py` | — (API готове) |
+| Довідники (категорії, посади, факти з власниками джерел), Департамент, реєстр ризиків, принцип двох осіб, запрошення | `routers/dictionaries.py`, `routers/department.py`, `routers/risks.py`, `services/approvals.py`, `services/invites.py` | — (API готове) |
+| Профіль безпеки — `SECURITY_PROFILE=production` вмикає всі запобіжники разом | `config.py` (`PRODUCTION_PROFILE`), `GET /config` → `policies` | попередження адміну — API готове |
 | Асистент (опційно, вимкнено) | `POST /assistant/ask`, `/api/assistant` (OpenAI-сумісний, `LLM_*`) | кнопка «Асистент» |
 
 Методика індексу — [`docs/integrity-index.md`](docs/integrity-index.md), ролі й API — [`docs/backend.md`](docs/backend.md).
+Що з «API готове» показати на екранах і як — [`docs/frontend-backlog.md`](docs/frontend-backlog.md).
 
 ## Запуск
 
@@ -102,6 +104,7 @@ cp .env.example .env && docker compose up --build   # PostgreSQL + API + UI → 
 |---|---|
 | Умова завдання й Рекомендації НУОУ (Markdown) | [`docs/README.md`](docs/README.md) |
 | Бекенд: ролі, модель даних, API | [`docs/backend.md`](docs/backend.md), [`backend/README.md`](backend/README.md) |
+| Що бекенд уже вміє, а екрана ще немає | [`docs/frontend-backlog.md`](docs/frontend-backlog.md) |
 | Демонстраційний сценарій (результат 2) | [`docs/demo-scenario.md`](docs/demo-scenario.md) |
 | Методика й приклад розрахунку Integrity Index (результат 3) | [`docs/integrity-index.md`](docs/integrity-index.md) |
 | Dashboard керівника (результат 4) | [`docs/dashboard.md`](docs/dashboard.md) |
@@ -111,5 +114,6 @@ cp .env.example .env && docker compose up --build   # PostgreSQL + API + UI → 
 | Економія часу (результат 8) | [`docs/time-savings.md`](docs/time-savings.md) |
 | Карта інтеграції і концепція екосистеми (результати 9 і 12) | [`docs/integration-map.md`](docs/integration-map.md), [`docs/ecosystem.md`](docs/ecosystem.md) |
 | Як ми використали ШІ (результат 11) | [`docs/ai.md`](docs/ai.md) |
-| Фронтенд: дизайн-система, відомі обмеження | [`frontend/docs/DESIGN_SYSTEM.md`](frontend/docs/DESIGN_SYSTEM.md), [`frontend/docs/KNOWN_ISSUES.md`](frontend/docs/KNOWN_ISSUES.md) |
+| Фронтенд (`frontend-proto`, саме він у `docker compose`) | [`frontend-proto/README.md`](frontend-proto/README.md), [`frontend-proto/CLAUDE.md`](frontend-proto/CLAUDE.md) |
+| Попередній фронтенд (`frontend/`, архів, у compose не використовується) | [`frontend/docs/DESIGN_SYSTEM.md`](frontend/docs/DESIGN_SYSTEM.md), [`frontend/docs/KNOWN_ISSUES.md`](frontend/docs/KNOWN_ISSUES.md) |
 | Правила роботи з репозиторієм: гілки, коміти | [`AGENTS.md`](AGENTS.md) |

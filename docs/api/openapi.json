@@ -2072,6 +2072,83 @@
         ]
       }
     },
+    "/api/v1/admin/audit-log/export-anchor": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Export Anchor",
+        "description": "Експортувати голову журналу назовні зараз: файл у AUDIT_ANCHOR_DIR і/або мітка часу RFC 3161.\n\nАвтопілот робить це щодня сам. 409 anchor_disabled — назовнішнє сховище не налаштовано.",
+        "operationId": "export_anchor_api_v1_admin_audit_log_export_anchor_post",
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AnchorOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/admin/audit-log/anchors": {
       "get": {
         "tags": [
@@ -2247,7 +2324,7 @@
           "admin"
         ],
         "summary": "Result Views",
-        "description": "Звіт для аудиту: хто дивився результати дочірніх підрозділів (не кореня хвилі й не свого підрозділу).\n\nЗахист від колективного покарання: систематичний перегляд чужих підрозділів видно.",
+        "description": "Звіт для аудиту: хто дивився результати дочірніх підрозділів (не кореня хвилі й не свого підрозділу).\n\nЗахист від колективного покарання: систематичний перегляд чужих підрозділів видно. Перегляди пише\nensure_unit_access для кожного ендпойнта результатів (дашборд, результати, рекомендації, «Що, якщо», звіти,\nфакти, ризики, «Питання перевірки», асистент). Фільтри: період, хто, роль, підрозділ, хвиля.",
         "operationId": "result_views_api_v1_admin_result_views_get",
         "security": [
           {
@@ -2304,6 +2381,56 @@
                 }
               ],
               "title": "Actor Id"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role"
+            }
+          },
+          {
+            "name": "unit_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "campaign_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Campaign Id"
             }
           },
           {
@@ -12632,7 +12759,7 @@
           "dictionaries"
         ],
         "summary": "List Facts",
-        "description": "Факти методики: вбудовані (methodology.py) і додані в довідник.",
+        "description": "Факти методики: вбудовані (methodology.py) і додані в довідник, з джерелами-власниками.",
         "operationId": "list_facts_api_v1_dictionaries_facts_get",
         "responses": {
           "200": {
@@ -18736,6 +18863,14 @@
             "type": "boolean",
             "title": "Active",
             "default": true
+          },
+          "owner_sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Owner Sources",
+            "description": "Хто передає факт (POST /indicators). Порожньо — будь-яке джерело"
           }
         },
         "type": "object",
@@ -18793,6 +18928,15 @@
             "maxLength": 100,
             "title": "Rest",
             "default": "решта"
+          },
+          "owner_sources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 10,
+            "title": "Owner Sources",
+            "description": "Джерела, яким дозволено передавати факт. Порожньо — будь-яке"
           }
         },
         "additionalProperties": false,
@@ -18961,6 +19105,21 @@
               }
             ],
             "title": "Active"
+          },
+          "owner_sources": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array",
+                "maxItems": 10
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Sources"
           }
         },
         "additionalProperties": false,
@@ -21506,6 +21665,19 @@
           "external_fetch": {
             "type": "boolean",
             "title": "External Fetch"
+          },
+          "security_profile": {
+            "type": "string",
+            "title": "Security Profile",
+            "default": "demo"
+          },
+          "overridden": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Overridden",
+            "default": []
           }
         },
         "type": "object",
@@ -22061,6 +22233,18 @@
             "type": "integer",
             "title": "Completed",
             "description": "Скільки з них завершено; різниця — покинуті форми"
+          },
+          "over_expected": {
+            "type": "boolean",
+            "title": "Over Expected",
+            "description": "Завершено більше, ніж людей у групі: можлива накрутка",
+            "default": false
+          },
+          "scan_limit_reached": {
+            "type": "boolean",
+            "title": "Scan Limit Reached",
+            "description": "Відкрито стільки форм, скільки дозволяє ліміт: нові скани не пускає",
+            "default": false
           }
         },
         "type": "object",

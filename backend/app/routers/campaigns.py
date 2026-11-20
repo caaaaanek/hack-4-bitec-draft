@@ -708,7 +708,9 @@ def qr_out(db: Session, link: QrLink) -> QrLinkOut:
     questionnaire = db.get(Questionnaire, link.questionnaire_id)
     return QrLinkOut(id=link.id, questionnaire_id=link.questionnaire_id, questionnaire_title=questionnaire.title,
                      unit_id=link.unit_id, expected=link.expected, code=link.code, link=qr_link(link.code),
-                     revoked=link.revoked, opened=opened, completed=completed)
+                     revoked=link.revoked, opened=opened, completed=completed,
+                     over_expected=completed > link.expected,
+                     scan_limit_reached=opened >= link.expected * token_service.QR_OPEN_FACTOR)
 
 
 def qr_link(code: str) -> str:

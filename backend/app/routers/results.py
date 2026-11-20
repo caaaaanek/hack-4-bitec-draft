@@ -13,7 +13,7 @@ from app.models import Campaign, CampaignStatus, Role, Unit, User
 from app.schemas import UnitOut
 from app.schemas_results import CampaignResultsOut, CompareOut, HistoryOut, ParticipantResultOut
 from app.routers.respond import TOKEN_HEADER, token_throttle
-from app.security import RESULT_READERS, client_ip, ensure_unit_access, get_current_user, record_view, require_roles
+from app.security import RESULT_READERS, client_ip, ensure_unit_access, get_current_user, require_roles
 from app.services import categories, fact_registry, methodology, results, tokens
 from app.services.eligibility import frozen_of, is_eligible, participants_of
 from app.services.units import subtree_ids
@@ -62,12 +62,11 @@ def campaign_results(
     За замовчуванням береться незмінний знімок, зроблений при закритті хвилі.
     """
     campaign = closed_campaign(db, campaign_id)
-    ensure_unit_access(db, user, unit_id or campaign.unit_id)
+    ensure_unit_access(db, user, unit_id or campaign.unit_id, campaign_id=campaign.id, root_id=campaign.unit_id)
     try:
         data = results.results_for(db, campaign, unit_id, recalculate)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
-    record_view(db, user, uuid.UUID(data["unit_id"]), campaign.id, "results", campaign.unit_id)
     db.commit()
     # Звичайні перегляди не журналюються: кожен запис блокує голову ланцюжка (AuditHead FOR UPDATE), і паралельні
     # читання ставали б у чергу, а журнал засмічувався б переглядами. Перерахунок за поточною методикою — дія, її пишемо.
@@ -102,7 +101,6 @@ def unit_or_404(db: Session, unit_id: uuid.UUID, user: User | None = None) -> Un
 def unit_history(unit_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(can_view)):
     """Динаміка підрозділу за всі хвилі: лише порівняння із самим собою."""
     unit = unit_or_404(db, unit_id, user)
-    record_view(db, user, unit_id, None, "history", None if unit.parent_id else unit_id)
     db.commit()
     points = []
     previous = None
@@ -139,7 +137,6 @@ def compare_waves(
 ):
     """Порівняння двох будь-яких хвиль одного підрозділу (картки з дельтами і радар 'було / стало')."""
     unit = unit_or_404(db, unit_id, user)
-    record_view(db, user, unit_id, to_campaign, "compare", None if unit.parent_id else unit_id)
     db.commit()
     before = results.get_snapshot(db, from_campaign, unit_id)
     after = results.get_snapshot(db, to_campaign, unit_id)

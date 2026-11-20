@@ -15,7 +15,7 @@ from app.routers.indicators import RiskSignal
 from app.routers.measures import MeasureStats
 from app.routers.recommendations import RecommendationOut, with_decisions
 from app.schemas_results import IndexOut, Level, Significance, Zone
-from app.security import RESULT_READERS, ensure_unit_access, record_view, require_roles
+from app.security import RESULT_READERS, ensure_unit_access, require_roles
 from app.services import facts, results
 from app.services import measures as measures_service
 from app.services.recommendations import recommend
@@ -111,13 +111,12 @@ def dashboard(
                        hint="Департамент дивиться кожен заклад окремо: GET /department/institutions.")
     campaign = pick_campaign(db, campaign_id, unit_id)
     scope_id = unit_id or campaign.unit_id
-    ensure_unit_access(db, user, scope_id)
+    ensure_unit_access(db, user, scope_id, campaign_id=campaign.id, root_id=campaign.unit_id)
     try:
         data = results.results_for(db, campaign, scope_id)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
     scope = uuid.UUID(data["unit_id"])
-    record_view(db, user, scope, campaign.id, "dashboard", campaign.unit_id)
     db.commit()
     # Той самий поріг k, що й в індексі хвилі (а не загальний за замовчуванням).
     signals = facts.risk_signals(db, scope, 3, campaign.closed_on, campaign.min_group_size)

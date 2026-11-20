@@ -135,7 +135,7 @@ def ask(data: AskIn, db: Session = Depends(get_db), user: User = Depends(require
     url, model = target()
     check_allowed(url, model)
     campaign = closed_campaign(db, data.campaign_id)
-    ensure_unit_access(db, user, data.unit_id or campaign.unit_id)
+    ensure_unit_access(db, user, data.unit_id or campaign.unit_id, campaign_id=campaign.id, root_id=campaign.unit_id)
     result, recs = build(db, campaign, data.unit_id)
     context = build_context(result, recs)
     prompt = (

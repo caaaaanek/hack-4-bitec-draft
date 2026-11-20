@@ -52,6 +52,8 @@ services:
       # Мережа стеку Coolify: IP клієнта для лімітів спроб беремо з X-Forwarded-For лише від nginx фронтенду.
       FORWARDED_PROXIES: 172.16.0.0/12,192.168.0.0/16,10.0.0.0/8
       EXTERNAL_FETCH_ENABLED: "true"
+      # demo для показу; production вмикає всі запобіжники безпеки разом (docs/backend.md, «Профіль безпеки»)
+      SECURITY_PROFILE: ${SECURITY_PROFILE:-demo}
     volumes:
       - evidence:/data/evidence
     depends_on:

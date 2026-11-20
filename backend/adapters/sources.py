@@ -8,6 +8,7 @@
 """
 
 import json
+import os
 import random
 from collections.abc import Iterable
 from datetime import date, timedelta
@@ -129,12 +130,18 @@ class Atestat(Source):
         return {"declarations": declarations, "appointments": appointments}
 
     def facts(self, data, periods, as_of):
-        declarations = [r for r in data["declarations"] if date.fromisoformat(r["due_on"]) < as_of]
-        return tally(declarations, source=self.name, indicator="declarations_on_time", when="due_on", periods=periods,
-                     ok=lambda r: r["submitted_on"] is not None and r["submitted_on"] <= r["due_on"],
-                     why="Атестація: декларацію подано до строку") + \
-            tally(data["appointments"], source=self.name, indicator="hiring_checks", when="appointed_on", periods=periods,
-                  ok=lambda a: a["integrity_check"] == "done", why="Атестація: призначення з перевіркою доброчесності")
+        # «Декларації вчасно» передає модуль «Перевірки» (власник факту, fact_registry.BUILTIN_OWNERS):
+        # він рахує їх із реєстру декларацій НАЗК. Якщо в розгортанні власником призначено кадрову ІС
+        # (FACT_OWNERS="declarations_on_time=atestat"), запустіть адаптер з ATESTAT_SEND_DECLARATIONS=1.
+        out = tally(data["appointments"], source=self.name, indicator="hiring_checks", when="appointed_on",
+                    periods=periods, ok=lambda a: a["integrity_check"] == "done",
+                    why="Атестація: призначення з перевіркою доброчесності")
+        if os.environ.get("ATESTAT_SEND_DECLARATIONS") == "1":
+            declarations = [r for r in data["declarations"] if date.fromisoformat(r["due_on"]) < as_of]
+            out += tally(declarations, source=self.name, indicator="declarations_on_time", when="due_on",
+                         periods=periods, ok=lambda r: r["submitted_on"] is not None and r["submitted_on"] <= r["due_on"],
+                         why="Атестація: декларацію подано до строку")
+        return out
 
 
 class Training(Source):

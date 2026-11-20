@@ -63,15 +63,21 @@ services:
       EXTERNAL_FETCH_ENABLED: ${EXTERNAL_FETCH_ENABLED:-true}
       COUNTERPARTY_API_URL: ${COUNTERPARTY_API_URL:-}
       COUNTERPARTY_API_KEY: ${COUNTERPARTY_API_KEY:-}
-      # Ролі й безпека (docs/role-workflows.md): див. .env.example
+      # Ролі й безпека (docs/role-workflows.md): див. .env.example.
+      # SECURITY_PROFILE=production вмикає всі запобіжники разом; окремі змінні нижче порожні за замовчуванням,
+      # тож значення бере профіль, а явно задана змінна його перекриває.
+      SECURITY_PROFILE: ${SECURITY_PROFILE:-demo}
       CHECKLIST_CONFIRMERS: ${CHECKLIST_CONFIRMERS:-commissioner,auditor}
-      SEPARATE_TECH_ADMIN: ${SEPARATE_TECH_ADMIN:-false}
+      SEPARATE_TECH_ADMIN: ${SEPARATE_TECH_ADMIN:-}
       ORG_KIND: ${ORG_KIND:-institution}
-      LEADER_CHILD_DETAILS: ${LEADER_CHILD_DETAILS:-false}
-      ADMIN_SETS_PASSWORDS: ${ADMIN_SETS_PASSWORDS:-true}
+      LEADER_CHILD_DETAILS: ${LEADER_CHILD_DETAILS:-}
+      ADMIN_SETS_PASSWORDS: ${ADMIN_SETS_PASSWORDS:-}
       INVITE_TTL_HOURS: ${INVITE_TTL_HOURS:-72}
-      FOUR_EYES_ENABLED: ${FOUR_EYES_ENABLED:-false}
-      STAFF_TOKEN_ONLY: ${STAFF_TOKEN_ONLY:-false}
+      FOUR_EYES_ENABLED: ${FOUR_EYES_ENABLED:-}
+      STAFF_TOKEN_ONLY: ${STAFF_TOKEN_ONLY:-}
+      FACT_OWNERS: ${FACT_OWNERS:-}
+      AUDIT_ANCHOR_DIR: ${AUDIT_ANCHOR_DIR:-}
+      AUDIT_ANCHOR_TSA_URL: ${AUDIT_ANCHOR_TSA_URL:-}
       CANDOR_MIN_PER_VARIANT: ${CANDOR_MIN_PER_VARIANT:-30}
       # Автопілот хвиль: крок кожні N секунд (0 — лише вручну, POST /api/v1/autopilot/tick)
       AUTOPILOT_INTERVAL_SECONDS: ${AUTOPILOT_INTERVAL_SECONDS:-300}

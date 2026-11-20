@@ -121,7 +121,7 @@ def devils_advocate_questions(
     campaign = closed_campaign(db, campaign_id)
     if unit_id is None and user.role == Role.LEADER:
         unit_id = user.unit_id
-    ensure_unit_access(db, user, unit_id or campaign.unit_id)
+    ensure_unit_access(db, user, unit_id or campaign.unit_id, campaign_id=campaign.id, root_id=campaign.unit_id)
     data, recs = build(db, campaign, unit_id)
     scope = uuid.UUID(data["unit_id"])
     signals = facts.risk_signals(db, scope, 3, campaign.closed_on, campaign.min_group_size)

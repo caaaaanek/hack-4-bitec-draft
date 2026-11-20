@@ -41,7 +41,7 @@ def what_if_scenario(campaign_id: uuid.UUID, data: WhatIfIn, db: Session = Depen
         raise HTTPException(status_code=404, detail="Хвилю не знайдено")
     if campaign.status != CampaignStatus.CLOSED:
         raise ApiError(409, "Сценарій доступний після закриття хвилі", code="campaign_not_closed")
-    ensure_unit_access(db, user, data.unit_id or campaign.unit_id)
+    ensure_unit_access(db, user, data.unit_id or campaign.unit_id, campaign_id=campaign.id, root_id=campaign.unit_id)
     try:
         return what_if.simulate(db, campaign, data.unit_id, data.measure_ids, data.checklist, data.facts, data.levers)
     except what_if.WhatIfError as e:

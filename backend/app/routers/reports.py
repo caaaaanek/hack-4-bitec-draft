@@ -18,7 +18,7 @@ from app.audit import log_action
 from app.db import get_db
 from app.models import Measure, User
 from app.routers.recommendations import build, closed_campaign, with_decisions
-from app.security import RESULT_READERS, ensure_unit_access, require_roles, record_view
+from app.security import RESULT_READERS, ensure_unit_access, require_roles
 from app.services import measures as measures_service
 from app.services import report_export, report_g, report_templates
 from app.services.safe_export import SafeCsvWriter
@@ -119,10 +119,9 @@ def campaign_report(
     Розділ `appendix_g`: крос-таблиці РГ / ОС / експерти, збіги й розбіжності, висновок, пропозиції.
     PDF друкує фронтенд (print.css)."""
     campaign = closed_campaign(db, campaign_id)
-    ensure_unit_access(db, user, unit_id or campaign.unit_id)
+    ensure_unit_access(db, user, unit_id or campaign.unit_id, campaign_id=campaign.id, root_id=campaign.unit_id)
     report = report_data(db, campaign, unit_id)
     report["template"] = report_templates.describe(template)
-    record_view(db, user, unit_id or campaign.unit_id, campaign.id, "report", campaign.unit_id)
     log_action(db, user, "export_report", "campaign", campaign.id,
                {"unit_id": str(unit_id or campaign.unit_id), "format": format, "template": template})
     db.commit()
