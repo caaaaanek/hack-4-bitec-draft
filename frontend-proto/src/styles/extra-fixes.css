@@ -78,3 +78,8 @@
 .seg.seg-full button { flex: 1; }
 .unit-pick { display: flex; flex-direction: column; gap: 12px; }
 .unit-pick .field { margin: 0; }
+/* Текст пігулок і бейджів темніший за фон (не менше 4,5:1 у світлій темі): колір змішано з основним текстом */
+.p-good { color: color-mix(in srgb, var(--teal-deep) 60%, var(--fg)); }
+.p-warn { color: color-mix(in srgb, var(--amber) 60%, var(--fg)); }
+.p-bad, .nav a .badge { color: color-mix(in srgb, var(--red) 60%, var(--fg)); }
+.p-info { color: color-mix(in srgb, var(--blue) 60%, var(--fg)); }
