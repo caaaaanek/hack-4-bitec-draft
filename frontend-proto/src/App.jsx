@@ -201,7 +201,7 @@ export default function App() {
   const mini = html.classList.contains("side-mini"), u = API.user;
   const [q, setQ] = useState(""), [sel, setSel] = useState(0), qRef = useRef(null), box = useRef(null);
   const hits = searchHits(q), ns = notesState();
-  const navAll = NAV.filter(n => n[3].includes(S.role) && (n[0] !== "approvals" || fourEyes()) && (n[0] !== "urn" || S.role === "auditor")), simple = simpleMode() && navAll.some(n => n[0] === "overview") && navAll.some(n => !SIMPLE_ROUTES.includes(n[0]));
+  const navAll = NAV.filter(n => n[3].includes(S.role) && (n[0] !== "approvals" || fourEyes()) && (n[0] !== "urn" || S.role === "auditor")), simple = simpleMode() && navAll.some(n => n[0] === "overview") && navAll.some(n => !simpleRoute(n[0]));
   const navG = navGroups(simple ? navAll.filter(n => simpleRoute(n[0])) : navAll);
   html.dataset.role = S.role;
   useEffect(() => {
