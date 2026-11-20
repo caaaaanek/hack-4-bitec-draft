@@ -15,6 +15,7 @@ import { bldFromServer, bldNewSec } from "./Builder.jsx";
 import { AutopilotSection } from "./Autopilot.jsx";
 import { DeptInstitutions, ChooseInst } from "./Department.jsx";
 import { AnchorCard, LotteryCard } from "./Transparency.jsx";
+import { UrnSection } from "./Urn.jsx";
 import { LearnCard } from "./Learn.jsx";
 
 export function apiView(r) {
@@ -152,6 +153,7 @@ function ApiManage() {
       </div>)}</div>}
     </section>}
     {c && <AutopilotSection key={c.id} id={c.id} />}
+    {c && <UrnSection key={"urn" + c.id} c={c} />}
     {shown && <QrScreen l={shown} onClose={hideQr} />}
   </>;
 }

@@ -23,8 +23,9 @@ import { Normative } from "./views/Normative.jsx";
 import { Checks } from "./views/Checks.jsx";
 import { ResultViews } from "./views/Oversight.jsx";
 import { Approvals, fourEyes, useApprovals } from "./views/Transparency.jsx";
+import { UrnScreen } from "./views/Urn.jsx";
 
-const V = { approvals: Approvals, views: ResultViews, learn: Learn, watch: Watch, advocate: Advocate, autopilot: Autopilot, normative: Normative, checks: Checks, overview: Overview, explain: Explain, trends: Trends, compare: Compare, whatif: WhatIf, recs: Recs, tracker: Tracker, sources: Sources, report: Report, manage: Manage, surveys: Surveys, checklist: Checklist, audit: Audit, survey: Survey, me: Me, institutions: Institutions };
+const V = { urn: UrnScreen, approvals: Approvals, views: ResultViews, learn: Learn, watch: Watch, advocate: Advocate, autopilot: Autopilot, normative: Normative, checks: Checks, overview: Overview, explain: Explain, trends: Trends, compare: Compare, whatif: WhatIf, recs: Recs, tracker: Tracker, sources: Sources, report: Report, manage: Manage, surveys: Surveys, checklist: Checklist, audit: Audit, survey: Survey, me: Me, institutions: Institutions };
 const html = document.documentElement;
 
 /* ---------- Маршрут: що зробити при переході ---------- */
@@ -189,7 +190,7 @@ export default function App() {
   const mini = html.classList.contains("side-mini"), u = API.user;
   const [q, setQ] = useState(""), [sel, setSel] = useState(0), qRef = useRef(null), box = useRef(null);
   const hits = searchHits(q), ns = notesState();
-  const navAll = NAV.filter(n => n[3].includes(S.role) && (n[0] !== "approvals" || fourEyes())), simple = simpleMode() && navAll.some(n => n[0] === "overview");
+  const navAll = NAV.filter(n => n[3].includes(S.role) && (n[0] !== "approvals" || fourEyes()) && (n[0] !== "urn" || ["auditor", "commissioner"].includes(S.role))), simple = simpleMode() && navAll.some(n => n[0] === "overview");
   const navG = navGroups(simple ? navAll.filter(n => SIMPLE_ROUTES.includes(n[0])) : navAll);
   html.dataset.role = S.role;
   useEffect(() => {

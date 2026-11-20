@@ -7,6 +7,7 @@ import { API, apiSubmitSurvey } from "../lib/api.js";
 import { COMPS, COMP, FACTS, GROUPS, UNITS, UNIT_RESP, UNIT_CR, ALPHA, factValue, inst, level, indexOf, resolveUnit, CYCLE, TODAY_UA } from "../lib/model.js";
 import { fb, f1, dsh } from "../lib/format.js";
 import { PrivacyNote } from "./Privacy.jsx";
+import { UrnDemo } from "./Urn.jsx";
 import { render, toast, openDrawer, closeDrawer } from "../lib/store.js";
 import { Pill, LvPill, Num, LevelBar, Ticks } from "../components/ui.jsx";
 
@@ -47,6 +48,7 @@ export function Manage() {
         {rows.map(([c, p, kk, t, st]) => <tr key={c}><td><b>{c}</b></td><td>{p}</td><td className="tnum">{kk}</td><td className="tnum">{t}</td><td><Pill cls={st[1]}>{st[0]}</Pill></td></tr>)}
       </tbody></table></div>
     </section>
+    <UrnDemo />
   </>;
 }
 
