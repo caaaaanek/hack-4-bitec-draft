@@ -26,7 +26,7 @@
 .rt-chips { display: flex; gap: 6px; flex-wrap: wrap; }
 .rt-chips .pill-btn { padding: 5px 10px; font-size: 12px; }
 .rt-ask { display: flex; gap: 8px; align-items: flex-end; }
-.rt-ask textarea { flex: 1; resize: vertical; min-height: 40px; font: inherit; }
+.rt-ask textarea { flex: 1; resize: vertical; min-height: 40px; }
 .rt-ask .btn { padding: 10px; }
 .rt-wait { display: flex; align-items: center; gap: 8px; color: var(--muted); animation: rtPulse 1.2s ease-in-out infinite; }
 @keyframes rtPulse { 50% { opacity: .45; } }

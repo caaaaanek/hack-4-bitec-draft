@@ -34,7 +34,7 @@ body.bld-open { overflow: hidden; }
 .bld-add-s { align-self: stretch; justify-content: center; }
 .bld-more summary { cursor: pointer; color: var(--teal-deep); font-weight: 600; font-size: 13px; }
 .bld-more textarea { margin-top: 8px; width: 100%; }
-.bld-q textarea.inp, .bld-meta textarea.inp { width: 100%; resize: vertical; font-family: inherit; }
+.bld-q textarea.inp, .bld-meta textarea.inp { width: 100%; resize: vertical; }
 .bld-note { border-radius: 12px; padding: 14px 16px; line-height: 1.5; background: var(--soft); }
 .bld-note.warn { background: var(--amber-soft); }
 .bld-note.ok { background: var(--teal-soft); }
