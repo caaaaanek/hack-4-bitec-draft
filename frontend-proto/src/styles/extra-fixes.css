@@ -108,3 +108,9 @@ html.dlg-open { overflow: hidden; }
 .rtabs a:focus-visible { outline: 2px solid var(--teal-deep); outline-offset: 1px; }
 .nav-all { margin: 10px 10px 0; text-align: left; font-size: 12.5px; }
 @media (min-width: 901px) { html.side-mini .nav-all { display: none; } }
+/* Дробова частина великих чисел: частина значення, тож контраст як у підписів (не світло-сірий) */
+.dec { color: var(--muted); }
+/* Аватар і пігулка рівня: темніший текст на світло-бірюзовому фоні */
+.avatar, .pill.lv3, .pill.lv4 { color: color-mix(in srgb, var(--teal-deep) 60%, var(--fg)); }
+.pill.lv1 { color: color-mix(in srgb, var(--red) 60%, var(--fg)); }
+.pill.lv2 { color: color-mix(in srgb, var(--amber) 60%, var(--fg)); }

@@ -13,7 +13,7 @@ import { openApiQ, openMeasure, openSource, srcRows, MODE } from "./panels.jsx";
 import { ReadGuide } from "./results.jsx";
 
 const enter = f => e => { if (e.key === "Enter") f(e); };
-const Err = ({ t, hint, red }) => <span className="lbl" id="f-err" style={red || t ? { color: "var(--red)" } : undefined}>{t || hint}</span>;
+const Err = ({ t, hint, red }) => <span className="lbl" id="f-err" style={red || t ? { color: "color-mix(in srgb, var(--red) 60%, var(--fg))" } : undefined}>{t || hint}</span>;
 
 /* Рекомендації */
 export function Recs() {
@@ -129,7 +129,7 @@ export function Tracker() {
       onDragStart={mv ? e => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", x.id); setDrag({ id: x.id, st: x.st }); } : undefined} onDragEnd={() => { setDrag(null); setOver(null); }}
       onClick={e => open(e, x.id)} onKeyDown={enter(e => open(e, x.id))}>
       <b>{x.t}</b><span className="lbl">{x.who}</span>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, flexWrap: "wrap" }}><span className="lbl tnum" style={dd ? { color: "var(--red)", fontWeight: 600 } : undefined}>Строк: {ua(x.due)}</span>{dd > 0 && <Pill cls="p-bad nodot">+{dd} {daysWord(dd)}</Pill>}</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, flexWrap: "wrap" }}><span className="lbl tnum" style={dd ? { color: "color-mix(in srgb, var(--red) 60%, var(--fg))", fontWeight: 600 } : undefined}>Строк: {ua(x.due)}</span>{dd > 0 && <Pill cls="p-bad nodot">+{dd} {daysWord(dd)}</Pill>}</div>
       {mv ? <div className="seg sm">{M_NEXT[x.st].map(s => <button key={s} onClick={() => setMSt(x.id, s)}><Ic n="arrowR" />{M_ST[s][0]}</button>)}</div> : null}
     </div>; }) : <div className="lbl" style={{ padding: 8 }}>Порожньо</div>}
   </div>; })}</section>;
@@ -144,7 +144,7 @@ export function Tracker() {
       : <section className="card c12 rise"><div className="tbl-wrap"><table><thead><tr><th>Захід</th><th>Відповідальна посада</th><th>Строк</th><th>Статус</th><th>Верифікація</th><th>Змінити статус</th></tr></thead><tbody>
         {list.map(x => { const dd = overdueDays(x); return <tr key={x.id} className="tr-click" tabIndex={0} onClick={e => open(e, x.id)} onKeyDown={e => { if (e.key === "Enter" && !e.target.closest("button")) openMeasure(x.id); }}>
           <td style={{ minWidth: 220 }}><b style={{ fontWeight: 600 }}>{x.t}</b><div className="lbl">З рекомендації: {x.rec}</div>{x.ext && <div className="lbl">{x.ext.t}{x.ext.docs.length ? ` · документів: ${x.ext.docs.length}` : ""}</div>}</td><td style={{ minWidth: 160 }}>{x.who}</td>
-          <td className="tnum" style={{ whiteSpace: "nowrap" }}>{dd ? <><span style={{ color: "var(--red)", fontWeight: 600 }}>{ua(x.due)}</span><div className="lbl" style={{ color: "var(--red)" }}>прострочено на {dd} {daysWord(dd)}</div></> : ua(x.due)}</td>
+          <td className="tnum" style={{ whiteSpace: "nowrap" }}>{dd ? <><span style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))", fontWeight: 600 }}>{ua(x.due)}</span><div className="lbl" style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))" }}>прострочено на {dd} {daysWord(dd)}</div></> : ua(x.due)}</td>
           <td><Pill cls={M_ST[x.st][1]}>{M_ST[x.st][0]}</Pill></td><td><Pill cls={verif(x)[1] + " nodot"}>{verif(x)[0]}</Pill></td><td>{actCell(x)}</td></tr>; })}
       </tbody></table></div></section>}
     <section className="card c12 rise vf">

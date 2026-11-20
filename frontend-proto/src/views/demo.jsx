@@ -117,7 +117,7 @@ function editFact(id) {
         ? <div style={{ display: "flex", gap: 10 }}><div className="field" style={{ flex: 1 }}><label htmlFor="f-num">Кількість</label><input className="inp tnum" type="number" min="0" id="f-num" value={num} onChange={e => setNum(e.target.value)} /></div><div className="field" style={{ flex: 1 }}><label htmlFor="f-den">З них усього</label><input className="inp tnum" type="number" min="1" id="f-den" value={den} onChange={e => setDen(e.target.value)} /></div></div>
         : <div className="field"><label>Рівень за анкетою чек-листа</label><div className="seg" id="f-lvl">{[1, 2, 3, 4, 5].map(l => <button key={l} type="button" className={l === lvl ? "on" : ""} onClick={() => setLvl(l)}>{l}</button>)}</div><span className="lbl">Рівень переводиться у шкалу 0-100: рівень 1 це 0, рівень 5 це 100.</span></div>}
       <div className="field"><label htmlFor="f-src">Джерело (документ, реєстр)</label><input className="inp" id="f-src" value={src} onChange={e => setSrc(e.target.value)} /></div>
-      <span className="lbl" id="f-err" style={err ? { color: "var(--red)" } : undefined}>{err}</span>
+      <span className="lbl" id="f-err" style={err ? { color: "color-mix(in srgb, var(--red) 60%, var(--fg))" } : undefined}>{err}</span>
       <button className="btn btn-primary" id="f-ok" style={{ justifyContent: "center" }} onClick={ok}><Ic n="send" />Надіслати на підтвердження</button>
     </>;
   });

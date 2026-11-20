@@ -136,7 +136,7 @@ function Login() {
       {a.password && <form id="lf" style={{ display: "flex", flexDirection: "column", gap: 12, marginTop: 10 }} onSubmit={submit}>
         <div className="field"><label htmlFor="lu">Логін</label><input className="inp" id="lu" autoComplete="username" required ref={lu} value={u} onChange={e => setU(e.target.value)} /></div>
         <div className="field"><label htmlFor="lp">Пароль</label><input className="inp" id="lp" type="password" autoComplete="current-password" required ref={lp} value={p} onChange={e => setP(e.target.value)} /></div>
-        <span className="lbl" id="lerr" style={{ color: "var(--red)" }}>{err}</span>
+        <span className="lbl" id="lerr" style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))" }}>{err}</span>
         <button className="btn btn-primary" type="submit" style={{ justifyContent: "center" }} disabled={busy}>Увійти <Ic n="arrowR" /></button>
       </form>}
       {a.proxy && <button className="btn btn-soft" id="lproxy" style={{ justifyContent: "center", marginTop: 10 }} onClick={loginProxy}>Увійти через систему організації</button>}

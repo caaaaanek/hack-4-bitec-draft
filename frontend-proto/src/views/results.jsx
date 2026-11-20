@@ -78,7 +78,7 @@ export function Overview() {
         sub={<>{TRUST[m.trust][1]}<br /><span className="lbl">Прапорці: {m.raised.length}</span></>} />
       {S.role === "observer"
         ? <Tile ic="users" title="Відповідей у циклі" big={<span className="mid tnum">{m.responses}</span>} sub={<span className="lbl">Мінімальна група k = {S.k}</span>} act={openResp} info={openRespHow} tip="Що таке мінімальна група k" />
-        : <Tile ic="target" title="Заходи в трекері" big={<span className="mid tnum">{ms.length}</span>} sub={od ? <span style={{ color: "var(--red)", fontWeight: 600 }}>З них {od} прострочено</span> : <span className="lbl">Прострочених немає</span>} act={can("tracker") ? () => go("tracker") : undefined} info={openTrackerHow} tip="Як працює трекер заходів" />}
+        : <Tile ic="target" title="Заходи в трекері" big={<span className="mid tnum">{ms.length}</span>} sub={od ? <span style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))", fontWeight: 600 }}>З них {od} прострочено</span> : <span className="lbl">Прострочених немає</span>} act={can("tracker") ? () => go("tracker") : undefined} info={openTrackerHow} tip="Як працює трекер заходів" />}
     </div>
     <CandorCard />
     <section className="card c8 rise" id="attn">
@@ -310,7 +310,7 @@ export function Compare() {
           <div className="track"><div className={`gap ${gap > CAP ? "bad" : ""}`} style={{ left: `${lo}%`, width: `${hi - lo}%`, animationDelay: `${i * 80}ms` }} />
             {vals.map(([s, v], j) => <span key={s} className={`m mk ${s}`} style={{ left: `${v}%`, animationDelay: `${200 + i * 80 + j * 60}ms` }} data-tip={`${SRC[s][0]}: ${fb(v)}`} />)}
             <span className="m mk f" style={{ left: `${c.F}%`, animationDelay: `${400 + i * 80}ms` }} data-tip={`Факти: ${fb(c.F)}`} /></div>
-          <b className="tnum" style={{ textAlign: "right", color: gap > CAP ? "var(--red)" : "var(--fg)" }} data-tip="Самооцінка мінус факти">{gap > 0 ? "+" : ""}{fb(gap)}</b></div>;
+          <b className="tnum" style={{ textAlign: "right", color: gap > CAP ? "color-mix(in srgb, var(--red) 60%, var(--fg))" : "var(--fg)" }} data-tip="Самооцінка мінус факти">{gap > 0 ? "+" : ""}{fb(gap)}</b></div>;
       })}
       <div className="db-axis lbl tnum"><span /><div><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div><span /></div>
     </section>

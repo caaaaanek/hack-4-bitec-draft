@@ -202,7 +202,7 @@ function apiNewCampaign() {
       <div className="field"><label>Анкети</label>{A.qs.map(q => <label key={q.id} className="chk-row"><input type="checkbox" className="n-q" value={q.id} checked={ids.includes(q.id)} onChange={e => setIds(v => e.target.checked ? [...v, q.id] : v.filter(x => x !== q.id))} /><span>{q.title} <span className="lbl">v{q.version}</span></span></label>)}</div>
       <div className="field"><label>Як проходять</label><div className="seg seg-full" id="n-m">{[["token", "Анонімно за QR"], ["login", "За обліковими записами"]].map(([m, n]) => <button key={m} type="button" className={mode === m ? "on" : ""} onClick={() => setMode(m)}>{n}</button>)}</div><span className="lbl" id="n-mh">{MODE_HINT[mode]}</span></div>
       <div className="field"><label htmlFor="n-k">Мінімальна група k</label><input className="inp tnum" id="n-k" type="number" min="5" value={k} onChange={e => setK(e.target.value)} /><span className="lbl">Менші групи не показуються. Не менше 5.</span></div>
-      <span className="lbl" id="n-err" style={{ color: "var(--red)" }}>{err}</span>
+      <span className="lbl" id="n-err" style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))" }}>{err}</span>
       <button className="btn btn-primary" id="n-ok" style={{ justifyContent: "center" }} onClick={ok}><Ic n="plus" />Створити чернетку</button>
     </>;
   });
@@ -261,7 +261,7 @@ function bldNew() {
       <div className="field"><label htmlFor="bn-c">Код</label><input className="inp" id="bn-c" placeholder="kursanty-survey" value={code} onChange={e => { setCode(e.target.value); setTouched(true); }} /><span className="lbl">Латиницею, цифри, дефіс. За кодом пов'язуються версії анкети.</span></div>
       <div className="field"><label htmlFor="bn-g">Для кого</label><select className="inp" id="bn-g" value={g} onChange={e => setG(e.target.value)}>{Object.entries(QCAT).map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select></div>
       <div className="field"><label htmlFor="bn-k">Вид</label><select className="inp" id="bn-k" value={kind} onChange={e => setKind(e.target.value)}><option value="survey">Анкета зрілості</option><option value="checklist">Чек-лист</option></select></div>
-      <span className="lbl" id="bn-err" style={{ color: "var(--red)" }}>{err}</span>
+      <span className="lbl" id="bn-err" style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))" }}>{err}</span>
       <button className="btn btn-primary" id="bn-ok" style={{ justifyContent: "center" }} onClick={ok}><Ic n="plus" />Створити й відкрити конструктор</button>
     </>;
   });
@@ -308,7 +308,7 @@ function apiEditItem(qid) {
       <div className="field"><label htmlFor="e-ev">Доказ (документ, наказ, посилання)</label><textarea className="inp" id="e-ev" rows="3" value={ev} onChange={e => setEv(e.target.value)} /></div>
       <div className="field"><label htmlFor="e-cm">Коментар</label><input className="inp" id="e-cm" value={cm} onChange={e => setCm(e.target.value)} /></div>
       <div className="field"><label htmlFor="e-f">Файл-доказ (PDF, зображення, документ; до {Math.round(API.cfg.evidence.max_bytes / 1048576)} МБ)</label><input className="inp" id="e-f" type="file" accept={API.cfg.evidence.allowed_extensions.map(x => "." + x).join(",")} onChange={e => setFile(e.target.files[0] || null)} /></div>
-      <span className="lbl" id="e-err" style={{ color: "var(--red)" }}>{err}</span>
+      <span className="lbl" id="e-err" style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))" }}>{err}</span>
       <button className="btn btn-primary" id="e-ok" style={{ justifyContent: "center" }} onClick={ok}><Ic n="send" />Зберегти</button>
     </>;
   });
