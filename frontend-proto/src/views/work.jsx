@@ -7,7 +7,7 @@ import { COMPS, COMP, PRI, REC_ST, REC_NEXT, POSITIONS, BASE_MEASURES, M_ST, M_N
 import { ua } from "../lib/format.js";
 import { render, toast, openDrawer, closeDrawer } from "../lib/store.js";
 import { can } from "../lib/nav.js";
-import { Pill, LvPill, TrustPill, Num, Delta } from "../components/ui.jsx";
+import { Pill, LvPill, TrustPill } from "../components/ui.jsx";
 import { DatePicker } from "../components/DatePicker.jsx";
 import { openApiQ, openMeasure, openSource, srcRows, MODE } from "./panels.jsx";
 import { ReadGuide } from "./results.jsx";
@@ -180,7 +180,8 @@ export function Sources() {
 export function Institutions() {
   const q = S.instQ.trim().toLowerCase(), arch = S.insts.archived;
   const all = INSTITUTIONS().filter(m => !q || m.name.toLowerCase().includes(q) || (m.edrpou || "").includes(q));
-  const list = all.filter(m => S.instArch ? arch.includes(m.id) : !arch.includes(m.id)), nArch = INSTITUTIONS().filter(m => arch.includes(m.id)).length;
+  // Порядок за кодом ЄДРПОУ, а не за назвою чи рівнем: випадковий збіг порядку з рівнями читався б як рейтинг
+  const list = all.filter(m => S.instArch ? arch.includes(m.id) : !arch.includes(m.id)).sort((a, b) => String(a.edrpou || "").localeCompare(String(b.edrpou || ""))), nArch = INSTITUTIONS().filter(m => arch.includes(m.id)).length;
   const menu = m => <button type="button" className="icon-btn inst-more" aria-label="Керування закладом" data-tip="Перейменувати або архівувати" onClick={e => { e.preventDefault(); e.stopPropagation(); openInstMenu(m.id); }}><Ic n="dots" /></button>;
   return <>
     <section className="c12 rise toolbar"><label className="search inst-search"><span><Ic n="search" /></span><input id="instQ" placeholder="Назва або код ЄДРПОУ" value={S.instQ} onChange={e => { S.instQ = e.target.value; render(true); }} /></label>
@@ -193,11 +194,11 @@ export function Institutions() {
       : <a key={m.id} className="card c6 rise inst" href="#overview" onClick={() => { S.inst = m.id; addLog(me(), `Переглянуто огляд закладу ${m.edrpou}`); persist(); }}>
         <div className="comp-top"><span className="comp-ic" style={{ background: "var(--lime-soft)", color: "var(--teal-deep)" }}><Ic n="building" /></span><b>{m.name}</b><div className="sp" style={{ flex: 1 }} />{menu(m)}</div>
         <div className="lbl tnum" style={{ marginTop: 6 }}>ЄДРПОУ {m.edrpou}</div>
-        <div className="inst-b"><div><span className="lbl">Індекс доброчесності</span><div className="mid tnum"><Num v={m.index} /><span className="of">з 100</span></div></div>
-          <dl className="inst-kv"><dt>Рівень зрілості</dt><dd><LvPill l={m.level} /></dd><dt>Достовірність</dt><dd><TrustPill g={m.trust} /></dd></dl></div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14, gap: 10, flexWrap: "wrap" }}><Delta d={m.delta} suf="до попереднього циклу" /><span className="link">Відкрити огляд <Ic n="arrowR" /></span></div>
+        <dl className="inst-kv" style={{ marginTop: 14 }}><dt>Рівень зрілості</dt><dd><LvPill l={m.level} /></dd><dt>Достовірність</dt><dd><TrustPill g={m.trust} /></dd><dt>Останній цикл</dt><dd className="tnum">{m.series[m.series.length - 1].cycle}</dd></dl>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}><span className="link">Відкрити огляд <Ic n="arrowR" /></span></div>
       </a>)
       : <section className="card c12"><div className="empty"><b>{q ? "Нічого не знайдено" : S.instArch ? "В архіві порожньо" : "Закладів немає"}</b><br />{q ? "Змініть запит або додайте заклад за кодом ЄДРПОУ." : ""}</div></section>}
+    <section className="card c12 rise"><div className="lock"><Ic n="shield" /><div><b>Заклади не порівнюються між собою</b><div className="lbl">На картках немає індексу й рейтингу, список упорядковано за кодом ЄДРПОУ. Індекс і його зміну видно лише на огляді конкретного закладу, і порівнюється заклад тільки сам із собою. Так результати не стають підставою для колективного покарання.</div></div></div></section>
     <ReadGuide title="Як читати картки" />
   </>;
 }
