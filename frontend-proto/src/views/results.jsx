@@ -8,9 +8,8 @@ import { render, toast, openPop, closePop } from "../lib/store.js";
 import { cur, go, can } from "../lib/nav.js";
 import { Pill, LvPill, TrustPill, SrcDot, Num, Delta, LevelBar, useWidth } from "../components/ui.jsx";
 import { MiniTrend, TrendChart, Radar } from "../components/charts.jsx";
-import { DigestRows, digestTop, PrepBtn } from "./Insights.jsx";
+import { DigestRows, digestTop } from "./Insights.jsx";
 import { CandorCard, GamingCard } from "./Candor.jsx";
-import { IndexExtras } from "./IndexExtras.jsx";
 import { LeaderDocs, canBriefing } from "./Leadership.jsx";
 import { ChildrenLevels } from "./Oversight.jsx";
 import { API, dn, orgT } from "../lib/api.js";
@@ -62,19 +61,18 @@ export function Overview() {
   const attn = S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX), strong = S.strAll ? m.strengths : m.strengths.slice(0, LIST_MAX), dg = digestTop();
   return <>
     <BackToInst />
-    {(can("advocate") || canBriefing()) && <div className="c12 toolbar rise"><div className="sp" /><LeaderDocs /><PrepBtn /></div>}
     <div className="c12 kpi-row">
       <Tile ic="gauge" title="Індекс доброчесності" big={<span className="mid tnum"><Num v={m.index} /></span>} act={openWhy} info={openHow}
         sub={<><span>Рівень зрілості: <b className={`lv-txt lv-t${m.level}`}><i />{LSHORT[m.level - 1]}</b></span><br /><Delta d={m.delta} /></>} />
       <Tile ic="shield" title="Достовірність" big={<span className={`mid tr-txt tr-${m.trust}`}>{m.trust === "insufficient" ? "?" : m.trust}</span>} act={openTrust} info={openTrustHow} tip="Як визначається достовірність"
         sub={<><b className={`tr-txt tr-${m.trust}`}><i />{TRUST[m.trust][1]}</b><br /><span className="lbl">Прапорці: {m.raised.length}</span></>} />
       {S.role === "observer" || !can("tracker")
-        ? <Tile ic="users" title="Відповідей у циклі" big={<span className="mid tnum">{m.responses}</span>} sub={<span className="lbl">Мінімальна група k = {S.k}</span>} act={openResp} info={openRespHow} tip="Що таке мінімальна група k" />
+        ? <Tile ic="users" title="Відповідей у циклі" big={<span className="mid tnum">{m.responses}</span>} sub={<span className="lbl">Мінімальна група: {S.k} {plural(S.k, "особа", "особи", "осіб")}</span>} act={openResp} info={openRespHow} tip="Що таке мінімальна група" />
         : <Tile ic="target" title="Заходи в трекері" big={<span className="mid tnum">{ms.length}</span>} sub={od ? <span style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))", fontWeight: 600 }}>З них {od} прострочено</span> : <span className="lbl">Прострочених немає</span>} act={() => go("tracker")} info={openTrackerHow} tip="Як працює трекер заходів" />}
     </div>
     <CandorCard />
     <section className="card c8 rise" id="attn">
-      <div className="card-h"><h2>Що потребує уваги</h2></div>
+      <div className="card-h" style={{ flexWrap: "wrap" }}><h2>Що потребує уваги</h2><div className="sp" />{canBriefing() && <div className="attn-docs"><LeaderDocs /></div>}</div>
       {m.attention.length ? <div className="rows">{attn.map((a, i) => <a key={i} className="row click" href={`#explain/${a.c}`} onClick={a.q ? e => { e.preventDefault(); openApiQ(a.q); } : undefined} data-tip={a.hint}><span className="dot" style={{ background: SCOL[status(a.v)] }} /><div className="grow"><div className="t">{a.t}</div></div><Pill cls="p-mute nodot">{COMP[a.c].n}</Pill><b className="tnum">{fb(a.v)}</b></a>)}</div> : dg.length ? null : <div className="lbl">Зауважень немає: нічого не потребує уваги.</div>}
       <DigestRows items={dg} />
       {m.attention.length > LIST_MAX && <button className="link-btn" style={{ marginTop: 8 }} onClick={() => { S.attnAll = !S.attnAll; render(true); }}>{S.attnAll ? "Згорнути" : `Показати всі (${m.attention.length})`}</button>}
@@ -184,11 +182,14 @@ function TreeGraph({ T, sum, hl, maxC, fallback }) {
   const xR = off + 60, xC = off + Math.round(cw * .3), xL = off + Math.round(cw * .58), chars = Math.max(14, Math.floor((Math.min(W, xL + 420) - xL - rL - 24) / 7.6));
   const ew = r => 1.5 + r * r * 9; // товщина ребра: квадрат частки, щоб різницю було видно
   const tipE = (n, v) => `${n}<small>Внесок в індекс: ${f2(v)}</small>`;
+  // Кожен компонент займає однакову смугу (він дає рівно третину індексу), навіть якщо показників у ньому менше.
+  // Розмір вузла-листка залежить від його ваги всередині компонента.
+  const band = Math.max(1, ...T.map(c => c.items.length)) * rowH, rOf = x => Math.round(15 + 13 * Math.sqrt((x.w || 0) / 100));
   let y = top;
   const G = T.map(c => {
-    const items = c.items.map(x => { const it = { ...x, y: y + rowH / 2 }; y += rowH; return it; });
-    if (!items.length) y += rowH;
-    const cy = items.length ? (items[0].y + items[items.length - 1].y) / 2 : y - rowH / 2; y += gap;
+    const n = c.items.length, step = n ? band / n : band;
+    const items = c.items.map((x, i) => ({ ...x, y: y + step * (i + .5), r: rOf(x) }));
+    const cy = y + band / 2; y += band + gap;
     return { ...c, items, y: cy };
   });
   const H = y - gap + top, yR = (G[0].y + G[G.length - 1].y) / 2, cut = t => t.length > chars ? t.slice(0, chars - 1) + "…" : t;
@@ -199,13 +200,13 @@ function TreeGraph({ T, sum, hl, maxC, fallback }) {
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Розклад індексу ${fb(sum)}: ${G.map(c => `${COMP[c.id].n} ${fb(c.val)}`).join(", ")}`}>
       {G.map(c => <g key={c.id}>
         <g className="tg-eg" data-tip={tipE(COMP[c.id].n, c.contrib)}><path d={edgeP(xR + rR, yR, xC - rC, c.y)} className="tg-e" style={{ stroke: COMP[c.id].c, strokeWidth: ew(c.contrib / 34) }} /><path d={edgeP(xR + rR, yR, xC - rC, c.y)} className="tg-eh" /></g>
-        {c.items.map(x => <g key={x.id} className="tg-eg" data-tip={tipE(x.t, x.contrib)}><path d={edgeP(xC + rC, c.y, xL - rL, x.y)} className="tg-e" style={{ stroke: COMP[c.id].c, strokeWidth: ew(maxC ? x.contrib / maxC : 0) }} /><path d={edgeP(xC + rC, c.y, xL - rL, x.y)} className="tg-eh" /></g>)}
+        {c.items.map(x => <g key={x.id} className="tg-eg" data-tip={tipE(x.t, x.contrib)}><path d={edgeP(xC + rC, c.y, xL - x.r, x.y)} className="tg-e" style={{ stroke: COMP[c.id].c, strokeWidth: ew(maxC ? x.contrib / maxC : 0) }} /><path d={edgeP(xC + rC, c.y, xL - x.r, x.y)} className="tg-eh" /></g>)}
       </g>)}
       <g className="tg-n"><title>{`Індекс доброчесності: ${fb(sum)}. Середнє трьох компонентів.`}</title>
         <circle cx={xR} cy={yR} r={rR} style={{ fill: "var(--lime-soft)", stroke: "var(--teal-deep)" }} />
         <text x={xR} y={yR + 6} className="tg-v" style={{ fontSize: 17 }}>{fb(sum)}</text>
         <text x={xR} y={yR - rR - 24} className="tg-t">Індекс</text><text x={xR} y={yR - rR - 9} className="tg-t">доброчесності</text></g>
-      {G.map(c => <g key={c.id} className="tg-n" id={`n-${c.id}`}><title>{`${COMP[c.id].n}: ${fb(c.val)}, внесок в індекс ${f2(c.contrib)}${c.lim ? `. ${c.cr.reason}` : ""}`}</title>
+      {G.map(c => <g key={c.id} className="tg-n tg-c" id={`n-${c.id}`} data-tip={`${COMP[c.id].n}: ${fb(c.val)}<small>Внесок в індекс: ${f2(c.contrib)}. ${c.items.length} ${plural(c.items.length, "показник", "показники", "показників")}, разом третина індексу.${c.lim ? `<br>${esc(c.cr.reason)}` : ""}</small>`}>
         {hl === c.id && <circle cx={xC} cy={c.y} r={rC + 6} className="tg-hl" />}
         <circle cx={xC} cy={c.y} r={rC} style={{ fill: COMP[c.id].s, stroke: c.lim ? "var(--amber)" : COMP[c.id].c, strokeDasharray: c.lim ? "5 3" : undefined }} />
         <text x={xC} y={c.y + 5} className="tg-v" style={{ fontSize: 14 }}>{fb(c.val)}</text>
@@ -213,12 +214,12 @@ function TreeGraph({ T, sum, hl, maxC, fallback }) {
         {c.lim && <text x={xC} y={c.y + rC + 33} className="tg-lim">Знижено фактами</text>}</g>)}
       {G.flatMap(c => c.items.map(x => { const col = SRC[x.kind === "p" ? x.src : "facts"][1], act = () => openItem(x.id);
         return <g key={x.id} id={`n-${x.id}`} className="tg-leaf" role="button" tabIndex={0} aria-label={`${x.t}: ${fb(x.vv)}. ${leafSub(x)}`} onClick={act} onKeyDown={enter(act)}><title>{x.t}</title>
-          <rect x={xL - rL - 4} y={x.y - rL - 4} width={rL * 2 + 20 + Math.max(cut(x.t).length * 7.4, leafSub(x).length * 6.2)} height={rL * 2 + 8} rx={rL + 4} className="tg-hit" />
-          {hl === x.id && <circle cx={xL} cy={x.y} r={rL + 5} className="tg-hl" />}
-          <circle cx={xL} cy={x.y} r={rL} style={{ fill: mixC(col), stroke: col }} />
-          <text x={xL} y={x.y + 4} className="tg-v" style={{ fontSize: 12 }}>{fb(x.vv)}</text>
-          <text x={xL + rL + 12} y={x.y - 3} className="tg-l">{cut(x.t)}</text>
-          <text x={xL + rL + 12} y={x.y + 15} className="tg-s">{leafSub(x)}</text></g>; }))}
+          <rect x={xL - x.r - 4} y={x.y - Math.max(x.r, 20) - 4} width={x.r * 2 + 20 + Math.max(cut(x.t).length * 7.4, leafSub(x).length * 6.2)} height={Math.max(x.r, 20) * 2 + 8} rx={x.r + 4} className="tg-hit" />
+          {hl === x.id && <circle cx={xL} cy={x.y} r={x.r + 5} className="tg-hl" />}
+          <circle cx={xL} cy={x.y} r={x.r} style={{ fill: mixC(col), stroke: col }} />
+          <text x={xL} y={x.y + 4} className="tg-v" style={{ fontSize: x.r > 24 ? 13 : 12 }}>{fb(x.vv)}</text>
+          <text x={xL + x.r + 12} y={x.y - 3} className="tg-l">{cut(x.t)}</text>
+          <text x={xL + x.r + 12} y={x.y + 15} className="tg-s">{leafSub(x)}</text></g>; }))}
     </svg>
   </div>;
 }
@@ -229,7 +230,7 @@ export function Explain() {
   const shut = S.tblShut || (S.tblShut = {}), tog = id => { shut[id] = !shut[id]; render(true); };
   const table = <div className="tbl-wrap"><table className="ex-tbl"><thead><tr><th>Вузол</th><th>Рівень</th><th>Вага, %</th><th>Значення</th><th>Внесок, пункти</th><th>Джерело</th></tr></thead><tbody>
     <tr><td><b>Індекс доброчесності</b></td><td>1</td><td className="tnum">100</td><td className="tnum">{fb(sum)}</td><td className="tnum">{f2(T.reduce((a, c) => a + c.contrib, 0))}</td><td /></tr>
-    {T.map(c => [<tr key={c.id} id={S.exTable ? `n-${c.id}` : undefined} className={`ex-grp ${shut[c.id] ? "shut" : ""}`} onClick={() => tog(c.id)}>
+    {T.map(c => [<tr key={c.id} id={S.exTable ? `n-${c.id}` : undefined} className={`ex-grp ${shut[c.id] ? "shut" : ""}`} onClick={() => tog(c.id)} data-tip={c.lim ? esc(c.cr.reason) : undefined}>
         <td><span className="ex-gt"><button type="button" className="ex-tog" aria-expanded={!shut[c.id]} aria-label={`${shut[c.id] ? "Розгорнути" : "Згорнути"}: ${COMP[c.id].n}`} onClick={e => { e.stopPropagation(); tog(c.id); }}><Ic n="chev" /></button><b>{COMP[c.id].n}</b>{c.lim && <> <Pill cls="p-warn nodot">Знижено фактами</Pill></>}{shut[c.id] && <span className="lbl">· {c.items.length}</span>}</span></td>
         <td>2</td><td className="tnum">33,3</td><td className="tnum">{fb(c.val)}</td><td className="tnum">{f2(c.contrib)}</td><td /></tr>,
       ...(shut[c.id] ? [] : c.items.map(x => <tr key={x.id} id={S.exTable ? `n-${x.id}` : undefined} className={`ex-item ${hl === x.id ? "hl" : ""}`} onClick={() => openItem(x.id)}><td style={{ paddingLeft: 44 }}>{x.t}</td><td>3</td><td className="tnum">{x.w}</td><td className="tnum">{fb(x.vv)}</td><td className="tnum">{f2(x.contrib)}</td><td>{x.src ? SRC[x.src][0] : "Факти"}</td></tr>))])}
@@ -241,10 +242,8 @@ export function Explain() {
       <div className="seg" role="group" aria-label="Що показувати">{Object.entries(MODES).map(([k, n]) => <button key={k} className={mode === k ? "on" : ""} aria-pressed={mode === k} onClick={() => { S.mode = k; persist(); render(true); }}>{n}</button>)}</div>
       <button className="btn btn-ghost" onClick={() => { S.exTable = !S.exTable; render(true); }}>{S.exTable ? <><Ic n="tree" />Показати як граф</> : <><Ic n="table" />Показати як таблицю</>}</button></section>
     <section className="card c12 rise">
-      {mode === "credited" && T.some(c => c.lim) && <div className="lim-callout" role="note"><span className="lim-ic"><Ic n="alert" /></span><div><b>Самооцінку знижено, бо факти її не підтверджують</b>{T.filter(c => c.lim).map(c => <div key={c.id}><b>{COMP[c.id].n}:</b> {c.cr.reason}</div>)}</div></div>}
       {S.exTable ? table : <TreeGraph T={T} sum={sum} hl={hl} maxC={maxC} fallback={table} />}
     </section>
-    {API.on && API.res && <section className="card c12 rise ix-card"><div className="card-h"><h2>Перевірки розрахунку</h2></div><IndexExtras /></section>}
   </>;
 }
 
@@ -313,7 +312,7 @@ export function Compare() {
       <div className="lbl" style={{ textAlign: "center", marginTop: 6 }}>Що далі від центру, то вище значення (0–100).</div>
     </section>
     <section className="card c7 rise cmp-facts">
-      <div className="card-h"><h2>Обʼєктивні показники</h2><div className="sp" /><a className="pill-btn" href="#sources"><Ic n="plug" />Джерела</a></div>
+      <div className="card-h"><h2>Обʼєктивні показники</h2><div className="sp" />{can("sources") && <a className="pill-btn" href="#sources"><Ic n="plug" />Джерела</a>}</div>
       <div className="kpis">{pctFacts.map(f => { const sh = f.val[1] ? f.val[0] / f.val[1] * 100 : f.v, sc = Math.abs(sh - f.v) >= 0.5; return <a key={f.id} className="kpi" href={`#explain/${f.id}`} style={{ textDecoration: "none", color: "inherit" }}><span className="kpi-t">{f.t}</span><div className="ring"><Ring f={f} /><span className="mid tnum" style={{ fontSize: 24 }}><Num v={sh} d={sc ? 1 : 0} /><span className="dec">%</span></span></div><span className="lbl tnum">{f.val[0]} з {f.val[1]}{sc && <><br /><span data-tip={f.rule ? esc(f.rule) : undefined}>Бал методики: <b>{fb(f.v)}</b></span></>}<br />{COMP[f.c].n}{f.per && <><br /><span style={{ whiteSpace: "nowrap" }} data-tip="Факти рахуються лише цілими завершеними кварталами">{f.per}</span></>}</span></a>; })}</div>
     </section>
     <section className="card c12 rise cmp-trust">

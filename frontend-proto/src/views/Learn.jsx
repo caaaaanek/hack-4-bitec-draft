@@ -53,7 +53,7 @@ function Coverage() {
       : <><div className="stat4 tnum" style={{ gridTemplateColumns: "repeat(3,1fr)" }}><div><small>Учасників</small><b>{d.eligible}</b></div><div><small>Пройшли навчання</small><b>{d.trained}</b></div><div><small>Частка</small><b>{fb(d.percent)} %</b></div></div>
         <Ticks n={30} on={Math.round((d.percent || 0) / 100 * 30)} color="var(--teal)" h={12} />
         {Object.keys(d.by_deck).length > 0 && <More t="За колодами"><div className="rows">{d.required.map(c => <div key={c} className="row"><div className="grow txt">{deckTitle(c)}</div><b className="tnum">{d.by_deck[c] == null ? "…" : d.by_deck[c]}</b></div>)}</div></More>}</>}
-    <div className="lbl" style={{ marginTop: 8 }}>Пройшов навчання: усі обовʼязкові колоди за останні {d ? d.valid_days : 365} днів. Групи менші за k = {S.k} не показуються.</div></section>;
+    <div className="lbl" style={{ marginTop: 8 }}>Пройшов навчання: усі обовʼязкові колоди за останні {d ? d.valid_days : 365} днів. Групи, менші за {S.k} осіб, не показуються.</div></section>;
 }
 const deckTitle = c => { const r = useDecks(), k = r && r.data && r.data.decks.find(x => x.code === c); return k ? dsh(k.title) : c; };
 
@@ -65,7 +65,7 @@ function DeckList() {
   return <>
     <KpiRow items={[{ ic: "book", t: "Колод", v: d.decks.length, sub: `обовʼязкових ${d.required.length}` },
       { ic: "check", t: "Пройдено", v: `${done} з ${d.decks.length}`, tone: d.i_am_trained ? "teal" : undefined, sub: d.i_am_trained ? "навчання зараховано" : `обовʼязкових ${reqDone} з ${d.required.length}` },
-      cov ? { ic: "users", t: "Охоплення", v: cov.suppressed ? "приховано" : cov.percent, d: true, sub: cov.suppressed ? `група менша за k` : "% учасників" }
+      cov ? { ic: "users", t: "Охоплення", v: cov.suppressed ? "приховано" : cov.percent, d: true, sub: cov.suppressed ? "замала група" : "% учасників" }
         : { ic: "cal", t: "Чинність", v: `${d.valid_days} днів`, sub: "після проходження" }]} />
     <section className="card c12 rise"><ModHead ic="book" tone="teal" title="Колоди"><Pill cls={d.i_am_trained ? "p-good" : "p-warn"}>{d.i_am_trained ? "Навчання пройдено" : "Навчання не завершено"}</Pill></ModHead>
       <div className="lbl" style={{ marginBottom: 14 }}>Вигадані ситуації: що робити й чому. Ваш прогрес бачите лише ви.{!API.on ? " Демо: прогрес живе до перезавантаження сторінки." : ""}</div>

@@ -34,7 +34,7 @@ export function trustText(m) {
 // Одне речення «Достовірність C, бо …» — готове до кліку, без асистента
 export function trustBecause(m) {
   const maj = m.raised.filter(f => f.w === "major"), min = m.raised.filter(f => f.w !== "major"), q = a => a.map(f => `«${flagTitle(f)}»`).join(", ");
-  if (m.trust === "insufficient") return `Достовірність не оцінюється, бо відповідей ${m.responses} – менше за мінімальну групу k = ${S.k}.`;
+  if (m.trust === "insufficient") return `Достовірність не оцінюється, бо відповідей ${m.responses} – менше за мінімальну групу (${S.k} осіб).`;
   if (m.trust === "A") return "Достовірність A, бо жоден прапорець не спрацював: дані узгоджені між собою.";
   if (m.trust === "B") return `Достовірність B, бо спрацювали лише незначні прапорці: ${q(min)}. Серйозних немає.`;
   return maj.length ? `Достовірність C, бо спрацював серйозний прапорець: ${q(maj)}.${min.length ? ` Також незначні: ${q(min)}.` : ""}`

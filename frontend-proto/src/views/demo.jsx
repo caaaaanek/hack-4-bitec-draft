@@ -23,7 +23,7 @@ export function Manage() {
   // Значення k фіксується, коли повзунок відпущено (подія change), а під час руху лише оновлюється число
   useEffect(() => {
     const el = rng.current; if (!el) return;
-    const f = () => { S.k = +el.value; addLog(me(), `Мінімальна група k = ${S.k}`); persist(); render(true); toast(`Мінімальна група k = ${S.k}`); };
+    const f = () => { S.k = +el.value; addLog(me(), `Мінімальна група: ${S.k} осіб`); persist(); render(true); toast(`Мінімальна група: ${S.k} осіб`); };
     el.addEventListener("change", f); return () => el.removeEventListener("change", f);
   }, []);
   const rows = [["2026-11", "01.11 – 20.11.2026", S.k, `${tot} / ${used}`, S.cycleOpen ? ["Триває", "p-good"] : ["Завершено", "p-mute"]], ["2026-06", "02.06 – 20.06.2026", 10, "82 / 71", ["Завершено", "p-mute"]], ["2025-12", "01.12 – 19.12.2025", 10, "80 / 66", ["Завершено", "p-mute"]], ["2025-06", "02.06 – 20.06.2025", 10, "78 / 59", ["Завершено", "p-mute"]]];
@@ -36,7 +36,7 @@ export function Manage() {
     <section className="card c4 rise">
       <div className="card-h"><h2>Налаштування</h2></div>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <div className="field"><label htmlFor="kin">Мінімальна група k</label><div style={{ display: "flex", gap: 10, alignItems: "center" }}><input type="range" min="5" max="20" id="kin" ref={rng} value={k} onChange={e => setK(+e.target.value)} style={{ flex: 1 }} /><b className="tnum" id="kv" style={{ minWidth: 24 }}>{k}</b></div><span className="lbl">Групи з меншою кількістю відповідей приховано, показано рівень вище.</span></div>
+        <div className="field"><label htmlFor="kin">Мінімальна група, осіб</label><div style={{ display: "flex", gap: 10, alignItems: "center" }}><input type="range" min="5" max="20" id="kin" ref={rng} value={k} onChange={e => setK(+e.target.value)} style={{ flex: 1 }} /><b className="tnum" id="kv" style={{ minWidth: 24 }}>{k}</b></div><span className="lbl">Групи з меншою кількістю відповідей приховано, показано рівень вище.</span></div>
         <div className="stat4" style={{ gridTemplateColumns: "1fr 1fr" }}><div><small>Жетонів видано</small><b className="tnum"><Num v={tot} d={0} /></b></div><div><small>Використано</small><b className="tnum"><Num v={used} d={0} /></b></div></div>
         <div id="closeZone">{S.cycleOpen
           ? ask ? <><div className="lbl" style={{ marginBottom: 8 }}>Після завершення відповіді більше не прийматимуться, а жетони, що лишились, стануть недійсними.</div><div style={{ display: "flex", gap: 8 }}><button className="btn btn-ghost" style={{ flex: 1, justifyContent: "center" }} onClick={() => setAsk(false)}>Скасувати</button><button className="btn btn-danger" style={{ flex: 1, justifyContent: "center" }} onClick={() => { S.cycleOpen = false; addLog(me(), `Цикл ${CYCLE} завершено`); persist(); setAsk(false); render(true); }}>Завершити</button></div></>
@@ -46,7 +46,7 @@ export function Manage() {
     </section>
     <section className="card c12 rise">
       <div className="card-h"><h2>Цикли оцінювання</h2></div>
-      <div className="tbl-wrap"><table><thead><tr><th>Цикл</th><th>Період</th><th>Мінімальна група k</th><th>Жетонів видано / використано</th><th>Статус</th></tr></thead><tbody>
+      <div className="tbl-wrap"><table><thead><tr><th>Цикл</th><th>Період</th><th>Мінімальна група</th><th>Жетонів видано / використано</th><th>Статус</th></tr></thead><tbody>
         {rows.map(([c, p, kk, t, st]) => <tr key={c}><td><b>{c}</b></td><td>{p}</td><td className="tnum">{kk}</td><td className="tnum">{t}</td><td><Pill cls={st[1]}>{st[0]}</Pill></td></tr>)}
       </tbody></table></div>
     </section>

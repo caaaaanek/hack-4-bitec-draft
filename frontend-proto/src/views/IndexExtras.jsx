@@ -19,7 +19,7 @@ export function ModalLevels() {
   if (!ml || !Object.keys(ml).length) return null;
   return <div className="ix-extra">
     <div className="lbl" style={{ marginBottom: 6 }}>Рівень, що переважає у відповідях груп</div>
-    <div className="rows">{Object.entries(ml).map(([g, l]) => <div key={g} className="row"><div className="grow">{GROUP_T[g] || (CATEGORY_SRC[g] && CATEGORY_SRC[g][1]) || g}</div>{l ? <LvPill l={l} /> : <span className="lbl">приховано (менше k)</span>}</div>)}</div>
+    <div className="rows">{Object.entries(ml).map(([g, l]) => <div key={g} className="row"><div className="grow">{GROUP_T[g] || (CATEGORY_SRC[g] && CATEGORY_SRC[g][1]) || g}</div>{l ? <LvPill l={l} /> : <span className="lbl">приховано (замала група)</span>}</div>)}</div>
     <div className="lbl" style={{ fontSize: 12.5, marginTop: 6 }}>Так рахує Додаток Г: варіант відповіді, який обрали найчастіше. Індекс поруч рахується із середнього бала, тому рівні можуть трохи відрізнятися.</div>
   </div>;
 }

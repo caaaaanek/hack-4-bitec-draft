@@ -154,7 +154,7 @@ function FactRow({ f }) {
   const lvl = f.kind === "lvl", set = WI.facts[f.indicator], val = set ?? (lvl ? f.level : f.percent);
   const th = f.thresholds || [];
   const comp = COMP[f.component];
-  if (!f.editable || val == null) return <div className="wi-fact off"><div className="wi-ft"><b>{f.title}</b><span className="lbl">{comp ? comp.n + " · " : ""}{f.status === "suppressed" || f.status === "hidden" ? "приховано (менше k), змінювати не можна" : "немає даних"}</span></div></div>;
+  if (!f.editable || val == null) return <div className="wi-fact off"><div className="wi-ft"><b>{f.title}</b><span className="lbl">{comp ? comp.n + " · " : ""}{f.status === "suppressed" || f.status === "hidden" ? "приховано (замала група), змінювати не можна" : "немає даних"}</span></div></div>;
   return <div className={`wi-fact${set != null ? " set" : ""}`}>
     <div className="wi-ft"><b>{f.title}</b><span className="lbl">{comp ? comp.n + " · " : ""}зараз {lvl ? `рівень ${f.level}` : `${fb(f.percent)}%`}{!lvl && f.level ? `, рівень ${f.level}` : ""}</span></div>
     <div className="wi-ctl">
