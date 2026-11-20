@@ -9339,6 +9339,148 @@
         }
       }
     },
+    "/api/v1/campaigns/{campaign_id}/breakdown": {
+      "get": {
+        "tags": [
+          "results"
+        ],
+        "summary": "Campaign Breakdown",
+        "description": "Деталізація «джерело → його питання» для «Розкладу індексу».\n\nБереться зі знімка хвилі, нічого не перераховується. Питання, на яке відповіли менше k людей, не\nпоказується зовсім (лише лічильник `hidden_questions`); група, менша за k, — без жодного питання.\nБез `source` — лише перелік джерел із кількістю питань.",
+        "operationId": "campaign_breakdown_api_v1_campaigns__campaign_id__breakdown_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          },
+          {
+            "name": "unit_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Unit Id"
+            }
+          },
+          {
+            "name": "source",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Категорія респондентів (working_group, staff, expert…)",
+              "title": "Source"
+            },
+            "description": "Категорія респондентів (working_group, staff, expert…)"
+          },
+          {
+            "name": "component",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Компонент: culture, system, accountability",
+              "title": "Component"
+            },
+            "description": "Компонент: culture, system, accountability"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BreakdownOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
     "/api/v1/units": {
       "get": {
         "tags": [
@@ -9898,6 +10040,106 @@
         }
       }
     },
+    "/api/v1/dashboard/waves": {
+      "get": {
+        "tags": [
+          "dashboard"
+        ],
+        "summary": "Dashboard Waves",
+        "description": "Закриті хвилі, що охоплюють підрозділ, від нових до старих: для перемикача хвилі в «Огляді».\n\nХвилі без індексу (одна анкета, замало відповідей) теж у списку з has_index=false: фронтенд показує їх\nнеактивними. is_current — та, яку GET /dashboard відкриває без campaign_id.",
+        "operationId": "dashboard_waves_api_v1_dashboard_waves_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "unit_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "format": "uuid"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Unit Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/WaveOption"
+                  },
+                  "title": "Response Dashboard Waves Api V1 Dashboard Waves Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
     "/api/v1/dashboard": {
       "get": {
         "tags": [
@@ -10017,7 +10259,7 @@
           "recommendations"
         ],
         "summary": "List Recommendations",
-        "description": "Рекомендації за явними правилами для закритої хвилі. Кожна має `rule`: чому запропоновано.",
+        "description": "Рекомендації за явними правилами для закритої хвилі. Кожна має `rule`: чому запропоновано.\n\nБез повторів, з `rank` за пріоритетом і `group` за компонентом; `?top=5` згортає решту (`collapsed`).",
         "operationId": "list_recommendations_api_v1_campaigns__campaign_id__recommendations_get",
         "security": [
           {
@@ -10051,6 +10293,26 @@
               ],
               "title": "Unit Id"
             }
+          },
+          {
+            "name": "top",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 100,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Скільки показати розгорнутими; решта — collapsed",
+              "title": "Top"
+            },
+            "description": "Скільки показати розгорнутими; решта — collapsed"
           }
         ],
         "responses": {
@@ -16309,6 +16571,198 @@
           "file"
         ],
         "title": "Body_upload_file_api_v1_campaigns__campaign_id__checklist__question_id__files_post"
+      },
+      "BreakdownOut": {
+        "properties": {
+          "campaign_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Campaign Id"
+          },
+          "unit_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Unit Id"
+          },
+          "unit_name": {
+            "type": "string",
+            "title": "Unit Name"
+          },
+          "min_group_size": {
+            "type": "integer",
+            "title": "Min Group Size"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/BreakdownSource"
+            },
+            "type": "array",
+            "title": "Sources"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Source"
+          },
+          "component": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Component"
+          },
+          "sufficient": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sufficient"
+          },
+          "hidden_questions": {
+            "type": "integer",
+            "title": "Hidden Questions",
+            "default": 0
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "questions": {
+            "items": {
+              "$ref": "#/components/schemas/BreakdownQuestion"
+            },
+            "type": "array",
+            "title": "Questions",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "campaign_id",
+          "unit_id",
+          "unit_name",
+          "min_group_size",
+          "sources"
+        ],
+        "title": "BreakdownOut"
+      },
+      "BreakdownQuestion": {
+        "properties": {
+          "code": {
+            "type": "string",
+            "title": "Code"
+          },
+          "text": {
+            "type": "string",
+            "title": "Text"
+          },
+          "section": {
+            "type": "string",
+            "title": "Section"
+          },
+          "component": {
+            "type": "string",
+            "title": "Component"
+          },
+          "n": {
+            "type": "integer",
+            "title": "N"
+          },
+          "score": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Score"
+          },
+          "zone": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Zone"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "distribution": {
+            "items": {
+              "$ref": "#/components/schemas/DistributionItem"
+            },
+            "type": "array",
+            "title": "Distribution"
+          }
+        },
+        "type": "object",
+        "required": [
+          "code",
+          "text",
+          "section",
+          "component",
+          "n",
+          "score",
+          "zone",
+          "distribution"
+        ],
+        "title": "BreakdownQuestion"
+      },
+      "BreakdownSource": {
+        "properties": {
+          "category": {
+            "type": "string",
+            "title": "Category"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "sufficient": {
+            "type": "boolean",
+            "title": "Sufficient"
+          },
+          "questions": {
+            "type": "integer",
+            "title": "Questions"
+          },
+          "hidden_questions": {
+            "type": "integer",
+            "title": "Hidden Questions"
+          }
+        },
+        "type": "object",
+        "required": [
+          "category",
+          "title",
+          "sufficient",
+          "questions",
+          "hidden_questions"
+        ],
+        "title": "BreakdownSource"
       },
       "CampaignCreate": {
         "properties": {
@@ -23330,6 +23784,29 @@
         ],
         "title": "RecommendationDecisionType"
       },
+      "RecommendationGroup": {
+        "properties": {
+          "group": {
+            "type": "string",
+            "title": "Group"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "group",
+          "title",
+          "count"
+        ],
+        "title": "RecommendationGroup"
+      },
       "RecommendationOut": {
         "properties": {
           "code": {
@@ -23390,6 +23867,35 @@
             "type": "array",
             "title": "Suggested Measures"
           },
+          "rank": {
+            "type": "integer",
+            "title": "Rank",
+            "description": "Місце в списку за пріоритетом (1 — найважливіша)"
+          },
+          "group": {
+            "type": "string",
+            "title": "Group",
+            "description": "Код компонента або general — для групування на екрані"
+          },
+          "group_title": {
+            "type": "string",
+            "title": "Group Title"
+          },
+          "covers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Covers",
+            "description": "Коди повторів, злитих у цю рекомендацію",
+            "default": []
+          },
+          "collapsed": {
+            "type": "boolean",
+            "title": "Collapsed",
+            "description": "За межами ?top: показувати згорнутою",
+            "default": false
+          },
           "decision": {
             "anyOf": [
               {
@@ -23420,7 +23926,10 @@
           "description",
           "rule",
           "basis",
-          "suggested_measures"
+          "suggested_measures",
+          "rank",
+          "group",
+          "group_title"
         ],
         "title": "RecommendationOut"
       },
@@ -23444,6 +23953,17 @@
             "type": "string",
             "title": "Methodology Version"
           },
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/RecommendationGroup"
+            },
+            "type": "array",
+            "title": "Groups"
+          },
           "items": {
             "items": {
               "$ref": "#/components/schemas/RecommendationOut"
@@ -23458,6 +23978,8 @@
           "unit_id",
           "unit_name",
           "methodology_version",
+          "total",
+          "groups",
           "items"
         ],
         "title": "RecommendationsOut"
@@ -24456,6 +24978,10 @@
           "reliability": {
             "type": "string",
             "title": "Reliability"
+          },
+          "has_index": {
+            "type": "boolean",
+            "title": "Has Index"
           }
         },
         "type": "object",
@@ -24465,7 +24991,8 @@
           "closed_on",
           "index",
           "index_self",
-          "reliability"
+          "reliability",
+          "has_index"
         ],
         "title": "TrendPoint"
       },
@@ -24859,6 +25386,53 @@
           "message"
         ],
         "title": "ValidationIssue"
+      },
+      "WaveOption": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "closed_on": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Closed On"
+          },
+          "unit_name": {
+            "type": "string",
+            "title": "Unit Name"
+          },
+          "has_index": {
+            "type": "boolean",
+            "title": "Has Index"
+          },
+          "is_current": {
+            "type": "boolean",
+            "title": "Is Current"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "closed_on",
+          "unit_name",
+          "has_index",
+          "is_current"
+        ],
+        "title": "WaveOption"
       },
       "WeakQuestion": {
         "properties": {

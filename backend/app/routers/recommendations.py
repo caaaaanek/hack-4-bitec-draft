@@ -3,7 +3,7 @@
 import uuid
 from datetime import date, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -23,7 +23,7 @@ from app.models import (
 )
 from app.routers.measures import MeasureIn, MeasureOut, check_owner, create_measure
 from app.security import RESULT_READERS, ensure_unit_access, require_roles
-from app.services import facts, results
+from app.services import facts, results, titles
 from app.services import measures as measures_service
 from app.services.recommendations import recommend
 
@@ -55,8 +55,19 @@ class RecommendationOut(BaseModel):
     rule: str
     basis: dict
     suggested_measures: list[SuggestedMeasure]
+    rank: int = Field(description="Місце в списку за пріоритетом (1 — найважливіша)")
+    group: str = Field(description="Код компонента або general — для групування на екрані")
+    group_title: str
+    covers: list[str] = Field(default=[], description="Коди повторів, злитих у цю рекомендацію")
+    collapsed: bool = Field(default=False, description="За межами ?top: показувати згорнутою")
     decision: DecisionOut | None = None
     measures: list[MeasureOut] = []
+
+
+class RecommendationGroup(BaseModel):
+    group: str
+    title: str
+    count: int
 
 
 class RecommendationsOut(BaseModel):
@@ -64,6 +75,8 @@ class RecommendationsOut(BaseModel):
     unit_id: uuid.UUID
     unit_name: str
     methodology_version: str
+    total: int
+    groups: list[RecommendationGroup]
     items: list[RecommendationOut]
 
 
@@ -140,16 +153,26 @@ def with_decisions(db: Session, campaign: Campaign, unit_id: uuid.UUID, recs: li
 def list_recommendations(
     campaign_id: uuid.UUID,
     unit_id: uuid.UUID | None = None,
+    top: int | None = Query(default=None, ge=1, le=100, description="Скільки показати розгорнутими; решта — collapsed"),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*RESULT_READERS)),
 ):
-    """Рекомендації за явними правилами для закритої хвилі. Кожна має `rule`: чому запропоновано."""
+    """Рекомендації за явними правилами для закритої хвилі. Кожна має `rule`: чому запропоновано.
+
+    Без повторів, з `rank` за пріоритетом і `group` за компонентом; `?top=5` згортає решту (`collapsed`).
+    """
     campaign = closed_campaign(db, campaign_id)
     ensure_unit_access(db, user, unit_id or campaign.unit_id, campaign_id=campaign.id, root_id=campaign.unit_id)
     data, recs = build(db, campaign, unit_id)
     scope = uuid.UUID(data["unit_id"])
+    groups: dict[str, dict] = {}
+    for r in recs:
+        g = groups.setdefault(r["group"], {"group": r["group"], "title": r["group_title"], "count": 0})
+        g["count"] += 1
+    items = [{**r, "collapsed": top is not None and r["rank"] > top} for r in with_decisions(db, campaign, scope, recs)]
     return {"campaign_id": campaign.id, "unit_id": scope, "unit_name": data["unit_name"],
-            "methodology_version": data["methodology_version"], "items": with_decisions(db, campaign, scope, recs)}
+            "methodology_version": data["methodology_version"], "total": len(recs),
+            "groups": list(groups.values()), "items": items}
 
 
 @router.post("/campaigns/{campaign_id}/recommendations/{code}/decision", response_model=RecommendationOut)
@@ -191,7 +214,7 @@ def decide(
     if data.decision != RecommendationDecisionType.ACCEPTED:
         # Рекомендацію більше не прийнято: її незавершені заходи скасовуються (з причиною в журналі), щоб не
         # висіли простроченими, не рахувалися в плані й не йшли в тему 2. Виконані лишаються як є.
-        reason = f"Рішення щодо рекомендації змінено на «{data.decision.value}»: {decision.comment}"[:500]
+        reason = f"Рішення щодо рекомендації змінено на «{titles.decision(data.decision)}»: {decision.comment}"[:500]
         for measure in linked:
             if measure.status in (MeasureStatus.PLANNED, MeasureStatus.IN_PROGRESS):
                 old_status = measure.status

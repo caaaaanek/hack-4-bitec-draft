@@ -46,7 +46,7 @@ def test_checklist_item_raises_its_component(client):
     body = what_if(client, campaign_id, leader, checklist={item["number"]: "full"}, levers=False).json()
     assert body["delta"]["components"]["culture"] > 0 and body["delta"]["index"] > 0
     assert body["delta"]["components"]["system"] == 0
-    assert body["applied"][0]["effect"] is True and "partial → full" in body["applied"][0]["note"]
+    assert body["applied"][0]["effect"] is True and "частково → повністю" in body["applied"][0]["note"]
 
 
 def test_fact_capped_component_grows_only_from_facts(client):

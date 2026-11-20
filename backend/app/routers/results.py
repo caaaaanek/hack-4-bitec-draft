@@ -11,7 +11,7 @@ from app.db import get_db
 from app.errors import ApiError
 from app.models import Campaign, CampaignStatus, Role, Unit, User
 from app.schemas import UnitOut
-from app.schemas_results import CampaignResultsOut, CompareOut, HistoryOut, ParticipantResultOut
+from app.schemas_results import BreakdownOut, CampaignResultsOut, CompareOut, HistoryOut, ParticipantResultOut
 from app.routers.respond import TOKEN_HEADER, token_throttle
 from app.security import RESULT_READERS, client_ip, ensure_unit_access, get_current_user, require_roles, zone_of
 from app.services import categories, fact_registry, methodology, results, tokens
@@ -74,6 +74,66 @@ def campaign_results(
         log_action(db, user, "recalculate_results", "campaign", campaign.id, {"unit_id": data["unit_id"]})
         db.commit()
     return data
+
+
+@router.get("/campaigns/{campaign_id}/breakdown", response_model=BreakdownOut)
+def campaign_breakdown(
+    campaign_id: uuid.UUID,
+    unit_id: uuid.UUID | None = None,
+    source: str | None = Query(default=None, description="Категорія респондентів (working_group, staff, expert…)"),
+    component: str | None = Query(default=None, description="Компонент: culture, system, accountability"),
+    db: Session = Depends(get_db),
+    user: User = Depends(can_view),
+):
+    """Деталізація «джерело → його питання» для «Розкладу індексу».
+
+    Береться зі знімка хвилі, нічого не перераховується. Питання, на яке відповіли менше k людей, не
+    показується зовсім (лише лічильник `hidden_questions`); група, менша за k, — без жодного питання.
+    Без `source` — лише перелік джерел із кількістю питань.
+    """
+    campaign = closed_campaign(db, campaign_id)
+    ensure_unit_access(db, user, unit_id or campaign.unit_id, campaign_id=campaign.id, root_id=campaign.unit_id)
+    if component is not None and component not in methodology.COMPONENTS:
+        raise ApiError(422, f"Невідомий компонент «{component}»", code="unknown_component",
+                       hint="Можливо: " + ", ".join(methodology.COMPONENTS))
+    try:
+        data = results.results_for(db, campaign, unit_id)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    titles = categories.titles(db)
+    db.commit()
+
+    per_source: dict[str, list[dict]] = {}
+    for q in data.get("questions", []):
+        if component is not None and q["component"] != component:
+            continue
+        for b in q["by_category"]:
+            per_source.setdefault(b["category"], []).append(
+                {"code": q["code"], "text": q["text"], "section": q["section"], "component": q["component"],
+                 "n": b["n"], "score": b["score"],
+                 "zone": methodology.zone(b["score"]) if b["score"] is not None else None,
+                 "distribution": b["distribution"]})
+    groups = {g["category"]: g for g in data.get("groups", [])}
+    sources = [{"category": c, "title": titles.get(c, c), "sufficient": g["sufficient"],
+                "questions": len(per_source.get(c, [])), "hidden_questions": g.get("hidden_questions", 0)}
+               for c, g in groups.items()]
+    out = {"campaign_id": campaign.id, "unit_id": data["unit_id"], "unit_name": data["unit_name"],
+           "min_group_size": data["min_group_size"], "sources": sources, "component": component}
+    if source is None:
+        return out
+    group = groups.get(source)
+    if group is None:
+        raise ApiError(422, f"Джерела «{source}» у цій хвилі немає", code="unknown_source",
+                       hint="Можливо: " + (", ".join(groups) or "—"))
+    note = None
+    if not group["sufficient"]:
+        note = f"Відповідей менше за k = {data['min_group_size']}: питання цього джерела не показуються."
+    elif group.get("hidden_questions"):
+        note = (f"Ще {group['hidden_questions']} питань мають менше k = {data['min_group_size']} відповідей "
+                "і не показуються.")
+    return {**out, "source": source, "sufficient": group["sufficient"],
+            "hidden_questions": group.get("hidden_questions", 0), "note": note,
+            "questions": per_source.get(source, []) if group["sufficient"] else []}
 
 
 @router.get("/units", response_model=list[UnitOut])

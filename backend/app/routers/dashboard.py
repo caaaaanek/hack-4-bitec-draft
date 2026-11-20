@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.errors import ApiError
-from app.models import Campaign, CampaignStatus, Role, User
+from app.models import Campaign, CampaignStatus, IndexSnapshot, Role, Unit, User
 from app.routers.indicators import RiskSignal
 from app.routers.measures import MeasureStats
 from app.routers.recommendations import RecommendationOut, with_decisions
@@ -19,7 +19,7 @@ from app.security import RESULT_READERS, ensure_unit_access, require_roles
 from app.services import facts, results
 from app.services import measures as measures_service
 from app.services.recommendations import recommend
-from app.services.units import subtree_ids
+from app.services.units import unit_tree
 
 router = APIRouter(tags=["dashboard"])
 
@@ -51,6 +51,16 @@ class TrendPoint(BaseModel):
     index: float | None
     index_self: float | None
     reliability: str
+    has_index: bool  # false: точка без індексу, на графіку розрив, а не нуль
+
+
+class WaveOption(BaseModel):
+    id: uuid.UUID
+    title: str
+    closed_on: date | None
+    unit_name: str
+    has_index: bool
+    is_current: bool
 
 
 class DashboardOut(BaseModel):
@@ -77,20 +87,91 @@ class DashboardOut(BaseModel):
     gaming_signals: list[dict] = []
 
 
-def pick_campaign(db: Session, campaign_id: uuid.UUID | None, unit_id: uuid.UUID | None) -> Campaign:
+def default_scopes(db: Session, unit_id: uuid.UUID | None) -> list[uuid.UUID]:
+    """Для кого шукати хвилю: заданий підрозділ, а без нього корінь дерева (а не корінь будь-якої хвилі)."""
+    if unit_id is not None:
+        return [unit_id]
+    children, _ = unit_tree(db)
+    return children.get(None, [])
+
+
+def pick_wave(db: Session, campaign_id: uuid.UUID | None, unit_id: uuid.UUID | None) -> tuple[Campaign, uuid.UUID]:
+    """Хвиля і підрозділ, для якого її показувати.
+
+    Без campaign_id «поточна» хвиля — остання закрита, де для підрозділу є знімок з індексом (якщо індексу не
+    було ніде — остання закрита зі знімком підрозділу, з null). Хвиля з однією
+    анкетою для дочірнього підрозділу не підміняє повну хвилю закладу.
+    """
     if campaign_id is not None:
         campaign = db.get(Campaign, campaign_id)
         if campaign is None:
             raise HTTPException(status_code=404, detail="Хвилю не знайдено")
         if campaign.status != CampaignStatus.CLOSED:
             raise HTTPException(status_code=409, detail="Результати доступні після закриття хвилі")
-        return campaign
-    closed = db.scalars(select(Campaign).where(Campaign.status == CampaignStatus.CLOSED)
-                        .order_by(Campaign.closed_on.desc(), Campaign.created_at.desc())).all()
-    for campaign in closed:
-        if unit_id is None or unit_id in subtree_ids(db, campaign.unit_id):
-            return campaign
-    raise HTTPException(status_code=404, detail="Ще немає жодної закритої хвилі для цього підрозділу")
+        return campaign, unit_id or campaign.unit_id
+    scopes = default_scopes(db, unit_id)
+
+    def latest(with_index: bool):
+        query = (select(Campaign, IndexSnapshot.unit_id)
+                 .join(IndexSnapshot, IndexSnapshot.campaign_id == Campaign.id)
+                 .where(IndexSnapshot.unit_id.in_(scopes), Campaign.status == CampaignStatus.CLOSED)
+                 .order_by(Campaign.closed_on.desc(), Campaign.created_at.desc())
+                 .limit(1))
+        if with_index:
+            query = query.where(IndexSnapshot.index_score.is_not(None))
+        return db.execute(query).first()
+
+    # Індексу в підрозділі не було в жодній хвилі (наприклад, груп менше k): показуємо останню закриту з null,
+    # підміни тут немає — повнішої хвилі для цього підрозділу просто не існує.
+    row = (latest(True) or latest(False)) if scopes else None
+    if row is None:
+        raise ApiError(404, "Для цього підрозділу ще немає закритої хвилі з індексом", code="no_indexed_wave",
+                       hint="Індекс з'являється після закриття хвилі, що охоплює підрозділ. "
+                            "Хвилі без індексу можна відкрити явно: GET /dashboard/waves.")
+    return row[0], row[1]
+
+
+def pick_campaign(db: Session, campaign_id: uuid.UUID | None, unit_id: uuid.UUID | None) -> Campaign:
+    return pick_wave(db, campaign_id, unit_id)[0]
+
+
+def default_unit(db: Session, user: User, unit_id: uuid.UUID | None) -> uuid.UUID | None:
+    if unit_id is None and user.role == Role.LEADER:
+        return user.unit_id
+    if unit_id is None and user.role == Role.DEPARTMENT:
+        raise ApiError(422, "Оберіть заклад", code="unit_required",
+                       hint="Департамент дивиться кожен заклад окремо: GET /department/institutions.")
+    return unit_id
+
+
+@router.get("/dashboard/waves", response_model=list[WaveOption])
+def dashboard_waves(
+    unit_id: uuid.UUID | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(*RESULT_READERS)),
+):
+    """Закриті хвилі, що охоплюють підрозділ, від нових до старих: для перемикача хвилі в «Огляді».
+
+    Хвилі без індексу (одна анкета, замало відповідей) теж у списку з has_index=false: фронтенд показує їх
+    неактивними. is_current — та, яку GET /dashboard відкриває без campaign_id.
+    """
+    unit_id = default_unit(db, user, unit_id)
+    scopes = default_scopes(db, unit_id)
+    if not scopes:
+        return []
+    scope = scopes[0] if unit_id is None else unit_id
+    ensure_unit_access(db, user, scope, purpose="waves")
+    try:
+        current = pick_wave(db, None, scope)[0].id
+    except ApiError:
+        current = None
+    unit_names = dict(db.execute(select(Unit.id, Unit.name)).all())
+    snapshots = results.unit_snapshots(db, scope)
+    return [
+        {"id": c.id, "title": c.title, "closed_on": c.closed_on, "unit_name": unit_names.get(c.unit_id, ""),
+         "has_index": s.index_score is not None, "is_current": c.id == current}
+        for c, s in reversed(snapshots)
+    ]
 
 
 @router.get("/dashboard", response_model=DashboardOut)
@@ -104,13 +185,8 @@ def dashboard(
 
     За замовчуванням: остання закрита хвиля; для керівника з підрозділом — його підрозділ.
     """
-    if unit_id is None and user.role == Role.LEADER:
-        unit_id = user.unit_id
-    if unit_id is None and user.role == Role.DEPARTMENT:
-        raise ApiError(422, "Оберіть заклад", code="unit_required",
-                       hint="Департамент дивиться кожен заклад окремо: GET /department/institutions.")
-    campaign = pick_campaign(db, campaign_id, unit_id)
-    scope_id = unit_id or campaign.unit_id
+    unit_id = default_unit(db, user, unit_id)
+    campaign, scope_id = pick_wave(db, campaign_id, unit_id)
     ensure_unit_access(db, user, scope_id, campaign_id=campaign.id, root_id=campaign.unit_id)
     try:
         data = results.results_for(db, campaign, scope_id)
@@ -124,7 +200,7 @@ def dashboard(
     dyn = data.get("dynamics")
     trend = [
         {"campaign_id": c.id, "campaign_title": c.title, "closed_on": s.closed_on, "index": s.index_score,
-         "index_self": s.index_self, "reliability": s.reliability}
+         "index_self": s.index_self, "reliability": s.reliability, "has_index": s.index_score is not None}
         for c, s in results.unit_snapshots(db, scope)
     ]
     return {

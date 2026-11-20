@@ -47,9 +47,15 @@ def test_recommendations_follow_rules(client):
 def test_checklist_gaps_become_recommendations(client):
     campaign_id, _, _ = full_wave(client, checklist_status="none")
     items = {r["code"]: r for r in recs(client, campaign_id, auth(client, "leader"))["items"]}
-    assert "checklist:2.7" in items
-    assert items["checklist:2.7"]["suggested_measures"][0]["catalog_number"] == "2.7"
-    assert items["checklist:2.7"]["suggested_measures"][0]["source"] == "Додаток Д"
+    # Захід 2.7 пропонується рівно один раз: окремою рекомендацією за пунктом чек-листа або в найважливішій
+    # рекомендації, що вже його містить (тоді checklist:2.7 — у її covers).
+    owners = [r for r in items.values() if any(x["catalog_number"] == "2.7" for x in r["suggested_measures"])]
+    assert len(owners) == 1, [r["code"] for r in owners]
+    owner = owners[0]
+    assert owner["code"] == "checklist:2.7" or "checklist:2.7" in owner["covers"], owner["code"]
+    measure = next(x for x in owner["suggested_measures"] if x["catalog_number"] == "2.7")
+    assert measure["source"] == "Додаток Д"
+    assert any(c.startswith("checklist:") for c in items)  # решта пунктів чек-листа лишаються рекомендаціями
 
 
 def test_decision_creates_measure_and_tracker_flow(client):

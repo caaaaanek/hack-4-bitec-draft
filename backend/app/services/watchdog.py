@@ -34,6 +34,7 @@ from app.models import (
 from app.services import methodology as m
 from app.services.facts import months_back
 from app.services.measures import OPEN_STATUSES, overdue_days
+from app.services.text import shorten
 from app.services.units import subtree_from, unit_tree
 
 SEVERITY_ORDER = {"critical": 0, "warning": 1, "info": 2}
@@ -96,7 +97,7 @@ def question_moves(prev: dict, cur: dict, component: str) -> list[dict]:
             continue
         if q.get("score") is None or before[q["code"]] is None:
             continue
-        moves.append({"code": q["code"], "text": q["text"][:120], "before": before[q["code"]], "after": q["score"],
+        moves.append({"code": q["code"], "text": shorten(q["text"], 120), "before": before[q["code"]], "after": q["score"],
                       "delta": round(q["score"] - before[q["code"]], 1)})
     return sorted(moves, key=lambda x: x["delta"])
 
@@ -234,14 +235,14 @@ def process(db: Session, units: set[uuid.UUID], scope: uuid.UUID) -> list[dict]:
     overdue = sorted([x for x in measures if overdue_days(x) is not None], key=lambda x: -overdue_days(x))
     if overdue:
         out.append(item("process:overdue", "process", "warning", f"Прострочено заходів: {len(overdue)}",
-                        "; ".join(f"«{x.title[:80]}» — {overdue_days(x)} дн." for x in overdue[:3]),
+                        "; ".join(f"«{shorten(x.title, 80)}» — {overdue_days(x)} дн." for x in overdue[:3]),
                         "Захід у статусі «заплановано» чи «виконується» після строку.",
                         ["Для кожного: виконати з доказом, перенести строк з причиною або скасувати з причиною."],
                         "tracker", {"count": len(overdue)}))
     soon = [x for x in measures if x.status in OPEN_STATUSES and today() <= x.due_date <= today() + timedelta(days=7)]
     if soon:
         out.append(item("process:due_soon", "process", "info", f"Строк спливає за тиждень: {len(soon)}",
-                        "; ".join(f"«{x.title[:80]}» до {x.due_date:%d.%m}" for x in soon[:3]),
+                        "; ".join(f"«{shorten(x.title, 80)}» до {x.due_date:%d.%m}" for x in soon[:3]),
                         "Строк заходу в найближчі 7 днів.", ["Перевірити готовність доказів."], "tracker"))
 
     latest = None

@@ -20,6 +20,7 @@ from app.clock import today, utcnow
 from app.config import get_settings
 from app.models import Measure, MeasureStatus, OutboxMessage, Unit
 from app.services import methodology as m
+from app.services import titles
 from app.services.units import subtree_from, unit_tree
 
 OPEN_STATUSES = (MeasureStatus.PLANNED, MeasureStatus.IN_PROGRESS)
@@ -465,7 +466,8 @@ def apply_external_update(db: Session, measure: Measure, *, state: str, external
             else:
                 measure.done_on = None
         else:
-            status_note = f"наш статус {measure.status.value} не змінено: перехід у {target.value} недозволений"
+            status_note = (f"наш статус «{titles.measure_status(measure.status)}» не змінено: перехід у "
+                           f"«{titles.measure_status(target)}» недозволений")
     elif target == MeasureStatus.DONE and (summary.strip() or documents):
         measure.evidence = evidence_text(summary, documents)  # нові документи до вже виконаного заходу
     if occurred_at is not None:

@@ -27,6 +27,7 @@ from statistics import fmean, pvariance
 from app.config import get_settings
 from app.models import Question, QuestionType
 from app.services import methodology as m
+from app.services.text import shorten
 
 _rng = random.SystemRandom()
 
@@ -191,7 +192,7 @@ def card(lists: list[dict], mirrors: list[dict]) -> list[str]:
     for i in lists:
         if not i["sufficient"]:
             continue
-        line = f"«{i['statement'][:80]}»: "
+        line = f"«{shorten(i['statement'], 80)}»: "
         if i["direct_share"] is not None:
             line += f"прямо визнали {m_fmt(i['direct_share'])}%, "
         line += f"непряма оцінка {m_fmt(i['estimate'])}% (від {m_fmt(i['ci'][0])} до {m_fmt(i['ci'][1])}%)."

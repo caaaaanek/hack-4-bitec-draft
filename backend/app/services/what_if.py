@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Campaign, Measure
 from app.services import methodology as m
-from app.services import results, scoring
+from app.services import results, scoring, titles
 from app.services.recommendations import catalog_measure
 from app.services.scoring import fmt
 
@@ -113,13 +113,15 @@ def apply(db: Session, inputs: results.Inputs, measure_ids: list[uuid.UUID], che
                                                 "на індекс не вплине.")
             else:
                 old = set_checklist(items, x.catalog_number, "full")
-                entry.update(effect=True, note=f"Пункт чек-листа {x.catalog_number}: {old.status or 'не заповнено'}"
+                entry.update(effect=True, note=f"Пункт чек-листа {x.catalog_number}: "
+                                               f"{titles.checklist_status(old.status)}"
                                                f"{'' if old.confirmed else ' (не підтверджено)'} → повністю, підтверджено.")
             applied.append(entry)
 
     for number, status in checklist.items():
         if status not in CHECKLIST_TARGETS:
-            raise WhatIfError(f"Стан пункту {number}: {status}. Можливо: full, partial, none", "checklist_status")
+            allowed = ", ".join(f"{code} ({title})" for code, title in titles.CHECKLIST_STATUS_SHORT.items())
+            raise WhatIfError(f"Стан пункту {number} «{status}» не підтримується. Можливо: {allowed}", "checklist_status")
         note = checklist_note(number)
         if note is None:
             raise WhatIfError(f"Пункту чек-листа {number} немає в цій хвилі", "checklist_unknown")
@@ -128,7 +130,8 @@ def apply(db: Session, inputs: results.Inputs, measure_ids: list[uuid.UUID], che
             continue
         old = set_checklist(items, number, status)
         applied.append({"kind": "checklist", "number": number, "effect": True, "title": old.text,
-                        "note": f"{old.status or 'не заповнено'} → {status}, підтверджено."})
+                        "note": f"{titles.checklist_status(old.status)} → {titles.checklist_status(status)}, "
+                                "підтверджено."})
 
     for indicator, percent in facts.items():
         check_fact(fact_list, indicator, percent)
@@ -215,7 +218,7 @@ def levers(inputs: results.Inputs, base_index: float | None) -> list[dict]:
         res = inputs.compute(checklist=items)
         measure = catalog_measure(item.number)
         found.append({"kind": "checklist", "number": item.number, "title": item.text, "component": item.component,
-                      "change": f"пункт {item.number}: {item.status or 'не заповнено'} → повністю, підтверджено",
+                      "change": f"пункт {item.number}: {titles.checklist_status(item.status)} → повністю, підтверджено",
                       "scenario": {"checklist": {item.number: "full"}}, "index": res["index"]["score"],
                       "measure": measure})
     for fact in inputs.facts:

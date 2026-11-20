@@ -318,6 +318,17 @@ def unit_snapshots(db: Session, unit_id: uuid.UUID) -> list[tuple[Campaign, Inde
     return [(c, s) for c, s in rows]
 
 
+def previous_indexed(history: list[tuple[Campaign, IndexSnapshot]], campaign_id: uuid.UUID) -> IndexSnapshot | None:
+    """Попередній знімок з індексом: хвиля без індексу (одна анкета, мало відповідей) не база для порівняння."""
+    previous = None
+    for c, s in history:
+        if c.id == campaign_id:
+            break
+        if s.index_score is not None:
+            previous = s
+    return previous
+
+
 def delta(a, b):
     return None if a is None or b is None else round(a - b, 1)
 
@@ -366,12 +377,7 @@ def results_for(db: Session, campaign: Campaign, unit_id: uuid.UUID | None, reca
         payload = jsonable(compute_for(db, campaign, scope))
         source = "recalculated" if recalculate else "live"
 
-    history = unit_snapshots(db, scope)
-    previous = None
-    for c, s in history:
-        if c.id == campaign.id:
-            break
-        previous = s
+    previous = previous_indexed(unit_snapshots(db, scope), campaign.id)
     dyn = compare_payloads(previous.payload, payload) if previous is not None else None
     return {**payload, "source": source, "dynamics": dyn, "summary": scoring.management_summary(payload, dyn)}
 

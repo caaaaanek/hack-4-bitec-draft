@@ -17,6 +17,7 @@ from app.models import Campaign, Measure, MeasureStatus, Role, Unit, User
 from app.security import RESULT_READERS, ensure_unit_access, require_roles
 from app.services import measures as service
 from app.services import methodology as m
+from app.services import titles
 from app.services.units import subtree_ids
 
 router = APIRouter(prefix="/measures", tags=["measures"])
@@ -51,8 +52,10 @@ def needs_reason(old: MeasureStatus, new: MeasureStatus) -> bool:
 
 def check_transition(old: MeasureStatus, new: MeasureStatus) -> None:
     if new != old and new not in TRANSITIONS[old]:
-        allowed = ", ".join(sorted(x.value for x in TRANSITIONS[old])) or "—"
-        raise ApiError(409, f"Зі статусу {old.value} не можна перейти в {new.value}", code="bad_transition",
+        allowed = ", ".join(f"{x.value} ({titles.measure_status(x)})" for x in sorted(TRANSITIONS[old])) or "—"
+        raise ApiError(409, f"Зі статусу «{titles.measure_status(old)}» не можна перейти "
+                            f"в «{titles.measure_status(new)}»",
+                       code="bad_transition",
                        hint=f"Дозволено: {allowed}.")
 
 
