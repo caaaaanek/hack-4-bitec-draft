@@ -1,12 +1,12 @@
 /* Оболонка застосунку: бічне меню, шапка, екран, оверлеї. */
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Ic } from "./lib/icons.jsx";
-import { S, ROLE, NAV, NAV_GROUP, NAV_GROUP_T, HOME, AI_ROLES, persist, resetDemo, addLog } from "./lib/state.js";
+import { S, ROLE, NAV, NAV_GROUP, NAV_GROUP_T, HOME, AI_ROLES, persist, resetDemo, addLog, simpleMode, setSimpleMode, SIMPLE_ROUTES } from "./lib/state.js";
 import { API, login, loginProxy, logout, apiErrText, retryBoot, startDemo, apiModReset } from "./lib/api.js";
 import { NotesPop, notesState, markNotesSeen } from "./components/NotesPop.jsx";
 import { COMPS, COMP, INSTITUTIONS, allItems, pendingRecs, measures, overdueDays, clamp, CYCLE } from "./lib/model.js";
 import { useStore, getViewKey, render, toast, ui, openPop, closePop, closeDrawer } from "./lib/store.js";
-import { route, allowed, cur, TITLES, isLogin } from "./lib/nav.js";
+import { route, allowed, cur, TITLES, isLogin, can } from "./lib/nav.js";
 import { Drawer, Pop, Toast, hideTip, quietTips, Z } from "./components/overlays.jsx";
 import { AiPanel, aiOpen, aiClose } from "./ai/assistant.jsx";
 import { Overview, Explain, Trends, Compare, PeriodPop } from "./views/results.jsx";
@@ -67,6 +67,7 @@ function A11yPop() {
   return <>
     <div className="lbl" style={{ textTransform: "uppercase", letterSpacing: ".06em", fontSize: 11, marginBottom: 8 }}>Розмір тексту</div>
     <div style={{ display: "flex", alignItems: "center", gap: 10 }}><button className="icon-btn" aria-label="Зменшити текст" onClick={() => setZoom(-1)} disabled={a.z <= 1}>−</button><b className="tnum" style={{ minWidth: 48, textAlign: "center" }}>{Math.round(a.z * 100)} %</b><button className="icon-btn" aria-label="Збільшити текст" onClick={() => setZoom(1)} disabled={a.z >= 1.5}>+</button></div>
+    {can("overview") && <label className="a11y-row"><span>Простий режим: лише Огляд і Звіт</span><span className="sw"><input type="checkbox" checked={simpleMode()} onChange={e => setSimpleMode(e.target.checked)} /><span /></span></label>}
     <label className="a11y-row"><span>Підвищений контраст</span><span className="sw"><input type="checkbox" checked={!!a.hc} onChange={e => { S.a11y.hc = e.target.checked; persist(); applyA11y(); render(true); }} /><span /></span></label>
     <button className="link-btn" onClick={() => { S.a11y = { z: 1, hc: false }; persist(); applyA11y(); autoSide(); render(true); }}>Скинути</button>
   </>;
@@ -185,7 +186,8 @@ export default function App() {
   const mini = html.classList.contains("side-mini"), u = API.user;
   const [q, setQ] = useState(""), [sel, setSel] = useState(0), qRef = useRef(null), box = useRef(null);
   const hits = searchHits(q), ns = notesState();
-  const navG = navGroups(NAV.filter(n => n[3].includes(S.role)));
+  const navAll = NAV.filter(n => n[3].includes(S.role)), simple = simpleMode() && navAll.some(n => n[0] === "overview");
+  const navG = navGroups(simple ? navAll.filter(n => SIMPLE_ROUTES.includes(n[0])) : navAll);
   html.dataset.role = S.role;
   useEffect(() => {
     const key = e => {
@@ -220,7 +222,7 @@ export default function App() {
           const links = items.map(([nr, n, ic]) => <a key={nr} href={`#${nr}`} data-r={nr} className={nr === r ? "on" : ""} aria-current={nr === r ? "page" : undefined} aria-label={n} data-tip={mini ? n : undefined}
             onClick={e => { if ("#" + nr === location.hash.split("/")[0]) { e.preventDefault(); ui.side = false; render(); } }}><Ic n={ic} /><span>{n}</span><Badge r={nr} /></a>);
           return g ? <div key={g} className="nav-grp" role="group" aria-labelledby={`ng-${g}`}><div className="nav-g" id={`ng-${g}`}>{NAV_GROUP_T[g]}</div>{links}</div> : links;
-        })}</nav>
+        })}{!login && simple && <button type="button" className="link-btn nav-all" onClick={() => setSimpleMode(false)}>Простий режим: показати все меню</button>}</nav>
         <div className="side-foot"><div className="role-card">{API.down ? null : API.on ? (u ? <>
           <small>Ви увійшли як</small><b style={{ fontSize: 14 }}>{u.display_name}</b><small>{ROLE[S.role][0]} · {u.login}</small>
           <button className="btn btn-ghost" id="logoutBtn" type="button" onClick={logout}><Ic n="arrowL" />Вийти</button></> : null) : <>
