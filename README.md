@@ -4,7 +4,7 @@
 
 ![Головний екран: огляд закладу для керівника](docs/img/dashboard-overview.png)
 
-## Робоча версія [https://integrity-prototype.vercel.app](https://integra.csit-mitit.com/) (роль перемикається в меню)
+## [Робоча версія](https://integra.csit-mitit.com/) (роль перемикається в меню)
 
 ## Проблема і користувач
 
