@@ -38,7 +38,7 @@ export function Recs() {
         {r.covers && r.covers.length > 0 && <div className="lbl" style={{ marginTop: 4 }}>Обʼєднує ще {r.covers.length} {plural(r.covers.length, "схожу пропозицію", "схожі пропозиції", "схожих пропозицій")}</div>}
         <div className="lbl" style={{ margin: "10px 0 4px" }}>Чому система це пропонує</div><div>{r.why}</div>
         {r.evidence.length > 0 && <div className="lbl" style={{ margin: "12px 0 4px" }}>На підставі</div>}
-        {r.evidence.length > 0 && <div className="ev">{r.evidence.map((e, j) => <a key={j} href={`#explain/${e.id}`} className="ev-i" onClick={e.q ? ev => { ev.preventDefault(); openApiQ(e.q); } : undefined}><span>{!e.item && <span className="ev-flag"><Ic n="alert" /></span>}{e.t}: <b>{e.v}</b></span><span className="lbl">{e.q ? "Відкрити питання" : "Відкрити в розкладі"} <Ic n="arrowR" /></span></a>)}</div>}
+        {r.evidence.length > 0 && <div className="ev">{r.evidence.map((e, j) => <a key={j} href={`#explain/${e.id}`} className="ev-i" title={e.q ? "Відкрити питання" : "Відкрити в розкладі"} onClick={e.q ? ev => { ev.preventDefault(); openApiQ(e.q); } : undefined}><span>{!e.item && <span className="ev-flag"><Ic n="alert" /></span>}{e.t}: <b>{e.v}</b></span><span className="lbl" aria-hidden="true"><Ic n="arrowR" /></span></a>)}</div>}
         <details className="acts"><summary>Запропоновані дії ({r.acts.length})</summary><ol>{r.acts.map(a => <li key={a}>{a}</li>)}</ol></details>
         {r.note.reason && <div className="note-box" style={{ marginTop: 10 }}><b>Причина відхилення</b><span>{r.note.reason}</span></div>}
         {r.note.comment && <div className="note-box" style={{ marginTop: 10 }}><b>Коментар до уточнення</b><span>{r.note.comment}</span></div>}
