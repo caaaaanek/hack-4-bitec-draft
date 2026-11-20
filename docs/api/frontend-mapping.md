@@ -1,28 +1,19 @@
 # Контракт фронтенду → API бекенду
 
-Фронтенд написано під власну пропозицію контракту (`frontend/docs/api/openapi.yaml`, 48 операцій). Джерело правди тепер
-бекенд: [`openapi.json`](openapi.json). Типи для фронтенду варто генерувати з нього:
-
-```bash
-cd frontend
-npx openapi-typescript ../docs/api/openapi.json -o src/api/schema.d.ts
-```
+Джерело правди — бекенд: [`openapi.json`](openapi.json) (`cd backend && python scripts/export_openapi.py`).
+Фронтенд — `frontend-proto/` (React + Vite, JSX). Усі запити йдуть через `frontend-proto/src/lib/api.js`:
+`boot()` перевіряє `GET /api/v1/config` і вмикає режим з сервером, `api(path, …)` додає `Authorization: Bearer <token>`
+(токен у `sessionStorage`) і перетворює помилку бекенду на `ApiErr`; без API сторінка працює на демо-даних.
 
 База: `/api/v1`. Вхід: `POST /auth/session` (JSON), далі `Authorization: Bearer <token>`.
 
-**Стан (17.11): фронтенд підключено.** Екрани беруть дані з API через `src/api/AppData.tsx` (остання закрита хвиля,
-знімок, історія, рекомендації, заходи) і адаптери `src/api/adapters.ts` (моделі бекенду → моделі екранів, тести на справжніх
-відповідях у `adapters.test.ts`). Вхід — `src/pages/Login.tsx`, сесія — `src/api/session.tsx`, ролі бекенду → ролі інтерфейсу —
-`frontRole` + `API_ROLE_ROUTES` у `src/lib/access.ts`. Демо-режим без бекенду: `VITE_DEMO=true` (`npm run dev:demo`).
+- У розробці Vite проксіює `/api` на `BACKEND_URL` (за замовчуванням `http://127.0.0.1:8000`), у Docker — nginx: один origin, CORS не задіяний.
+- **Помилки** `{code, message, hint, detail, errors?, missing_question_ids?, request_id}`; інтерфейс показує `message` і `hint` українською.
+- **k одне:** бекенд віддає його в `GET /config` → `min_group_size`; для хвилі — її `min_group_size`.
+- **snake_case без перетворень.** Поля як у бекенді; ключі-словники (категорії, коди компонентів) лишаються як є.
 
-**Готово для підключення (v0.3):**
-- Клієнт `frontend/src/api/client.ts` (fetch, токен у sessionStorage, `ApiError`), типи `frontend/src/api/backend.d.ts`
-  (`npm run api:types:backend`), тести `client.test.ts`.
-- У розробці Vite проксіює `/api` на `http://localhost:8000` (`VITE_PROXY_TARGET`), у Docker — nginx: один origin, CORS не задіяний.
-- **Помилки** `{code, message, hint, detail, errors?, missing_question_ids?, request_id}` — те, що просив фронтенд (`{code, message, hint}`).
-- **k одне:** `K_MIN_GROUP = 5` у фронтенді, бекенд віддає те саме в `GET /config` → `min_group_size`; для хвилі — її `min_group_size`.
-- **snake_case без перетворень.** Поля як у бекенді; ключі-словники (категорії, коди компонентів) лишаються як є, тому автоматичне
-  camelCase-перетворення не робимо: воно зламало б ключі `working_group` тощо. Типи генеруються з `openapi.json`.
+Нижче — відповідність операцій першого прототипу інтерфейсу (його пропозиції контракту) маршрутам бекенду. Перший прототип
+(`frontend/`) з репозиторію видалено 20.11.2026; таблиця лишається як довідник маршрутів.
 
 ## Відповідність операцій
 
@@ -93,10 +84,8 @@ npx openapi-typescript ../docs/api/openapi.json -o src/api/schema.d.ts
    обчислити різницею, приходять із `null` замість чисел і `suppressed: true` / `too_few_people`.
 8. **Факти** — `POST /indicators` з інших систем (ключ на джерело) або вручну адміном; помісячно.
 
-## Що треба змінити у фронтенді
+## Що враховує фронтенд
 
-- ~~k = 5, а не 10~~ — зроблено (`K_MIN_GROUP = 5`, тести оновлено).
-- Екрани перевести з `src/demo` на `api` з `src/api/client.ts`; опитування `/s/:token` — на `api.tokenForm` / `api.tokenSubmit`.
-- Прихований стан: замість `{visibility: "hidden_below_k", fallbackScope}` бекенд віддає `null` у числах, `sufficient: false`,
-  `suppressed: true` у групі. `fallbackScope` = `parent_id` підрозділу.
+- Прихований стан: замість окремого прапорця бекенд віддає `null` у числах, `sufficient: false`, `suppressed: true` у групі;
+  вищий рівень для такої групи — `parent_id` підрозділу.
 - Ідентифікатори — UUID; назви полів — `snake_case`.

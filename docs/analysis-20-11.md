@@ -90,4 +90,4 @@
 | B6. Карта для фронтенду | [`frontend-backlog.md`](frontend-backlog.md) |
 | B7. Ознака накрутки QR | `GET /campaigns/{id}/qr-links` → `over_expected`, `scan_limit_reached` |
 | B8. Якір журналу назовні | `services/audit_anchor.py`: щодня (автопілот) і `POST /admin/audit-log/export-anchor` — файл у `AUDIT_ANCHOR_DIR` і/або мітка часу RFC 3161 (`AUDIT_ANCHOR_TSA_URL`) |
-| B9. README | Таблиця модулів з маршрутами `frontend-proto`, нові рядки, посилання на `frontend-backlog.md`; старий `frontend/` позначено як архів |
+| B9. README | Таблиця модулів з маршрутами `frontend-proto`, нові рядки, посилання на `frontend-backlog.md`; старий `frontend/` видалено з репозиторію (20.11) |
