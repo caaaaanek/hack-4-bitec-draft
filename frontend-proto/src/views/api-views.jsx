@@ -345,7 +345,9 @@ function ApiAudit() {
   const { rows, units, users } = API.log, F = { q: "", ent: "all", who: "all", ...API.logF };
   const set = (k, v) => { API.logF = { ...(API.logF || {}), [k]: v }; API.logLim = 50; render(true); };
   const lim = API.logLim || 50;
-  const who = id => { const u = users.find(u => u.id === id); return u ? dn(u.display_name) + (API.user && u.id === API.user.id ? " (ви)" : "") : id ? `Користувач ${(unk[id] ??= Object.keys(unk).length + 1)}` : "Система"; }, unk = {};
+  // Ім'я з відповіді журналу (actor_display), якщо сервер його дає: аудиту список користувачів недоступний
+  const disp = Object.fromEntries(rows.filter(x => x.actor_id && x.actor_display).map(x => [x.actor_id, x.actor_display]));
+  const who = id => { if (disp[id]) return dn(disp[id]) + (API.user && id === API.user.id ? " (ви)" : ""); const u = users.find(u => u.id === id); return u ? dn(u.display_name) + (API.user && u.id === API.user.id ? " (ви)" : "") : id ? `Користувач ${(unk[id] ??= Object.keys(unk).length + 1)}` : "Система"; }, unk = {};
   const act = x => AUDIT_ACT[`${x.entity}:${x.action}`] || `${AUDIT_ENT[x.entity] || x.entity}: ${x.action}`;
   const fmt = at => new Date(at).toLocaleString("uk-UA", { dateStyle: "short", timeStyle: "short" });
   const items = rows.map(x => ({ x, a: act(x), w: who(x.actor_id), d: auditDetails(x, units), t: fmt(x.at) }));
