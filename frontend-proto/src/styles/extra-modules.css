@@ -139,3 +139,8 @@
 .row .t.gm-t { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
 .ix-extra { display: flex; flex-direction: column; gap: 2px; }
 .ix-card .ix-extra + .ix-extra { margin-top: 14px; }
+/* Брифінг і шлях до наступного рівня */
+.bf-nums { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.bf-num { background: var(--soft); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.bf-num b { font-size: 15px; overflow-wrap: anywhere; }
+.row .t.nl-t { white-space: normal; overflow-wrap: anywhere; }

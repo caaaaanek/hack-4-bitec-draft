@@ -532,3 +532,10 @@ export async function apiCheckRun(kind, unit_id, period) {
   const body = await api(`/checks/mock/${kind}?unit_id=${unit_id}&period=${period}`);
   return api(`/checks/${kind}`, { method: "POST", body });
 }
+// Завантаження файлу з API (Word, Excel): назва з Content-Disposition або запасна
+export async function apiFile(path, fallback) {
+  const r = await api(path, { raw: true }), blob = await r.blob();
+  const cd = r.headers.get("content-disposition") || "", star = /filename\*=UTF-8''([^;]+)/i.exec(cd), plain = /filename="?([^";]+)"?/i.exec(cd);
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = star ? decodeURIComponent(star[1]) : plain ? plain[1] : fallback;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}

@@ -11,6 +11,7 @@ import { MiniTrend, TrendChart, Radar } from "../components/charts.jsx";
 import { DigestRows, digestTop, PrepBtn } from "./Insights.jsx";
 import { CandorCard, GamingCard } from "./Candor.jsx";
 import { IndexExtras } from "./IndexExtras.jsx";
+import { LeaderDocs, canBriefing } from "./Leadership.jsx";
 import { API } from "../lib/api.js";
 import { openWhy, openTrust, openHow, openResp, openItem, openApiQ, openTrustHow, openTrackerHow, openRespHow, itemQs } from "./panels.jsx";
 
@@ -60,7 +61,7 @@ export function Overview() {
   const attn = S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX), strong = S.strAll ? m.strengths : m.strengths.slice(0, LIST_MAX), dg = digestTop();
   return <>
     <BackToInst />
-    {can("advocate") && <div className="c12 toolbar rise"><div className="sp" /><PrepBtn /></div>}
+    {(can("advocate") || canBriefing()) && <div className="c12 toolbar rise"><div className="sp" /><LeaderDocs /><PrepBtn /></div>}
     <div className="c12 kpi-row">
       <Tile ic="gauge" title="Індекс доброчесності" big={<span className="mid tnum"><Num v={m.index} /></span>} act={openWhy} info={openHow}
         sub={<><span>Рівень зрілості {m.level} з 5: {LSHORT[m.level - 1]}</span><br /><Delta d={m.delta} /></>} />
