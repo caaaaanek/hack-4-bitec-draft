@@ -14,6 +14,7 @@ import { QrCode, qrAbs } from "../components/QrCode.jsx";
 import { bldFromServer, bldNewSec } from "./Builder.jsx";
 import { AutopilotSection } from "./Autopilot.jsx";
 import { DeptInstitutions, ChooseInst } from "./Department.jsx";
+import { AnchorCard, LotteryCard } from "./Transparency.jsx";
 import { LearnCard } from "./Learn.jsx";
 
 export function apiView(r) {
@@ -271,10 +272,10 @@ function ApiChecklist() {
   const camp = K.camps.find(c => c.id === K.sel), open = camp && camp.status === "open";
   const ed = S.role === "checklist_editor" && open, ap = S.role === "commissioner" && open, D = K.data;
   const head = <section className="c12 rise toolbar">{!(ed || ap) && <span className="lbl">Режим перегляду.</span>}<div className="sp" />
-    {K.camps.length > 1 ? <select className="inp" aria-label="Хвиля" value={K.sel} onChange={e => apiCkReload(e.target.value)}>{K.camps.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select> : <span className="lbl">{camp ? camp.title : ""}</span>}</section>;
+    {K.camps.length > 1 ? <select className="inp" aria-label="Хвиля" value={K.sel} onChange={e => apiCkReload(e.target.value)}>{K.camps.map(c => <option key={c.id} value={c.id}>{dn(c.title)}</option>)}</select> : <span className="lbl">{camp ? camp.title : ""}</span>}</section>;
   if (!D) return <>{head}<Empty t="Чек-лист недоступний">{K.err || ""}</Empty></>;
   const tile = (ic, t, v) => <section className="card rise kpi-tile"><div className="kt-h"><span className="kt-ic"><Ic n={ic} /></span><span className="lbl">{t}</span></div><div className="kt-b"><span className="mid tnum">{v}</span></div></section>;
-  return <>{head}
+  return <>{head}{["auditor", "commissioner"].includes(S.role) && <LotteryCard campaignId={K.sel} status={camp && camp.status} />}
     <div className="c12 kpi-row kpi-row-s">{tile("check", "Пунктів", D.total)}{tile("edit", "Внесено", D.filled)}{tile("ok", "Підтверджено", D.confirmed)}</div>
     <section className="card c12 rise"><div className="tbl-wrap"><table><thead><tr><th>Пункт</th><th>Компонент</th><th>Стан і доказ</th><th>Файли</th><th></th></tr></thead><tbody>
       {D.items.map(it => <tr key={it.question_id} id={`ck-${it.question_id}`}><td style={{ minWidth: 260 }}><b style={{ fontWeight: 600 }}>{it.number}.</b> {it.text.replace(/^\d+(\.\d+)*\.\s*/, "")}</td>
@@ -325,7 +326,7 @@ function ApiAudit() {
   const groups = []; shown.forEach(i => { const g = groups[groups.length - 1]; if (g && g[0].a === i.a && g[0].w === i.w && g[0].d === i.d) g.push(i); else groups.push([i]); });
   const ents = [...new Set(rows.map(x => x.entity))].sort((a, b) => (AUDIT_ENT[a] || a).localeCompare(AUDIT_ENT[b] || b, "uk"));
   const actors = [...new Set(rows.map(x => x.actor_id).filter(Boolean))].map(id => [id, who(id)]).sort((a, b) => a[1].localeCompare(b[1], "uk"));
-  return <section className="card c12 rise">
+  return <><AnchorCard /><section className="card c12 rise">
     <div className="card-h" style={{ flexWrap: "wrap" }}><h2>Журнал дій</h2><div className="sp" /><span id="chainSt">{API.chain && <Pill cls={API.chain.ok ? "p-good" : "p-bad"}>{API.chain.ok ? `Ланцюг цілісний: перевірено ${API.chain.checked} записів` : `Ланцюг порушено на записі № ${API.chain.broken_seq}`}</Pill>}</span><button className="btn btn-soft" onClick={apiVerify}><Ic n="shield" />Перевірити цілісність</button></div>
     <div className="lbl" style={{ marginBottom: 10 }}>Хто, коли й що змінив. Кожен запис містить хеш попереднього (sha256), тож тиха правка чи видалення ламає ланцюг. Подань анкет у журналі немає.</div>
     <div className="toolbar" style={{ marginBottom: 8 }}><label className="search inst-search"><span><Ic n="search" /></span><input id="logQ" placeholder="Дія, хто, підрозділ, дата або хеш" value={F.q || ""} onChange={e => set("q", e.target.value)} /></label>
@@ -333,5 +334,5 @@ function ApiAudit() {
       {actors.length > 0 && <select className="inp" aria-label="Хто" value={F.who} onChange={e => set("who", e.target.value)}><option value="all">Усі користувачі</option>{actors.map(([id, n]) => <option key={id} value={id}>{n}</option>)}</select>}
       <span className="lbl tnum">Показано {shown.length} з {rows.length}</span></div>
     {groups.length ? <div className="tl">{groups.map((g, i) => { const f = g[0], l = g[g.length - 1]; return <div key={f.x.seq} className="tl-i rise" style={{ animationDelay: `${Math.min(i, 12) * 40}ms` }}><span className="nd" /><div><div style={{ fontWeight: 500 }}>{f.a}{g.length > 1 && <> <span className="pill p-mute nodot">×{g.length}</span></>}</div><div className="lbl">{f.w} · {g.length > 1 ? `${l.t} – ${f.t}` : f.t}{f.d ? " · " + f.d : ""}</div></div><span className="hash" data-tip={`Запис № ${f.x.seq}`}>{f.x.hash.slice(0, 10)}</span></div>; })}</div> : <div className="empty">Записів за цим запитом немає.</div>}
-  </section>;
+  </section></>;
 }
