@@ -54,9 +54,16 @@ function BuilderBody({ init }) {
     try { B.issues = await api(`/questionnaires/${B.q.id}/validate`); redraw(); if (body.current) body.current.scrollTop = 0; return B.issues; } catch (err) { apiFail(err); return null; }
   };
   const publish = async () => {
+    if (B.busy) return;
     if (B.dirty && !(await save(true))) return;
-    const issues = await validate(); if (!issues || issues.length) return;
-    try { await api(`/questionnaires/${B.q.id}/publish`, { method: "POST" }); toast("Анкету опубліковано"); close(true); } catch (err) { apiFail(err); }
+    B.busy = true; redraw();
+    try {
+      const issues = await validate(); if (!issues || issues.length) { if (issues && issues.length) toast("Не можна опублікувати: виправте позначені місця"); return; }
+      await api(`/questionnaires/${B.q.id}/publish`, { method: "POST" }); toast("Анкету опубліковано"); close(true);
+    } catch (err) {
+      // Причини сервера показуємо в тому самому списку зауважень, що й перевірка, а не загальним «Не вдалося»
+      if (err.errors && err.errors.length) { B.issues = err.errors; toast("Не можна опублікувати: виправте позначені місця"); } else toast(apiErrText(err));
+    } finally { B.busy = false; redraw(); }
   };
   // Зміна поля: введення тексту не скидає перевірку повністю, лише позначає незбережені зміни
   const set = (obj, k, v) => { obj[k] = v; if (!B.dirty) { B.dirty = true; B.issues = null; } redraw(); };

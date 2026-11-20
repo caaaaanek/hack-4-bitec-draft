@@ -220,9 +220,9 @@ function ApiSurveys() {
       <div className="stat4 tnum" style={{ gridTemplateColumns: "repeat(3,1fr)", marginTop: 14 }}><div><small>Група</small><b style={{ fontSize: 14 }}>{q.kind === "checklist" ? "Чек-лист" : QCAT[q.target_category]}</b></div><div><small>Версія</small><b>{q.version}</b></div><div><small>Код</small><b style={{ fontSize: 12 }}>{q.code}</b></div></div>
       <div className="lbl" style={{ marginTop: 10 }}>Оновлено {ua(q.updated_at.slice(0, 10))}</div><div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end" }}>
         <button className="btn btn-soft" onClick={() => apiOpenQ(q.id)}><Ic n="eye" />Переглянути</button>
-        {q.status === "draft" ? <><button className="btn btn-soft" onClick={() => bldOpen(q.id)}><Ic n="edit" />Редагувати</button><button className="btn btn-primary" onClick={() => apiQAct(q.id, "publish")}><Ic n="ok" />Опублікувати</button></>
-          : q.status === "published" ? <><button className="btn btn-ghost" onClick={() => apiQAct(q.id, "new-version")}><Ic n="plus" />Нова версія</button><button className="btn btn-ghost" onClick={() => apiQAct(q.id, "archive")}>В архів</button></>
-          : q.status === "archived" ? <button className="btn btn-ghost" onClick={() => apiQAct(q.id, "restore")}>Повернути з архіву</button> : null}</div>
+        {q.status === "draft" ? <><button className="btn btn-soft" onClick={() => bldOpen(q.id)}><Ic n="edit" />Редагувати</button><button className="btn btn-primary" disabled={!!API.qBusy} onClick={() => apiQAct(q.id, "publish")}><Ic n="ok" />Опублікувати</button></>
+          : q.status === "published" ? <><button className="btn btn-ghost" disabled={!!API.qBusy} onClick={() => apiQAct(q.id, "new-version")}><Ic n="plus" />Нова версія</button><button className="btn btn-ghost" disabled={!!API.qBusy} onClick={() => apiQAct(q.id, "archive")}>В архів</button></>
+          : q.status === "archived" ? <button className="btn btn-ghost" disabled={!!API.qBusy} onClick={() => apiQAct(q.id, "restore")}>Повернути з архіву</button> : null}</div>
     </section>)}
   </>;
 }

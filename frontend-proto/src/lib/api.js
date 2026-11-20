@@ -429,13 +429,16 @@ export const QST = { draft: ["Чернетка", "p-warn"], published: ["Опу�
 export const QCAT = { working_group: "Робоча група", staff: "Особовий склад", expert: "Зовнішні експерти" };
 export function apiSurveysReload() { API.qs = null; render(true); }
 export async function apiQAct(id, act) {
+  if (API.qBusy) return;
+  API.qBusy = id; render(true); // кнопки анкети неактивні, доки йде запит
   try {
     if (act === "publish") { const issues = await api(`/questionnaires/${id}/validate`); if (issues.length) { toast("Не можна опублікувати: " + issues.map(i => i.message).join("; ")); return; } }
     const q = await api(`/questionnaires/${id}/${act}`, { method: "POST" });
     toast(act === "publish" ? `Опубліковано: ${q.title}` : act === "new-version" ? `Створено чернетку версії ${q.version}` : act === "restore" ? `Повернуто з архіву: ${q.title}` : `В архіві: ${q.title}`);
     API.qs = null; render(true);
     if (act === "new-version") bldOpen(q.id); // нова версія це чернетка: одразу відкриваємо в конструкторі
-  } catch (e) { apiFail(e); }
+  } catch (e) { toast(act === "publish" && e.errors && e.errors.length ? "Не можна опублікувати: " + e.errors.map(x => x.message).join("; ") : apiErrText(e)); }
+  finally { API.qBusy = null; render(true); }
 }
 export async function bldOpen(id) {
   try { const q = await api(`/questionnaires/${id}`); ui.bld = { q, n: Date.now() }; render(true); } catch (e) { apiFail(e); }
