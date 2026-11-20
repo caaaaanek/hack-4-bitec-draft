@@ -288,11 +288,16 @@ function apiSurveyModel(form, kind, category) {
   const guess = t => /культур/i.test(t) ? "culture" : /систем/i.test(t) ? "system" : /підзвітн/i.test(t) ? "accountability" : null;
   const opt = {};
   const sections = form.sections.map(s => {
-    const id = s.component || guess(s.title) || "overall"; // компонент з сервера (culture/system/accountability/overall); за назвою лише для старих відповідей
-    return { id, t: s.title, about: COMPS.includes(id) ? { culture: "про ставлення до доброчесності", system: "про процедури й канали звернень", accountability: "про прозорість рішень і виконання заходів" }[id] : id === "overall" ? "" : "за темою розділу",
+    const id = s.component || guess(s.title) || "overall"; // компонент з сервера (culture/system/accountability/overall/candor); за назвою лише для старих відповідей
+    // Розділ непрямих питань: респонденту не пояснюємо метод у назві, щоб не підказувати, яке твердження головне
+    const candor = id === "candor";
+    return { id, t: candor ? "Ситуації на службі" : s.title, about: COMPS.includes(id) ? { culture: "про ставлення до доброчесності", system: "про процедури й канали звернень", accountability: "про прозорість рішень і виконання заходів" }[id] : id === "overall" ? "" : candor ? "кілька коротких питань про повсякденні ситуації" : "за темою розділу",
       q: s.questions.map(q => {
-        if (q.type === "scale" && !q.options.length) { const vals = []; for (let v = q.scale_min; v <= q.scale_max; v++) vals.push(v); opt[q.id] = vals.map(v => ({ value: v })); return [q.id, q.text, vals.map(String)]; }
-        opt[q.id] = q.options.map(o => ({ id: o.id })); return [q.id, q.text, q.options.map(o => o.text)];
+        // Підказка до питання (help_text): для непрямого питання «скільки з переліку» в ній самі твердження.
+        // Варіант переліку (A/B) лишається лише в ідентифікаторах відповідей, респондент його не бачить.
+        const help = q.help_text || "";
+        if (q.type === "scale" && !q.options.length) { const vals = []; for (let v = q.scale_min; v <= q.scale_max; v++) vals.push(v); opt[q.id] = vals.map(v => ({ value: v })); return [q.id, q.text, vals.map(String), help]; }
+        opt[q.id] = q.options.map(o => ({ id: o.id })); return [q.id, q.text, q.options.map(o => o.text), help];
       }) };
   });
   return { title: form.title, cat: CAT[category] || "Анонімне опитування", sections, opt, kind, campaignId: form.campaign_id, questionnaireId: form.questionnaire_id, k: form.min_group_size };

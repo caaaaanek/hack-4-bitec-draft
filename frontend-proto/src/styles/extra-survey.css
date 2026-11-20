@@ -6,3 +6,7 @@ fieldset.qf.card { margin:0; padding:20px; min-width:0; }
 /* текст питання всередині картки, а не на її верхній межі (стандартна поведінка legend у fieldset) */
 fieldset.qf.card > legend { float: left; width: 100%; padding: 0; margin: 0 0 14px; }
 fieldset.qf.card > legend + * { clear: both; }
+/* Підказка під питанням анкети: твердження непрямого питання списком */
+.q-help { margin: 4px 0 12px; }
+.q-help p { margin: 0 0 6px; }
+.q-help ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }

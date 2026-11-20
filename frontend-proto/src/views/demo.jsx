@@ -5,7 +5,7 @@ import { Ic } from "../lib/icons.jsx";
 import { S, SURVEY, SV, SQ, persist, addLog, me, logItems, fnv } from "../lib/state.js";
 import { API, apiSubmitSurvey } from "../lib/api.js";
 import { COMPS, COMP, FACTS, GROUPS, UNITS, UNIT_RESP, UNIT_CR, ALPHA, factValue, inst, level, indexOf, resolveUnit, CYCLE, TODAY_UA } from "../lib/model.js";
-import { fb, f1 } from "../lib/format.js";
+import { fb, f1, dsh } from "../lib/format.js";
 import { render, toast, openDrawer, closeDrawer } from "../lib/store.js";
 import { Pill, LvPill, Num, LevelBar, Ticks } from "../components/ui.jsx";
 
@@ -174,6 +174,11 @@ function submitSurvey() {
   try { localStorage.removeItem("ii-survey-draft"); } catch (e) { /* немає */ }
   addLog("Система", "Отримано анонімну відповідь, жетон погашено"); persist(); render();
 }
+// Підказка до питання: рядки «• …» показуємо списком (твердження непрямого питання), решту абзацом
+function QHelp({ t }) {
+  const lines = String(t).split("\n").map(x => x.trim()).filter(Boolean), items = lines.filter(x => x.startsWith("•")), rest = lines.filter(x => !x.startsWith("•"));
+  return <div className="q-help">{rest.map((x, i) => <p key={i} className="lbl">{dsh(x)}</p>)}{items.length > 0 && <ul>{items.map((x, i) => <li key={i}>{dsh(x.replace(/^•\s*/, ""))}</li>)}</ul>}</div>;
+}
 export function Survey() {
   const sv = S.survey, N = SQ().length;
   // Подяка лишається, поки людина на екрані; коли вона йде з нього (або відкриває пункт меню заново), анкета починається спочатку
@@ -203,7 +208,7 @@ export function Survey() {
     <div className="sv-top"><span className="lbl">Розділ {sv.sec + 1} з {SV().sections.length}</span><div className="qprog" style={{ flex: 1 }}>{SQ().map(q => <span key={q.id} className={`${q.si === sv.sec ? "cur" : ""} ${sv.a[q.id] != null ? "done" : ""}`} />)}</div><span className="lbl tnum">Відповіли на {answered()} з {N}</span><button className="icon-btn" aria-label="Закрити" onClick={() => { S.survey.phase = "intro"; render(); toast("Відповіді лишаються на цьому пристрої. Їх ще не надіслано."); }}><Ic n="x" /></button></div>
     <div className="qcard" key={sv.sec}>
       <div className="sv-sec-h"><span className="comp-ic" style={{ background: SC.s, color: SC.c }}><Ic n={SC.ic} /></span><div><b>{sec.t}</b><div className="lbl">{sec.about}</div></div></div>
-      {sec.q.map(([id, t, o], qi) => <fieldset key={id} className="card qf" id={`q-${id}`}><legend>{qi + 1}. {t}</legend><div className="opts">{o.map((x, i) => <button key={i} type="button" className={`opt ${sv.a[id] === i ? "on" : ""}`} aria-pressed={sv.a[id] === i} onClick={() => pick(id, i)}><span className="rb" /><span>{x}</span></button>)}</div></fieldset>)}
+      {sec.q.map(([id, t, o, help], qi) => <fieldset key={id} className="card qf" id={`q-${id}`}><legend>{qi + 1}. {t}</legend>{help ? <QHelp t={help} /> : null}<div className="opts">{o.map((x, i) => <button key={i} type="button" className={`opt ${sv.a[id] === i ? "on" : ""}`} aria-pressed={sv.a[id] === i} onClick={() => pick(id, i)}><span className="rb" /><span>{x}</span></button>)}</div></fieldset>)}
       {sv.miss && last && miss.length > 0 && <div className="note-box" style={{ marginTop: 12 }}><b>Залишилось відповісти на {miss.length} {miss.length === 1 ? "питання" : miss.length < 5 ? "питання" : "питань"}</b><span className="lbl">Натисніть на питання, щоб перейти до нього.</span>{miss.map(q => <a key={q.id} className="link" href="#survey" onClick={e => { e.preventDefault(); goMiss(q); }}>Розділ «{SV().sections[q.si].t}», питання {q.qi + 1}</a>)}</div>}
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20, gap: 10 }}>
         <button className="btn btn-ghost" disabled={sv.sec === 0} onClick={() => { S.survey.sec--; S.survey.miss = false; render(); window.scrollTo(0, 0); }}><Ic n="arrowL" />Назад</button>
