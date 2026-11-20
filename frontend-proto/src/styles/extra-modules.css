@@ -136,6 +136,6 @@
 .cd-links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
 .cd-foot { margin-top: 12px; font-size: 12.5px; }
 @media (max-width: 520px) { .cd-nums b { font-size: 22px; } }
-.gm-t { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+.row .t.gm-t { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
 .ix-extra { display: flex; flex-direction: column; gap: 2px; }
 .ix-card .ix-extra + .ix-extra { margin-top: 14px; }
