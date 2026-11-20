@@ -93,9 +93,9 @@ export async function boot() {
   nr("people", ["coordinator"]);
   nr("units", ["coordinator"]);
   nr("summary", ["coordinator"]);
-  // Довідники: категорії й посади веде техадмін, категорії ще й Департамент (для анкет), факти лише уповноважений
+  // Довідники: категорії й посади веде техадмін, Департамент категорії лише переглядає, факти веде уповноважений
   nr("dicts", ["admin", "coordinator", "observer"]);
-  nr("risks", ["leader", "admin", "auditor"]); // Департаменту реєстр закладів недоступний (сервер відповідає 403)
+  nr("risks", ["leader", "admin", "auditor", "observer"]); // Департамент читає реєстри закладів своєї зони; імпорт лише уповноважений
   const tm = location.pathname.match(/^\/s\/([^/?#]+)/);
   if (tm) return bootToken(decodeURIComponent(tm[1]));
   const qm = location.pathname.match(/^\/q\/([^/?#]+)/);
