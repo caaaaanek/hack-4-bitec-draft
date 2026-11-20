@@ -247,7 +247,7 @@ function CatsCard({ mgr }) {
   const r = loadCats();
   return <section className="card c12 rise">
     <div className="card-h"><h2>Категорії респондентів</h2><div className="sp" />{mgr && <button type="button" className="btn btn-soft btn-s" id="dcNew" onClick={() => catForm(null)}><Ic n="plus" />Додати</button>}</div>
-    {!r ? <span className="lbl">Завантажуємо…</span> : r.error ? <Err t={r.error} /> : <div className="tbl-wrap"><table className="adm-tbl"><thead><tr><th>Назва</th><th>Код</th><th>Вага в індексі</th><th>Стан</th><th></th></tr></thead><tbody>
+    {!r ? <span className="lbl">Завантажуємо…</span> : r.error ? <div><Err t={r.error} /> <button type="button" className="link-btn" onClick={() => apiModReset("dCats")}>Спробувати ще раз</button></div> : <div className="tbl-wrap"><table className="adm-tbl"><thead><tr><th>Назва</th><th>Код</th><th>Вага в індексі</th><th>Стан</th><th></th></tr></thead><tbody>
       {r.data.map(c => <tr key={c.code}><td>{c.title}</td><td className="tnum lbl">{c.code}</td><td className="tnum">{c.weight != null && c.in_index ? Math.round(c.weight * 100) + " %" : <span className="lbl">лише порівняння</span>}</td>
         <td className="adm-st">{c.active ? <><Dot c="var(--teal)" />Діє</> : <><Dot c="var(--muted)" />Вимкнено</>}</td>
         <td className="adm-acts">{mgr && <button type="button" className="btn btn-ghost btn-s" onClick={() => catForm(c)}><Ic n="edit" />Змінити</button>}</td></tr>)}
