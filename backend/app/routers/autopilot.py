@@ -45,7 +45,7 @@ class AutopilotIn(BaseModel):
     @model_validator(mode="after")
     def dates(self):
         if self.planned_open_on and self.planned_close_on and self.planned_close_on <= self.planned_open_on:
-            raise ValueError("planned_close_on має бути пізніше за planned_open_on")
+            raise ValueError("Дата закриття має бути пізніше за дату відкриття")
         if self.enabled and not (self.planned_close_on or self.close_at_percent):
             raise ValueError("Для автопілота потрібна дата закриття або поріг участі")
         return self
@@ -194,7 +194,7 @@ def download_prepared_report(campaign_id: uuid.UUID, db: Session = Depends(get_d
                      .order_by(GeneratedReport.created_at.desc())).first()
     if row is None:
         raise ApiError(404, "Звіт ще не підготовлено", code="not_found",
-                       hint="Автопілот готує звіт при закритті хвилі; вручну — GET /campaigns/{id}/report?format=docx.")
+                       hint="Звіт готується при закритті хвилі; вручну — «Звіт» → «Експорт» → Word.")
     log_action(db, user, "export_report", "campaign", campaign.id, {"format": "docx", "prepared": True})
     db.commit()
     return Response(content=row.content, media_type=DOCX,

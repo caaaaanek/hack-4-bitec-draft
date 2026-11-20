@@ -78,7 +78,7 @@ def test_full_wave_with_facts(client):
     assert data["checklist"]["confirmed"] == 36
 
     training = next(f for f in data["facts"] if f["indicator"] == "training_coverage")
-    assert training["label"] == "Охоплення навчанням за 12 місяців: мали пройти 100 · пройшли навчання 72 · не пройшли 28 (72%)"
+    assert training["label"] == "Охоплення навчанням за 12 місяців: мали пройти 100 · пройшли навчання 72 · не пройшли 28 (72%), бал 50 з 100"
     assert training["level"] == 3
 
     assert any("самооцінку не підтверджують факти" in line for line in data["summary"])

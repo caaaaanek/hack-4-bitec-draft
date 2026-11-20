@@ -56,7 +56,7 @@ def require_draft(questionnaire: Questionnaire) -> None:
 def require_category(db: Session, code: str | None) -> None:
     if code is None or not categories.exists(db, code):
         raise ApiError(422, f"Категорії «{code}» немає в довіднику", code="unknown_category",
-                       hint="Додайте її: POST /dictionaries/categories.")
+                       hint="Додайте її в «Довідники» → «Категорії респондентів».")
 
 
 @router.get("", response_model=list[QuestionnaireSummary])

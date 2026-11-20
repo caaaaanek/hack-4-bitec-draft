@@ -98,6 +98,73 @@ def _loc(loc) -> str:
     return ".".join(parts)
 
 
+def _num(value) -> str:
+    return str(value).replace(".", ",")
+
+
+def _chars(n) -> str:
+    n = int(n)
+    word = "символ" if n % 10 == 1 and n % 100 != 11 else (
+        "символи" if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 else "символів")
+    return f"{n} {word}"
+
+
+def _items(n) -> str:
+    n = int(n)
+    word = "елемент" if n % 10 == 1 and n % 100 != 11 else (
+        "елементи" if 2 <= n % 10 <= 4 and not 12 <= n % 100 <= 14 else "елементів")
+    return f"{n} {word}"
+
+
+def validation_message(error: dict) -> str:
+    """Повідомлення pydantic українською. Раніше користувач бачив «String should have at least 1 character»."""
+    kind, ctx, msg = error.get("type", ""), error.get("ctx") or {}, error.get("msg", "")
+    if kind == "missing":
+        return "Обов'язкове поле"
+    if kind == "string_too_short":
+        return "Заповніть поле" if int(ctx.get("min_length", 1)) <= 1 else f"Щонайменше {_chars(ctx['min_length'])}"
+    if kind == "string_too_long":
+        return f"Не більше {_chars(ctx.get('max_length', 0))}"
+    if kind == "too_short":
+        return "Додайте хоча б один елемент" if int(ctx.get("min_length", 1)) <= 1 else \
+            f"Щонайменше {_items(ctx['min_length'])}"
+    if kind == "too_long":
+        return f"Не більше {_items(ctx.get('max_length', 0))}"
+    if kind in ("greater_than_equal", "greater_than"):
+        bound = ctx.get("ge", ctx.get("gt"))
+        return f"Значення має бути {'не менше' if kind == 'greater_than_equal' else 'більше за'} {_num(bound)}"
+    if kind in ("less_than_equal", "less_than"):
+        bound = ctx.get("le", ctx.get("lt"))
+        return f"Значення має бути {'не більше' if kind == 'less_than_equal' else 'менше за'} {_num(bound)}"
+    if kind == "string_pattern_mismatch":
+        return "Неправильний формат"
+    if kind in ("int_parsing", "int_type", "int_from_float"):
+        return "Потрібне ціле число"
+    if kind in ("float_parsing", "float_type", "decimal_parsing"):
+        return "Потрібне число"
+    if kind in ("bool_parsing", "bool_type"):
+        return "Потрібно так або ні (true/false)"
+    if kind in ("uuid_parsing", "uuid_type"):
+        return "Неправильний ідентифікатор"
+    if kind in ("date_parsing", "date_from_datetime_parsing", "date_type", "date_from_datetime_inexact"):
+        return "Потрібна дата у форматі РРРР-ММ-ДД"
+    if kind in ("datetime_parsing", "datetime_type", "datetime_from_date_parsing"):
+        return "Потрібні дата й час (ISO 8601)"
+    if kind in ("enum", "literal_error"):
+        expected = ctx.get("expected")
+        return f"Допустимі значення: {expected}" if expected else "Недопустиме значення"
+    if kind in ("string_type", "list_type", "dict_type", "model_type", "model_attributes_type"):
+        return "Неправильний тип значення"
+    if kind == "extra_forbidden":
+        return "Невідоме поле"
+    if kind == "json_invalid":
+        return "Тіло запиту не є коректним JSON"
+    if kind in ("value_error", "assertion_error"):
+        # Наші валідатори вже пишуть українською; прибираємо службовий префікс pydantic.
+        return msg.removeprefix("Value error, ").removeprefix("Assertion failed, ")
+    return msg
+
+
 def _where(request: Request) -> str:
     # Лише метод і шлях: рядок запиту й заголовки (токени, X-Response-Token) у журнал не потрапляють
     return f"{request.method} {request.url.path}"
@@ -218,7 +285,7 @@ def install(app: FastAPI) -> None:
 
     @app.exception_handler(RequestValidationError)
     async def validation_error(request: Request, exc: RequestValidationError):
-        errors = [{"path": _loc(e.get("loc", ())), "message": e.get("msg", "")} for e in exc.errors()]
+        errors = [{"path": _loc(e.get("loc", ())), "message": validation_message(e)} for e in exc.errors()]
         body = error_body(422, errors)
         body["request_id"] = _request_id(request)
         return JSONResponse(body, status_code=422)

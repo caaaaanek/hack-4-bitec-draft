@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.audit import log_action
 from app.db import get_db
 from app.errors import ApiError
-from app.models import Campaign, CampaignStatus, Role, Unit, User
+from app.models import Campaign, CampaignStatus, IndexSnapshot, Role, Unit, User
 from app.schemas import UnitOut
 from app.schemas_results import BreakdownOut, CampaignResultsOut, CompareOut, HistoryOut, ParticipantResultOut
 from app.routers.respond import TOKEN_HEADER, token_throttle
@@ -312,20 +312,31 @@ def children_levels(unit_id: uuid.UUID, campaign_id: uuid.UUID | None = None, db
 
     Для вищого керівника замість карток кожного підрозділу: видно картину, але не видно, кого «карати».
     Підрозділи з недостатніми даними рахуються окремо. Якщо підрозділів з даними менше 3, розподіл
-    приховано. Знімок хвилі: остання закрита хвиля, що охоплює підрозділ, або campaign_id.
+    приховано. Знімок хвилі: campaign_id або остання закрита хвиля, що охоплює підрозділ і має знімки дочірніх
+    (раніше бралася просто остання, зокрема тестова без даних, і розподіл «ховався»).
     """
     unit = unit_or_404(db, unit_id, user)
+    descendants = subtree_ids(db, unit_id) - {unit_id}
     query = select(Campaign).where(Campaign.status == CampaignStatus.CLOSED)
     if campaign_id is not None:
         query = query.where(Campaign.id == campaign_id)
-    campaign = None
-    for c in db.scalars(query.order_by(Campaign.closed_on.desc(), Campaign.created_at.desc())):
-        if unit_id in subtree_ids(db, c.unit_id):
-            campaign = c
-            break
-    if campaign is None:
+    covering = [c for c in db.scalars(query.order_by(Campaign.closed_on.desc(), Campaign.created_at.desc()))
+                if unit_id in subtree_ids(db, c.unit_id)]
+    if not covering:
         raise HTTPException(status_code=404, detail="Немає закритої хвилі для цього підрозділу")
-    descendants = subtree_ids(db, unit_id) - {unit_id}
+    campaign = covering[0]
+    if campaign_id is None:
+        # Перевага: хвиля з даними дочірніх; далі — хвиля, де індекс має сам підрозділ (її показує дашборд).
+        def indexed(units: set[uuid.UUID]) -> set[uuid.UUID]:
+            return set(db.scalars(select(IndexSnapshot.campaign_id).where(
+                IndexSnapshot.campaign_id.in_([c.id for c in covering]), IndexSnapshot.unit_id.in_(units),
+                IndexSnapshot.index_score.is_not(None)).distinct())) if units else set()
+
+        for preferred in (indexed(descendants), indexed({unit_id})):
+            found = next((c for c in covering if c.id in preferred), None)
+            if found is not None:
+                campaign = found
+                break
     levels = {str(lvl["level"]): 0 for lvl in methodology.MATURITY_LEVELS}
     insufficient = 0
     with_data = 0
@@ -345,7 +356,9 @@ def children_levels(unit_id: uuid.UUID, campaign_id: uuid.UUID | None = None, db
         "campaign_id": str(campaign.id),
         "campaign_title": campaign.title,
         "children_total": len(descendants),
-        "with_data": with_data if shown else None,
+        # Скільки дочірніх мають дані (без рівнів): щоб пояснення «розподіл приховано» спиралося на це число,
+        # а не на кількість підрозділів дерева.
+        "with_data": with_data,
         "insufficient": insufficient,
         "levels": levels if shown else None,
         "hidden": not shown,

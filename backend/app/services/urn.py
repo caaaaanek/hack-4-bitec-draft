@@ -169,7 +169,7 @@ def check_ready(db: Session, campaign: Campaign) -> None:
     if len(rows) != HOLDERS or waiting:
         raise ApiError(409, f"Урна не готова: частин ключа не забрали {len(waiting)} з {HOLDERS} власників",
                        code="urn_not_ready",
-                       hint="Кожен власник забирає свою частину: GET /campaigns/{id}/urn/my-share. Доки частина "
+                       hint="Кожен власник забирає свою частину на екрані «Урна». Доки частина "
                             "на сервері, сервер міг би відновити ключ.")
 
 
@@ -178,7 +178,7 @@ def request_close(db: Session, campaign: Campaign, actor: User | None) -> None:
         campaign.urn_close_requested = True
         db.add(Notice(campaign_id=campaign.id, audience="admins", kind="urn_close",
                       title=f"Хвиля «{campaign.title}»: потрібні частини ключа урни",
-                      body="Двоє з трьох власників надсилають свої частини (POST /campaigns/{id}/urn/shares), "
+                      body="Двоє з трьох власників вводять свої частини ключа на екрані «Урна», "
                            "і хвиля закривається."))
         log_action(db, actor, "urn_close_requested", "campaign", campaign.id, {})
 
@@ -215,6 +215,9 @@ def submit_share(db: Session, campaign: Campaign, user: User, text: str) -> dict
         raise ApiError(422, "Частини не відновили ключ хвилі", code="urn_mismatch",
                        hint="Хтось надіслав чужу чи змінену частину. Надішліть частини ще раз.")
     details = lifecycle.close_wave(db, campaign, user, via="urn", urn_key=private_raw)
+    from app.services import autopilot  # уникаємо циклічного імпорту
+
+    autopilot.after_close(db, campaign)
     for r in shares_of(db, campaign):
         r.submitted = None
         r.share = None
@@ -226,6 +229,10 @@ def status_of(db: Session, campaign: Campaign) -> dict:
     rows = shares_of(db, campaign)
     users = {u.id: u for u in db.scalars(select(User).where(User.id.in_([r.holder_id for r in rows])))} if rows else {}
     return {
+        # Назва й статус хвилі: власник-респондент не має доступу до GET /campaigns/{id} і не знав, для чого ключ.
+        "campaign_title": campaign.title,
+        "campaign_status": campaign.status.value,
+        "submitted": sum(1 for r in rows if r.submitted),
         "enabled": campaign.urn_enabled,
         "fingerprint": fingerprint(campaign.urn_public_key) if campaign.urn_public_key else None,
         "threshold": THRESHOLD,

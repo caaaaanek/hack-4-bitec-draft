@@ -79,7 +79,7 @@ def _header(doc: Document, report: dict, kind: str) -> None:
     sub = doc.add_paragraph(report["unit_name"])
     sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
     doc.add_paragraph(f"Хвиля оцінювання: {meta['campaign_title']}, закрита {rx.day(meta['closed_on'])}. "
-                      f"Методика Integrity Index версії {meta['methodology_version']}.")
+                      f"Методика індексу доброчесності версії {meta['methodology_version']}.")
 
 
 def _footer(doc: Document, report: dict) -> bytes:
@@ -131,7 +131,7 @@ def brief_docx(report: dict) -> bytes:
 
     doc.add_heading("Головне", level=1)
     # Висновки вже сформульовані правилами (summary); тут лише вони, без власних формулювань.
-    for text in report["summary"] or [f"Integrity Index {rx.num(idx['score'])} зі 100, рівень «{level}»."]:
+    for text in report["summary"] or [f"Індекс доброчесності {rx.num(idx['score'])} зі 100, рівень «{level}»."]:
         doc.add_paragraph(text, style="List Bullet")
 
     doc.add_heading("Компоненти", level=1)
@@ -218,7 +218,7 @@ def dynamics_docx(report: dict) -> bytes:
     idx = report["index"]
     if not dyn.get("previous_campaign_id"):
         doc.add_paragraph("Попередньої закритої хвилі для цього підрозділу немає: динаміку буде видно після наступної хвилі.")
-        doc.add_paragraph(f"Поточний Integrity Index: {rx.num(idx['score'])} зі 100.")
+        doc.add_paragraph(f"Поточний індекс доброчесності: {rx.num(idx['score'])} зі 100.")
         return _footer(doc, report)
 
     doc.add_heading("Індекс", level=1)

@@ -52,7 +52,7 @@ from app.schemas import (
 )
 from app.security import campaign_visible, ensure_in_zone, require_roles
 from app.services import tokens as token_service
-from app.services import approvals, categories, lifecycle
+from app.services import approvals, autopilot, categories, lifecycle
 from app.services.eligibility import freeze, frozen_of, is_eligible, participants_of, refreeze
 from app.services.safe_export import SafeCsvWriter
 from app.services.units import subtree_ids
@@ -182,7 +182,7 @@ def update_campaign(campaign_id: uuid.UUID, data: CampaignUpdate, db: Session = 
     structural = {"unit_id", "questionnaire_ids", "access_mode"} & changes.keys()
     if structural and active_tokens(db, campaign.id):
         raise ApiError(409, "Для хвилі вже видано посилання", code="tokens_issued",
-                       hint="Відкличте посилання (POST /campaigns/{id}/tokens/revoke), потім змінюйте область чи анкети.")
+                       hint="Спершу відкличте видані посилання, потім змінюйте область чи анкети.")
     if "unit_id" in changes:
         if db.get(Unit, changes["unit_id"]) is None:
             raise HTTPException(status_code=422, detail="Підрозділ не знайдено")
@@ -248,6 +248,7 @@ def open_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db), admin: 
         db.commit()
         return to_out(campaign).model_copy(update={"pending_approval_id": req.id})
     lifecycle.open_wave(db, campaign, admin)
+    autopilot.after_open(db, campaign, "manual")
     db.commit()
     return to_out(campaign)
 
@@ -261,9 +262,11 @@ def close_campaign(campaign_id: uuid.UUID, db: Session = Depends(get_db), admin:
 
         urn.request_close(db, campaign, admin)
         db.commit()
-        raise ApiError(409, "Відповіді в урні: закриття чекає частин ключа двох власників", code="urn_pending",
-                       hint="Власники частин надсилають їх: POST /campaigns/{id}/urn/shares. Сервер ключа не має.")
+        raise ApiError(409, "Закриття чекає двох частин ключа урни", code="urn_pending",
+                       hint="Закриття чекає двох частин ключа. Власники вводять їх на екрані «Урна».")
     lifecycle.close_wave(db, campaign, admin)
+    # Звіт і сповіщення — так само, як після автозакриття (раніше ручне закриття нікого не сповіщало).
+    autopilot.after_close(db, campaign)
     db.commit()
     return to_out(campaign)
 
@@ -375,7 +378,7 @@ def login_campaign_for_participants(db: Session, campaign_id: uuid.UUID, allow_o
     campaign = get_or_404(db, campaign_id)
     if campaign.access_mode != AccessMode.LOGIN:
         raise ApiError(409, "У хвилі за посиланнями учасників не ведуть", code="token_mode",
-                       hint="Видайте посилання: POST /campaigns/{id}/tokens або імпорт CSV.")
+                       hint="Видайте одноразові посилання чи QR або імпортуйте учасників з CSV.")
     allowed = (CampaignStatus.DRAFT, CampaignStatus.OPEN) if allow_open else (CampaignStatus.DRAFT,)
     if campaign.status not in allowed:
         raise ApiError(409, "Склад учасників цієї хвилі вже не змінюється", code="not_editable")

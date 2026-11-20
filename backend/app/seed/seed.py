@@ -114,14 +114,18 @@ def seed_users(db: Session, units: dict[str, Unit], password: str, staff_sizes: 
     people += [(f"expert{i}", f"Експерт {i}", Role.RESPONDENT, RespondentCategory.EXPERT, None) for i in range(1, 6)]
 
     created = 0
+    # Пароль у всіх демо-записів однаковий: хешуємо один раз. bcrypt на кожен запис (92 × ~0,27 с) був половиною
+    # часу першого старту, і на слабкій машині контейнер не встигав стати здоровим (UI-аудит 20.11, п. 8).
+    password_hash = None
     for login, name, role, category, unit in people:
         if db.scalar(select(User.id).where(User.login == login)):
             continue
+        password_hash = password_hash or hash_password(password)
         db.add(
             User(
                 login=login,
                 display_name=name,
-                password_hash=hash_password(password),
+                password_hash=password_hash,
                 role=role,
                 category=category,
                 unit_id=unit.id if unit else None,

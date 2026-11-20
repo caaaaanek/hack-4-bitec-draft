@@ -225,11 +225,19 @@ class Inputs:
     weights: dict[str, float] = field(default_factory=lambda: dict(m.SOURCE_WEIGHTS))
     titles: dict[str, str] = field(default_factory=dict)
     goodhart: dict | None = None
+    _surveys: tuple | None = field(default=None, repr=False, compare=False)
 
-    def compute(self, checklist=None, facts=None) -> dict:
+    def compute(self, checklist=None, facts=None, reuse_surveys: bool = False) -> dict:
+        """reuse_surveys: анкети порахувати один раз і перевикористати (змінюються лише чек-лист і факти).
+        «Шлях до наступного рівня» робить сотні перерахунків, і 90 % часу йшло на ті самі анкети."""
+        surveys = None
+        if reuse_surveys:
+            if self._surveys is None:
+                self._surveys = scoring.score_surveys(self.groups, self.k)
+            surveys = self._surveys
         result = scoring.compute(self.groups, self.checklist if checklist is None else checklist,
                                  self.facts if facts is None else facts, self.k, self.weights, self.titles,
-                                 (self.goodhart or {}).get("flags"))
+                                 (self.goodhart or {}).get("flags"), surveys=surveys)
         result["goodhart"] = self.goodhart
         return result
 

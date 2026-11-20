@@ -11,7 +11,7 @@ from collections.abc import Callable
 
 from app.services import methodology as m
 from app.services.plural import plural
-from app.services.text import shorten
+from app.services.text import points, shorten
 
 # Короткий опис кожного правила для прозорості (GET .../devils-advocate віддає їх разом із питаннями).
 RULES: dict[str, str] = {
@@ -71,7 +71,7 @@ def r_reliability(data: dict) -> list[dict]:
                "Достовірність ваших результатів — C. Чому керівництво має довіряти цим числам більше, ніж власному "
                "враженню?",
                "Причини: " + "; ".join(reasons) if reasons else RULES["reliability_c"],
-               [ev("Integrity Index", idx.get("score"), path="index.score"),
+               [ev("Індекс доброчесності", idx.get("score"), path="index.score"),
                 ev("Достовірність", None, path="index.reliability") | {"text": "C"}],
                "Для кожної причини — що вже зроблено, щоб її усунути (захід у трекері, перевірка даних).",
                "explain")]
@@ -93,7 +93,7 @@ def r_cut(data: dict) -> list[dict]:
                             {"text": f"{num(f['percent'])}% ({f['numerator']} з {f['denominator']})"})
             tail = f" Наприклад, «{f['title'].lower()}» — лише {num(f['percent'])}%."
         out.append(_q("cut_by_facts", c["code"], 100, "Факти проти самооцінки",
-                      f"Ви оцінюєте «{c['title']}» на {num(c.get('self_score'))} балів, а факти показують "
+                      f"Ви оцінюєте «{c['title']}» на {points(c.get('self_score'))}, а факти показують "
                       f"{num(c.get('facts_score'))}. Чому система, на вашу думку, краща, ніж кажуть дані?{tail}",
                       c.get("rule", RULES["cut_by_facts"]), evidence,
                       "Пояснення розриву по кожному факту: що саме не розглянуто вчасно і чому; план, коли частка "
@@ -183,7 +183,7 @@ def r_checklist(data: dict) -> list[dict]:
                       f"{plural(len(unconfirmed), 'пункт', 'пункти', 'пунктів')} чек-листа позначено «впроваджено "
                       "повністю» без підтвердження "
                       f"(п. {numbers}). Покажіть документи.",
-                      RULES["checklist_unconfirmed"] + f" Такий пункт рахується як {num(m.UNCONFIRMED_FULL_SCORE)} балів.",
+                      RULES["checklist_unconfirmed"] + f" Такий пункт рахується як {points(m.UNCONFIRMED_FULL_SCORE)}.",
                       [ev("Непідтверджених «повністю»", len(unconfirmed), path="checklist.items")],
                       "Наказ, положення чи протокол для кожного пункту; хто підтверджує (не той, хто вносив).",
                       "checklist"))
@@ -207,7 +207,7 @@ def r_questions(data: dict) -> list[dict]:
         if score is None or score >= 40:
             continue
         out.append(_q("critical_question", q["code"], 65, "Слабкі місця",
-                      f"Питання «{shorten(q['text'], 120)}» має {num(score)} балів — критична зона. Що змінилося на практиці, "
+                      f"Питання «{shorten(q['text'], 120)}» має {points(score)} — критична зона. Що змінилося на практиці, "
                       "а не на папері?",
                       RULES["critical_question"], [ev("Бал питання", score, path=f"questions.{q['code']}.score")],
                       "Конкретні дії за останній рік по цьому напряму і як про них дізналися люди.", "explain"))
@@ -247,7 +247,7 @@ def r_no_facts(data: dict) -> list[dict]:
                f"Для «{c['title']}» немає жодного об'єктивного показника. Як ви знаєте, що це працює, а не лише "
                "здається?",
                RULES["no_facts"], [ev("Бал компонента", c.get("score"), path=f"components.{c['code']}.score")],
-               "Яке джерело даних можна підключити (POST /indicators) і хто його веде.", "sources")
+               "Яке джерело даних можна підключити і хто його веде.", "sources")
             # Прапорці компонента — словники {code, severity, title}: рядок "no_facts" у списку не знаходився ніколи.
             for c in data["components"] if any(f.get("code") == "no_facts" for f in (c.get("flags") or []))]
 

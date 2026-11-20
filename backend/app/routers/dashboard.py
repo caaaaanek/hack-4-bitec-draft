@@ -127,7 +127,7 @@ def pick_wave(db: Session, campaign_id: uuid.UUID | None, unit_id: uuid.UUID | N
     if row is None:
         raise ApiError(404, "Для цього підрозділу ще немає закритої хвилі з індексом", code="no_indexed_wave",
                        hint="Індекс з'являється після закриття хвилі, що охоплює підрозділ. "
-                            "Хвилі без індексу можна відкрити явно: GET /dashboard/waves.")
+                            "Хвилі без індексу можна обрати у списку хвиль.")
     return row[0], row[1]
 
 
@@ -142,7 +142,7 @@ def default_unit(db: Session, user: User, unit_id: uuid.UUID | None) -> uuid.UUI
         return user.unit_id
     if unit_id is None and user.role == Role.DEPARTMENT:
         raise ApiError(422, "Оберіть заклад", code="unit_required",
-                       hint="Департамент дивиться кожен заклад окремо: GET /department/institutions.")
+                       hint="Департамент дивиться кожен заклад окремо: оберіть його в розділі «Заклади».")
     return unit_id
 
 

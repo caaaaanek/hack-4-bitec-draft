@@ -72,6 +72,10 @@ def form_sections(questionnaire) -> list[dict]:
         for q in s.questions:
             options = [{"id": o.id, "text": o.text} for o in q.options]
             variant, statements, help_text = None, None, q.help_text
+            if (q.params or {}).get("mirror_of"):
+                # Пояснення прийому «дзеркало» респонденту не показуємо: воно підказує, як «правильно» відповісти.
+                # (У базах, засіяних раніше, підказка ще лежить у help_text анкети.)
+                help_text = ""
             if q.type == QuestionType.LIST_COUNT:
                 variant = _rng.choice("AB")
                 sensitive = sensitive_option(q)

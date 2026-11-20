@@ -118,7 +118,7 @@ def test_indicator_upsert_and_x_of_y(client):
     data = client.get(f"{API}/units/{root}/indicators", params={"months": 3, "end": "2026-10-15"}, headers=admin).json()
     [coi] = data
     assert coi["numerator"] == 16 and coi["denominator"] == 20 and coi["percent"] == 80.0
-    assert coi["label"] == "Можливі конфлікти інтересів розібрано вчасно: знайдено можливих 20 · розібрано вчасно 16 · чекають 4 (80%)"
+    assert coi["label"] == "Можливі конфлікти інтересів розібрано вчасно: знайдено можливих 20 · розібрано вчасно 16 · чекають 4 (80%), бал 50 з 100"
     assert coi["level"] == 3 and coi["extra_counts"] == {"pending": 4}
 
 

@@ -167,10 +167,13 @@ def conclusion(report: dict) -> dict:
         parts = ", ".join(f"{c['title']} {fmt(c['score'])} (рівень {level_title(c['level']['level'])})" for c in components)
         text = (f"На основі відповідей усіх груп респондентів, чек-листа й фактів за розділами «Культура», «Система» "
                 f"та «Підзвітність» загальний рівень зрілості доброчесності оцінено як {level_title(level)}, "
-                f"Integrity Index {fmt(index['score'])} зі 100, достовірність {index['reliability']}. За напрямами: {parts}.")
+                f"індекс доброчесності {fmt(index['score'])} зі 100, достовірність {index['reliability']}. За напрямами: {parts}.")
     ranked = sorted((q for q in report["questions"] if q["component"] in m.COMPONENTS and q["score"] is not None),
                     key=lambda q: q["score"])
     pick = lambda q: {"code": q["code"], "text": q["text"], "score": q["score"]}  # noqa: E731
+    # Списки не перетинаються: коли питань мало, одне й те саме потрапляло і в «ефективні», і в «для уваги».
+    attention = ranked[:ATTENTION_COUNT]
+    effective = [q for q in reversed(ranked[ATTENTION_COUNT:][-EFFECTIVE_COUNT:])]
     facts = [f["label"] for f in report["facts"] if f.get("status") == "ok" and f.get("label")]
     return {
         "level": index.get("level"),
@@ -179,8 +182,8 @@ def conclusion(report: dict) -> dict:
         "reliability_reasons": index.get("reliability_reasons", []),
         "components": [{"code": c["code"], "title": c["title"], "score": c["score"], "level": c["level"]} for c in components],
         "text": text,
-        "effective": [pick(q) for q in reversed(ranked[-EFFECTIVE_COUNT:])],
-        "attention": [pick(q) for q in ranked[:ATTENTION_COUNT]],
+        "effective": [pick(q) for q in effective],
+        "attention": [pick(q) for q in attention],
         "facts": facts,
         "rule": (f"Ефективні напрями: {EFFECTIVE_COUNT} питання з найвищим середнім балом усіх груп. "
                  f"Напрями для уваги: {ATTENTION_COUNT} з найнижчим. Факти: показники з інших систем за 12 місяців."),

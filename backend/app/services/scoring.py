@@ -374,14 +374,22 @@ def combine(inputs: dict[str, dict], weights: dict[str, float] | None = None,
 
 # ---------- Повний розрахунок хвилі ----------
 
+def score_surveys(groups: list[GroupInput], k: int) -> tuple[list[dict], dict]:
+    """Бали анкет і детектор відвертості: від чек-листа й фактів не залежать (див. compute(surveys=…))."""
+    return [score_group(g, k) for g in groups], candor.analyze(groups, k)
+
+
 def compute(groups: list[GroupInput], checklist: list[ChecklistItem] | None, facts: list[dict], k: int,
             weights: dict[str, float] | None = None, titles: dict[str, str] | None = None,
-            extra_flags: list[str] | None = None) -> dict:
+            extra_flags: list[str] | None = None, surveys: tuple[list[dict], dict] | None = None) -> dict:
     """weights: ваги джерел самооцінки (методика + категорії довідника з вагою). Категорії без ваги
-    рахуються й показуються в групах і питаннях (порівняння), але в індекс не входять."""
+    рахуються й показуються в групах і питаннях (порівняння), але в індекс не входять.
+
+    surveys: уже пораховані score_surveys(groups, k) — для багатьох перерахунків з іншими чек-листом чи фактами
+    («Шлях до наступного рівня»). compute їх лише читає.
+    """
     weights = weights or m.SOURCE_WEIGHTS
-    scored = [score_group(g, k) for g in groups]
-    candor_result = candor.analyze(groups, k)
+    scored, candor_result = surveys if surveys is not None else score_surveys(groups, k)
     by_category = {g["category"]: g for g in scored}
     usable = [g for g in scored if g["sufficient"]]
 
@@ -513,7 +521,7 @@ def management_summary(result: dict, dynamics: dict | None) -> list[str]:
     if idx["score"] is None:
         return ["Недостатньо даних для розрахунку: жодне джерело не досягло порогу анонімності."]
     lines = [
-        f"Integrity Index: {fmt(idx['score'])} зі 100, рівень {idx['level']['level']} «{idx['level']['title']}», достовірність {idx['reliability']}."
+        f"Індекс доброчесності: {fmt(idx['score'])} зі 100, рівень {idx['level']['level']} «{idx['level']['title']}», достовірність {idx['reliability']}."
         + ("" if idx["complete"] else " Індекс неповний.")
     ]
     cut = [c for c in result["components"] if c["cut_by_facts"]]

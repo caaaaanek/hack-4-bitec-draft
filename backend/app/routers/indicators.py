@@ -152,7 +152,7 @@ def post_indicator(data: IndicatorIn, db: Session = Depends(get_db), actor: Inte
     fact_registry.refresh(db)
     if data.indicator not in m.FACTS:
         raise ApiError(422, [{"path": "indicator", "message": f"Невідомий показник. Дозволені: {', '.join(m.FACTS)}"}],
-                       code="unknown_indicator", hint="Новий показник додає адміністратор: POST /dictionaries/facts.")
+                       code="unknown_indicator", hint="Новий показник додає уповноважений у «Довідники» → «Факти».")
     if db.get(Unit, data.unit_id) is None:
         raise HTTPException(status_code=422, detail="Підрозділ не знайдено")
     if actor.user is not None:

@@ -80,7 +80,7 @@ def to_docx(report: dict) -> bytes:
     sub = doc.add_paragraph(f"про результати опитувань з визначення поточного рівня зрілості доброчесності: {report['unit_name']}")
     sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
     doc.add_paragraph(f"Хвиля оцінювання: {meta['campaign_title']}, закрита {day(meta['closed_on'])}. "
-                      f"Методика Integrity Index версії {meta['methodology_version']}.")
+                      f"Методика індексу доброчесності версії {meta['methodology_version']}.")
 
     doc.add_heading("Учасники опитування", level=1)
     for p in g["participants"]:
@@ -206,7 +206,7 @@ def to_xlsx(report: dict) -> bytes:
     c = g["conclusion"]
 
     summary = [["Звіт", meta["title"]], ["Хвиля", meta["campaign_title"]], ["Закрита", meta["closed_on"]],
-               ["Integrity Index", c["index"]], ["Рівень зрілості", (c["level"] or {}).get("title", "")],
+               ["Індекс доброчесності", c["index"]], ["Рівень зрілості", (c["level"] or {}).get("title", "")],
                ["Достовірність", c["reliability"]]]
     summary += [[x["title"], x["score"]] for x in c["components"]]
     summary += [["Висновок", c["text"]]] + [["Висновок", line] for line in report["summary"]]

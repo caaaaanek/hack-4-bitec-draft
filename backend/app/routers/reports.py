@@ -79,7 +79,7 @@ def to_csv(report: dict) -> str:
     w = SafeCsvWriter(csv.writer(out, delimiter=";"))
     w.writerow(["розділ", "код", "назва", "значення", "рівень / статус", "достовірність", "пояснення"])
     idx = report["index"]
-    w.writerow(["індекс", "integrity_index", "Integrity Index", idx["score"],
+    w.writerow(["індекс", "integrity_index", "Індекс доброчесності", idx["score"],
                 (idx["level"] or {}).get("title", ""), idx["reliability"], idx["rule"]])
     w.writerow(["індекс", "integrity_index_self", "Без перевірки фактами", idx["self_score"], "", "", ""])
     for c in report["components"]:

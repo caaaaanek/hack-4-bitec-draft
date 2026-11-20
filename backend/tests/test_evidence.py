@@ -123,11 +123,18 @@ def test_tampered_file_is_detected(client):
 
 
 def test_same_content_stored_once(client):
-    _, base, wg, _ = setup_item(client)
+    campaign_id, base, wg, _ = setup_item(client)
+    items = client.get(f"{API}/campaigns/{campaign_id}/checklist", headers=wg).json()["items"]
+    other = f"{API}/campaigns/{campaign_id}/checklist/{items[1]['question_id']}"
     a = upload(client, base, wg, name="a.pdf").json()
-    b = upload(client, base, wg, name="b.pdf").json()
+    b = upload(client, other, wg, name="b.pdf").json()
     assert a["sha256"] == b["sha256"] and a["id"] != b["id"]
     assert storage.path_for(a["sha256"]).exists()
+    # До того самого пункту той самий документ удруге не додається (UI-аудит 20.11, п. 25).
+    again = upload(client, base, wg, name="c.pdf")
+    assert again.status_code == 409 and again.json()["code"] == "duplicate_file"
+    assert "a.pdf" in again.json()["message"]
+    assert storage.path_for(a["sha256"]).exists()  # спільний файл на диску не видалено
 
 
 def test_safe_filename():

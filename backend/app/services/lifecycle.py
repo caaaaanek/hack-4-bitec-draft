@@ -58,7 +58,7 @@ def open_wave(db: Session, campaign: Campaign, actor: User | None, via: str = "m
         urn.check_ready(db, campaign)
     if approvals.enabled() and via != "four_eyes" and not approvals.open_approved(db, campaign):
         raise ApiError(409, "Відкриття хвилі підтверджує друга людина", code="approval_required",
-                       hint="POST /campaigns/{id}/open створює запит; підтвердження: POST /admin/approvals/{id}/approve.")
+                       hint="Натисніть «Попросити відкрити хвилю»: відкриє її друга людина в «Запитах другій людині».")
     details: dict = {"via": via} if via != "manual" else {}
     if campaign.access_mode == AccessMode.LOGIN:
         # Склад фіксується (зазвичай уже при створенні): від нього рахується участь, і його не змінить
@@ -82,7 +82,7 @@ def close_wave(db: Session, campaign: Campaign, actor: User | None, via: str = "
         raise ApiError(409, "Закрити можна лише відкриту хвилю")
     if campaign.urn_enabled and urn_key is None:
         raise ApiError(409, "Відповіді в урні: потрібні частини ключа двох власників", code="urn_pending",
-                       hint="Власники частин надсилають їх: POST /campaigns/{id}/urn/shares.")
+                       hint="Закриття чекає двох частин ключа. Власники вводять їх на екрані «Урна».")
     campaign.status = CampaignStatus.CLOSED
     campaign.closed_on = today()
     # Зашифрований буфер переноситься в Response (перемішано, з узагальненими підрозділами) до розрахунку знімків.
