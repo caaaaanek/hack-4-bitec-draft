@@ -100,7 +100,7 @@ function searchHits(q) {
   NAV.filter(n => n[3].includes(S.role) && allowed(n[0]) && has(n[1])).forEach(n => out.push({ k: "Екран", t: n[1], go: () => { location.hash = n[0]; } }));
   if (allowed("explain")) {
     COMPS.filter(c => has(COMP[c].n)).forEach(c => out.push({ k: "Компонент", t: COMP[c].n, go: () => { location.hash = "explain/" + c; } }));
-    try { allItems(cur()).filter(x => has(x.t)).forEach(x => out.push({ k: x.kind === "p" ? "Питання" : "Показник", t: x.t, go: () => { location.hash = "explain/" + x.id; } })); } catch (e) { /* даних ще немає */ }
+    try { allItems(cur()).filter(x => has(x.t)).forEach(x => out.push({ k: x.kind === "p" ? (API.on ? "Джерело" : "Питання") : "Показник", t: x.t, go: () => { location.hash = "explain/" + x.id; } })); } catch (e) { /* даних ще немає */ }
   }
   if (allowed("institutions") && !API.on) INSTITUTIONS().filter(m => !(S.insts.archived || []).includes(m.id) && (has(m.name) || (m.edrpou || "").includes(q))).forEach(m => out.push({ k: "Заклад", t: m.name, go: () => { S.inst = m.id; persist(); location.hash = "overview"; render(); } }));
   return out.slice(0, 8);
