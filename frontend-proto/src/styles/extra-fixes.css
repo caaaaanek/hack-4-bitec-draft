@@ -88,3 +88,10 @@ html.dlg-open { overflow: hidden; }
 #dTitle:focus { outline: none; }
 /* Тост лише показує текст: кліки проходять крізь нього (прихований тост перекривав кнопки внизу панелі на телефоні) */
 .toast { pointer-events: none; }
+/* Шапка: заголовок екрана видно повністю на телефоні, на 1024 px і при збільшеному тексті.
+   Заголовок займає щонайменше 220 px; кнопки, що не вміщуються, переходять на другий рядок. */
+.top { flex-wrap: wrap; row-gap: 8px; }
+.top h1 { flex: 1 1 220px; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; line-height: 1.25; }
+@media (max-width: 900px) { .top h1 { font-size: 19px; } }
+/* На телефоні шапка у два рядки не прилипає згори: інакше при збільшеному тексті вона займала б пів екрана */
+@media (max-width: 900px) { .top { position: relative; } }
