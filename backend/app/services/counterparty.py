@@ -14,6 +14,7 @@ from datetime import date
 
 import httpx
 
+from app.clock import today
 from app.config import get_settings
 
 FLAG_TITLES = {
@@ -61,11 +62,13 @@ def live_flags(code: str) -> list[str]:
         data = r.json()
     except (httpx.HTTPError, ValueError) as e:
         raise CounterpartyError(f"Сервіс перевірки контрагентів не відповів ({type(e).__name__})") from e
+    if not isinstance(data, dict):
+        raise CounterpartyError("Сервіс перевірки контрагентів віддав неочікувану відповідь")
     flags = [f for f in ("sanctions", "bankruptcy", "tax_debt", "court_cases") if data.get(f)]
     registered = data.get("registered_on")
     if registered:
         try:
-            if (date.today() - date.fromisoformat(str(registered)[:10])).days < 365:
+            if (today() - date.fromisoformat(str(registered)[:10])).days < 365:
                 flags.append("young_company")
         except ValueError:
             pass

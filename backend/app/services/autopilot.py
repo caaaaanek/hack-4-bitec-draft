@@ -29,7 +29,7 @@ from app.audit import log_action
 from app.clock import now, today
 from app.config import get_settings
 from app.errors import ApiError
-from app.models import ApprovalRequest, AutopilotEvent, Campaign, CampaignStatus, GeneratedReport, Notice, User
+from app.models import ApprovalRequest, AutopilotEvent, Campaign, CampaignStatus, GeneratedReport, Notice, Role, User
 from app.services import approvals, audit_anchor, learning, lifecycle, watchdog
 from app.services.plural import plural
 
@@ -170,7 +170,7 @@ def daily(db: Session) -> list[dict]:
         return []
     out = []
     rows = learning.publish(db)
-    report = watchdog.digest(db, None, technical=True)
+    report = watchdog.digest(db, None, role=Role.ADMIN)  # сповіщення йде уповноваженим: лише їхні пункти
     if report["status"] != "ok":
         notice(db, None, "admins", "digest", f"Агент-черговий: {report['summary']}",
                "\n".join(f"• {x['title']}" for x in report["items"] if x["severity"] != "info")[:4000])

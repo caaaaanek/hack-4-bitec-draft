@@ -22,6 +22,12 @@ class Flag(BaseModel):
     title: str
 
 
+class WaveFlag(Flag):
+    """Прапорець достовірності рівня хвилі: показується один раз, зі списком компонентів, яких стосується."""
+
+    components: list[str]
+
+
 class Significance(BaseModel):
     code: str  # within_error / check_data / improved / worsened / no_data
     title: str
@@ -233,6 +239,8 @@ class CampaignResultsOut(BaseModel):
     candor: dict | None = None
     # Детектор Гудхарта (services/goodhart.py): ознаки підгонки показників; знімки до v2.3 — None.
     goodhart: dict | None = None
+    # Прапорці достовірності хвилі один раз; у components[].flags лишається тільки self_not_confirmed.
+    reliability_flags: list[WaveFlag] = []
 
 
 # ---------- Динаміка підрозділу ----------

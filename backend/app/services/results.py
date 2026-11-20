@@ -402,3 +402,33 @@ def measures_done_between(db: Session, unit_id: uuid.UUID, after: date | None, u
     if after is not None:
         query = query.where(Measure.done_on > after)
     return db.scalar(query) or 0
+
+
+# ---------- Прапорці достовірності для відповіді API ----------
+
+# Прапорець, що стосується саме компонента: лишається в components[].flags. Решта показується один раз на хвилю.
+COMPONENT_FLAGS = ("self_not_confirmed",)
+_SEVERITY_ORDER = {"serious": 0, "minor": 1, "info": 2}
+
+
+def present_flags(data: dict) -> dict:
+    """Копія результатів для API: прапорці хвилі один раз (reliability_flags зі списком компонентів),
+    у компонентах — лише self_not_confirmed.
+
+    Розрахунок і знімок не змінюються: достовірність компонентів і reliability_reasons рахуються за повним
+    набором прапорців, як і раніше. Раніше той самий прапорець групи (непряма оцінка, «про себе / про колег»,
+    підгонка) приходив окремо на кожен компонент.
+    """
+    merged: dict[str, dict] = {}
+    components = []
+    for c in data.get("components", []):
+        own = []
+        for f in c.get("flags") or []:
+            if f["code"] in COMPONENT_FLAGS:
+                own.append(f)
+                continue
+            item = merged.setdefault(f["code"], {**f, "components": []})
+            item["components"].append(c["code"])
+        components.append({**c, "flags": own})
+    flags = sorted(merged.values(), key=lambda f: (_SEVERITY_ORDER.get(f["severity"], 3), f["code"]))
+    return {**data, "components": components, "reliability_flags": flags}

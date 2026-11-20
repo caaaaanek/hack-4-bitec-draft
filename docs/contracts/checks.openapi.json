@@ -105,7 +105,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -210,7 +210,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -221,7 +221,7 @@
           "checks"
         ],
         "summary": "Get Runs",
-        "description": "Журнал запусків.",
+        "description": "Журнал запусків (уповноважений зі своєю зоною — лише підрозділи зони).",
         "operationId": "get_runs_api_v1_checks_runs_get",
         "security": [
           {
@@ -359,7 +359,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -370,7 +370,7 @@
           "checks"
         ],
         "summary": "Get Findings",
-        "description": "Знахідки з фільтрами.",
+        "description": "Знахідки з фільтрами (уповноважений зі своєю зоною — лише підрозділи зони).",
         "operationId": "get_findings_api_v1_checks_findings_get",
         "security": [
           {
@@ -578,7 +578,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -677,7 +677,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -694,7 +694,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/PublishIn"
+                "$ref": "#/components/schemas/app__schemas_checks__PublishIn"
               }
             }
           },
@@ -706,7 +706,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PublishOut"
+                  "$ref": "#/components/schemas/app__schemas_checks__PublishOut"
                 }
               }
             }
@@ -752,7 +752,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity",
+            "description": "Unprocessable Content",
             "content": {
               "application/json": {
                 "schema": {
@@ -884,7 +884,7 @@
                 }
               }
             },
-            "description": "Unprocessable Entity"
+            "description": "Unprocessable Content"
           }
         }
       }
@@ -959,7 +959,7 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity",
+            "description": "Unprocessable Content",
             "content": {
               "application/json": {
                 "schema": {
@@ -1046,7 +1046,94 @@
             }
           },
           "422": {
-            "description": "Unprocessable Entity",
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
+    "/api/v1/checks/counterparty": {
+      "post": {
+        "tags": [
+          "checks"
+        ],
+        "summary": "Check Counterparties",
+        "description": "Перевірити контрагентів: санкції, банкрутство, податковий борг, суди, «молода» компанія.\n\nЖивий режим — COUNTERPARTY_API_URL/KEY і EXTERNAL_FETCH_ENABLED=true (Youcontrol чи аналог), інакше мок.\nЗнахідки з ризиком потрапляють у GET /checks/findings і розглядаються як інші.",
+        "operationId": "check_counterparties_api_v1_checks_counterparty_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CounterpartyIn"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
             "content": {
               "application/json": {
                 "schema": {
@@ -1066,6 +1153,37 @@
   },
   "components": {
     "schemas": {
+      "CounterpartyIn": {
+        "properties": {
+          "unit_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Unit Id"
+          },
+          "period": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "title": "Period"
+          },
+          "edrpou": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Edrpou",
+            "description": "Коди ЄДРПОУ (8 цифр)"
+          }
+        },
+        "type": "object",
+        "required": [
+          "unit_id",
+          "period",
+          "edrpou"
+        ],
+        "title": "CounterpartyIn"
+      },
       "DeclarationItem": {
         "properties": {
           "declaration_id": {
@@ -1772,55 +1890,6 @@
         ],
         "title": "ProcurementRunIn"
       },
-      "PublishIn": {
-        "properties": {
-          "unit_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Unit Id"
-          },
-          "period": {
-            "type": "string",
-            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
-            "title": "Period",
-            "description": "Місяць у форматі YYYY-MM"
-          }
-        },
-        "additionalProperties": false,
-        "type": "object",
-        "required": [
-          "unit_id",
-          "period"
-        ],
-        "title": "PublishIn"
-      },
-      "PublishOut": {
-        "properties": {
-          "unit_id": {
-            "type": "string",
-            "format": "uuid",
-            "title": "Unit Id"
-          },
-          "period": {
-            "type": "string",
-            "title": "Period"
-          },
-          "indicators": {
-            "items": {
-              "$ref": "#/components/schemas/PublishedIndicator"
-            },
-            "type": "array",
-            "title": "Indicators"
-          }
-        },
-        "type": "object",
-        "required": [
-          "unit_id",
-          "period",
-          "indicators"
-        ],
-        "title": "PublishOut"
-      },
       "PublishedIndicator": {
         "properties": {
           "indicator": {
@@ -1941,6 +2010,55 @@
           "created_at"
         ],
         "title": "RunOut"
+      },
+      "app__schemas_checks__PublishIn": {
+        "properties": {
+          "unit_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Unit Id"
+          },
+          "period": {
+            "type": "string",
+            "pattern": "^\\d{4}-(0[1-9]|1[0-2])$",
+            "title": "Period",
+            "description": "Місяць у форматі YYYY-MM"
+          }
+        },
+        "additionalProperties": false,
+        "type": "object",
+        "required": [
+          "unit_id",
+          "period"
+        ],
+        "title": "PublishIn"
+      },
+      "app__schemas_checks__PublishOut": {
+        "properties": {
+          "unit_id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Unit Id"
+          },
+          "period": {
+            "type": "string",
+            "title": "Period"
+          },
+          "indicators": {
+            "items": {
+              "$ref": "#/components/schemas/PublishedIndicator"
+            },
+            "type": "array",
+            "title": "Indicators"
+          }
+        },
+        "type": "object",
+        "required": [
+          "unit_id",
+          "period",
+          "indicators"
+        ],
+        "title": "PublishOut"
       }
     }
   }

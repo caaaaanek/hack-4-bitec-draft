@@ -64,6 +64,14 @@ http://<назва>.csit-mitit.com:8080
 | `LLM_BASE_URL` | `https://api.csit-mitit.com/v1` — увімкнути асистента; порожньо — шаблони правил |
 | `LLM_API_KEY` | ключ шлюзу кафедри (видає адміністратор шлюзу) |
 | `INTEGRATION_KEYS` | за потреби: ключі джерел фактів (`artemida=…;atestat=…;…`); можна лишити порожнім |
+| `THEME2_URL` | Mitra (тема 2): `https://<mitra>/api/integrations/integra`. Порожньо — заходи в Mitra не йдуть, у «Джерелах» Mitra як ручний ввід |
+| `THEME2_API_KEY` | спільний з Mitra ключ (заголовок `X-Integration-Key` в обидва боки) |
+| `THEME2_PUBLIC_URL` | лише якщо інтерфейс Mitra на іншому хості, ніж `THEME2_URL`: туди ведуть посилання на докази |
+| `COUNTERPARTY_API_URL`, `COUNTERPARTY_API_KEY` | за потреби: перевірка контрагентів (Youcontrol чи аналог); порожньо — мок |
+
+Живі запити до Prozorro й НАЗК (`EXTERNAL_FETCH_ENABLED=true`) уже ввімкнено в `docker-compose.coolify.yml`: якщо
+«Перевірки» на стенді рахують на моку, стенд зібрано зі старої версії — **Redeploy** з актуальної гілки.
+Контейнер `backend` має мати вихід в інтернет до `public-api.prozorro.gov.ua` і `public-api.nazk.gov.ua`.
 
 Вводьте лише значення, без `${…}`. Після зміни змінних — **Redeploy**, а не Restart.
 

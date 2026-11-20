@@ -70,8 +70,11 @@ def run_declarations(db: Session, user: User | None, unit_id: uuid.UUID, period:
     return _save_run(db, user, "declarations", unit_id, period, source, rows, extra)
 
 
-def list_runs(db: Session, unit_id=None, kind=None, period=None, limit: int = 100) -> list[CheckRun]:
+def list_runs(db: Session, unit_id=None, kind=None, period=None, limit: int = 100, units=None) -> list[CheckRun]:
+    """units — зона користувача (None — без обмеження)."""
     q = select(CheckRun).order_by(CheckRun.created_at.desc()).limit(limit)
+    if units is not None:
+        q = q.where(CheckRun.unit_id.in_(units))
     for column, value in ((CheckRun.unit_id, unit_id), (CheckRun.kind, kind), (CheckRun.period, period)):
         if value is not None:
             q = q.where(column == value)
@@ -79,8 +82,11 @@ def list_runs(db: Session, unit_id=None, kind=None, period=None, limit: int = 10
 
 
 def list_findings(db: Session, run_id=None, kind=None, status=None, risk_level=None, unit_id=None, period=None,
-                  limit: int = 200, offset: int = 0) -> list[CheckFinding]:
+                  limit: int = 200, offset: int = 0, units=None) -> list[CheckFinding]:
+    """units — зона користувача (None — без обмеження)."""
     q = select(CheckFinding).order_by(CheckFinding.period.desc(), CheckFinding.record_ref).limit(limit).offset(offset)
+    if units is not None:
+        q = q.where(CheckFinding.unit_id.in_(units))
     for column, value in ((CheckFinding.run_id, run_id), (CheckFinding.kind, kind), (CheckFinding.status, status),
                           (CheckFinding.risk_level, risk_level), (CheckFinding.unit_id, unit_id),
                           (CheckFinding.period, period)):

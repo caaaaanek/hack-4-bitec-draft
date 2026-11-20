@@ -5,7 +5,7 @@ from datetime import datetime
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from fastapi.responses import JSONResponse
-from sqlalchemy import exists, func, inspect, select, text
+from sqlalchemy import exists, func, inspect, select
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -20,6 +20,7 @@ from app.models import (
     AuditLog,
     Campaign,
     CampaignStatus,
+    CheckFinding,
     IndexSnapshot,
     Indicator,
     Measure,
@@ -53,7 +54,7 @@ from app.routers.campaigns import progress as campaign_progress
 from app.services import categories
 from app.services.eligibility import open_frozen_campaigns_of
 from app.services.units import campaigns_covering, subtree_ids
-from app.security import campaign_visible, require_people_manager, require_roles, revoke_all_tokens
+from app.security import campaign_visible, require_people_manager, require_roles, revoke_all_tokens, zone_of
 from app.services import approvals, audit_anchor, bootstrap, invites, titles
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -251,6 +252,9 @@ def update_user(
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
 
     changes = data.model_dump(exclude_unset=True)
+    for key in ("display_name", "role", "is_active"):
+        if key in changes and changes[key] is None:
+            raise HTTPException(status_code=422, detail=f"Поле {key} не може бути порожнім")
     guard_privileged(admin, target_role=user.role, new_role=changes.get("role"), target=user,
                      self_edit_fields=set(changes))
     structural = [f for f in ("unit_id", "category", "role") if f in changes and changes[f] != getattr(user, f)]
@@ -526,8 +530,13 @@ def overview(db: Session = Depends(get_db), user: User = Depends(require_roles(R
         })
     checks = {"findings_total": 0, "findings_open": 0}
     if inspect(db.bind).has_table("check_findings"):
-        checks["findings_total"] = db.scalar(text("select count(*) from check_findings"))
-        checks["findings_open"] = db.scalar(text("select count(*) from check_findings where status = 'new'"))
+        # Уповноважений зі своєю зоною — лише знахідки підрозділів зони, як і в GET /checks/findings.
+        query = select(func.count()).select_from(CheckFinding)
+        zone = zone_of(db, user)
+        if zone is not None:
+            query = query.where(CheckFinding.unit_id.in_(zone))
+        checks["findings_total"] = db.scalar(query)
+        checks["findings_open"] = db.scalar(query.where(CheckFinding.status == "new"))
     return {**people, "campaigns": campaigns, "checks": checks}
 
 
@@ -644,7 +653,7 @@ def result_views(
     campaign_id: uuid.UUID | None = None,
     limit: int = Query(default=200, ge=1, le=2000),
     db: Session = Depends(get_db),
-    _: User = Depends(audit_readers),
+    user: User = Depends(audit_readers),
 ) -> dict:
     """Звіт для аудиту: хто дивився результати дочірніх підрозділів (не кореня хвилі й не свого підрозділу).
 
@@ -653,6 +662,10 @@ def result_views(
     факти, ризики, «Питання перевірки», асистент). Фільтри: період, хто, роль, підрозділ, хвиля.
     """
     query = select(ResultView).order_by(ResultView.at.desc())
+    zone = zone_of(db, user)
+    if zone is not None:
+        # Уповноважений чи аудит зі своєю зоною — лише перегляди підрозділів зони.
+        query = query.where(ResultView.unit_id.in_(zone))
     if role:
         query = query.where(ResultView.actor_id.in_(select(User.id).where(User.role == role)))
     if unit_id:

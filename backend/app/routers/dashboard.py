@@ -136,7 +136,9 @@ def pick_campaign(db: Session, campaign_id: uuid.UUID | None, unit_id: uuid.UUID
 
 
 def default_unit(db: Session, user: User, unit_id: uuid.UUID | None) -> uuid.UUID | None:
-    if unit_id is None and user.role == Role.LEADER:
+    # Уповноважений і аудит зі своєю зоною, як і керівник, за замовчуванням дивляться свій підрозділ:
+    # корінь дерева поза їхньою зоною, і без цього дашборд одразу відповідав 403.
+    if unit_id is None and user.role in (Role.LEADER, Role.ADMIN, Role.AUDITOR):
         return user.unit_id
     if unit_id is None and user.role == Role.DEPARTMENT:
         raise ApiError(422, "Оберіть заклад", code="unit_required",

@@ -14,9 +14,8 @@ from app.config import get_settings
 from app.db import get_db
 from app.errors import ApiError
 from app.models import Role, User
-from app.security import RESULT_READERS, ensure_unit_access, get_current_user, require_roles
+from app.security import RESULT_READERS, ensure_unit_access, get_current_user, home_unit, require_roles
 from app.services import learning
-from app.services.watchdog import root_unit
 
 router = APIRouter(prefix="/learning", tags=["learning"])
 PERIOD = re.compile(r"^\d{4}-(0[1-9]|1[0-2])$")
@@ -148,8 +147,7 @@ def learning_stats(unit_id: uuid.UUID | None = None, db: Session = Depends(get_d
                    user: User = Depends(require_roles(*RESULT_READERS))):
     """Скільки людей пройшли навчання (агрегат з порогом k). Імен і поіменних списків немає."""
     if unit_id is None:
-        root = root_unit(db)
-        unit_id = user.unit_id if user.role == Role.LEADER and user.unit_id else (root.id if root else None)
+        unit_id = home_unit(db, user)
     if unit_id is None:
         raise ApiError(404, "Немає підрозділів", code="not_found")
     ensure_unit_access(db, user, unit_id)

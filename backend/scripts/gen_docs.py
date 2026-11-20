@@ -199,6 +199,11 @@ def cross_check_md(run: Run, as_of: date) -> str:
          num(c["self_score"]), num(c["facts_score"]), num(c["score"]), "так" if c["cut_by_facts"] else "ні",
          c["reliability"], "; ".join(f["title"] for f in c["flags"]) or "—"]
         for c in r2["components"]])
+    titles = {c["code"]: c["title"] for c in r2["components"]}
+    wave_flags = r2.get("reliability_flags") or []
+    out += ["", "Прапорці достовірності хвилі (кожен один раз, зі списком компонентів; у таблиці — лише "
+            "«самооцінку не підтверджують факти»):", ""]
+    out += [f"- {f['title']} — {', '.join(titles.get(c, c) for c in f['components'])}" for f in wave_flags] or ["- —"]
     out += ["", "Пояснення кожного рядка (`rule`):", ""] + [f"- **{c['title']}.** {c['rule']}" for c in r2["components"]] + [""]
 
     out += ["## 3. Категорії респондентів між собою", "",

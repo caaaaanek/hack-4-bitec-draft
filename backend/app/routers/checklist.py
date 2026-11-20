@@ -295,8 +295,14 @@ def set_assignments(campaign_id: uuid.UUID, data: AssignmentsIn, db: Session = D
     issues = []
     users = {u.id: u for u in db.scalars(select(User).where(User.id.in_(
         {x for i in data.items for x in (i.enterer_id, i.confirmer_id) if x})))}
+    seen: set[uuid.UUID] = set()
     for n, item in enumerate(data.items):
         path = f"items[{n}]"
+        if item.question_id in seen:
+            # Інакше для того самого пункту додавалися б два рядки з одним ключем і коміт падав.
+            issues.append({"path": path, "message": "Пункт уже є в цьому запиті"})
+            continue
+        seen.add(item.question_id)
         if item.question_id not in questions:
             issues.append({"path": path, "message": "Пункт не належить до чек-листа хвилі"})
             continue
@@ -507,6 +513,8 @@ def revoke_confirmation(
     if campaign.status != CampaignStatus.OPEN:
         raise HTTPException(status_code=409, detail="Хвиля не відкрита")
     question = find_question(questionnaire, question_id)
+    # Як і підтвердити: якщо підтверджувача пункту призначено, зняти підтвердження може лише він.
+    check_assigned_confirmer(db, campaign.id, question.id, user)
     entry = entry_of(db, campaign.id, question.id)
     if entry is None or entry.confirmed_by_id is None:
         raise HTTPException(status_code=409, detail="Пункт не підтверджено")
@@ -514,7 +522,8 @@ def revoke_confirmation(
     entry.confirmed_at = None
     log_action(db, user, "revoke_confirm", "checklist_entry", entry.id, {"item": question.code})
     db.commit()
-    return to_item(question, entry, files_of(db, campaign.id, question.id))
+    return to_item(question, entry, files_of(db, campaign.id, question.id),
+                   db.get(ChecklistAssignment, (campaign.id, question.id)))
 
 
 # ---------- Файли-докази ----------

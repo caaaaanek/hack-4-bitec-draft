@@ -15,7 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Measure, Role, Unit, User
-from app.security import ensure_unit_access
+from app.security import ensure_unit_access, home_unit, visible_unit_filter
 from app.services import measures as measures_service
 from app.services import methodology, results
 from app.services.units import subtree_ids
@@ -81,10 +81,13 @@ def _unit(db: Session, user: User, args: dict) -> uuid.UUID | None:
             unit_id = next((u.id for u in db.scalars(select(Unit)) if u.name.casefold() == wanted), None)
             if unit_id is None:
                 raise ToolError(f"Підрозділ «{raw}» не знайдено. Виклич без unit_id або візьми назву з list_units")
-    elif user.role == Role.LEADER and user.unit_id is not None:
-        unit_id = user.unit_id
     else:
-        return None
+        # Без unit_id — підрозділ користувача за замовчуванням (свій чи корінь дерева), і доступ перевіряється
+        # так само, як з явним unit_id. Раніше None означало «корінь без перевірки»: департамент чи зональний
+        # уповноважений отримували через асистента дані всієї організації, усі заходи й історію кореня.
+        unit_id = home_unit(db, user)
+        if unit_id is None:
+            raise ToolError("Підрозділів ще немає")
     if db.get(Unit, unit_id) is None:
         raise ToolError("Такого підрозділу немає")
     ensure_unit_access(db, user, unit_id)
@@ -173,6 +176,10 @@ def _units(db: Session, user: User, _: dict) -> dict:
     query = select(Unit).order_by(Unit.name)
     if user.role == Role.LEADER and user.unit_id is not None:
         query = query.where(Unit.id.in_(subtree_ids(db, user.unit_id)))
+    else:
+        visible = visible_unit_filter(db, user)
+        if visible is not None:
+            query = query.where(Unit.id.in_(visible))
     return {"units": [{"id": str(u.id), "name": u.name} for u in db.scalars(query)]}
 
 

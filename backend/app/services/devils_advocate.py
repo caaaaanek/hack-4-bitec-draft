@@ -248,7 +248,8 @@ def r_no_facts(data: dict) -> list[dict]:
                "здається?",
                RULES["no_facts"], [ev("Бал компонента", c.get("score"), path=f"components.{c['code']}.score")],
                "Яке джерело даних можна підключити (POST /indicators) і хто його веде.", "sources")
-            for c in data["components"] if "no_facts" in (c.get("flags") or [])]
+            # Прапорці компонента — словники {code, severity, title}: рядок "no_facts" у списку не знаходився ніколи.
+            for c in data["components"] if any(f.get("code") == "no_facts" for f in (c.get("flags") or []))]
 
 
 def r_measures(measures: list[dict]) -> list[dict]:

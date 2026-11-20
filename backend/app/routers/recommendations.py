@@ -83,11 +83,14 @@ class RecommendationsOut(BaseModel):
 class MeasureDraft(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    title: str | None = Field(default=None, max_length=500, description="За замовчуванням — перший запропонований захід")
+    # Обмеження ті самі, що в MeasureIn: інакше коротка назва чи задовгий номер проходили сюди
+    # й падали вже в обробнику на MeasureIn (ValidationError → 500 замість 422).
+    title: str | None = Field(default=None, min_length=3, max_length=500,
+                              description="За замовчуванням — перший запропонований захід")
     owner: str = Field(min_length=2, max_length=200)
     due_date: date | None = Field(default=None, description="За замовчуванням — через рік")
-    catalog_number: str | None = None
-    description: str = ""
+    catalog_number: str | None = Field(default=None, max_length=16)
+    description: str = Field(default="", max_length=4000)
 
     @model_validator(mode="after")
     def owner_is_position(self):

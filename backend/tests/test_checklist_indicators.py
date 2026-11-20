@@ -74,7 +74,8 @@ def test_unconfirmed_checklist_lowers_reliability(client):
     data = results(client, campaign_id, admin)
     culture = next(c for c in data["components"] if c["code"] == "culture")
     assert culture["score"] == 50.0  # усі "повністю", але без підтвердження = 50
-    assert {"checklist_unconfirmed", "no_facts"} <= {f["code"] for f in culture["flags"]}
+    wave = {f["code"]: f["components"] for f in data["reliability_flags"]}  # прапорці хвилі — один раз
+    assert {"checklist_unconfirmed", "no_facts"} <= set(wave) and "culture" in wave["no_facts"]
     assert culture["reliability"] == "B"
     assert data["checklist"]["confirmed_share"] == 0
 

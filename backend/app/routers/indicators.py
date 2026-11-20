@@ -20,7 +20,7 @@ from app.db import get_db
 from app.errors import ApiError
 from app.models import Indicator, Role, Unit, User
 from app.clock import today
-from app.security import RESULT_READERS, ensure_unit_access, get_current_user, keys_equal, require_roles
+from app.security import RESULT_READERS, ensure_unit_access, get_current_user, keys_equal, require_roles, zone_of
 from app.services import fact_registry, facts, methodology as m
 
 router = APIRouter(tags=["indicators"])
@@ -153,6 +153,9 @@ def post_indicator(data: IndicatorIn, db: Session = Depends(get_db), actor: Inte
                        code="unknown_indicator", hint="Новий показник додає адміністратор: POST /dictionaries/facts.")
     if db.get(Unit, data.unit_id) is None:
         raise HTTPException(status_code=422, detail="Підрозділ не знайдено")
+    if actor.user is not None:
+        # Уповноважений зі своєю зоною передає факти лише своїх підрозділів (як і запускає перевірки).
+        ensure_unit_access(db, actor.user, data.unit_id, "manage")
     if not actor.any_source and not fact_registry.may_write(data.indicator, data.source):
         allowed = ", ".join(fact_registry.owners(data.indicator) or ())
         raise ApiError(409, f"Показник «{data.indicator}» передає лише джерело: {allowed}", code="not_fact_owner",
@@ -191,9 +194,13 @@ class IntegrationUnitOut(BaseModel):
 
 
 @router.get("/indicators/units", response_model=list[IntegrationUnitOut])
-def integration_units(db: Session = Depends(get_db), _: IntegrationActor = Depends(integration_or_admin)):
+def integration_units(db: Session = Depends(get_db), actor: IntegrationActor = Depends(integration_or_admin)):
     """Довідник підрозділів для адаптерів джерел: зіставити свої коди з unit_id. Лише id, назва, батько."""
-    return db.scalars(select(Unit).order_by(Unit.name)).all()
+    query = select(Unit).order_by(Unit.name)
+    zone = zone_of(db, actor.user) if actor.user is not None else None
+    if zone is not None:
+        query = query.where(Unit.id.in_(zone))
+    return db.scalars(query).all()
 
 
 def check_unit(db: Session, unit_id: uuid.UUID, user: User) -> Unit:

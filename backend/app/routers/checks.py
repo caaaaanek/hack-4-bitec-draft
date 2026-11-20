@@ -3,6 +3,7 @@
 У журнал дій потрапляють лише кількості й період, жодних даних записів.
 """
 
+import re
 import uuid
 from typing import Literal
 
@@ -28,7 +29,7 @@ from app.schemas_checks import (
     ReviewIn,
     RunOut,
 )
-from app.security import require_roles
+from app.security import require_roles, zone_of
 from app.services import checks as svc
 from app.services import counterparty
 from app.services import external_sources as ext
@@ -98,8 +99,10 @@ def get_runs(unit_id: uuid.UUID | None = None, kind: Literal["procurement", "dec
              period: str | None = Query(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
              limit: int = Query(default=100, ge=1, le=500),
              db: Session = Depends(get_db), user: User = Depends(require_roles(Role.ADMIN))):
-    """Журнал запусків."""
-    return [run_out(r) for r in svc.list_runs(db, unit_id, kind, period, limit)]
+    """Журнал запусків (уповноважений зі своєю зоною — лише підрозділи зони)."""
+    if unit_id is not None:
+        check_unit(db, unit_id, user)
+    return [run_out(r) for r in svc.list_runs(db, unit_id, kind, period, limit, zone_of(db, user))]
 
 
 @router.get("/findings", response_model=list[FindingOut])
@@ -110,8 +113,10 @@ def get_findings(run_id: uuid.UUID | None = None, unit_id: uuid.UUID | None = No
                  period: str | None = Query(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
                  limit: int = Query(default=200, ge=1, le=1000), offset: int = Query(default=0, ge=0),
                  db: Session = Depends(get_db), user: User = Depends(require_roles(Role.ADMIN))):
-    """Знахідки з фільтрами."""
-    return svc.list_findings(db, run_id, kind, status, risk_level, unit_id, period, limit, offset)
+    """Знахідки з фільтрами (уповноважений зі своєю зоною — лише підрозділи зони)."""
+    if unit_id is not None:
+        check_unit(db, unit_id, user)
+    return svc.list_findings(db, run_id, kind, status, risk_level, unit_id, period, limit, offset, zone_of(db, user))
 
 
 @router.post("/findings/{finding_id}/review", response_model=FindingOut)
@@ -204,7 +209,7 @@ def check_counterparties(data: CounterpartyIn, db: Session = Depends(get_db),
     Живий режим — COUNTERPARTY_API_URL/KEY і EXTERNAL_FETCH_ENABLED=true (Youcontrol чи аналог), інакше мок.
     Знахідки з ризиком потрапляють у GET /checks/findings і розглядаються як інші.
     """
-    bad = [c for c in data.edrpou if not (len(c) == 8 and c.isdigit())]
+    bad = [c for c in data.edrpou if not re.fullmatch(r"[0-9]{8}", c)]
     if bad:
         raise HTTPException(status_code=422, detail=f"ЄДРПОУ — 8 цифр: {', '.join(bad[:5])}")
     check_unit(db, data.unit_id, user)

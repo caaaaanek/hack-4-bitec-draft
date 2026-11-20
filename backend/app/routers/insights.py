@@ -19,7 +19,7 @@ from app.db import get_db
 from app.models import Measure, Role, User
 from app.routers import llm
 from app.routers.recommendations import build, closed_campaign, with_decisions
-from app.security import RESULT_READERS, ensure_unit_access, require_roles
+from app.security import RESULT_READERS, ensure_unit_access, home_unit, require_roles
 from app.services import devils_advocate, facts, watchdog
 from app.services import measures as measures_service
 from app.services.units import subtree_ids
@@ -166,16 +166,20 @@ class DigestOut(BaseModel):
 @router.get("/agent/digest", response_model=DigestOut)
 def agent_digest(
     unit_id: uuid.UUID | None = None,
+    include_info: bool = Query(default=False, description="Додати інформаційні пункти («падінь немає», «зросло на…»)"),
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(*RESULT_READERS)),
 ):
     """Агент-черговий: що знизилось і чому (за джерелами), технічні збої, що прострочено — і як виправити.
 
-    Технічні пункти (тема 2, джерела фактів, журнал дій, автопілот) бачать уповноважений і аудит.
+    Кожна роль отримує лише те, що може виправити (watchdog.audience): керівник — падіння, рекомендації без
+    рішення, заходи; уповноважений — технічні збої, участь, план хвилі; аудит — цілісність журналу й
+    підтвердження чек-листа; Департамент — нічого. Інформаційні пункти — лише з include_info=true.
     """
-    if unit_id is None and user.role == Role.LEADER:
-        unit_id = user.unit_id
+    # Без unit_id — свій підрозділ (керівник, зональні уповноважений і аудит) чи корінь дерева. Доступ перевіряється
+    # завжди: раніше без unit_id огляд кореня отримував і той, хто корінь не бачить (департамент, зональний аудит).
+    if unit_id is None:
+        unit_id = home_unit(db, user)
     if unit_id is not None:
         ensure_unit_access(db, user, unit_id)
-    technical = user.role in (Role.ADMIN, Role.AUDITOR)
-    return watchdog.digest(db, unit_id, technical=technical)
+    return watchdog.digest(db, unit_id, role=user.role, include_info=include_info)
