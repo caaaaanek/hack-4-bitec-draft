@@ -191,7 +191,7 @@ export default function App() {
     const key = e => {
       const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName);
       if (((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") || (e.key === "/" && !typing)) { e.preventDefault(); qRef.current && qRef.current.focus(); }
-      if (e.key === "Escape") { const back = ui.pop && ui.pop.kind === "notes" && ui.pop.anchor; closeDrawer(); aiClose(); closePop(); if (back) back.focus(); }
+      if (e.key === "Escape") { const back = ui.pop && ui.pop.kind === "notes" && ui.pop.anchor; closeDrawer(); aiClose(); closePop(); if (ui.side) { ui.side = false; render(true); const mb = document.getElementById("menuBtn"); if (mb) mb.focus(); } if (back) back.focus(); }
     };
     document.addEventListener("keydown", key); return () => document.removeEventListener("keydown", key);
   }, []);
