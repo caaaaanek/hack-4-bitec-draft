@@ -403,7 +403,7 @@ def apply_entry(db: Session, campaign: Campaign, question, user: User, status_: 
 
 
 @router.post("/{question_id}/submit", response_model=ChecklistItemOut)
-async def submit_entry(
+def submit_entry(
     campaign_id: uuid.UUID,
     question_id: uuid.UUID,
     status_: ChecklistStatus = Form(..., alias="status", description="full | partial | none"),
@@ -432,7 +432,7 @@ async def submit_entry(
     stored: list[tuple[str, str, str, int]] = []
     try:
         for upload in uploads:
-            stored.append(await storage.store(upload))
+            stored.append(storage.store(upload))
     except BaseException:
         drop_orphans(db, [sha for _, _, sha, _ in stored])
         raise
@@ -558,7 +558,7 @@ def list_files(campaign_id: uuid.UUID, question_id: uuid.UUID, db: Session = Dep
 
 
 @router.post("/{question_id}/files", response_model=EvidenceFileOut, status_code=status.HTTP_201_CREATED)
-async def upload_file(
+def upload_file(
     campaign_id: uuid.UUID,
     question_id: uuid.UUID,
     file: UploadFile = File(..., description="PDF, зображення, документ Office/ODF, TXT або CSV"),
@@ -574,7 +574,7 @@ async def upload_file(
     if count >= limit:
         raise ApiError(409, f"До пункту вже додано {limit} файлів", code="too_many_files",
                        hint="Видаліть зайвий файл або об'єднайте документи.")
-    filename, mime, sha, size = await storage.store(file)
+    filename, mime, sha, size = storage.store(file)
     record = EvidenceFile(campaign_id=campaign.id, question_id=question.id, filename=filename, content_type=mime,
                           size=size, sha256=sha, uploaded_by_id=user.id)
     db.add(record)

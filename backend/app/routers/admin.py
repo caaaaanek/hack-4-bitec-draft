@@ -151,8 +151,8 @@ class UsersImportOut(BaseModel):
 
 
 @router.post("/users/import", response_model=UsersImportOut, status_code=status.HTTP_201_CREATED)
-async def import_users(file: UploadFile = File(..., description="CSV UTF-8: login,category,unit[,display_name]"),
-                       db: Session = Depends(get_db), admin: User = Depends(require_people_manager)):
+def import_users(file: UploadFile = File(..., description="CSV UTF-8: login,category,unit[,display_name]"),
+                 db: Session = Depends(get_db), admin: User = Depends(require_people_manager)):
     """Масово завести респондентів (лише технічний адміністратор). Кожному — одноразове запрошення.
 
     Усе або нічого: рядок з помилкою (логін зайнятий, немає категорії чи підрозділу) — нічого не змінюється.
@@ -160,7 +160,7 @@ async def import_users(file: UploadFile = File(..., description="CSV UTF-8: logi
     Привілейовані ролі так не видаються: лише POST /admin/users по одному.
     """
     bootstrap.ensure_ready(db, admin, Role.RESPONDENT)
-    rows = read_csv(await file.read(IMPORT_MAX_BYTES + 1))
+    rows = read_csv(file.file.read(IMPORT_MAX_BYTES + 1))
     if not rows:
         raise ApiError(422, "У файлі немає рядків", code="empty_file")
     all_units = db.scalars(select(Unit)).all()
@@ -550,7 +550,7 @@ def audit_log(
     date_from: datetime | None = Query(default=None, description="Від (включно), ISO 8601"),
     date_to: datetime | None = Query(default=None, description="До (не включно), ISO 8601"),
     limit: int = Query(default=100, ge=1, le=1000),
-    offset: int = Query(default=0, ge=0),
+    offset: int = Query(default=0, ge=0, le=10_000_000),
     db: Session = Depends(get_db),
     _: User = Depends(audit_readers),
 ):

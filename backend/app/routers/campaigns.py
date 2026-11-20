@@ -460,7 +460,7 @@ def resolve_unit(value: str, units_by_name: dict[str, Unit], units_by_id: dict[s
 
 @router.post("/{campaign_id}/participants/import", response_model=ImportOut,
              responses={200: {"content": {"text/csv": {}}}})
-async def import_participants(
+def import_participants(
     campaign_id: uuid.UUID,
     file: UploadFile = File(..., description="CSV UTF-8: login,category,unit[,display_name]"),
     format: str = Query(default="json", pattern="^(json|csv)$",
@@ -481,7 +481,7 @@ async def import_participants(
     campaign = get_or_404(db, campaign_id)
     if campaign.status not in (CampaignStatus.DRAFT, CampaignStatus.OPEN):
         raise ApiError(409, "Хвилю закрито", code="not_editable")
-    rows = read_csv(await file.read(IMPORT_MAX_BYTES + 1))
+    rows = read_csv(file.file.read(IMPORT_MAX_BYTES + 1))
     if not rows:
         raise ApiError(422, "У файлі немає рядків", code="empty_file")
 

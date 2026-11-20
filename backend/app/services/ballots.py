@@ -25,6 +25,7 @@ import uuid
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.models import BlindKey, Campaign, Questionnaire, SpentBallot
@@ -60,19 +61,38 @@ def _unseal_d(box: dict) -> int:
     return int(json.loads(data)["d"], 16)
 
 
+def _group(campaign_id: uuid.UUID, questionnaire_id: uuid.UUID, unit_id: uuid.UUID | None):
+    return (BlindKey.campaign_id == campaign_id, BlindKey.questionnaire_id == questionnaire_id,
+            BlindKey.unit_id.is_(None) if unit_id is None else BlindKey.unit_id == unit_id)
+
+
 def key_for(db: Session, campaign: Campaign, questionnaire: Questionnaire, unit_id: uuid.UUID | None) -> BlindKey:
-    row = db.scalar(select(BlindKey).where(BlindKey.campaign_id == campaign.id,
-                                           BlindKey.questionnaire_id == questionnaire.id,
-                                           BlindKey.unit_id.is_(None) if unit_id is None else BlindKey.unit_id == unit_id))
+    # Два перші звернення групи одночасно: для підрозділу друге впирається в унікальність (раніше — 409
+    # «запит двічі»), тож беремо вже створений ключ. Для групи без підрозділу (експерти) NULL унікальність
+    # не перевіряє, і ключів може стати два: порядок сталий, а підписують ключем, який назвав клієнт (group_key).
+    query = select(BlindKey).where(*_group(campaign.id, questionnaire.id, unit_id)).order_by(BlindKey.id)
+    row = db.scalars(query).first()
     if row is not None:
         return row
     private = rsa.generate_private_key(public_exponent=65537, key_size=KEY_BITS)
     numbers = private.private_numbers()
     row = BlindKey(campaign_id=campaign.id, questionnaire_id=questionnaire.id, unit_id=unit_id,
                    n=format(numbers.public_numbers.n, "x"), e=numbers.public_numbers.e, sealed_d=_seal_d(numbers.d))
-    db.add(row)
-    db.flush()
+    try:
+        with db.begin_nested():
+            db.add(row)
+    except IntegrityError:
+        existing = db.scalars(query).first()
+        if existing is None:
+            raise
+        return existing
     return row
+
+
+def group_key(db: Session, key_id: uuid.UUID, campaign: Campaign, questionnaire: Questionnaire,
+              unit_id: uuid.UUID | None) -> BlindKey | None:
+    """Ключ key_id, лише якщо він належить групі учасника (хвиля, анкета, підрозділ)."""
+    return db.scalar(select(BlindKey).where(BlindKey.id == key_id, *_group(campaign.id, questionnaire.id, unit_id)))
 
 
 def sign_blinded(key: BlindKey, blinded_hex: str) -> str:

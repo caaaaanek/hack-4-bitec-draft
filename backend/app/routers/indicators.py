@@ -24,6 +24,7 @@ from app.security import RESULT_READERS, ensure_unit_access, get_current_user, k
 from app.services import fact_registry, facts, methodology as m
 
 router = APIRouter(tags=["indicators"])
+INT32_MAX = 2**31 - 1
 optional_token = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
@@ -33,8 +34,9 @@ class IndicatorIn(BaseModel):
     unit_id: uuid.UUID
     period: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$", description="Місяць у форматі YYYY-MM")
     indicator: str
-    numerator: int = Field(ge=0)
-    denominator: int = Field(ge=0)
+    # Колонки INTEGER (у PostgreSQL 32 біти): більше значення давало 500 при записі.
+    numerator: int = Field(ge=0, le=INT32_MAX)
+    denominator: int = Field(ge=0, le=INT32_MAX)
     source: str = Field(min_length=1, max_length=64, pattern=r"^[a-z0-9_.-]+$")
     why: str = Field(default="", max_length=1000)
     extra_counts: dict[str, int] = Field(default_factory=dict, description="Лише для показу, на бал не впливає")

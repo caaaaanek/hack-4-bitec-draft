@@ -75,8 +75,12 @@ def _looks_like_text(head: bytes) -> bool:
     return True
 
 
-async def store(upload: UploadFile) -> tuple[str, str, str, int]:
-    """Читає завантаження потоком, перевіряє ліміти й тип. Повертає (ім'я, MIME, sha256, розмір)."""
+def store(upload: UploadFile) -> tuple[str, str, str, int]:
+    """Читає завантаження потоком, перевіряє ліміти й тип. Повертає (ім'я, MIME, sha256, розмір).
+
+    Синхронно (upload.file): викликається із синхронних ендпойнтів, які FastAPI виконує в пулі потоків,
+    тож запис на диск і запити до БД не блокують цикл подій.
+    """
     settings = get_settings()
     filename = safe_filename(upload.filename)
     ext = extension(filename)
@@ -93,7 +97,7 @@ async def store(upload: UploadFile) -> tuple[str, str, str, int]:
     fd, tmp_name = tempfile.mkstemp(dir=root, prefix=".upload-")
     try:
         with os.fdopen(fd, "wb") as tmp:
-            while chunk := await upload.read(CHUNK):
+            while chunk := upload.file.read(CHUNK):
                 size += len(chunk)
                 if size > settings.evidence_max_bytes:
                     raise ApiError(413, "Файл завеликий", code="too_large",

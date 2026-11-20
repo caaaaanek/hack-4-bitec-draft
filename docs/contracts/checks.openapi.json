@@ -509,6 +509,7 @@
             "required": false,
             "schema": {
               "type": "integer",
+              "maximum": 10000000,
               "minimum": 0,
               "default": 0,
               "title": "Offset"
