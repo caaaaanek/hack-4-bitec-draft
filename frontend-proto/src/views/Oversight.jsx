@@ -25,7 +25,7 @@ export function ChildrenLevels() {
   return <section className="card c12 rise ch-card" aria-labelledby="chTitle">
     <div className="card-h"><h2 id="chTitle">Підрозділи за рівнями зрілості</h2></div>
     {body}
-    <div className="lbl" style={{ marginTop: 10, fontSize: 12.5 }}>Лише кількість підрозділів на кожному рівні, без назв. Деталі підрозділу бачить тільки сам підрозділ, а перегляди чужих підрозділів записуються в журнал для аудиту. Так результати не стають підставою для колективного покарання.</div>
+    <div className="lbl" style={{ marginTop: 10, fontSize: 12.5 }}>Лише кількість підрозділів на кожному рівні, без назв. Деталі підрозділу бачить тільки сам підрозділ, а перегляди чужих підрозділів записуються в журнал для аудиту.</div>
   </section>;
 }
 function ChildBars({ d }) {

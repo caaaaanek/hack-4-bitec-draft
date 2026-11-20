@@ -213,7 +213,7 @@ export function Institutions() {
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}><span className="link">Відкрити огляд <Ic n="arrowR" /></span></div>
       </a>)
       : <section className="card c12"><div className="empty"><b>{q ? "Нічого не знайдено" : S.instArch ? "В архіві порожньо" : "Закладів немає"}</b><br />{q ? "Змініть запит або додайте заклад за кодом ЄДРПОУ." : ""}</div></section>}
-    <section className="card c12 rise"><div className="lock"><Ic n="shield" /><div><b>Заклади не порівнюються між собою</b><div className="lbl">На картках немає індексу й рейтингу, список упорядковано за кодом ЄДРПОУ. Індекс і його зміну видно лише на огляді конкретного закладу, і порівнюється заклад тільки сам із собою. Так результати не стають підставою для колективного покарання.</div></div></div></section>
+    <section className="card c12 rise"><div className="lock"><Ic n="shield" /><div><b>Заклади не порівнюються між собою</b><div className="lbl">На картках немає індексу й рейтингу, список упорядковано за кодом ЄДРПОУ. Індекс і його зміну видно лише на огляді конкретного закладу, і порівнюється заклад тільки сам із собою.</div></div></div></section>
     <ReadGuide title="Як читати картки" />
   </>;
 }

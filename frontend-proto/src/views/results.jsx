@@ -32,6 +32,7 @@ export function ReadGuide({ title }) {
       <div><h3>Достовірність</h3><p className="lbl" style={{ marginBottom: 8 }}>Наскільки можна довіряти результату. Залежить від прапорців: автоматичних перевірок даних на розбіжності й підозрілі відповіді.</p>
         <div className="rows">{["A", "B", "C", "insufficient"].map(g => <div key={g} className="row" style={{ alignItems: "flex-start", gap: 10 }}><TrustPill g={g} /><div className="grow lbl" style={{ fontSize: 12.5 }}>{TRUST[g][2]}</div></div>)}</div></div>
     </div>
+    <p className="lbl" style={{ marginTop: 12 }}>Результати не порівнюють заклади й підрозділи між собою і не є підставою для колективного покарання: деталі підрозділу бачить лише сам підрозділ, а перегляди чужих підрозділів записуються в журнал.</p>
   </details>;
 }
 
