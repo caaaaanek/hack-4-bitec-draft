@@ -16,7 +16,7 @@ import { openApiQ } from "./panels.jsx";
 /* Приклади з docs/features.md для режиму без сервера */
 const DEMO_Q = { total_found: 1, note: "Приклад із документації (docs/features.md). З сервером питання формуються з чисел закритої хвилі.", rules: [], questions: [{
   n: 1, id: "cut_by_facts:accountability", rule_id: "cut_by_facts", severity: 100, category: "Факти проти самооцінки",
-  question: "Ви оцінюєте «Підзвітність» на 58,9 балів, а факти показують 18,8. Чому система, на вашу думку, краща, ніж кажуть дані? Наприклад, «підозрілі закупівлі розібрано» лише 40%.",
+  question: "Ви оцінюєте «Підзвітність» на 58,9 бала, а факти показують 18,8. Чому система, на вашу думку, краща, ніж кажуть дані? Наприклад, «підозрілі закупівлі розібрано» лише 40%.",
   why: "Самооцінка 58,9 знижена до 43,8: факти показують 18,8 (+25).",
   evidence: [{ label: "«Підзвітність»: самооцінка", text: "58,9", path: "components.accountability.self_score" }, { label: "за фактами", text: "18,8", path: "components.accountability.facts_score" }, { label: "Підозрілі закупівлі розібрано", text: "40% (48 з 120)", path: "facts.procurement_flags_reviewed" }],
   prepare: "Пояснення розриву по кожному факту: що саме не розглянуто вчасно і чому; план, коли частка досягне наступного порогу.", link: { view: "compare", ref: "accountability" } }] };

@@ -16,4 +16,6 @@ export function quarters(t) {
   const a = qOf(m[1]), b = qOf(m[2]); if (!a || !b) return "";
   return a.q === b.q && a.y === b.y ? `${a.q} квартал ${a.y}` : `${a.q} кв. ${a.y} – ${b.q} кв. ${b.y}`;
 }
-export const dsh = t => String(t == null ? "" : t).replace(/—/g, "–");
+// Тексти сервера: довге тире, англійська назва індексу й узгодження «бал» з числом («54 балів» → «54 бали», «58,9 балів» → «58,9 бала»)
+const balW = (n, w) => n.includes(",") || n.includes(".") ? `${n} бала` : `${n} ${plural(+n, "бал", "бали", "балів")}`;
+export const dsh = t => String(t == null ? "" : t).replace(/—/g, "–").replace(/Integrity Index/g, "Індекс доброчесності").replace(/(\d+(?:[,.]\d+)?) балів/g, (m, n) => balW(n)).replace(/кожні 1 (день|дн\.)/g, "щодня");
