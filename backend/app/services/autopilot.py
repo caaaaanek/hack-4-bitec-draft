@@ -19,7 +19,7 @@
 import logging
 import threading
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi.encoders import jsonable_encoder
 from sqlalchemy import select
@@ -29,8 +29,8 @@ from app.audit import log_action
 from app.clock import now, today
 from app.config import get_settings
 from app.errors import ApiError
-from app.models import AutopilotEvent, Campaign, CampaignStatus, GeneratedReport, Notice
-from app.services import audit_anchor, learning, lifecycle, watchdog
+from app.models import ApprovalRequest, AutopilotEvent, Campaign, CampaignStatus, GeneratedReport, Notice, User
+from app.services import approvals, audit_anchor, learning, lifecycle, watchdog
 from app.services.plural import plural
 
 log = logging.getLogger("app.autopilot")
@@ -117,6 +117,8 @@ def tick_campaign(db: Session, campaign: Campaign) -> list[dict]:
     out: list[dict] = []
     if campaign.status == CampaignStatus.DRAFT:
         if campaign.planned_open_on and campaign.planned_open_on <= today():
+            if approvals.enabled() and not approvals.open_approved(db, campaign):
+                return out + request_open(db, campaign)
             try:
                 lifecycle.open_wave(db, campaign, None, via="autopilot")
                 out.append(event(db, campaign, "open", "ok", f"Хвилю відкрито за планом ({campaign.planned_open_on:%d.%m.%Y})"))
@@ -180,6 +182,29 @@ def daily(db: Session) -> list[dict]:
     return out
 
 
+def request_open(db: Session, campaign: Campaign) -> list[dict]:
+    """Принцип двох осіб: автопілот хвилю не відкриває сам, а просить підтвердження (open_campaign) від імені того,
+    хто створив хвилю. Відкриє її підтвердження аудиту або наступний крок після нього."""
+    pending = db.scalar(select(ApprovalRequest).where(ApprovalRequest.kind == "open_campaign",
+                                                      ApprovalRequest.target_id == str(campaign.id),
+                                                      ApprovalRequest.status == "pending"))
+    if pending is not None:
+        return []
+    try:
+        lifecycle.check_group_sizes(db, campaign)
+    except ApiError as e:
+        return [event(db, campaign, "open", "error", f"Не вдалося відкрити: {e.detail}")]
+    summary = approvals.composition_summary(db, campaign)
+    creator = db.get(User, campaign.created_by_id) if campaign.created_by_id else None
+    row = approvals.request(db, creator, "open_campaign", campaign.id, summary,
+                            f"Відкрити хвилю «{campaign.title}» за планом автопілота: склад "
+                            + ", ".join(f"{k} — {v}" for k, v in summary["eligible"].items())
+                            + f"; нових облікових записів за 30 днів: {summary['created_last_30_days']}")
+    return [event(db, campaign, "open", "waiting",
+                  "Чекає на підтвердження відкриття внутрішнім аудитом (принцип двох осіб)",
+                  approval_id=str(row.id))]
+
+
 def tick(db: Session) -> list[dict]:
     """Один прохід автопілота. Комітить сам; кожна хвиля — окремою транзакцією, щоб помилка однієї не зупиняла інших."""
     out: list[dict] = []
@@ -240,9 +265,21 @@ _stop = threading.Event()
 _thread: threading.Thread | None = None
 
 
+_next_tick_at: datetime | None = None
+
+
+def next_tick_at() -> datetime | None:
+    """Коли фоновий потік зробить наступний крок. None — потік не запущено (AUTOPILOT_INTERVAL_SECONDS=0)."""
+    return _next_tick_at if _thread is not None and _thread.is_alive() else None
+
+
 def _loop(interval: float) -> None:
     from app.db import SessionLocal
+    global _next_tick_at
+    # Реальний час, а не app.clock.now(): той у демо може бути «заморожений».
+    _next_tick_at = datetime.now(timezone.utc) + timedelta(seconds=interval)
     while not _stop.wait(interval):
+        _next_tick_at = datetime.now(timezone.utc) + timedelta(seconds=interval)
         try:
             with SessionLocal() as db:
                 tick(db)

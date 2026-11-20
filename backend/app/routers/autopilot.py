@@ -12,7 +12,9 @@ from app.audit import log_action
 from app.clock import now, today
 from app.db import get_db
 from app.errors import ApiError
+from app.config import get_settings
 from app.models import (
+    ApprovalRequest,
     Campaign,
     CampaignEligible,
     CampaignStatus,
@@ -21,7 +23,7 @@ from app.models import (
     Role,
     User,
 )
-from app.security import RESULT_READERS, ensure_unit_access, get_current_user, require_roles
+from app.security import RESULT_READERS, campaign_visible, ensure_unit_access, get_current_user, require_roles
 from app.services import autopilot
 from app.services.units import subtree_from, unit_tree
 
@@ -70,6 +72,12 @@ class AutopilotOut(BaseModel):
     plan: list[str] = Field(description="Що автопілот зробить далі")
     report_ready: bool = Field(description="Чи підготовлено Word-звіт після закриття")
     events: list[AutopilotEventOut]
+    interval_seconds: float | None = Field(
+        default=None, description="Як часто автопілот робить крок (AUTOPILOT_INTERVAL_SECONDS); 0 — лише вручну")
+    next_tick_at: datetime | None = Field(
+        default=None, description="Коли наступний крок; null — фоновий потік не запущено")
+    waiting_approval_id: uuid.UUID | None = Field(
+        default=None, description="Хвиля чекає на підтвердження відкриття (принцип двох осіб)")
 
 
 class TickEvent(BaseModel):
@@ -109,12 +117,16 @@ def state(db: Session, campaign: Campaign) -> AutopilotOut:
         close_at_percent=campaign.close_at_percent, remind_every_days=campaign.remind_every_days,
         last_reminder_on=campaign.last_reminder_on, plan=autopilot.plan(campaign), report_ready=ready,
         events=[AutopilotEventOut(at=e.at, step=e.step, status=e.status, message=e.message, details=e.details or {})
-                for e in autopilot.campaign_events(db, campaign.id)])
+                for e in autopilot.campaign_events(db, campaign.id)],
+        interval_seconds=get_settings().autopilot_interval_seconds, next_tick_at=autopilot.next_tick_at(),
+        waiting_approval_id=db.scalar(select(ApprovalRequest.id).where(
+            ApprovalRequest.kind == "open_campaign", ApprovalRequest.target_id == str(campaign.id),
+            ApprovalRequest.status == "pending")) if campaign.status == CampaignStatus.DRAFT else None)
 
 
 @router.get("/campaigns/{campaign_id}/autopilot", response_model=AutopilotOut)
 def get_autopilot(campaign_id: uuid.UUID, db: Session = Depends(get_db),
-                  _: User = Depends(require_roles(Role.ADMIN, Role.COORDINATOR, Role.AUDITOR))):
+                  _: User = Depends(require_roles(Role.ADMIN, Role.AUDITOR))):
     """План автопілота хвилі, що він зробить далі, і журнал його кроків."""
     return state(db, get_campaign(db, campaign_id))
 
@@ -156,11 +168,20 @@ def set_autopilot(campaign_id: uuid.UUID, data: AutopilotIn, db: Session = Depen
 
 @router.post("/autopilot/tick", response_model=TickOut)
 def run_tick(db: Session = Depends(get_db), admin: User = Depends(admin_only)):
-    """Виконати крок автопілота зараз (фоново він іде кожні AUTOPILOT_INTERVAL_SECONDS)."""
+    """Виконати крок автопілота зараз (фоново він іде кожні AUTOPILOT_INTERVAL_SECONDS).
+
+    Крок іде для всіх хвиль, але у відповіді — лише події хвиль зони уповноваженого (і загальні).
+    """
     events = autopilot.tick(db)
     autopilot.audit_tick(db, admin, events)
     db.commit()
-    return TickOut(events=events)
+    visible = []
+    for e in events:
+        cid = e.get("campaign_id")
+        campaign = db.get(Campaign, uuid.UUID(str(cid))) if cid else None
+        if campaign is None or campaign_visible(db, admin, campaign):
+            visible.append(e)
+    return TickOut(events=visible)
 
 
 @router.get("/campaigns/{campaign_id}/autopilot/report")
@@ -183,9 +204,9 @@ def download_prepared_report(campaign_id: uuid.UUID, db: Session = Depends(get_d
 # ---------- Сповіщення ----------
 
 def audiences(user: User) -> set[str]:
-    if user.role in (Role.ADMIN, Role.COORDINATOR):
+    if user.role == Role.ADMIN:
         return {"admins", "leaders"}
-    if user.role in (Role.LEADER, Role.AUDITOR, Role.COMMISSIONER):
+    if user.role in (Role.LEADER, Role.AUDITOR, Role.DEPARTMENT):
         return {"leaders"}
     return {"participants"}
 
@@ -211,6 +232,8 @@ def my_notifications(db: Session = Depends(get_db), user: User = Depends(get_cur
                 continue
             if n.audience == "leaders" and user.role == Role.LEADER and user.unit_id is not None and not covered:
                 continue
+            if n.audience in ("admins", "leaders") and campaign is not None and not campaign_visible(db, user, campaign):
+                continue  # хвиля іншої зони (уповноважений, аудит, Департамент іншого закладу)
         out.append(n)
         if len(out) == 50:
             break

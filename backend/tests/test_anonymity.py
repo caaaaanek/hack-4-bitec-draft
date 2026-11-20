@@ -119,13 +119,13 @@ def test_generalize_every_label_has_at_least_k():
 
 def test_small_unit_is_not_visible_in_storage(client):
     """Підрозділ з однією людиною: її відповідь зберігається під вищим підрозділом."""
-    admin = auth(client, "admin")
-    u = units(client, admin)
+    co = auth(client, "coordinator")
+    u = units(client, auth(client, "admin"))
     root = u["Організація (демо)"]
-    solo = client.post(f"{API}/admin/units", json={"name": "Solo", "parent_id": root}, headers=admin).json()["id"]
-    users = {x["login"]: x for x in client.get(f"{API}/admin/users", headers=admin).json()}
+    solo = client.post(f"{API}/admin/units", json={"name": "Solo", "parent_id": root}, headers=co).json()["id"]
+    users = {x["login"]: x for x in client.get(f"{API}/admin/users", headers=co).json()}
     assert client.patch(f"{API}/admin/users/{users['staff01']['id']}", json={"unit_id": solo},
-                        headers=admin).status_code == 200
+                        headers=co).status_code == 200
     campaign_id, q, admin = open_campaign(client, ("nazk-maturity-staff",))
     for i in range(1, 12):
         answer(client, campaign_id, q["nazk-maturity-staff"], f"staff{i:02d}", lambda _: 1)

@@ -34,7 +34,7 @@ def test_upload_list_download_with_sha256(client):
     files = client.get(f"{base}/files", headers=auth(client, "auditor")).json()
     assert [f["id"] for f in files] == [meta["id"]]
 
-    d = client.get(f"{base}/files/{meta['id']}", headers=auth(client, "commissioner"))
+    d = client.get(f"{base}/files/{meta['id']}", headers=auth(client, "auditor"))
     assert d.status_code == 200 and d.content == PDF
     assert d.headers["x-content-sha256"] == meta["sha256"]
     assert d.headers["x-content-type-options"] == "nosniff"
@@ -77,7 +77,7 @@ def test_file_count_limit(client):
 
 def test_only_working_group_uploads_and_only_while_open(client):
     campaign_id, base, wg, admin = setup_item(client)
-    assert upload(client, base, auth(client, "commissioner")).status_code == 403
+    assert upload(client, base, auth(client, "auditor")).status_code == 403
     assert upload(client, base, auth(client, "staff01")).status_code == 403
     assert client.get(f"{base}/files", headers=auth(client, "staff01")).status_code == 403
     close(client, campaign_id, admin)
@@ -87,7 +87,7 @@ def test_only_working_group_uploads_and_only_while_open(client):
 
 def test_file_counts_as_evidence_and_changes_reset_confirmation(client):
     _, base, wg, _ = setup_item(client)
-    commissioner = auth(client, "commissioner")
+    commissioner = auth(client, "auditor")
     assert client.put(base, json={"status": "full"}, headers=wg).status_code == 200
     assert client.post(f"{base}/confirm", headers=commissioner).status_code == 422  # ні тексту, ні файлу
     file_id = upload(client, base, wg).json()["id"]
@@ -145,7 +145,7 @@ def submit(client, base, headers, data, files=None):
 
 def test_text_only_is_not_enough_for_full_or_partial(client):
     _, base, wg, _ = setup_item(client)
-    commissioner = auth(client, "commissioner")
+    commissioner = auth(client, "auditor")
     for status_ in ("full", "partial"):
         r = client.put(base, json={"status": status_, "evidence": "Наказ №7 від 01.09"}, headers=wg)
         assert r.status_code == 200 and r.json()["file_required"] is True
@@ -162,7 +162,7 @@ def test_policy_can_be_switched_off(client, monkeypatch):
     monkeypatch.setattr(get_settings(), "checklist_require_file", False)
     _, base, wg, _ = setup_item(client)
     assert client.put(base, json={"status": "full", "evidence": "Наказ"}, headers=wg).json()["file_required"] is False
-    assert client.post(f"{base}/confirm", headers=auth(client, "commissioner")).status_code == 200
+    assert client.post(f"{base}/confirm", headers=auth(client, "auditor")).status_code == 200
     assert client.get(f"{API}/config").json()["policies"]["checklist_require_file"] is False
 
 
@@ -174,7 +174,7 @@ def test_submit_status_text_and_files_in_one_request(client):
     item = r.json()
     assert item["status"] == "full" and item["evidence"] == "Наказ №3" and item["comment"] == "скан і фото"
     assert [f["filename"] for f in item["files"]] == ["Наказ.pdf", "фото.png"] and item["file_required"] is False
-    assert client.post(f"{base}/confirm", headers=auth(client, "commissioner")).status_code == 200
+    assert client.post(f"{base}/confirm", headers=auth(client, "auditor")).status_code == 200
 
     # Повторне внесення додає файли до наявних і знімає підтвердження.
     r = submit(client, base, wg, {"status": "partial"}, [("files", ("dodatok.txt", "текст".encode(), "text/plain"))])
@@ -207,7 +207,7 @@ def test_submit_is_atomic(client):
 def test_submit_permissions_and_empty_file_part(client):
     campaign_id, base, wg, admin = setup_item(client)
     files = [("files", ("nakaz.pdf", PDF, "application/pdf"))]
-    assert submit(client, base, auth(client, "commissioner"), {"status": "full"}, files).status_code == 403
+    assert submit(client, base, auth(client, "auditor"), {"status": "full"}, files).status_code == 403
     assert submit(client, base, wg, {"status": "maybe"}, files).status_code == 422
     # Браузер шле порожню частину, коли файл не вибрано: це не помилка.
     # (httpx викидає filename="", тому тіло складаємо вручну, як його шле браузер).

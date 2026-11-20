@@ -13,7 +13,7 @@ def first_items(client, campaign_id, count=2):
 
 def test_checklist_enter_and_confirm(client):
     campaign_id, _, _ = open_campaign(client, ("nazk-checklist",))
-    wg, commissioner = auth(client, "wg1"), auth(client, "commissioner")
+    wg, commissioner = auth(client, "wg1"), auth(client, "auditor")
     with_proof, without_proof = first_items(client, campaign_id)
     url = f"{API}/campaigns/{campaign_id}/checklist"
 
@@ -48,7 +48,7 @@ def test_checklist_permissions(client):
     body = {"status": "partial", "evidence": "Звіт"}
 
     assert client.put(url, json=body, headers=auth(client, "staff01")).status_code == 403
-    assert client.put(url, json=body, headers=auth(client, "commissioner")).status_code == 403  # підтверджує, але не вносить
+    assert client.put(url, json=body, headers=auth(client, "auditor")).status_code == 403  # підтверджує, але не вносить
     assert client.put(url, json=body, headers=auth(client, "admin")).status_code == 403
     assert client.get(f"{API}/campaigns/{campaign_id}/checklist", headers=auth(client, "staff01")).status_code == 403
     assert client.put(url, json=body, headers=auth(client, "wg1")).status_code == 200
@@ -103,7 +103,7 @@ def test_indicator_auth(client):
     root = units(client, auth(client, "admin"))[ROOT]
     assert client.post(f"{API}/indicators", json=fact(root)).status_code == 401
     assert client.post(f"{API}/indicators", json=fact(root), headers={"X-Integration-Key": "wrong"}).status_code == 401
-    assert client.post(f"{API}/indicators", json=fact(root), headers=auth(client, "commissioner")).status_code == 403
+    assert client.post(f"{API}/indicators", json=fact(root), headers=auth(client, "auditor")).status_code == 403
     assert client.post(f"{API}/indicators", json=fact(root), headers=auth(client, "admin")).status_code == 201
     assert client.post(f"{API}/indicators", json=fact(root), headers=KEY).status_code == 201
 

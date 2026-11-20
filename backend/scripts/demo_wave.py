@@ -46,13 +46,17 @@ def main() -> None:
 
     admin = login("admin")
     questionnaires = {q["code"]: q["id"] for q in client.get(f"{api}/questionnaires", headers=admin).json()}
-    root = next(u for u in client.get(f"{api}/admin/units", headers=admin).json() if u["parent_id"] is None)
+    root = next(u for u in client.get(f"{api}/units", headers=admin).json() if u["parent_id"] is None)
 
     r = client.post(f"{api}/campaigns", headers=admin,
                     json={"title": args.title, "unit_id": root["id"], "questionnaire_ids": list(questionnaires.values())})
     r.raise_for_status()
     campaign_id = r.json()["id"]
-    client.post(f"{api}/campaigns/{campaign_id}/open", headers=admin).raise_for_status()
+    r = client.post(f"{api}/campaigns/{campaign_id}/open", headers=admin)
+    r.raise_for_status()
+    if r.json().get("pending_approval_id"):  # принцип двох осіб: відкриття підтверджує внутрішній аудит
+        client.post(f"{api}/admin/approvals/{r.json()['pending_approval_id']}/approve",
+                    headers=login("auditor")).raise_for_status()
     print(f"Хвиля «{args.title}» відкрита для «{root['name']}»")
 
     def answer(user: str, code: str, pick) -> None:
@@ -74,15 +78,19 @@ def main() -> None:
         answer(f"expert{i}", "nazk-maturity-expert", lambda j, i=i: (i * j) % 3 + 1 + s)
     print("Анкети: особовий склад 20, робоча група 6, експерти 5")
 
-    wg, commissioner = login("wg1"), login("commissioner")
+    wg, auditor = login("wg1"), login("auditor")
     items = client.get(f"{api}/campaigns/{campaign_id}/checklist", headers=wg).json()["items"]
     for n, item in enumerate(items):
         status = ["full", "partial", "none"][(n + s) % 3]
         evidence = "Документ (синтетичний)" if n % 2 == 0 else ""
         url = f"{api}/campaigns/{campaign_id}/checklist/{item['question_id']}"
-        client.put(url, json={"status": status, "evidence": evidence}, headers=wg).raise_for_status()
+        # Пункт разом із документом: «повністю» й «частково» без файлу не підтверджуються.
+        pdf = b"%PDF-1.4\n% synthetic\n%%EOF\n" + str(n).encode()
+        files = [("files", (f"doc-{n}.pdf", pdf, "application/pdf"))] if evidence else None
+        client.post(f"{url}/submit", data={"status": status, "evidence": evidence}, files=files,
+                    headers=wg).raise_for_status()
         if evidence:
-            client.post(f"{url}/confirm", headers=commissioner).raise_for_status()
+            client.post(f"{url}/confirm", headers=auditor).raise_for_status()
     print(f"Чек-лист: заповнено {len(items)}, підтверджено {(len(items) + 1) // 2}")
 
     progress = client.get(f"{api}/campaigns/{campaign_id}/progress", headers=admin).json()

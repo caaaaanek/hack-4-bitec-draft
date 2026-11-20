@@ -70,7 +70,7 @@
 4 пункти чек-листа «повністю» без підтвердження; зростання на 13,5 з позначкою «перевірити дані».
 
 **Свідомо не робить:** не питає про конкретних людей, не порівнює підрозділи між собою.
-Доступ: `admin`, `commissioner`, `leader` (свій підрозділ), `auditor`. Запит пишеться в журнал дій.
+Доступ: `admin`, `leader` (свій підрозділ), `auditor`, `department`. Запит пишеться в журнал дій.
 
 ---
 
@@ -171,18 +171,18 @@
 
 | Метод і шлях | Ролі | Тіло / параметри | Відповідь |
 |---|---|---|---|
-| `GET /campaigns/{id}/devils-advocate` | admin, commissioner, leader, auditor | `unit_id?`, `limit` 1–30 (10), `rephrase` (false) | `{questions[], total_found, rules[], rephrased_by_model, note}`; 409 для незакритої хвилі |
-| `GET /agent/digest` | admin, coordinator, commissioner, leader, auditor | `unit_id?` | `{status, summary, counts, items[]}` |
-| `POST /normative/analyze` | admin, coordinator, commissioner, leader, auditor | multipart: `file` або `text`, `title?` | `{document, matches[], by_kind, corpus_size, method, note}` |
+| `GET /campaigns/{id}/devils-advocate` | admin, leader, auditor, department | `unit_id?`, `limit` 1–30 (10), `rephrase` (false) | `{questions[], total_found, rules[], rephrased_by_model, note}`; 409 для незакритої хвилі |
+| `GET /agent/digest` | admin, leader, auditor, department | `unit_id?` | `{status, summary, counts, items[]}` |
+| `POST /normative/analyze` | admin, leader, auditor, department | multipart: `file` або `text`, `title?` | `{document, matches[], by_kind, corpus_size, method, note}` |
 | `GET /campaigns/{id}/autopilot` | admin, coordinator, auditor | — | `{enabled, planned_*, close_at_percent, remind_every_days, plan[], report_ready, events[]}` |
 | `PUT /campaigns/{id}/autopilot` | admin | `{enabled, planned_open_on?, planned_close_on?, close_at_percent?, remind_every_days?}` | те саме; 422 без умови закриття, 409 для закритої |
 | `POST /autopilot/tick` | admin | — | `{events[]}` |
-| `GET /campaigns/{id}/autopilot/report` | admin, commissioner, leader, auditor | — | `.docx`; 404, якщо ще не готовий |
+| `GET /campaigns/{id}/autopilot/report` | admin, leader, auditor, department | — | `.docx`; 404, якщо ще не готовий |
 | `GET /me/notifications` | усі | — | `[{id, campaign_id, audience, kind, title, body, created_at}]` за 30 днів |
 | `GET /learning/decks` | усі | — | `{decks[], required[], valid_days, i_am_trained}` |
 | `GET /learning/decks/{code}` | усі | — | `{code, title, cards[{id, situation, steps[], why, law}]}` |
 | `POST /learning/decks/{code}/complete` | усі | `{seen: [card_id…]}` | `{deck, completed_on, i_am_trained}`; 422, якщо переглянуто не всі |
-| `GET /learning/stats` | admin, coordinator, commissioner, leader, auditor | `unit_id?` | `{eligible, trained, percent, suppressed, by_deck}` |
+| `GET /learning/stats` | admin, leader, auditor, department | `unit_id?` | `{eligible, trained, percent, suppressed, by_deck}` |
 | `POST /learning/publish` | admin | `{period?}` | `{period, units, numerator, denominator}` |
 
 `kind` сповіщень: `opened`, `reminder`, `results` (учасники), `recommendations` (керівники), `digest` (адміністратори).

@@ -3,12 +3,12 @@
 
 import csv
 import io
-import secrets
 import uuid
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import PlainTextResponse, Response
-from sqlalchemy import delete, func, select
+from pydantic import BaseModel
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.audit import log_action
@@ -37,7 +37,6 @@ from app.schemas import (
     CampaignOut,
     CampaignProgress,
     CampaignUpdate,
-    ImportedCredential,
     ImportOut,
     IssuedToken,
     ParticipantOut,
@@ -51,17 +50,18 @@ from app.schemas import (
     TokensRevokeIn,
     TokensRevokeOut,
 )
-from app.security import hash_password, require_roles
+from app.security import campaign_visible, ensure_in_zone, require_roles
 from app.services import tokens as token_service
-from app.services import approvals, categories, invites, lifecycle
+from app.services import approvals, categories, lifecycle
 from app.services.eligibility import freeze, frozen_of, is_eligible, participants_of, refreeze
-from app.services.safe_export import FORMULA_PREFIXES, SafeCsvWriter
+from app.services.safe_export import SafeCsvWriter
 from app.services.units import subtree_ids
 
 router = APIRouter(prefix="/campaigns", tags=["campaigns"])
 admin_only = require_roles(Role.ADMIN)
-# commissioner, керівник і аудитор бачать список хвиль (для дашборда), але не прогрес проходження.
-can_read = require_roles(Role.ADMIN, Role.COMMISSIONER, Role.LEADER, Role.AUDITOR)
+# Керівник і аудитор бачать список хвиль (для дашборда), але не прогрес проходження.
+# Кожен — лише хвилі своєї зони (security.campaign_visible; окрема хвиля — campaign_zone_guard).
+can_read = require_roles(Role.ADMIN, Role.LEADER, Role.AUDITOR)
 
 
 def to_out(campaign: Campaign) -> CampaignOut:
@@ -118,17 +118,18 @@ def get_locked_or_404(db: Session, campaign_id: uuid.UUID) -> Campaign:
 
 
 @router.get("", response_model=list[CampaignOut])
-def list_campaigns(db: Session = Depends(get_db), _: User = Depends(can_read)):
+def list_campaigns(db: Session = Depends(get_db), user: User = Depends(can_read)):
     query = (select(Campaign)
              .options(selectinload(Campaign.questionnaire_links).selectinload(CampaignQuestionnaire.questionnaire))
              .order_by(Campaign.created_at.desc()))
-    return [to_out(c) for c in db.scalars(query)]
+    return [to_out(c) for c in db.scalars(query) if campaign_visible(db, user, c)]
 
 
 @router.post("", response_model=CampaignOut, status_code=status.HTTP_201_CREATED)
 def create_campaign(data: CampaignCreate, db: Session = Depends(get_db), admin: User = Depends(admin_only)):
     if db.get(Unit, data.unit_id) is None:
         raise HTTPException(status_code=422, detail="Підрозділ не знайдено")
+    ensure_in_zone(db, admin, data.unit_id)
 
     campaign = Campaign(
         title=data.title,
@@ -185,6 +186,7 @@ def update_campaign(campaign_id: uuid.UUID, data: CampaignUpdate, db: Session = 
     if "unit_id" in changes:
         if db.get(Unit, changes["unit_id"]) is None:
             raise HTTPException(status_code=422, detail="Підрозділ не знайдено")
+        ensure_in_zone(db, admin, changes["unit_id"])
         campaign.unit_id = changes["unit_id"]
     if "questionnaire_ids" in changes:
         set_questionnaires(db, campaign, changes["questionnaire_ids"])
@@ -334,6 +336,35 @@ def participants_response(db: Session, campaign: Campaign) -> ParticipantsOut:
                            participants=[participant_out(u, campaign, units) for u in users])
 
 
+class CampaignPersonOut(BaseModel):
+    id: uuid.UUID
+    login: str
+    display_name: str
+    role: Role
+    category: str | None
+    unit_id: uuid.UUID | None
+
+
+@router.get("/{campaign_id}/people", response_model=list[CampaignPersonOut])
+def campaign_people(campaign_id: uuid.UUID, role: Role | None = None, category: str | None = None,
+                    db: Session = Depends(get_db), _: User = Depends(admin_only)):
+    """З кого уповноважений обирає для цієї хвилі: учасників (PUT .../participants), відповідальних за пункти
+    чек-листа (PUT .../checklist/assignments), власників частин ключа урни.
+
+    Лише активні облікові записи підрозділу хвилі та його піддерева (і без підрозділу: експерти, аудит).
+    Повного довідника людей уповноважений не бачить: його веде технічний адміністратор.
+    """
+    campaign = get_or_404(db, campaign_id)
+    units = subtree_ids(db, campaign.unit_id)
+    query = select(User).where(User.is_active.is_(True), or_(User.unit_id.in_(units), User.unit_id.is_(None)),
+                               User.role.notin_([Role.COORDINATOR, Role.DEPARTMENT])).order_by(User.login)
+    if role is not None:
+        query = query.where(User.role == role)
+    if category is not None:
+        query = query.where(User.category == category)
+    return [CampaignPersonOut.model_validate(u, from_attributes=True) for u in db.scalars(query)]
+
+
 @router.get("/{campaign_id}/participants", response_model=ParticipantsOut)
 def get_participants(campaign_id: uuid.UUID, db: Session = Depends(get_db), _: User = Depends(admin_only)):
     """Кого запрошено. Хто вже пройшов, не показується нікому."""
@@ -439,8 +470,9 @@ async def import_participants(
 ):
     """Імпорт псевдонімів з CSV (`login,category,unit[,display_name]`; роздільник «,» або «;»).
 
-    - Хвиля за обліковими записами: створює відсутніх респондентів (пароль показується один раз),
-      додає всіх до явного складу учасників. Можна в чернетці й у відкритій хвилі (лише додавання).
+    - Хвиля за обліковими записами: додає наявних респондентів до явного складу учасників. Можна в чернетці
+      й у відкритій хвилі (лише додавання). Нових облікових записів уповноважений не створює: людей заводить
+      технічний адміністратор (POST /admin/users або POST /admin/users/import).
     - Хвиля за посиланнями: видає кожному рядку по посиланню на кожну анкету його категорії.
       Псевдоніми не зберігаються: зв'язок «псевдонім → посилання» є лише у файлі, який отримує адміністратор.
 
@@ -493,54 +525,22 @@ async def import_participants(
     created, credentials, added = 0, [], 0
     existing_ids = participants_of(db, campaign) or set()
     to_add: list[uuid.UUID] = []
-    new_users: list[tuple[User, str]] = []
     for n, login, category, unit, display_name in parsed:
         user = db.scalar(select(User).where(User.login == login))
-        if user is not None:
-            if user.role != Role.RESPONDENT:
-                issues.append({"path": f"line {n}", "message": f"{login}: обліковий запис не респондента"})
-            elif category and user.category != category:
-                issues.append({"path": f"line {n}", "message": f"{login}: у системі інша категорія ({user.category})"})
-            elif unit and user.unit_id != unit.id:
-                issues.append({"path": f"line {n}", "message": f"{login}: у системі інший підрозділ"})
-            elif user.id not in existing_ids:
-                to_add.append(user.id)
-            continue
-        if category is None:
-            issues.append({"path": f"line {n}", "message": f"{login}: для нового облікового запису потрібна category"})
-            continue
-        if category != RespondentCategory.EXPERT and unit is None:
-            issues.append({"path": f"line {n}", "message": f"{login}: для нового облікового запису потрібен unit"})
-            continue
-        password = new_password()
-        new_users.append((User(login=login, display_name=display_name, password_hash="", role=Role.RESPONDENT,
-                               category=category, unit_id=unit.id if unit else None), password))
+        if user is None:
+            issues.append({"path": f"line {n}", "message": f"{login}: обліковий запис не знайдено; "
+                           "людей заводить технічний адміністратор"})
+        elif user.role != Role.RESPONDENT:
+            issues.append({"path": f"line {n}", "message": f"{login}: обліковий запис не респондента"})
+        elif category and user.category != category:
+            issues.append({"path": f"line {n}", "message": f"{login}: у системі інша категорія ({user.category})"})
+        elif unit and user.unit_id != unit.id:
+            issues.append({"path": f"line {n}", "message": f"{login}: у системі інший підрозділ"})
+        elif user.id not in existing_ids:
+            to_add.append(user.id)
     if issues:
         raise ApiError(422, issues, code="import_failed", hint="Виправте рядки й завантажте файл ще раз. Нічого не змінено.")
-
-    by_invite = not get_settings().admin_sets_passwords
-    four_eyes = approvals.enabled()
-    new_ids: list[str] = []
-    for user, password in new_users:
-        # ADMIN_SETS_PASSWORDS=false: замість пароля — запрошення, людина ставить пароль сама.
-        user.password_hash = invites.NO_PASSWORD if by_invite else hash_password(password)
-        user.is_active = not four_eyes
-        db.add(user)
-        db.flush()
-        to_add.append(user.id)
-        new_ids.append(str(user.id))
-        if by_invite:
-            token, _ = invites.issue(db, user, admin)
-            credentials.append(ImportedCredential(login=user.login, password="", invite_link=invites.link(token)))
-        else:
-            credentials.append(ImportedCredential(login=user.login, password=password))
-        created += 1
     pending = None
-    if four_eyes and new_ids:
-        # Принцип двох осіб: нові облікові записи (а отже й склад хвилі) активує друга людина.
-        pending = approvals.request(db, admin, "activate_users", f"import:{campaign.id}:{len(new_ids)}:{new_ids[0]}",
-                                    {"user_ids": new_ids, "campaign_id": str(campaign.id)},
-                                    f"Імпорт у хвилю «{campaign.title}»: {len(new_ids)} нових облікових записів")
     if campaign.status == CampaignStatus.DRAFT or campaign.explicit_participants:
         db.add_all(CampaignParticipant(campaign_id=campaign.id, user_id=i) for i in dict.fromkeys(to_add))
         added = len(set(to_add))
@@ -565,14 +565,6 @@ async def import_participants(
             w.writerow([c.login, c.password, c.invite_link or ""])
         return csv_attachment(out.getvalue(), f"credentials-{campaign.id}.csv")
     return result
-
-
-def new_password() -> str:
-    """Випадковий пароль, що не починається з символу формули: у CSV облікових даних він лишається точним."""
-    while True:
-        password = secrets.token_urlsafe(9)
-        if not password.startswith(FORMULA_PREFIXES):
-            return password
 
 
 def csv_attachment(text: str, filename: str) -> PlainTextResponse:

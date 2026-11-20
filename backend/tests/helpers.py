@@ -10,7 +10,7 @@ ROOT = "Організація (демо)"
 
 
 def units(client, admin) -> dict[str, str]:
-    return {u["name"]: u["id"] for u in client.get(f"{API}/admin/units", headers=admin).json()}
+    return {u["name"]: u["id"] for u in client.get(f"{API}/units", headers=admin).json()}
 
 
 def questionnaire_ids(client, admin) -> dict[str, str]:
@@ -62,13 +62,13 @@ def submit_item(client, campaign_id, question_id, headers, status="full", eviden
 
 def fill_checklist(client, campaign_id, status="full", evidence="Наказ №1 (синтетичний)", confirm=True):
     wg = auth(client, "wg1")
-    commissioner = auth(client, "commissioner")
+    confirmer = auth(client, "auditor")
     items = client.get(f"{API}/campaigns/{campaign_id}/checklist", headers=wg).json()["items"]
     for item in items:
         r = submit_item(client, campaign_id, item["question_id"], wg, status, evidence)
         assert r.status_code == 200, r.text
         if confirm:
-            r = client.post(f"{API}/campaigns/{campaign_id}/checklist/{item['question_id']}/confirm", headers=commissioner)
+            r = client.post(f"{API}/campaigns/{campaign_id}/checklist/{item['question_id']}/confirm", headers=confirmer)
             assert r.status_code == 200, r.text
 
 

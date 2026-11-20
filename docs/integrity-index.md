@@ -23,7 +23,7 @@ Integrity Index показує стан **системи доброчеснос�
 | Анкета 2, особовий склад | як систему бачать ті, хто нею користується | анонімне опитування |
 | Анкета 1, робоча група | як систему бачать ті, хто її будує | анонімне опитування |
 | Анкета 3, зовнішні експерти | зовнішній погляд (ті самі питання, що в Анкеті 1) | анонімне опитування |
-| Контрольний чек-лист, 36 пунктів | що зроблено формально | член робочої групи вносить (призначений на пункт, якщо є призначення), підтверджує `commissioner` або внутрішній аудит за доказом |
+| Контрольний чек-лист, 36 пунктів | що зроблено формально | член робочої групи вносить (призначений на пункт, якщо є призначення), підтверджує внутрішній аудит за доказом («повністю» й «частково» — лише з файлом) |
 | Інші категорії з довідника (наприклад, курсанти) | порівняння груп; з вагою — ще одне джерело самооцінки | `POST /dictionaries/categories` |
 | Факти з інших систем | що показують дані | `POST /indicators`, лише кількості «X з Y», без імен |
 
@@ -158,15 +158,15 @@ S = 0,35·ОС + 0,25·РГ + 0,20·Експерти + 0,20·Чек-лист
 | Ендпоінт | Хто | Що повертає |
 |---|---|---|
 | `GET /methodology` | усі, хто увійшов | ваги, пороги, рівні, прапорці, правила |
-| `GET /campaigns/{id}/results?unit_id=&recalculate=` | admin, commissioner | знімок: індекс, компоненти з S/F/L і джерелами, групи, чек-лист, факти, питання з розподілом, динаміка, висновок |
-| `GET /units/{id}/history` | admin, commissioner | усі хвилі підрозділу для графіка: index, index_self, компоненти, достовірність, значущість |
-| `GET /units/{id}/compare?from_campaign=&to_campaign=` | admin, commissioner | дві будь-які хвилі: дельти зі значущістю, радар «було / стало» |
+| `GET /campaigns/{id}/results?unit_id=&recalculate=` | admin, leader, auditor, department | знімок: індекс, компоненти з S/F/L і джерелами, групи, чек-лист, факти, питання з розподілом, динаміка, висновок |
+| `GET /units/{id}/history` | admin, leader, auditor, department | усі хвилі підрозділу для графіка: index, index_self, компоненти, достовірність, значущість |
+| `GET /units/{id}/compare?from_campaign=&to_campaign=` | admin, leader, auditor, department | дві будь-які хвилі: дельти зі значущістю, радар «було / стало» |
 | `GET /me/results` | respondent | екран учасника: узагальнені результати без деталей |
-| `GET/PUT /campaigns/{id}/checklist[/{question_id}]` | робоча група вносить; admin, commissioner переглядають | стан чек-листа |
-| `POST/DELETE /campaigns/{id}/checklist/{question_id}/confirm` | commissioner | підтвердити або відкликати підтвердження |
+| `GET/PUT /campaigns/{id}/checklist[/{question_id}]` | робоча група вносить; admin, auditor переглядають | стан чек-листа |
+| `POST/DELETE /campaigns/{id}/checklist/{question_id}/confirm` | auditor (`CHECKLIST_CONFIRMERS`) | підтвердити або відкликати підтвердження |
 | `POST /indicators` | інша система (`X-Integration-Key`) або admin | прийом факту за місяць; зайві поля дають 422 |
-| `GET /units/{id}/indicators?months=3\|6\|12` | admin, commissioner | факти у форматі «X з Y» |
-| `GET /units/{id}/risk-signals?months=` | admin, commissioner | сирі кількості знайденого та їх зміна; на індекс не впливає |
+| `GET /units/{id}/indicators?months=3\|6\|12` | admin, leader, auditor, department | факти у форматі «X з Y» |
+| `GET /units/{id}/risk-signals?months=` | admin, leader, auditor, department | сирі кількості знайденого та їх зміна; на індекс не впливає |
 
 ## Чого система свідомо не робить
 

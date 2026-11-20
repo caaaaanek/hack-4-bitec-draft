@@ -145,7 +145,7 @@ def complete_deck(code: str, data: CompleteIn, db: Session = Depends(get_db), us
 
 @router.get("/stats", response_model=StatsOut)
 def learning_stats(unit_id: uuid.UUID | None = None, db: Session = Depends(get_db),
-                   user: User = Depends(require_roles(*RESULT_READERS, Role.COORDINATOR))):
+                   user: User = Depends(require_roles(*RESULT_READERS))):
     """Скільки людей пройшли навчання (агрегат з порогом k). Імен і поіменних списків немає."""
     if unit_id is None:
         root = root_unit(db)

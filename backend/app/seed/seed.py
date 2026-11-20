@@ -3,9 +3,9 @@
 Запуск: python -m app.seed.seed [--with-waves] [--no-demo]
 Повторний запуск нічого не дублює.
 
-SEED_DEMO=false (або --no-demo): лише анкети з додатків Б і В і один адміністратор `admin`
-(пароль DEMO_PASSWORD, якщо адміністратора ще немає). Демо-підрозділи, користувачі, факти й хвилі
-не створюються, SEED_WITH_WAVES ігнорується. Каталог заходів читається з файлу й доступний завжди.
+SEED_DEMO=false (або --no-demo): лише анкети з додатків Б і В і два адміністратори — уповноважений `admin`
+і технічний адміністратор `techadmin` — з одноразовими запрошеннями (виводяться в консоль; пароля з env немає).
+Демо-підрозділи, користувачі, факти й хвилі не створюються, SEED_WITH_WAVES ігнорується. Каталог заходів читається з файлу й доступний завжди.
 """
 
 import argparse
@@ -91,13 +91,12 @@ def seed_users(db: Session, units: dict[str, Unit], password: str, staff_sizes: 
     root = units[ROOT_UNIT]
     staff_units = [u for name, u in units.items() if name != ROOT_UNIT]
     people: list[tuple[str, str, Role, RespondentCategory | None, Unit | None]] = [
-        ("admin", "Адміністратор (демо)", Role.ADMIN, None, None),
-        ("commissioner", "Розробник анкет (демо)", Role.COMMISSIONER, None, None),
+        ("admin", "Уповноважений (демо)", Role.ADMIN, None, None),
         ("leader", "Керівник (демо)", Role.LEADER, None, None),
         ("leader_a", "Керівник підрозділу А (демо)", Role.LEADER, None, units["Підрозділ А"]),
         ("auditor", "Аудитор (демо)", Role.AUDITOR, None, None),
         ("coordinator", "Технічний адміністратор (демо)", Role.COORDINATOR, None, None),
-        ("department", "Департамент МОУ (демо)", Role.DEPARTMENT, None, None),
+        ("department", "Департамент: анкети (демо)", Role.DEPARTMENT, None, None),
     ]
     people += [(f"wg{i}", f"Член робочої групи {i}", Role.RESPONDENT, RespondentCategory.WORKING_GROUP, root) for i in range(1, 7)]
     people += [
@@ -246,12 +245,25 @@ def _flag(name: str, default: bool) -> bool:
     return value in ("1", "true", "yes", "on")
 
 
-def seed_admin(db: Session, password: str) -> int:
-    """Робочий режим: єдиний адміністратор, щоб було кому завести підрозділи й людей."""
-    if db.scalar(select(User.id).where(User.role == Role.ADMIN).limit(1)):
-        return 0
-    db.add(User(login="admin", display_name="Адміністратор", password_hash=hash_password(password), role=Role.ADMIN))
-    return 1
+def seed_admins(db: Session) -> list[tuple[str, str]]:
+    """Робочий режим: два адміністратори двох людей (services/bootstrap.py), кожному — одноразове запрошення.
+
+    Пароля з env немає: кожен ставить пароль сам. Повертає (логін, посилання) для тих, кого створено зараз.
+    Якщо роль уже є (повторний запуск), нового запису не створюється.
+    """
+    from app.services import invites
+
+    created = []
+    for login, name, role in (("admin", "Уповноважений", Role.ADMIN),
+                              ("techadmin", "Технічний адміністратор", Role.COORDINATOR)):
+        if db.scalar(select(User.id).where(User.role == role).limit(1)):
+            continue
+        user = User(login=login, display_name=name, password_hash=invites.NO_PASSWORD, role=role)
+        db.add(user)
+        db.flush()
+        token, _ = invites.issue(db, user, None)
+        created.append((login, invites.link(token)))
+    return created
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -264,17 +276,19 @@ def main(argv: list[str] | None = None) -> None:
     demo = not args.no_demo and _flag("SEED_DEMO", True)
     with_waves = demo and (args.with_waves or _flag("SEED_WITH_WAVES", False))
 
-    password = get_settings().demo_password
-    if len(password) < 8:
-        raise SystemExit("Задайте DEMO_PASSWORD (щонайменше 8 символів) у .env")
     if not demo:
         with SessionLocal() as db:
             questionnaires = seed_questionnaires(db)
-            admins = seed_admin(db, password)
+            admins = seed_admins(db)
             db.commit()
-        print(f"SEED_DEMO=false: нових анкет: {questionnaires}, адміністраторів: {admins}. Демо-дані й хвилі пропущено"
+        print(f"SEED_DEMO=false: нових анкет: {questionnaires}, адміністраторів: {len(admins)}. Демо-дані й хвилі пропущено"
               + (" (SEED_WITH_WAVES ігнорується)" if args.with_waves or _flag("SEED_WITH_WAVES", False) else ""))
+        for login, link in admins:
+            print(f"Запрошення для {login} (одноразове, діє {get_settings().invite_ttl_hours} год): {link}")
         return
+    password = get_settings().demo_password
+    if len(password) < 8:
+        raise SystemExit("Задайте DEMO_PASSWORD (щонайменше 8 символів) у .env")
     months = FACTS_WINDOW_MONTHS + (WAVE_GAP_MONTHS if with_waves else 0)
     with SessionLocal() as db:
         units = seed_units(db)

@@ -15,60 +15,64 @@ def test_me_returns_role(client):
     assert r.json()["category"] == "staff"
 
 
-def test_admin_endpoints_need_admin_role(client):
+def test_people_endpoints_only_for_tech_admin(client):
     assert client.get(f"{API}/admin/users").status_code == 401
-    assert client.get(f"{API}/admin/users", headers=auth(client, "staff01")).status_code == 403
-    assert client.get(f"{API}/admin/users", headers=auth(client, "commissioner")).status_code == 403
-    assert client.get(f"{API}/admin/users", headers=auth(client, "admin")).status_code == 200
+    for login in ("staff01", "department", "admin", "auditor", "leader"):
+        assert client.get(f"{API}/admin/users", headers=auth(client, login)).status_code == 403, login
+        assert client.get(f"{API}/admin/units", headers=auth(client, login)).status_code == 403, login
+    assert client.get(f"{API}/admin/users", headers=auth(client, "coordinator")).status_code == 200
 
 
 def test_create_and_update_user(client):
-    headers = auth(client, "admin")
+    headers = auth(client, "coordinator")
     units = client.get(f"{API}/admin/units", headers=headers).json()
     unit_id = units[0]["id"]
 
-    new_user = {
-        "login": "staff99",
-        "display_name": "Новий респондент",
-        "password": "password-123",
-        "role": "respondent",
-        "category": "staff",
-        "unit_id": unit_id,
-    }
+    new_user = {"login": "staff99", "display_name": "Новий респондент", "role": "respondent", "category": "staff",
+                "unit_id": unit_id}
     r = client.post(f"{API}/admin/users", json=new_user, headers=headers)
     assert r.status_code == 201
     user_id = r.json()["id"]
-    assert "password" not in r.json() and "password_hash" not in r.json()
+    assert "password" not in r.json() and "password_hash" not in r.json() and r.json()["invite_link"]
 
     assert client.post(f"{API}/admin/users", json=new_user, headers=headers).status_code == 409
 
-    r = client.patch(f"{API}/admin/users/{user_id}", json={"role": "commissioner", "category": None}, headers=headers)
+    r = client.patch(f"{API}/admin/users/{user_id}", json={"role": "department", "category": None}, headers=headers)
     assert r.status_code == 200
-    assert r.json()["role"] == "commissioner"
+    assert r.json()["role"] == "department"
 
-    log = client.get(f"{API}/admin/audit-log?entity=user", headers=headers).json()
+    log = client.get(f"{API}/admin/audit-log?entity=user", headers=auth(client, "auditor")).json()
     assert {e["action"] for e in log} >= {"create", "update"}
 
 
+def test_password_is_never_set_by_admin(client):
+    headers = auth(client, "coordinator")
+    body = {"login": "pw01", "display_name": "X", "password": "password-123", "role": "respondent", "category": "staff"}
+    assert client.post(f"{API}/admin/users", json=body, headers=headers).status_code == 422
+    users = {u["login"]: u["id"] for u in client.get(f"{API}/admin/users", headers=headers).json()}
+    r = client.patch(f"{API}/admin/users/{users['staff01']}", json={"password": "password-123"}, headers=headers)
+    assert r.status_code == 422
+
+
 def test_respondent_requires_category(client):
-    headers = auth(client, "admin")
-    r = client.post(
-        f"{API}/admin/users",
-        json={"login": "nocat", "display_name": "X", "password": "password-123", "role": "respondent"},
-        headers=headers,
-    )
+    headers = auth(client, "coordinator")
+    r = client.post(f"{API}/admin/users", json={"login": "nocat", "display_name": "X", "role": "respondent"},
+                    headers=headers)
     assert r.status_code == 422
 
 
-def test_admin_cannot_demote_self(client):
-    headers = auth(client, "admin")
+def test_tech_admin_cannot_change_self(client):
+    headers = auth(client, "coordinator")
     me = client.get(f"{API}/auth/me", headers=headers).json()
-    r = client.patch(f"{API}/admin/users/{me['id']}", json={"role": "commissioner"}, headers=headers)
-    assert r.status_code == 422
+    for change in ({"role": "admin"}, {"is_active": False}, {"unit_id": None}):
+        r = client.patch(f"{API}/admin/users/{me['id']}", json=change, headers=headers)
+        assert r.status_code == 403 and r.json()["code"] == "self_edit", change
+    assert client.patch(f"{API}/admin/users/{me['id']}", json={"display_name": "Техадмін"}, headers=headers).status_code == 200
+    assert client.post(f"{API}/admin/users/{me['id']}/invite", headers=headers).status_code == 403
 
 
 def test_blocked_user_cannot_login(client):
-    headers = auth(client, "admin")
+    headers = auth(client, "coordinator")
     users = client.get(f"{API}/admin/users?role=respondent", headers=headers).json()
     target = next(u for u in users if u["login"] == "staff02")
     client.patch(f"{API}/admin/users/{target['id']}", json={"is_active": False}, headers=headers)

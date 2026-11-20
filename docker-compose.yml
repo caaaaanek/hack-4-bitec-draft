@@ -67,12 +67,10 @@ services:
       # SECURITY_PROFILE=production вмикає всі запобіжники разом; окремі змінні нижче порожні за замовчуванням,
       # тож значення бере профіль, а явно задана змінна його перекриває.
       SECURITY_PROFILE: ${SECURITY_PROFILE:-demo}
-      CHECKLIST_CONFIRMERS: ${CHECKLIST_CONFIRMERS:-commissioner,auditor}
+      CHECKLIST_CONFIRMERS: ${CHECKLIST_CONFIRMERS:-auditor}
       CHECKLIST_REQUIRE_FILE: ${CHECKLIST_REQUIRE_FILE:-true}
-      SEPARATE_TECH_ADMIN: ${SEPARATE_TECH_ADMIN:-}
       ORG_KIND: ${ORG_KIND:-institution}
       LEADER_CHILD_DETAILS: ${LEADER_CHILD_DETAILS:-}
-      ADMIN_SETS_PASSWORDS: ${ADMIN_SETS_PASSWORDS:-}
       INVITE_TTL_HOURS: ${INVITE_TTL_HOURS:-72}
       FOUR_EYES_ENABLED: ${FOUR_EYES_ENABLED:-}
       STAFF_TOKEN_ONLY: ${STAFF_TOKEN_ONLY:-}

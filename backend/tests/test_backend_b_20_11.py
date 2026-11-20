@@ -139,11 +139,11 @@ def test_custom_fact_owner_sources(client, monkeypatch):
 def test_production_profile_turns_on_safeguards(monkeypatch):
     from app.config import PRODUCTION_PROFILE, Settings
 
-    for key in ("ADMIN_SETS_PASSWORDS", "FOUR_EYES_ENABLED", "SEPARATE_TECH_ADMIN", "STAFF_TOKEN_ONLY",
-                "LEADER_CHILD_DETAILS", "SECURITY_PROFILE"):
+    for key in ("FOUR_EYES_ENABLED", "STAFF_TOKEN_ONLY", "LEADER_CHILD_DETAILS", "SECURITY_PROFILE"):
         monkeypatch.delenv(key, raising=False)
     demo = Settings(_env_file=None)
-    assert demo.security_profile == "demo" and demo.admin_sets_passwords and not demo.four_eyes_enabled
+    # Принцип двох осіб діє вже в demo: два адміністратори й підтвердження відкриття хвилі — частина моделі ролей.
+    assert demo.security_profile == "demo" and demo.four_eyes_enabled and not demo.staff_token_only
     prod = Settings(_env_file=None, security_profile="production")
     assert all(getattr(prod, k) == v for k, v in PRODUCTION_PROFILE.items()) and prod.profile_overrides == []
     # Явно задана змінна перекриває профіль, і це видно.
@@ -158,9 +158,10 @@ def test_production_profile_turns_on_safeguards(monkeypatch):
 def test_config_shows_profile(client, setting):
     from app.config import PRODUCTION_PROFILE
 
-    setting(security_profile="production", **{**PRODUCTION_PROFILE, "admin_sets_passwords": True})
+    setting(security_profile="production", **{**PRODUCTION_PROFILE, "staff_token_only": False})
     policies = client.get(f"{API}/config").json()["policies"]
-    assert policies["security_profile"] == "production" and policies["overridden"] == ["admin_sets_passwords"]
+    assert policies["security_profile"] == "production" and policies["overridden"] == ["staff_token_only"]
+    assert policies["admin_sets_passwords"] is False and policies["separate_tech_admin"] is True
 
 
 # ---------- B7 у test_qr_links.py; B8. Якір журналу назовні ----------
@@ -196,7 +197,7 @@ def test_export_anchor_to_file_and_tsa(client, setting, tmp_path, monkeypatch):
     monkeypatch.setattr(audit_anchor.httpx, "post", fake_post)
     setting(audit_anchor_dir=str(tmp_path), audit_anchor_tsa_url="http://tsa.local/tsr")
     client.post(f"{API}/dictionaries/categories", json={"code": "cadet", "title": "Курсанти"},
-                headers=auth(client, "admin"))  # дія в журналі, щоб голова мала seq ≥ 1
+                headers=auth(client, "coordinator"))  # дія в журналі, щоб голова мала seq ≥ 1
     r = client.post(f"{API}/admin/audit-log/export-anchor", headers=auditor)
     assert r.status_code == 201, r.text
     anchor = r.json()

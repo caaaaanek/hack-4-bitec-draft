@@ -3,8 +3,10 @@
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import exists, func, inspect, select, text
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.audit import log_action, verify_chain
@@ -22,6 +24,7 @@ from app.models import (
     Indicator,
     Measure,
     RecommendationDecision,
+    RespondentCategory,
     Response as SurveyResponse,
     ResponsePool,
     Role,
@@ -34,6 +37,7 @@ from app.schemas import (
     AnchorOut,
     ApprovalDecisionIn,
     ApprovalOut,
+    ImportedCredential,
     InviteOut,
     AuditLogOut,
     AuditVerifyOut,
@@ -44,37 +48,32 @@ from app.schemas import (
     UserOut,
     UserUpdate,
 )
+from app.routers.campaigns import IMPORT_MAX_BYTES, LOGIN_CHARS, read_csv, resolve_unit
 from app.routers.campaigns import progress as campaign_progress
 from app.services import categories
 from app.services.eligibility import open_frozen_campaigns_of
-from app.services.units import subtree_from, subtree_ids, unit_tree
-from app.config import get_settings
-from app.security import hash_password, require_people_manager, require_roles, revoke_all_tokens
-from app.services import approvals, audit_anchor, invites
+from app.services.units import campaigns_covering, subtree_ids
+from app.security import campaign_visible, require_people_manager, require_roles, revoke_all_tokens
+from app.services import approvals, audit_anchor, bootstrap, invites
 
 router = APIRouter(prefix="/admin", tags=["admin"])
-managers = require_roles(Role.ADMIN, Role.COORDINATOR)  # користувачі, підрозділи, зведення
-audit_readers = require_roles(Role.ADMIN, Role.COORDINATOR, Role.AUDITOR)
+# Люди й підрозділи веде лише технічний адміністратор (coordinator). Він не бачить хвиль, результатів і журналу.
+managers = require_roles(Role.COORDINATOR)  # користувачі, підрозділи, зведення
+audit_readers = require_roles(Role.ADMIN, Role.AUDITOR)
 
 
-# Адміністратора й координатора створює, змінює і призначає лише адміністратор. Інакше координатор
-# видав би собі чи іншому роль admin або скинув би пароль адміна (ескалація прав).
-PRIVILEGED_ROLES = (Role.ADMIN, Role.COORDINATOR)
+# Людьми керує лише технічний адміністратор (coordinator). Привілейовані ролі він лише просить: видачу,
+# зміну, блокування привілейованого запису підтверджує уповноважений (а запис самого уповноваженого — аудит).
+# Собі він не змінює нічого, крім імені: інакше видав би собі роль чи завів ще одного техадміна сам.
+PRIVILEGED_ROLES = tuple(approvals.PRIVILEGED)
 
 
 def guard_privileged(actor: User, target_role: Role | None = None, new_role: Role | None = None,
                      target: User | None = None, self_edit_fields: set[str] | None = None) -> None:
-    if actor.role == Role.ADMIN:
-        return
-    if new_role in PRIVILEGED_ROLES:
-        raise ApiError(403, "Роль адміністратора чи координатора призначає лише адміністратор", code="forbidden_role")
-    if target_role in PRIVILEGED_ROLES:
-        # Себе координатор може змінити лише в межах імені й пароля.
-        if target is not None and target.id == actor.id and self_edit_fields is not None \
-                and self_edit_fields <= {"display_name", "password"}:
-            return
-        raise ApiError(403, "Обліковий запис адміністратора чи координатора змінює лише адміністратор",
-                       code="forbidden_role")
+    if target is not None and target.id == actor.id and self_edit_fields is not None \
+            and not self_edit_fields <= {"display_name"}:
+        raise ApiError(403, "Свій обліковий запис можна змінити лише в межах імені", code="self_edit",
+                       hint="Роль, підрозділ і блокування власного запису змінює інша людина.")
 
 
 def check_respondent_fields(role: Role, category, unit_id, db: Session) -> None:
@@ -107,40 +106,34 @@ def user_out(user: User, **extra) -> UserOut:
 
 @router.post("/users", response_model=UserOut, status_code=status.HTTP_201_CREATED)
 def create_user(data: UserCreate, db: Session = Depends(get_db), admin: User = Depends(require_people_manager)):
-    """Створити обліковий запис.
+    """Створити обліковий запис (лише технічний адміністратор).
 
-    - Без пароля (рекомендовано): відповідь містить одноразове запрошення, і людина ставить пароль сама.
-      ADMIN_SETS_PASSWORDS=false дозволяє лише так.
-    - FOUR_EYES_ENABLED=true: обліковий запис створюється неактивним, доки його не підтвердить друга
-      людина (POST /admin/approvals/{id}/approve). Так закривається атака «n−1» підставними респондентами.
+    Пароля тут немає: відповідь містить одноразове запрошення, і людина ставить пароль сама.
+    FOUR_EYES_ENABLED=true (за замовчуванням): обліковий запис неактивний, доки його не підтвердить
+    уповноважений (POST /admin/approvals/{id}/approve). Так закривається атака «n−1» підставними респондентами.
     """
     if db.scalar(select(User).where(User.login == data.login)):
         raise HTTPException(status_code=409, detail="Такий логін уже існує")
     guard_privileged(admin, new_role=data.role)
     check_respondent_fields(data.role, data.category, data.unit_id, db)
-    settings = get_settings()
-    if data.password and not settings.admin_sets_passwords:
-        raise ApiError(422, "Пароль задає сама людина за запрошенням", code="password_by_invite",
-                       hint="Створіть обліковий запис без пароля: відповідь міститиме посилання-запрошення.")
+    bootstrap.ensure_ready(db, admin, data.role)
+    first_admin = data.role == Role.ADMIN and bootstrap.active_admins(db) == 0  # підтвердити нікому
 
     user = User(
         login=data.login,
         display_name=data.display_name,
-        password_hash=hash_password(data.password) if data.password else invites.NO_PASSWORD,
+        password_hash=invites.NO_PASSWORD,
         role=data.role,
         category=data.category,
         unit_id=data.unit_id,
-        is_active=not approvals.enabled(),
+        is_active=not approvals.enabled() or first_admin,
     )
     db.add(user)
     db.flush()
-    log_action(db, admin, "create", "user", user.id, {"login": user.login, "role": user.role.value,
-                                                      "invite": not data.password})
-    extra = {}
-    if not data.password:
-        token, expires = invites.issue(db, user, admin)
-        extra.update(invite_link=invites.link(token), invite_expires_at=expires)
-    if approvals.enabled():
+    log_action(db, admin, "create", "user", user.id, {"login": user.login, "role": user.role.value, "invite": True})
+    token, expires = invites.issue(db, user, admin)
+    extra = {"invite_link": invites.link(token), "invite_expires_at": expires}
+    if approvals.enabled() and not first_admin:
         req = approvals.request(db, admin, "activate_users", user.id, {"user_ids": [str(user.id)]},
                                 f"Новий обліковий запис {user.login} ({user.role.value}"
                                 + (f", {user.category}" if user.category else "") + ")")
@@ -149,16 +142,93 @@ def create_user(data: UserCreate, db: Session = Depends(get_db), admin: User = D
     return user_out(user, **extra)
 
 
-@router.post("/users/{user_id}/invite", response_model=InviteOut, status_code=status.HTTP_201_CREATED)
+class UsersImportOut(BaseModel):
+    rows: int
+    created_users: int
+    credentials: list[ImportedCredential]
+    pending_approval_id: uuid.UUID | None = None
+
+
+@router.post("/users/import", response_model=UsersImportOut, status_code=status.HTTP_201_CREATED)
+async def import_users(file: UploadFile = File(..., description="CSV UTF-8: login,category,unit[,display_name]"),
+                       db: Session = Depends(get_db), admin: User = Depends(require_people_manager)):
+    """Масово завести респондентів (лише технічний адміністратор). Кожному — одноразове запрошення.
+
+    Усе або нічого: рядок з помилкою (логін зайнятий, немає категорії чи підрозділу) — нічого не змінюється.
+    FOUR_EYES_ENABLED: записи неактивні, доки імпорт не підтвердить уповноважений (один запит на файл).
+    Привілейовані ролі так не видаються: лише POST /admin/users по одному.
+    """
+    bootstrap.ensure_ready(db, admin, Role.RESPONDENT)
+    rows = read_csv(await file.read(IMPORT_MAX_BYTES + 1))
+    if not rows:
+        raise ApiError(422, "У файлі немає рядків", code="empty_file")
+    all_units = db.scalars(select(Unit)).all()
+    by_name, by_id = {u.name: u for u in all_units}, {str(u.id): u for u in all_units}
+    issues, parsed, seen = [], [], set()
+    for n, row in enumerate(rows, start=2):
+        login = row.get("login") or row.get("pseudonym") or ""
+        category = row.get("category") or ""
+        unit = resolve_unit(row.get("unit", ""), by_name, by_id) if row.get("unit") else None
+        if not (3 <= len(login) <= 64) or not set(login) <= LOGIN_CHARS:
+            issues.append({"path": f"line {n}", "message": "login: 3–64 символи, латиниця, цифри, _ . -"})
+        elif login.lower() in seen or db.scalar(select(User.id).where(User.login == login)):
+            issues.append({"path": f"line {n}", "message": f"{login}: такий логін уже є"})
+        elif not category or not categories.exists(db, category):
+            issues.append({"path": f"line {n}", "message": f"category «{category}» немає в довіднику категорій"})
+        elif row.get("unit") and unit is None:
+            issues.append({"path": f"line {n}", "message": f"Підрозділ «{row['unit']}» не знайдено"})
+        elif category != RespondentCategory.EXPERT and unit is None:
+            issues.append({"path": f"line {n}", "message": f"{login}: потрібен unit"})
+        else:
+            parsed.append((login, category, unit, (row.get("display_name") or login)[:100]))
+        seen.add(login.lower())
+    if issues:
+        raise ApiError(422, issues, code="import_failed", hint="Виправте рядки й завантажте файл ще раз. Нічого не змінено.")
+    four_eyes = approvals.enabled()
+    credentials, new_ids = [], []
+    for login, category, unit, display_name in parsed:
+        user = User(login=login, display_name=display_name, password_hash=invites.NO_PASSWORD, role=Role.RESPONDENT,
+                    category=category, unit_id=unit.id if unit else None, is_active=not four_eyes)
+        db.add(user)
+        db.flush()
+        token, _ = invites.issue(db, user, admin)
+        credentials.append(ImportedCredential(login=login, invite_link=invites.link(token)))
+        new_ids.append(str(user.id))
+    pending = None
+    if four_eyes:
+        pending = approvals.request(db, admin, "activate_users", f"import:{len(new_ids)}:{new_ids[0]}",
+                                    {"user_ids": new_ids},
+                                    f"Імпорт людей: {len(new_ids)} нових облікових записів")
+    log_action(db, admin, "import_users", "user", None, {"rows": len(rows), "created_users": len(new_ids)})
+    db.commit()
+    return UsersImportOut(rows=len(rows), created_users=len(new_ids), credentials=credentials,
+                          pending_approval_id=pending.id if pending else None)
+
+
+@router.post("/users/{user_id}/invite", response_model=InviteOut, status_code=status.HTTP_201_CREATED,
+             responses={202: {"description": "Привілейований запис: створено запит user_invite (pending_approval_id)"}})
 def reissue_invite(user_id: uuid.UUID, db: Session = Depends(get_db), admin: User = Depends(require_people_manager)):
-    """Нове запрошення (забув пароль, не встиг за строк). Попередні невикористані перестають діяти.
-    Поточний пароль діє, доки людина не поставить новий за запрошенням."""
+    """Нове запрошення: так скидається пароль (забув, не встиг за строк). Попередні невикористані перестають
+    діяти, а всі сесії людини відкликаються: старий пароль більше не дає доступу."""
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
-    guard_privileged(admin, target_role=user.role, target=user, self_edit_fields=set())
+    if user.id == admin.id:
+        raise ApiError(403, "Собі запрошення видає інша людина", code="self_edit")
+    if user.role in PRIVILEGED_ROLES and approvals.enabled():
+        # Інакше технічний адміністратор скинув би пароль уповноваженого й зайшов замість нього.
+        row = approvals.request(db, admin, "user_invite", user.id, {},
+                                f"Скинути пароль і видати нове запрошення: {user.login} ({user.role.value})")
+        db.commit()
+        return JSONResponse(status_code=202, content={
+            "pending_approval_id": str(row.id), "kind": "user_invite",
+            "message": "Скидання привілейованого запису підтверджує "
+                       + approvals.approvers_text(approvals.approvers_for(db, row))
+                       + "; посилання отримає той, хто підтвердить"})
     token, expires = invites.issue(db, user, admin)
-    log_action(db, admin, "invite", "user", user.id, {})
+    user.password_hash = invites.NO_PASSWORD
+    revoke_all_tokens(user)
+    log_action(db, admin, "invite", "user", user.id, {"reset": True})
     db.commit()
     return InviteOut(user_id=user.id, invite_link=invites.link(token), invite_token=token, expires_at=expires)
 
@@ -170,20 +240,19 @@ def update_user(
     db: Session = Depends(get_db),
     admin: User = Depends(require_people_manager),
 ):
-    """Змінити обліковий запис. З FOUR_EYES_ENABLED привілейована роль і зміна категорії не застосовуються
-    одразу: створюється запит, який підтверджує друга людина (pending_approval_id у відповіді)."""
+    """Змінити обліковий запис (лише технічний адміністратор). Пароль тут не змінюється: нове запрошення —
+    POST /admin/users/{id}/invite.
+
+    З FOUR_EYES_ENABLED не застосовуються одразу, а йдуть запитом другій людині (pending_approval_id):
+    привілейована роль (видача чи зняття), категорія, а для привілейованого запису — ще й блокування і підрозділ.
+    """
     user = db.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=404, detail="Користувача не знайдено")
-    if user.id == admin.id and (data.role not in (None, admin.role) or data.is_active is False):
-        raise HTTPException(status_code=422, detail="Не можна зняти роль адміна чи заблокувати самого себе")
 
     changes = data.model_dump(exclude_unset=True)
     guard_privileged(admin, target_role=user.role, new_role=changes.get("role"), target=user,
                      self_edit_fields=set(changes))
-    if changes.get("password") and not get_settings().admin_sets_passwords and user.id != admin.id:
-        raise ApiError(422, "Пароль задає сама людина за запрошенням", code="password_by_invite",
-                       hint="POST /admin/users/{id}/invite — нове запрошення.")
     structural = [f for f in ("unit_id", "category", "role") if f in changes and changes[f] != getattr(user, f)]
     if structural:
         busy = open_frozen_campaigns_of(db, user.id)
@@ -203,24 +272,32 @@ def update_user(
             deferred["role"] = new_role.value
         if "category" in changes and changes["category"] != user.category:
             deferred["category"] = changes["category"]
+        if user.role in approvals.PRIVILEGED:
+            if changes.get("is_active") is False and user.is_active:
+                deferred["is_active"] = False
+            if "unit_id" in changes and changes["unit_id"] != user.unit_id:
+                deferred["unit_id"] = str(changes["unit_id"]) if changes["unit_id"] else None
+        if changes.get("is_active") is True and not user.is_active:
+            # Активувати неактивний запис (новий, що чекає підтвердження, чи заблокований) сам техадмін не може:
+            # інакше обійшов би підтвердження нових облікових записів.
+            changes.pop("is_active")
+            activation = approvals.request(db, admin, "activate_users", user.id, {"user_ids": [str(user.id)]},
+                                           f"Активувати обліковий запис {user.login} ({user.role.value})")
+            if not deferred:
+                pending = activation
         if deferred:
-            kind = "user_role" if "role" in deferred else "user_category"
+            kind = "user_category" if set(deferred) == {"category"} else "user_role"
             pending = approvals.request(db, admin, kind, user.id, {"changes": deferred},
                                         f"{user.login}: " + ", ".join(f"{k} → {v}" for k, v in deferred.items()))
             for key in deferred:
                 changes.pop(key, None)
-    password = changes.pop("password", None)
     for field, value in changes.items():
         setattr(user, field, value)
-    if password:
-        user.password_hash = hash_password(password)
-    if password or changes.get("is_active") is False:
-        revoke_all_tokens(user)  # старі сесії з попереднім паролем чи після блокування більше не діють
+    if changes.get("is_active") is False:
+        revoke_all_tokens(user)  # сесії заблокованого більше не діють
     check_respondent_fields(user.role, user.category, user.unit_id, db)
 
     logged = {k: (v.value if hasattr(v, "value") else str(v)) for k, v in changes.items()}
-    if password:
-        logged["password"] = "changed"
     if pending is not None:
         logged["pending_approval"] = str(pending.id)
     log_action(db, admin, "update", "user", user.id, logged)
@@ -230,16 +307,28 @@ def update_user(
 
 # ---------- Принцип двох осіб ----------
 
+approval_users = require_roles(*approvals.APPROVER_ROLES, Role.COORDINATOR)
+
+
 @router.get("/approvals", response_model=list[ApprovalOut])
 def list_approvals(status_filter: str | None = Query(default="pending", alias="status",
                                                      pattern="^(pending|approved|rejected)$"),
-                   db: Session = Depends(get_db),
-                   _: User = Depends(require_roles(Role.ADMIN, Role.COORDINATOR, Role.COMMISSIONER, Role.AUDITOR))):
-    """Запити на підтвердження другою людиною (FOUR_EYES_ENABLED)."""
+                   db: Session = Depends(get_db), user: User = Depends(approval_users)):
+    """Запити принципу двох осіб: ті, що людина може вирішити (за роллю й зоною), і ті, що подала сама.
+
+    can_decide у відповіді: чи може поточний користувач підтвердити чи відхилити запит.
+    """
     query = select(ApprovalRequest).order_by(ApprovalRequest.requested_at.desc())
     if status_filter:
         query = query.where(ApprovalRequest.status == status_filter)
-    return db.scalars(query.limit(500)).all()
+    out = []
+    for row in db.scalars(query.limit(500)):
+        decidable = row.status == "pending" and approvals.can_decide(db, row, user)
+        if row.requested_by_id == user.id or approvals.can_decide(db, row, user) or (
+                row.status != "pending" and row.decided_by_id == user.id):
+            out.append(ApprovalOut.model_validate(row).model_copy(update={
+                "can_decide": decidable, "approver_roles": list(approvals.approvers_for(db, row))}))
+    return out
 
 
 def approval_or_404(db: Session, approval_id: uuid.UUID) -> ApprovalRequest:
@@ -249,18 +338,30 @@ def approval_or_404(db: Session, approval_id: uuid.UUID) -> ApprovalRequest:
     return row
 
 
+# Рішення: роль і зону перевіряє approvals.decide (403 same_person / forbidden_role з підказкою, хто підтверджує).
+deciders = approval_users
+
+
 @router.post("/approvals/{approval_id}/approve", response_model=ApprovalOut)
 def approve(approval_id: uuid.UUID, data: ApprovalDecisionIn | None = None, db: Session = Depends(get_db),
-            user: User = Depends(require_roles(Role.ADMIN, Role.COORDINATOR, Role.COMMISSIONER, Role.AUDITOR))):
-    """Підтвердити: дія виконується від імені того, хто підтвердив. Підтверджує не той, хто просив."""
+            user: User = Depends(deciders)):
+    """Підтвердити: дія виконується від імені того, хто підтвердив. Підтверджує не той, хто просив,
+    роль — за матрицею (approver_roles), підрозділ — у зоні підтверджувача.
+
+    user_invite: відповідь один раз містить invite_link — підтверджувач передає його людині.
+    """
     row = approvals.decide(db, approval_or_404(db, approval_id), user, True, (data.comment if data else ""))
+    issued = db.info.get("issued_invites", {}).pop(row.id, None)
     db.commit()
-    return row
+    out = ApprovalOut.model_validate(row)
+    if issued:
+        out = out.model_copy(update={"invite_link": issued[0], "invite_expires_at": issued[1]})
+    return out
 
 
 @router.post("/approvals/{approval_id}/reject", response_model=ApprovalOut)
 def reject(approval_id: uuid.UUID, data: ApprovalDecisionIn | None = None, db: Session = Depends(get_db),
-           user: User = Depends(require_roles(Role.ADMIN, Role.COORDINATOR, Role.COMMISSIONER, Role.AUDITOR))):
+           user: User = Depends(deciders)):
     row = approvals.decide(db, approval_or_404(db, approval_id), user, False, (data.comment if data else ""))
     db.commit()
     return row
@@ -273,10 +374,48 @@ def list_units(db: Session = Depends(get_db), _: User = Depends(managers)):
     return db.scalars(select(Unit).order_by(Unit.name)).all()
 
 
-@router.post("/units", response_model=UnitOut, status_code=status.HTTP_201_CREATED)
+STRUCTURE_RESPONSES = {202: {"description": "Зміна зачіпає чернетку хвилі: створено запит unit_change "
+                                             "(pending_approval_id), виконає його підтвердження уповноваженого"}}
+
+
+def structure_guard(db: Session, actor: User, affected: set[uuid.UUID], payload: dict,
+                    summary: str) -> JSONResponse | None:
+    """Структура заморожена від створення хвилі до закриття.
+
+    Відкрита хвиля зачеплена — 409. Лише чернетка — з FOUR_EYES_ENABLED запит unit_change (202), без нього 409.
+    Нічого не зачеплено — None: змінювати можна одразу.
+    """
+    if not affected:
+        return None
+    open_ = campaigns_covering(db, affected, (CampaignStatus.OPEN,))
+    if open_:
+        raise ApiError(409, "Підрозділ входить у відкриту хвилю: " + ", ".join(c.title for c in open_),
+                       code="campaign_open", hint="Змініть структуру після закриття хвилі.")
+    drafts = campaigns_covering(db, affected, (CampaignStatus.DRAFT,))
+    if not drafts:
+        return None
+    titles = ", ".join(c.title for c in drafts)
+    if not approvals.enabled():
+        raise ApiError(409, "Підрозділ входить у чернетку хвилі: " + titles, code="campaign_draft",
+                       hint="Склад хвилі зафіксовано з моменту створення. Змініть структуру після закриття хвилі "
+                            "або видаліть чернетку.")
+    row = approvals.request(db, actor, "unit_change", f"{payload['op']}:{payload.get('unit_id') or payload.get('name')}",
+                            payload, f"{summary} (чернетка: {titles})")
+    db.commit()
+    return JSONResponse(status_code=202, content={"pending_approval_id": str(row.id), "kind": "unit_change",
+                                                  "message": "Зміну зачеплено чернеткою хвилі: її підтвердить уповноважений"})
+
+
+@router.post("/units", response_model=UnitOut, status_code=status.HTTP_201_CREATED, responses=STRUCTURE_RESPONSES)
 def create_unit(data: UnitIn, db: Session = Depends(get_db), admin: User = Depends(require_people_manager)):
+    """Створити підрозділ. Новий дочірній у підрозділі чернетки хвилі — через запит (202), відкритої — 409."""
     if data.parent_id is not None and db.get(Unit, data.parent_id) is None:
         raise HTTPException(status_code=422, detail="Батьківський підрозділ не знайдено")
+    pending = structure_guard(db, admin, {data.parent_id} if data.parent_id else set(),
+                              {"op": "create", "name": data.name, "parent_id": str(data.parent_id) if data.parent_id else None},
+                              f"Новий підрозділ «{data.name}»")
+    if pending is not None:
+        return pending
     unit = Unit(name=data.name, parent_id=data.parent_id)
     db.add(unit)
     db.flush()
@@ -285,23 +424,14 @@ def create_unit(data: UnitIn, db: Session = Depends(get_db), admin: User = Depen
     return unit
 
 
-def open_campaigns_covering(db: Session, unit_ids: set[uuid.UUID]) -> list[Campaign]:
-    children, _ = unit_tree(db)
-    result = []
-    for campaign in db.scalars(select(Campaign).where(Campaign.status == CampaignStatus.OPEN)):
-        if subtree_from(children, campaign.unit_id) & unit_ids:
-            result.append(campaign)
-    return result
-
-
-@router.patch("/units/{unit_id}", response_model=UnitOut)
+@router.patch("/units/{unit_id}", response_model=UnitOut, responses=STRUCTURE_RESPONSES)
 def update_unit(unit_id: uuid.UUID, data: UnitUpdate, db: Session = Depends(get_db),
                 admin: User = Depends(require_people_manager)):
     """Перейменувати або перенести підрозділ (parent_id: null — зробити кореневим).
 
-    Переносити не можна в самого себе чи в свій дочірній підрозділ, а також поки відкрита хвиля,
-    що охоплює старе чи нове місце: інакше зміниться склад груп посеред збору відповідей.
-    Знімки закритих хвиль не змінюються.
+    Переносити не можна в самого себе чи в свій дочірній підрозділ. Структура заморожена від створення хвилі до
+    закриття: якщо старе чи нове місце в чернетці хвилі — запит unit_change (202), у відкритій — 409.
+    Перейменувати можна завжди. Знімки закритих хвиль не змінюються.
     """
     unit = db.get(Unit, unit_id)
     if unit is None:
@@ -322,10 +452,12 @@ def update_unit(unit_id: uuid.UUID, data: UnitUpdate, db: Session = Depends(get_
             if new_parent in moved:
                 raise ApiError(422, "Не можна перенести підрозділ у самого себе чи в дочірній", code="unit_cycle")
         affected = moved | ({new_parent} if new_parent else set())
-        busy = open_campaigns_covering(db, affected)
-        if busy:
-            raise ApiError(409, "Підрозділ входить у відкриту хвилю: " + ", ".join(c.title for c in busy),
-                           code="campaign_open", hint="Перенесіть підрозділ після закриття хвилі.")
+        pending = structure_guard(db, admin, affected,
+                                  {"op": "move", "unit_id": str(unit.id),
+                                   "parent_id": str(new_parent) if new_parent else None},
+                                  f"Перенесення підрозділу «{unit.name}»")
+        if pending is not None:
+            return pending
         logged["parent_id"] = {"from": str(unit.parent_id) if unit.parent_id else None,
                                "to": str(new_parent) if new_parent else None}
         unit.parent_id = new_parent
@@ -335,7 +467,7 @@ def update_unit(unit_id: uuid.UUID, data: UnitUpdate, db: Session = Depends(get_
     return unit
 
 
-@router.delete("/units/{unit_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/units/{unit_id}", status_code=status.HTTP_204_NO_CONTENT, responses=STRUCTURE_RESPONSES)
 def delete_unit(unit_id: uuid.UUID, db: Session = Depends(get_db), admin: User = Depends(require_people_manager)):
     """Видалити підрозділ, лише якщо на нього ніщо не посилається (діти, люди, хвилі, відповіді, факти, заходи)."""
     unit = db.get(Unit, unit_id)
@@ -351,6 +483,10 @@ def delete_unit(unit_id: uuid.UUID, db: Session = Depends(get_db), admin: User =
     if used:
         raise ApiError(409, "Підрозділ використовується: " + ", ".join(used), code="unit_in_use",
                        hint="Перейменуйте або перенесіть його замість видалення.")
+    pending = structure_guard(db, admin, {unit.id}, {"op": "delete", "unit_id": str(unit.id)},
+                              f"Видалення підрозділу «{unit.name}»")
+    if pending is not None:
+        return pending
     log_action(db, admin, "delete", "unit", unit.id, {"name": unit.name})
     db.delete(unit)
     db.commit()
@@ -360,14 +496,29 @@ def delete_unit(unit_id: uuid.UUID, db: Session = Depends(get_db), admin: User =
 # ---------- Зведення ----------
 
 @router.get("/overview")
-def overview(db: Session = Depends(get_db), _: User = Depends(managers)):
-    """Зведення для координатора: без персональних даних, групи менші за k приховані."""
+def overview(db: Session = Depends(get_db), user: User = Depends(require_roles(Role.ADMIN, Role.COORDINATOR))):
+    """Зведення без персональних даних, групи менші за k приховані.
+
+    Технічний адміністратор бачить лише людей і підрозділи; хвилі й перевірки — уповноважений (своєї зони).
+    """
     def counts(column):
         return {getattr(k, "value", k): n for k, n in db.execute(select(column, func.count()).group_by(column)) if k is not None}
 
+    people = {
+        "users": {
+            "total": db.scalar(select(func.count()).select_from(User)),
+            "by_role": counts(User.role), "by_category": counts(User.category),
+            "inactive": db.scalar(select(func.count()).select_from(User).where(User.is_active.is_(False))),
+        },
+        "units": {"total": db.scalar(select(func.count()).select_from(Unit))},
+    }
+    if user.role == Role.COORDINATOR:
+        return {**people, "campaigns": [], "checks": None}
     campaigns = []
     for c in db.scalars(select(Campaign).order_by(Campaign.title)):
-        items = campaign_progress(c.id, db, _).items
+        if not campaign_visible(db, user, c):
+            continue
+        items = campaign_progress(c.id, db, user).items
         campaigns.append({
             "id": c.id, "title": c.title, "status": c.status.value, "unit_id": c.unit_id,
             "progress": [{"questionnaire_title": i.questionnaire_title, "submitted": i.submitted,
@@ -377,16 +528,7 @@ def overview(db: Session = Depends(get_db), _: User = Depends(managers)):
     if inspect(db.bind).has_table("check_findings"):
         checks["findings_total"] = db.scalar(text("select count(*) from check_findings"))
         checks["findings_open"] = db.scalar(text("select count(*) from check_findings where status = 'new'"))
-    return {
-        "users": {
-            "total": db.scalar(select(func.count()).select_from(User)),
-            "by_role": counts(User.role), "by_category": counts(User.category),
-            "inactive": db.scalar(select(func.count()).select_from(User).where(User.is_active.is_(False))),
-        },
-        "units": {"total": db.scalar(select(func.count()).select_from(Unit))},
-        "campaigns": campaigns,
-        "checks": checks,
-    }
+    return {**people, "campaigns": campaigns, "checks": checks}
 
 
 # ---------- Журнал дій ----------

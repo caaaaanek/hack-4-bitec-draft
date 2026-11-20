@@ -83,7 +83,7 @@ def briefing(campaign_id: uuid.UUID, unit_id: uuid.UUID | None = None,
 
 @router.get("/campaigns/{campaign_id}/audit-lottery")
 def audit_lottery(campaign_id: uuid.UUID, count: int = Query(default=5, ge=1, le=20), db: Session = Depends(get_db),
-                  user: User = Depends(require_roles(Role.ADMIN, Role.COMMISSIONER, Role.AUDITOR))) -> dict:
+                  user: User = Depends(require_roles(Role.ADMIN, Role.AUDITOR))) -> dict:
     """«Лотерея перевірок»: які пункти чек-листа аудит перевіряє глибоко. Зерно — хеш знімка закритої хвилі."""
     campaign = closed(db, campaign_id)
     snap = results.get_snapshot(db, campaign.id, campaign.unit_id)

@@ -26,7 +26,7 @@ DRAFT = {
 
 
 def test_commissioner_builds_and_publishes(client):
-    headers = auth(client, "commissioner")
+    headers = auth(client, "department")
     r = client.post(f"{API}/questionnaires", json=DRAFT, headers=headers)
     assert r.status_code == 201, r.text
     q = r.json()
@@ -45,7 +45,7 @@ def test_respondent_cannot_use_constructor(client):
 
 
 def test_publish_blocked_by_validation(client):
-    headers = auth(client, "commissioner")
+    headers = auth(client, "department")
     broken = {**DRAFT, "code": "broken"}
     broken["sections"] = [
         {
@@ -69,7 +69,7 @@ def test_publish_blocked_by_validation(client):
 
 
 def test_published_is_immutable_and_versioned(client):
-    headers = auth(client, "commissioner")
+    headers = auth(client, "department")
     q = client.post(f"{API}/questionnaires", json=DRAFT, headers=headers).json()
     client.post(f"{API}/questionnaires/{q['id']}/publish", headers=headers)
 
@@ -92,7 +92,7 @@ def test_published_is_immutable_and_versioned(client):
 
 
 def test_delete_only_drafts(client):
-    headers = auth(client, "commissioner")
+    headers = auth(client, "department")
     q = client.post(f"{API}/questionnaires", json=DRAFT, headers=headers).json()
     assert client.delete(f"{API}/questionnaires/{q['id']}", headers=headers).status_code == 204
 
@@ -101,7 +101,7 @@ def test_delete_only_drafts(client):
 
 
 def test_seeded_instruments(client):
-    headers = auth(client, "commissioner")
+    headers = auth(client, "department")
     items = {q["code"]: q for q in client.get(f"{API}/questionnaires", headers=headers).json()}
     assert set(items) == {"nazk-maturity-wg", "nazk-maturity-staff", "nazk-maturity-expert", "nazk-checklist"}
 
@@ -118,7 +118,7 @@ def test_seeded_instruments(client):
 
 def test_admin_cannot_use_constructor(client):
     """Розподіл обов'язків: адмін запускає хвилі, але не складає анкети."""
-    commissioner = auth(client, "commissioner")
+    commissioner = auth(client, "department")
     draft = client.post(f"{API}/questionnaires", json=DRAFT, headers=commissioner).json()
 
     admin = auth(client, "admin")

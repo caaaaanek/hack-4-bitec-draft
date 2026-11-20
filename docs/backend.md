@@ -4,15 +4,22 @@
 
 ## Ролі
 
-| Роль | Хто це | Що може |
-|---|---|---|
-| `admin` | Уповноважений (хвилі) | Хвилі оцінювання, прогрес проходження, учасники, посилання й QR, урна, журнал дій. Користувачами й підрозділами керує, лише поки `SEPARATE_TECH_ADMIN=false`. Анкети лише переглядає, і лише опубліковані |
-| `commissioner` | Укладач анкет | Створює й редагує чернетки анкет, публікує, нові версії, архівує. Розподіляє пункти чек-листа між відповідальними. Підтверджує пункти за доказами, якщо він у `CHECKLIST_CONFIRMERS` (за замовчуванням так) |
-| `respondent` | Учасник оцінювання | Проходить призначені анкети, бачить узагальнені результати. Член робочої групи ще й вносить чек-лист (лише призначені йому пункти, якщо є призначення) |
-| `leader` | Керівник | Дашборд, результати, динаміка, факти, рекомендації, рішення, заходи. **Деталі бачить лише свого підрозділу** (без `unit_id` — кореневого); про дочірні — розподіл рівнів без назв (`GET /units/{id}/children-levels`). Заходи веде в усьому своєму піддереві. `LEADER_CHILD_DETAILS=true` повертає старе правило |
-| `coordinator` | Технічний адміністратор | Люди, ролі, підрозділи, запрошення, довідники, журнал, зведення `GET /admin/overview`. **Результатів не бачить** і хвилями не керує |
-| `auditor` | Внутрішній аудит | Читання результатів, заходів і журналу; приймає якір журналу; підтверджує пункти чек-листа (`CHECKLIST_CONFIRMERS`); лотерея перевірок; звіт «хто дивився дочірні підрозділи» |
-| `department` | Департамент МОУ | Лише перегляд закладів (коренів хвиль) свого піддерева, кожен окремо, без рейтингу й без рішень (`/department/*`) |
+Сім ролей. Адміністраторів двоє — **уповноважений** (`admin`) і **технічний адміністратор** (`coordinator`), це два
+облікові записи двох людей. Привілейований крок одного підтверджує інший або внутрішній аудит (розділ «Два адміністратори,
+зони, принцип двох осіб» нижче). Інфраструктурний адміністратор (сервер, БД, бекапи) ролі в застосунку не має.
+
+| Роль | Хто це | Що може | Чого не може |
+|---|---|---|---|
+| `respondent` | Учасник оцінювання | Проходить призначені анкети, бачить узагальнені результати | Решту |
+| `respondent` + `working_group` | Член робочої групи | Анкета 1; вносить пункти чек-листа з документами (лише призначені йому, якщо є призначення) | Підтверджувати пункти |
+| `admin` | Уповноважений (1-й адмін) | Хвилі своєї **зони**: створення, k, учасники з наявних облікових записів, посилання й QR, призначення чек-листа, автопілот, урна, «Перевірки», реєстр ризиків, факти. Результати лише агрегатами з порогом k. Журнал дій. Підтверджує запити техадміна | Люди, ролі, підрозділи, довідники людей, анкети; хвилі й підрозділи поза своєю зоною |
+| `leader` | Керівник | Дашборд, результати, динаміка, факти, рекомендації, рішення, заходи. **Деталі бачить лише свого підрозділу** (без `unit_id` — кореневого); про дочірні — розподіл рівнів без назв (`GET /units/{id}/children-levels`). Заходи веде в усьому своєму піддереві. `LEADER_CHILD_DETAILS=true` повертає старе правило | Адміністрування |
+| `auditor` | Внутрішній аудит | Читання результатів, заходів і журналу своєї зони; підтверджує пункти чек-листа (`CHECKLIST_CONFIRMERS`) і **відкриття хвилі**; якір журналу; лотерея перевірок; звіт «хто дивився дочірні підрозділи» | Інший запис |
+| `department` | Департамент | Анкети й версії (конструктор, публікація, архів), категорії респондентів; зведення закладів свого піддерева кожен окремо, без рейтингу (`/department/*`) | Хвилі, люди |
+| `coordinator` | Технічний адміністратор (2-й адмін) | Користувачі (лише запрошення, без паролів), імпорт людей CSV, підрозділи, ролі, категорії, посади, зведення людей і підрозділів | Хвилі, результати, журнал, паролі; нічого не підтверджує; собі змінює лише ім'я |
+
+Роль `commissioner` прибрано (міграція `0013`): її облікові записи стали `department`, призначення підтверджувача чек-листа на
+колишнього `commissioner` знято.
 
 Категорія респондента (`category`) визначає, яку анкету він отримує:
 
@@ -27,11 +34,48 @@
 категорію адміністратор додає сам: без ваги вона лише порівнюється з іншими групами, з вагою стає ще одним
 джерелом самооцінки. Нові категорії внутрішні (прив'язані до підрозділу).
 
-Права перевіряє залежність `require_roles(...)` у `app/security.py`. Кожен маршрут явно перелічує дозволені ролі. Обмеження керівника підрозділом перевіряє `ensure_unit_access`.
+Права перевіряє залежність `require_roles(...)` у `app/security.py`. Кожен маршрут явно перелічує дозволені ролі. Обмеження підрозділом перевіряє `ensure_unit_access` (керівник, Департамент, а також уповноважений і аудит із зоною), хвилі чужої зони — `campaign_zone_guard`.
 
-Відповідність ролям, які пропонував фронтенд: `leader` = `leader`, `observer` → `department`, `checklist_editor` → `respondent` з категорією `working_group`, `checklist_approver` → `commissioner` або `auditor`, `auditor` = `auditor`.
+Відповідність ролям, які пропонував фронтенд: `leader` = `leader`, `observer` → `department`, `checklist_editor` → `respondent` з категорією `working_group`, `checklist_approver` → `auditor`, `auditor` = `auditor`.
 
-**Розподіл обов'язків.** Хто складає анкети й бали (`commissioner`), той не запускає хвилі й не бачить прогресу. Хто запускає хвилі (`admin`), той не може змінити анкету під бажаний результат. Будь-яка зміна опублікованої анкети можлива лише як нова версія і потрапляє в журнал дій.
+**Розподіл обов'язків.** Хто складає анкети й бали (`department`), той не запускає хвилі й не бачить прогресу. Хто запускає хвилі (`admin`), той не може змінити анкету під бажаний результат і не заводить людей (це `coordinator`), тож не підкине у групу підставних респондентів. Хто заводить людей (`coordinator`), той не бачить хвиль і результатів. Будь-яка зміна опублікованої анкети можлива лише як нова версія і потрапляє в журнал дій.
+
+## Два адміністратори, зони, принцип двох осіб
+
+**Зона.** Уповноважений і аудит з `unit_id` працюють лише в межах свого підрозділу і його піддерева
+(`security.zone_of`); без `unit_id` — у всьому дереві (розгортання на один заклад). Уповноважений одного закладу чи
+департаменту не може обрати чужий підрозділ для хвилі (`POST`/`PATCH /campaigns` → 422 `out_of_zone`), не бачить чужих
+хвиль у `GET /campaigns` і отримує 404 на будь-який маршрут з `campaign_id` чужої хвилі (`campaign_zone_guard` на всіх
+роутерах). `GET /units` повертає лише зону; заходи, сповіщення й події автопілота — теж. Людей хвилі уповноважений обирає з
+`GET /campaigns/{id}/people` (активні облікові записи підрозділу хвилі й піддерева), а не з довідника людей.
+
+**Принцип двох осіб** (`FOUR_EYES_ENABLED`, за замовчуванням `true`; матриця — `services/approvals.APPROVERS`):
+
+| Дія (`kind`) | Хто просить | Хто підтверджує |
+|---|---|---|
+| `activate_users` — нові облікові записи, імпорт `POST /admin/users/import`, розблокування неактивного запису | технічний адміністратор | уповноважений (запис уповноваженого — аудит) |
+| `user_role` — привілейована роль; блокування чи підрозділ привілейованого запису | технічний адміністратор | уповноважений; якщо запис — уповноважений, то аудит |
+| `user_category` — категорія (впливає на групи й k) | технічний адміністратор | уповноважений (запис уповноваженого — аудит) |
+| `user_invite` — скидання пароля привілейованого запису (`POST /admin/users/{id}/invite` → 202) | технічний адміністратор | уповноважений (запис уповноваженого — аудит); одноразове посилання повертає лише відповідь на підтвердження (`invite_link`) |
+| `unit_change` — створити, перенести чи видалити підрозділ у межах **чернетки** хвилі | технічний адміністратор | уповноважений |
+| `open_campaign` — відкриття хвилі (підтверджувач бачить склад), зокрема автопілотом | уповноважений | лише внутрішній аудит |
+
+Підтверджує не той, хто просив (403 `same_person` з підказкою, яка роль підтверджує), лише роль із матриці
+(403 `forbidden_role`) і лише в своїй зоні (403 `out_of_zone`). `GET /admin/approvals` показує запити, які людина може
+вирішити, і ті, що подала сама; поля `approver_roles` і `can_decide`. Публікація анкети Департаментом — без другої людини.
+
+**Перший запуск.** `SEED_DEMO=false` створює `admin` (уповноважений) і `techadmin` (технічний адміністратор) з
+одноразовими запрошеннями (виводяться в консоль), без пароля з env. Поки активного уповноваженого немає, технічний
+адміністратор може створити лише його (запис активний одразу: підтвердити нікому); будь-кого іншого — 409
+`bootstrap_incomplete`. Див. `docs/run.md`, «Перший запуск: два адміністратори».
+
+**Паролі лише через запрошення.** `POST /admin/users` і `PATCH /admin/users/{id}` поля `password` не мають (422).
+Скидання — `POST /admin/users/{id}/invite`: старий пароль і всі сесії гаснуть, людина ставить новий сама (`POST /auth/invite`).
+
+**Заморожування структури.** Від створення хвилі до закриття: склад людей зафіксовано (`campaign_eligible`; зміна підрозділу,
+категорії чи ролі учасника — 409), підрозділи в області хвилі не створюються, не переносяться й не видаляються. Відкрита
+хвиля — 409 `campaign_open`; лише чернетка — 202 із запитом `unit_change` (без принципу двох осіб — 409 `campaign_draft`).
+Перейменувати підрозділ можна завжди.
 
 ## Модель даних
 
@@ -88,7 +132,7 @@ stateDiagram-v2
 3. `open`: для хвилі `login` склад **фіксується** (`campaign_eligible`): хто зараз за правилом (категорія анкети + підрозділ хвилі з дочірніми; за явного складу — лише він) має проходити кожну анкету і в якому підрозділі. Від цього складу рахується «мали пройти»; новий обліковий запис потрапляє у відкриту хвилю лише імпортом; підрозділ, категорію й роль учасника відкритої хвилі змінити не можна (`409 campaign_open`), заблокувати можна. Респонденти бачать анкету в `GET /me/assignments`. За посиланням анкета відкривається без входу.
 4. Респондент отримує форму **без балів** і надсилає відповіді. Сервер перевіряє повноту: на кожне обов'язкове питання є відповідь, варіанти належать саме цьому питанню, для single_choice обрано рівно один.
 5. Адмін бачить прогрес: скільки людей мають пройти анкету і скільки пройшли. **Імен немає.** Для груп, менших за поріг, кількості приховано (`too_few_people: true`).
-6. Член робочої групи вносить чек-лист разом із документами (`POST /campaigns/{id}/checklist/{question_id}/submit`, multipart) або окремо (`PUT .../{question_id}` + `POST .../files`), commissioner підтверджує його за доказами. Пункт «повністю» чи «частково» без файлу не підтверджується (`CHECKLIST_REQUIRE_FILE`).
+6. Член робочої групи вносить чек-лист разом із документами (`POST /campaigns/{id}/checklist/{question_id}/submit`, multipart) або окремо (`PUT .../{question_id}` + `POST .../files`), внутрішній аудит підтверджує його за доказами. Пункт «повністю» чи «частково» без файлу не підтверджується (`CHECKLIST_REQUIRE_FILE`).
 7. `close`: прийом відповідей зупиняється, зашифрований буфер переноситься в `responses` (перемішано, з узагальненими підрозділами), для підрозділу хвилі і кожного дочірнього зберігається незмінний знімок результатів. Учасники бачать узагальнені результати: за обліковим записом `GET /me/results`, за посиланням `GET /respond/results` з тим самим токеном.
 
 ## Як забезпечено анонімність на рівні зберігання
@@ -150,7 +194,7 @@ stateDiagram-v2
 
 ## Демо-дані (seed)
 
-Підрозділи: «Організація (демо)» → «Підрозділ А» (→ А-1, А-2), «Підрозділ Б» (→ Б-1), «Підрозділ В». Користувачі: `admin`, `commissioner`, `leader`, `leader_a` (керівник «Підрозділу А»), `auditor`, `coordinator`, `wg1`…`wg6`, `staff01`…`staff75` (10–15 на кожен некореневий підрозділ, `DEMO_STAFF_SIZES`; тести використовують компактний склад `staff01`…`staff24`, по 4), `expert1`…`expert5`. Факти: за останні 12 місяців (плюс квартал запасу) для кожного некореневого підрозділу. Чотири показники рахує сама система (`app/seed/system_facts.py`): декларації вчасно, конфлікти інтересів і підозрілі закупівлі — синтетичні записи проходять правила модуля «Перевірки», частина знахідок «розглянута», показники опубліковано як `POST /checks/publish` (`source = checks`); охоплення навчанням — з історії проходження флешкарток (`source = learning`, `services/learning.py`). Повідомлення й призначення з перевіркою приходять від зовнішніх реєстрів (`reports`, `atestat`, див. «Адаптери джерел фактів»), `why`: «Синтетичні демо-дані (seed)». Числа підібрано так, що індекс демо-хвиль той самий: 40,2 → 53,7.
+Підрозділи: «Організація (демо)» → «Підрозділ А» (→ А-1, А-2), «Підрозділ Б» (→ Б-1), «Підрозділ В». Користувачі: `admin` (уповноважений), `coordinator` (технічний адміністратор), `department` (анкети), `leader`, `leader_a` (керівник «Підрозділу А»), `auditor`, `wg1`…`wg6`, `staff01`…`staff75` (10–15 на кожен некореневий підрозділ, `DEMO_STAFF_SIZES`; тести використовують компактний склад `staff01`…`staff24`, по 4), `expert1`…`expert5`. Факти: за останні 12 місяців (плюс квартал запасу) для кожного некореневого підрозділу. Чотири показники рахує сама система (`app/seed/system_facts.py`): декларації вчасно, конфлікти інтересів і підозрілі закупівлі — синтетичні записи проходять правила модуля «Перевірки», частина знахідок «розглянута», показники опубліковано як `POST /checks/publish` (`source = checks`); охоплення навчанням — з історії проходження флешкарток (`source = learning`, `services/learning.py`). Повідомлення й призначення з перевіркою приходять від зовнішніх реєстрів (`reports`, `atestat`, див. «Адаптери джерел фактів»), `why`: «Синтетичні демо-дані (seed)». Числа підібрано так, що індекс демо-хвиль той самий: 40,2 → 53,7.
 
 `--with-waves` (`SEED_WITH_WAVES=1`, у `docker compose` увімкнено) додає демо-історію (`app/seed/waves.py`): дві закриті хвилі з інтервалом пів року, рішення керівника щодо рекомендацій першої і заходи в різних станах, факти ще за 6 місяців до цього (гірші, щоб була видна динаміка). Усе йде через справжні маршрути API в тому ж процесі (TestClient), тож діють ті самі перевірки, буфер анонімності, знімки й журнал дій. Дати хвиль задає `app.clock.frozen_on` (лише для seed і тестів). Якщо хвилі вже є, нічого не додається.
 
@@ -186,58 +230,62 @@ stateDiagram-v2
 | Метод і шлях | Роль | Призначення |
 |---|---|---|
 | `POST /auth/login`, `GET /auth/me` | усі | Вхід, поточний користувач |
-| `GET/POST /admin/users`, `PATCH /admin/users/{id}` | admin | Користувачі й ролі |
-| `GET/POST /admin/units`, `PATCH/DELETE /admin/units/{id}` | admin | Підрозділи |
-| `GET /admin/overview` | admin, coordinator | Зведення без персональних даних: користувачі за ролями й категоріями, підрозділи, хвилі з прогресом (групи менші за k приховані), кількість знахідок перевірок |
-| `GET /admin/audit-log?entity=&action=&actor_id=&date_from=&date_to=&limit=&offset=` | admin, coordinator, auditor | Журнал дій |
-| `POST /admin/audit-log/verify` | admin, coordinator, auditor | Перевірка ланцюжка хешів журналу |
-| `GET /questionnaires?status=&kind=&target_category=` | commissioner; admin (лише опубліковані) | Список анкет |
-| `POST /questionnaires` | commissioner | Нова чернетка (можна одразу зі структурою) |
-| `GET /questionnaires/{id}` | commissioner; admin (лише опубліковані) | Анкета з розділами, питаннями, варіантами |
-| `PATCH /questionnaires/{id}` | commissioner | Назва, опис, тип, категорія |
-| `PUT /questionnaires/{id}/structure` | commissioner | Зберегти всю структуру конструктора |
-| `GET /questionnaires/{id}/validate` | commissioner | Що заважає публікації |
-| `POST /questionnaires/{id}/publish` · `/new-version` · `/archive` · `/restore` | commissioner | Життєвий цикл (повернення з архіву не змінює змісту) |
-| `DELETE /questionnaires/{id}` | commissioner | Видалити чернетку |
-| `GET/POST /campaigns`, `POST /campaigns/{id}/open` · `/close` | admin (читати список: також commissioner, leader, auditor) | Хвилі. `min_group_size` ≥ 5. Відкриття фіксує склад (хвиля `login`); при закритті зашифрований буфер переноситься в `responses` |
+| `GET/POST /admin/users`, `PATCH /admin/users/{id}` | coordinator | Користувачі й ролі. Без пароля: відповідь — `invite_link`. Привілейовані зміни й нові записи — запитом (`pending_approval_id`) |
+| `POST /admin/users/import` | coordinator | CSV `login,category,unit[,display_name]`: респонденти з запрошеннями, один запит `activate_users` на файл. Усе або нічого |
+| `POST /admin/users/{id}/invite` | coordinator | Нове запрошення = скидання пароля: старий пароль і сесії гаснуть |
+| `GET/POST /admin/units`, `PATCH/DELETE /admin/units/{id}` | coordinator | Підрозділи. У межах чернетки хвилі — 202 і запит `unit_change`, відкритої — 409 |
+| `GET /admin/approvals?status=`, `POST /admin/approvals/{id}/approve` · `/reject` | admin, auditor (за матрицею й зоною); coordinator — лише свої запити | Принцип двох осіб |
+| `GET /admin/overview` | admin, coordinator | Зведення без персональних даних. Технічний адміністратор — користувачі за ролями й категоріями, підрозділи; уповноважений — ще й хвилі своєї зони з прогресом (групи менші за k приховані) і знахідки перевірок |
+| `GET /admin/audit-log?entity=&action=&actor_id=&date_from=&date_to=&limit=&offset=` | admin, auditor | Журнал дій |
+| `POST /admin/audit-log/verify` | admin, auditor | Перевірка ланцюжка хешів журналу |
+| `GET /campaigns/{id}/people?role=&category=` | admin | З кого обирати учасників, відповідальних за чек-лист, власників ключа урни: активні облікові записи підрозділу хвилі й піддерева (і без підрозділу). Не довідник людей |
+| `GET /questionnaires?status=&kind=&target_category=` | department; admin (лише опубліковані) | Список анкет |
+| `POST /questionnaires` | department | Нова чернетка (можна одразу зі структурою) |
+| `GET /questionnaires/{id}` | department; admin (лише опубліковані) | Анкета з розділами, питаннями, варіантами |
+| `PATCH /questionnaires/{id}` | department | Назва, опис, тип, категорія |
+| `PUT /questionnaires/{id}/structure` | department | Зберегти всю структуру конструктора |
+| `GET /questionnaires/{id}/validate` | department | Що заважає публікації |
+| `POST /questionnaires/{id}/publish` · `/new-version` · `/archive` · `/restore` | department | Життєвий цикл (повернення з архіву не змінює змісту) |
+| `DELETE /questionnaires/{id}` | department | Видалити чернетку |
+| `GET/POST /campaigns`, `POST /campaigns/{id}/open` · `/close` | admin (читати список: також leader, auditor; кожен — лише хвилі своєї зони) | Хвилі. `min_group_size` ≥ 5. Відкриття фіксує склад (хвиля `login`); при закритті зашифрований буфер переноситься в `responses` |
 | `GET /campaigns/{id}/progress` | admin | % проходження без імен; `over_expected` — відповідей більше, ніж людей у групі (ознака накрутки QR) |
 | `GET /me/assignments` | respondent | Мої анкети у відкритих хвилях `login`; у хвилях `token` лише чек-лист для робочої групи (анкети там тільки за посиланням) |
 | `GET /campaigns/{cid}/questionnaires/{qid}/form` | respondent | Форма без балів |
 | `POST /campaigns/{cid}/questionnaires/{qid}/responses` | respondent | Подати відповіді |
 | `GET /methodology` | усі, хто увійшов | Методика: ваги, пороги, рівні, правила |
-| `GET /campaigns/{id}/results?unit_id=&recalculate=` | admin, commissioner, leader, auditor | Знімок результатів закритої хвилі (див. `docs/integrity-index.md`) |
-| `GET /units` | admin, commissioner, leader, auditor | Дерево підрозділів для вибору області; керівник з підрозділом бачить лише своє піддерево |
-| `GET /units/{id}/history` | admin, commissioner, leader, auditor | Усі хвилі підрозділу для графіка динаміки |
-| `GET /units/{id}/compare?from_campaign=&to_campaign=` | admin, commissioner, leader, auditor | Порівняння двох хвиль, радар «було / стало» |
+| `GET /campaigns/{id}/results?unit_id=&recalculate=` | admin, leader, auditor, department | Знімок результатів закритої хвилі (див. `docs/integrity-index.md`) |
+| `GET /units` | admin, leader, auditor, department | Дерево підрозділів для вибору області; керівник з підрозділом — лише своє піддерево, уповноважений і аудит — свою зону |
+| `GET /units/{id}/history` | admin, leader, auditor, department | Усі хвилі підрозділу для графіка динаміки |
+| `GET /units/{id}/compare?from_campaign=&to_campaign=` | admin, leader, auditor, department | Порівняння двох хвиль, радар «було / стало» |
 | `GET /me/results` | respondent | Екран учасника: узагальнені результати хвилі і свого підрозділу |
 | `GET /respond/results` | без входу, заголовок `X-Response-Token` | Те саме для хвилі за посиланнями: після закриття тим самим посиланням (використаним чи ні) — заклад і група посилання. До закриття → 409 `campaign_not_closed` |
-| `GET /campaigns/{id}/checklist` | робоча група цієї хвилі (підрозділ у хвилі), admin, commissioner, auditor | Стан чек-листа: пункти, статус, доказ, підтвердження, бал. Компонент пункту: для кодів `checklist.N.N` — за таблицею додатка Б, для інших чек-листів (конструктор) — компонент розділу |
+| `GET /campaigns/{id}/checklist` | робоча група цієї хвилі (підрозділ у хвилі), admin, auditor | Стан чек-листа: пункти, статус, доказ, підтвердження, бал. Компонент пункту: для кодів `checklist.N.N` — за таблицею додатка Б, для інших чек-листів (конструктор) — компонент розділу |
 | `PUT /campaigns/{id}/checklist/{question_id}` | робоча група цієї хвилі | Внести статус (`full` / `partial` / `none`), доказ, коментар |
 | `POST /campaigns/{id}/checklist/{question_id}/submit` | робоча група цієї хвилі | Те саме разом із документами одним multipart-запитом: поля `status`, `evidence`, `comment`, `files` (кілька). Атомарно: файл не пройшов перевірку → не змінюється нічого. Нові файли додаються до наявних, підтвердження знімається |
-| `POST` / `DELETE /campaigns/{id}/checklist/{question_id}/confirm` | commissioner | Підтвердити (лише з доказом) або відкликати. За `CHECKLIST_REQUIRE_FILE=true` (за замовчуванням) `full` і `partial` потребують хоча б одного файлу: лише текст → 422 `file_required`. Для `none` досить тексту. У пункті чек-листа поле `file_required: true` показує, що файлу бракує |
+| `POST` / `DELETE /campaigns/{id}/checklist/{question_id}/confirm` | `CHECKLIST_CONFIRMERS` (за замовчуванням auditor) | Підтвердити (лише з доказом) або відкликати. За `CHECKLIST_REQUIRE_FILE=true` (за замовчуванням) `full` і `partial` потребують хоча б одного файлу: лише текст → 422 `file_required`. Для `none` досить тексту. У пункті чек-листа поле `file_required: true` показує, що файлу бракує |
 | `POST /indicators` | інша система (`X-Integration-Key`) або admin | Факт за місяць «X з Y». Ключ з `INTEGRATION_KEYS` дозволяє лише своє джерело (`source`) |
 | `GET /indicators/units` | інша система (`X-Integration-Key`) або admin | Довідник підрозділів для адаптерів: `id`, `name`, `parent_id` |
-| `GET /units/{id}/indicators?months=3\|6\|12&end=` | admin, commissioner, leader, auditor | Факти у форматі «X з Y» за цілі завершені квартали перед `end` (за замовчуванням сьогодні); k перевіряється і в кожному кварталі |
-| `GET /units/{id}/risk-signals?months=&end=` | admin, commissioner, leader, auditor | Сирі кількості знайденого і їх зміна до попереднього такого самого періоду (теж цілі квартали) |
+| `GET /units/{id}/indicators?months=3\|6\|12&end=` | admin, leader, auditor, department | Факти у форматі «X з Y» за цілі завершені квартали перед `end` (за замовчуванням сьогодні); k перевіряється і в кожному кварталі |
+| `GET /units/{id}/risk-signals?months=&end=` | admin, leader, auditor, department | Сирі кількості знайденого і їх зміна до попереднього такого самого періоду (теж цілі квартали) |
 
 **Нове у версії 0.2 (рекомендації, заходи, дашборд, звіти, інтеграції):**
 
 | Метод і шлях | Роль | Призначення |
 |---|---|---|
-| `GET /dashboard?campaign_id=&unit_id=` | admin, commissioner, leader, auditor | Executive Dashboard одним запитом: індекс, компоненти, групи, висновки, динаміка, топ-5 рекомендацій, статистика заходів, ризик-сигнали. За замовчуванням — остання закрита хвиля й підрозділ керівника |
-| `GET /campaigns/{id}/recommendations?unit_id=` | admin, commissioner, leader, auditor | Рекомендації за правилами з `rule`, пріоритетом, запропонованими заходами з Додатку Д, рішенням і пов'язаними заходами |
+| `GET /dashboard?campaign_id=&unit_id=` | admin, leader, auditor, department | Executive Dashboard одним запитом: індекс, компоненти, групи, висновки, динаміка, топ-5 рекомендацій, статистика заходів, ризик-сигнали. За замовчуванням — остання закрита хвиля й підрозділ керівника |
+| `GET /campaigns/{id}/recommendations?unit_id=` | admin, leader, auditor, department | Рекомендації за правилами з `rule`, пріоритетом, запропонованими заходами з Додатку Д, рішенням і пов'язаними заходами |
 | `POST /campaigns/{id}/recommendations/{code}/decision` | leader | `accepted` / `clarify` / `rejected` (два останні з коментарем). Для `accepted` можна одразу створити захід (`measure`); якщо в рекомендації вже є нескасований захід, новий не створюється (повторне «Прийняти» безпечне). Зміна рішення на `clarify` чи `rejected` скасовує незавершені заходи рекомендації з причиною в журналі; виконані лишаються |
-| `GET /measures?unit_id=&status=&campaign_id=&overdue=` | admin, commissioner, leader, auditor | Заходи підрозділу з дочірніми; `overdue`, `overdue_days` рахуються на льоту |
-| `GET /measures/stats?unit_id=`, `GET /measures/{id}` | admin, commissioner, leader, auditor | Статистика за статусами, один захід |
+| `GET /measures?unit_id=&status=&campaign_id=&overdue=` | admin, leader, auditor, department | Заходи підрозділу з дочірніми; `overdue`, `overdue_days` рахуються на льоту |
+| `GET /measures/stats?unit_id=`, `GET /measures/{id}` | admin, leader, auditor, department | Статистика за статусами, один захід |
 | `POST /measures`, `PATCH /measures/{id}` | leader | Створити, змінити. `done` лише з непорожнім доказом (`evidence`), стерти доказ виконаного не можна. Переходи: planned ↔ in_progress → done / cancelled; done → in_progress; cancelled → planned; інші → 409 `bad_transition`. Скасування й повернення з done чи cancelled — з `reason` (у журнал), інакше 422 `reason_required`. Відповідальний — посада: «Прізвище І. Б.» → 422; зайві поля → 422 |
-| `POST /campaigns/{id}/what-if` | admin, commissioner, leader, auditor (+ зона керівника) | Сценарій «що, якщо»: прогноз індексу від заходів, пунктів чек-листа, цільових фактів; топ-5 важелів. Лише закрита хвиля (інакше 409), нічого не записує |
-| `GET /report-templates` | admin, commissioner, leader, auditor | Шаблони звіту: `appendix_g`, `brief`, `measures`, `dynamics` (назва, опис, для кого) |
-| `GET /campaigns/{id}/report?unit_id=&format=json\|csv\|xlsx\|docx&template=` | admin, commissioner, leader, auditor | Звіт хвилі за Додатком Г (розділ `appendix_g`). `template` змінює структуру Word; JSON (поле `template`), CSV і Excel — повні дані. CSV з BOM; PDF друкує фронтенд |
+| `POST /campaigns/{id}/what-if` | admin, leader, auditor, department (+ зона керівника) | Сценарій «що, якщо»: прогноз індексу від заходів, пунктів чек-листа, цільових фактів; топ-5 важелів. Лише закрита хвиля (інакше 409), нічого не записує |
+| `GET /report-templates` | admin, leader, auditor, department | Шаблони звіту: `appendix_g`, `brief`, `measures`, `dynamics` (назва, опис, для кого) |
+| `GET /campaigns/{id}/report?unit_id=&format=json\|csv\|xlsx\|docx&template=` | admin, leader, auditor, department | Звіт хвилі за Додатком Г (розділ `appendix_g`). `template` змінює структуру Word; JSON (поле `template`), CSV і Excel — повні дані. CSV з BOM; PDF друкує фронтенд |
 | `GET /integrations/status` | admin | Які джерела фактів, тема 2, асистент налаштовані (без ключів) |
 | `POST /integrations/theme2/sync?retry_failed=` | admin | Надіслати заходи з черги `outbox` у Mitra (тема 2); `retry_failed=true` — повторити й відхилені |
 | `POST /integrations/theme2/measures/status` | Mitra (`X-Integration-Key` = `THEME2_API_KEY`) | Вебхук: стан заходу в Mitra і доказ виконання (документи з sha256 і посиланням на перевірку) за `measure_id` або `external_id` |
-| `POST /assistant/ask` | admin, commissioner, leader, auditor | Опційний асистент. Вимкнено (`ASSISTANT_ENABLED=false`) → 404 |
-| `POST /api/assistant/edit` (без `/api/v1`) | admin, commissioner, leader, auditor | Редактор звіту: запит до моделі щодо виділеного фрагмента → `replace` (пропозиція заміни) або `answer`. 503 без моделі |
+| `POST /assistant/ask` | admin, leader, auditor, department | Опційний асистент. Вимкнено (`ASSISTANT_ENABLED=false`) → 404 |
+| `POST /api/assistant/edit` (без `/api/v1`) | admin, leader, auditor, department | Редактор звіту: запит до моделі щодо виділеного фрагмента → `replace` (пропозиція заміни) або `answer`. 503 без моделі |
 
 **Нове у версії 0.3 (підключення фронтенду, анонімні посилання, Assessment Manager, докази, вхід через проксі):**
 
@@ -249,7 +297,7 @@ stateDiagram-v2
 | `POST /auth/proxy` | через довірений проксі | Вхід за заголовком від проксі організації (`PROXY_AUTH_*`, `TRUSTED_PROXIES`) |
 | `PATCH /campaigns/{id}` | admin | Змінити чернетку: назва, підрозділ, анкети, k, `access_mode`. Не чернетка → 409 `not_draft`; видано посилання → 409 `tokens_issued` |
 | `GET` / `PUT` / `DELETE /campaigns/{id}/participants` | admin | Явний склад учасників (лише хвиля `login`; змінити — лише в чернетці). Хто пройшов, не показується |
-| `POST /campaigns/{id}/participants/import?format=json\|csv` | admin | CSV `login,category,unit[,display_name]`. `login`: створює респондентів (пароль один раз) і додає до складу. `token`: видає посилання, повертає «псевдонім → посилання». Усе або нічого, 422 з номерами рядків; стовпці з ПД → 422 `personal_data` |
+| `POST /campaigns/{id}/participants/import?format=json\|csv` | admin | CSV `login,category,unit[,display_name]`. `login`: додає до складу **наявних** респондентів (нових не створює: людей заводить технічний адміністратор). `token`: видає посилання, повертає «псевдонім → посилання». Усе або нічого, 422 з номерами рядків; стовпці з ПД → 422 `personal_data` |
 | `POST /campaigns/{id}/tokens?format=json\|csv` | admin | Видати одноразові посилання: анкета + підрозділ + кількість (≤ 1000). Токени лише у відповіді, у БД sha256 |
 | `POST /campaigns/{id}/tokens/revoke` | admin | Відкликати невикористані посилання: усі, анкети або анкети + підрозділу |
 | `POST /campaigns/{id}/qr-links` | admin | QR для зали: анкета + підрозділ + очікувана кількість `expected`. Одне посилання `/q/{code}`, кожен скан дає нову одноразову форму |
@@ -257,12 +305,12 @@ stateDiagram-v2
 | `POST /campaigns/{id}/qr-links/{qr_id}/revoke` | admin | Зупинити нові скани; відкриті форми можна дописати, `expected` лишається в участі |
 | `POST /respond/qr/{code}` | без входу | Скан QR → `{token}` для `/s/{token}`. Недійсний код → 404 `qr_invalid`; відкрито форм більше за 3 × `expected` → 429 `qr_limit` |
 | `GET /respond/form`, `POST /respond/responses` | без входу, заголовок `X-Response-Token` | Анкета й подання за посиланням. Кожен розділ форми має `component` (`culture` / `system` / `accountability` / `overall`). Повтор → 409 `token_used`, недійсне → 404 `token_invalid`, перебір → 429. Повторне подання за обліковим записом (зокрема одночасне, подвійний клік) → 409 `already_submitted` |
-| `PATCH /admin/units/{id}`, `DELETE /admin/units/{id}` | admin | Перейменувати, перенести (без циклів; не під час відкритої хвилі), видалити невикористаний |
-| `GET` / `POST /campaigns/{id}/checklist/{qid}/files` | перегляд: РГ, admin, commissioner, auditor; додавання: РГ | Файли-докази. Ліміти розміру, кількості, типів (за сигнатурою). Додавання знімає підтвердження |
+| `PATCH /admin/units/{id}`, `DELETE /admin/units/{id}` | coordinator | Перейменувати, перенести (без циклів), видалити невикористаний. Структура заморожена від створення хвилі до закриття |
+| `GET` / `POST /campaigns/{id}/checklist/{qid}/files` | перегляд: РГ, admin, auditor; додавання: лише той член РГ, що вносить пункт | Файли-докази. Ліміти розміру, кількості, типів (за сигнатурою). Додавання знімає підтвердження |
 | `GET` / `DELETE /campaigns/{id}/checklist/{qid}/files/{file_id}` | як вище; видалення: РГ | Завантаження зі звіркою sha256 (`X-Content-SHA256`; невідповідність → 409 `evidence_tampered`), м'яке видалення |
 
 Хвиля `access_mode = token`: прогрес і результати рахують «мали пройти» як видані (не відкликані) посилання, «пройшли» — як використані.
-Підтвердження пункту чек-листа можливе з текстовим доказом **або** файлом; у журнал підтвердження пишуться sha256 файлів.
+Підтвердження пункту чек-листа: «повністю» й «частково» — лише з файлом (`CHECKLIST_REQUIRE_FILE`), «підлягає впровадженню» — і з текстом; у журнал підтвердження пишуться sha256 файлів.
 
 **Файли-докази** лежать у `EVIDENCE_DIR` (у Docker том `evidence`) за своїм sha256: `ab/abcdef…`. Однаковий вміст зберігається один раз.
 Дозволені типи: PDF, PNG, JPEG, DOCX, XLSX, ODT, ODS, TXT, CSV (перевіряється сигнатура вмісту, а не лише розширення).
@@ -538,16 +586,19 @@ python -m adapters artemida --file export.json               # справжні�
 
 ## Профіль безпеки
 
-`SECURITY_PROFILE=demo` (за замовчуванням) — для показу: адмін задає паролі, усе в одних руках, особовий склад може входити
-логіном. `SECURITY_PROFILE=production` вмикає всі запобіжники разом (`config.PRODUCTION_PROFILE`):
+Завжди, у будь-якому профілі: паролі лише за запрошенням, людьми й підрозділами керує лише технічний адміністратор,
+уповноважений і аудит працюють у своїй зоні, принцип двох осіб увімкнено (`FOUR_EYES_ENABLED=true`; вимкнути — лише для
+тестів і одноосібних стендів). `SECURITY_PROFILE=demo` (за замовчуванням) — для показу: особовий склад може входити логіном.
+`SECURITY_PROFILE=production` вмикає решту запобіжників разом (`config.PRODUCTION_PROFILE`):
 
 | Запобіжник | demo | production |
 |---|---|---|
-| `ADMIN_SETS_PASSWORDS` (імпорт CSV повертає паролі) | true | false: запрошення, пароль ставить сама людина |
-| `FOUR_EYES_ENABLED` | false | true |
-| `SEPARATE_TECH_ADMIN` | false | true |
+| `FOUR_EYES_ENABLED` | true | true |
 | `STAFF_TOKEN_ONLY` | false | true |
 | `LEADER_CHILD_DETAILS` | false | false |
+
+Змінні `ADMIN_SETS_PASSWORDS` і `SEPARATE_TECH_ADMIN` прибрано: у `GET /config` → `policies` поля лишилися для
+сумісності з фронтендом і завжди дорівнюють `false` і `true`.
 
 Явно задана змінна перекриває профіль; `GET /config` → `policies.security_profile` і `policies.overridden` показують, які
 запобіжники production вимкнено вручну. У `docker-compose.yml` ці змінні порожні за замовчуванням, тож значення бере профіль.
@@ -563,8 +614,10 @@ python -m adapters artemida --file export.json               # справжні�
 | Документ до пункту чек-листа обов'язковий, внесення одним запитом | `POST /campaigns/{id}/checklist/{qid}/submit`; `422 file_required` на `.../confirm` | `CHECKLIST_REQUIRE_FILE` |
 | Департамент | `GET /department/institutions`, `GET /department/institutions/{unit_id}` | — |
 | Захист від колективного покарання | `GET /units/{id}/children-levels`, `GET /admin/result-views` | `LEADER_CHILD_DETAILS` |
-| Запрошення (пароль ставить сама людина) | `POST /admin/users` без пароля → `invite_link`; `POST /admin/users/{id}/invite`; `POST /auth/invite` | `ADMIN_SETS_PASSWORDS`, `INVITE_TTL_HOURS` |
-| Принцип двох осіб | `GET /admin/approvals`, `POST /admin/approvals/{id}/approve`, `/reject` | `FOUR_EYES_ENABLED` |
+| Запрошення (пароль ставить сама людина) | `POST /admin/users` → `invite_link`; `POST /admin/users/{id}/invite`; `POST /auth/invite` | `INVITE_TTL_HOURS` |
+| Принцип двох осіб (матриця, зони) | `GET /admin/approvals`, `POST /admin/approvals/{id}/approve`, `/reject` | `FOUR_EYES_ENABLED` |
+| Два адміністратори, зона уповноваженого | `GET /campaigns/{id}/people`, `POST /admin/users/import`; 422 `out_of_zone`, 404 на чужу хвилю | — |
+| Автопілот через підтвердження | `GET /campaigns/{id}/autopilot` → `interval_seconds`, `next_tick_at`, `waiting_approval_id` | `AUTOPILOT_INTERVAL_SECONDS` |
 | Склад фіксується з моменту створення хвилі | `POST /campaigns` (склад у `campaign_eligible`), `DELETE /campaigns/{id}` (чернетка) | — |
 | Анкету з групою < k не відкрити | `POST /campaigns/{id}/open` → 409 `group_too_small` | — |
 | Якір журналу | `POST /admin/audit-log/anchor`, `GET /admin/audit-log/anchors`, `POST /admin/audit-log/verify-anchor`, `POST /admin/audit-log/export-anchor` | `AUDIT_ANCHOR_DIR`, `AUDIT_ANCHOR_TSA_URL` |

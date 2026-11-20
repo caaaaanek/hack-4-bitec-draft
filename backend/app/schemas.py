@@ -89,19 +89,21 @@ Password = Annotated[str, Field(min_length=8, max_length=128), AfterValidator(_p
 
 
 class UserCreate(BaseModel):
+    # Поля пароля немає: створюється одноразове запрошення, і людина ставить пароль сама (адмін його не знає).
+    model_config = ConfigDict(extra="forbid")
+
     login: str = Field(min_length=3, max_length=64, pattern=r"^[a-zA-Z0-9_.-]+$")
     display_name: str = Field(min_length=1, max_length=100)
-    # Без пароля: створюється одноразове запрошення, і людина ставить пароль сама (адмін його не знає).
-    # ADMIN_SETS_PASSWORDS=false забороняє задавати пароль адміністратором узагалі.
-    password: Password | None = None
     role: Role
     category: CategoryCode | None = None
     unit_id: uuid.UUID | None = None
 
 
 class UserUpdate(BaseModel):
+    # Пароль тут не змінюється: нове запрошення — POST /admin/users/{id}/invite.
+    model_config = ConfigDict(extra="forbid")
+
     display_name: str | None = Field(default=None, min_length=1, max_length=100)
-    password: Password | None = None
     role: Role | None = None
     category: CategoryCode | None = None
     unit_id: uuid.UUID | None = None
@@ -148,6 +150,12 @@ class ApprovalOut(ORM):
     decided_by_id: uuid.UUID | None
     decided_at: datetime | None
     comment: str
+    # Хто підтверджує цей запит (матриця approvals.APPROVERS) і чи може це зробити поточний користувач.
+    approver_roles: list[Role] = []
+    can_decide: bool = False
+    # Лише у відповіді на підтвердження user_invite: одноразове посилання, яке підтверджувач передає людині.
+    invite_link: str | None = None
+    invite_expires_at: datetime | None = None
 
 
 class ApprovalDecisionIn(BaseModel):
@@ -371,8 +379,7 @@ class ImportIssue(BaseModel):
 
 class ImportedCredential(BaseModel):
     login: str
-    password: str = ""
-    # ADMIN_SETS_PASSWORDS=false: замість пароля одноразове запрошення.
+    password: str = ""  # завжди порожній: пароль людина ставить сама за запрошенням
     invite_link: str | None = None
 
 
