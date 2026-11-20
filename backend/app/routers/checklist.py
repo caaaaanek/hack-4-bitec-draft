@@ -8,7 +8,9 @@
 лише призначений підтверджувач, і це не та сама людина.
 Це не анонімна анкета: оцінюється заклад, а не люди, тому видно, хто вніс і хто підтвердив.
 
-Докази: текстовий опис (evidence) і/або файли (Evidence Repository, services/evidence.py).
+Докази: текстовий опис (evidence) і файли (Evidence Repository, services/evidence.py).
+За CHECKLIST_REQUIRE_FILE (за замовчуванням так) пункт «повністю» чи «частково» підтверджується лише
+з файлом: одного тексту замало. Статус, текст і файли можна внести одним запитом (POST .../submit).
 Додавання чи видалення файлу, як і зміна статусу, знімає підтвердження: підтверджується
 конкретний набір доказів.
 """
@@ -17,7 +19,7 @@ import uuid
 from datetime import datetime, timezone
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
@@ -85,6 +87,8 @@ class ChecklistItemOut(BaseModel):
     # Призначені відповідальні (якщо є): хто вносить і хто підтверджує саме цей пункт.
     enterer_id: uuid.UUID | None = None
     confirmer_id: uuid.UUID | None = None
+    # true: щоб пункт можна було підтвердити, бракує файлу-доказу (CHECKLIST_REQUIRE_FILE).
+    file_required: bool = False
 
 
 class ChecklistOut(BaseModel):
@@ -110,6 +114,12 @@ def ensure_view(db: Session, user: User, campaign: Campaign) -> None:
     if user.role in (Role.ADMIN, Role.COMMISSIONER, Role.AUDITOR) or wg_of_campaign(db, user, campaign):
         return
     raise HTTPException(status_code=403, detail="Недостатньо прав")
+
+
+def needs_file(status: ChecklistStatus | None) -> bool:
+    """Чи вимагає статус файлу-доказу для підтвердження."""
+    return (get_settings().checklist_require_file
+            and status in (ChecklistStatus.FULL, ChecklistStatus.PARTIAL))
 
 
 def item_score(entry: ChecklistEntry | None) -> float | None:
@@ -140,6 +150,7 @@ def to_item(question, entry: ChecklistEntry | None, files: list[EvidenceFile] | 
         files=[EvidenceFileOut.model_validate(f) for f in files or []],
         enterer_id=assignment.enterer_id if assignment else None,
         confirmer_id=assignment.confirmer_id if assignment else None,
+        file_required=bool(entry and needs_file(entry.status) and not files),
     )
 
 
@@ -343,7 +354,18 @@ def set_entry(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Член робочої групи вносить або змінює статус пункту. Зміна знімає підтвердження."""
+    """Член робочої групи вносить або змінює статус пункту. Зміна знімає підтвердження.
+
+    Файли-докази додаються окремо (POST .../files) або разом зі статусом (POST .../submit).
+    """
+    campaign, question = enterable_item(db, campaign_id, question_id, user)
+    entry = apply_entry(db, campaign, question, user, data.status, data.evidence, data.comment)
+    db.commit()
+    return to_item(question, entry, files_of(db, campaign.id, question.id),
+                   db.get(ChecklistAssignment, (campaign.id, question.id)))
+
+
+def enterable_item(db: Session, campaign_id: uuid.UUID, question_id: uuid.UUID, user: User):
     campaign, questionnaire = checklist_of(db, campaign_id)
     if not wg_of_campaign(db, user, campaign):
         raise HTTPException(status_code=403, detail="Вносити чек-лист може лише член робочої групи цієї хвилі")
@@ -351,23 +373,85 @@ def set_entry(
         raise HTTPException(status_code=409, detail="Хвиля не відкрита")
     question = find_question(questionnaire, question_id)
     check_assigned_enterer(db, campaign.id, question.id, user)
+    return campaign, question
 
+
+def apply_entry(db: Session, campaign: Campaign, question, user: User, status_: ChecklistStatus,
+                evidence: str, comment: str) -> ChecklistEntry:
+    """Записати статус, текст доказу й коментар; підтвердження знімається. Без commit."""
     entry = entry_of(db, campaign.id, question.id)
     if entry is None:
-        entry = ChecklistEntry(campaign_id=campaign.id, question_id=question.id, entered_by_id=user.id, status=data.status)
+        entry = ChecklistEntry(campaign_id=campaign.id, question_id=question.id, entered_by_id=user.id, status=status_)
         db.add(entry)
-    entry.status = data.status
-    entry.evidence = data.evidence.strip()
-    entry.comment = data.comment.strip()
+    entry.status = status_
+    entry.evidence = evidence.strip()
+    entry.comment = comment.strip()
     entry.entered_by_id = user.id
     entry.entered_at = datetime.now(timezone.utc)
     entry.confirmed_by_id = None
     entry.confirmed_at = None
     db.flush()
-    log_action(db, user, "set", "checklist_entry", entry.id, {"item": question.code, "status": data.status.value})
+    log_action(db, user, "set", "checklist_entry", entry.id, {"item": question.code, "status": status_.value})
+    return entry
+
+
+@router.post("/{question_id}/submit", response_model=ChecklistItemOut)
+async def submit_entry(
+    campaign_id: uuid.UUID,
+    question_id: uuid.UUID,
+    status_: ChecklistStatus = Form(..., alias="status", description="full | partial | none"),
+    evidence: str = Form(default="", max_length=2000, description="Короткий опис доказу (необов'язково)"),
+    comment: str = Form(default="", max_length=2000),
+    files: list[UploadFile] = File(default=[], description="Документи-докази: PDF, зображення, Office/ODF, TXT, CSV"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Внести пункт разом із документами одним multipart-запитом (поля status, evidence, comment, files[]).
+
+    Атомарно: якщо хоч один файл не пройшов перевірку (тип, розмір, кількість), не змінюється нічого.
+    Нові файли додаються до вже прикріплених; видалити зайвий: DELETE .../files/{file_id}.
+    Як і PUT, знімає підтвердження. Ліміти: GET /config → evidence.
+    """
+    campaign, question = enterable_item(db, campaign_id, question_id, user)
+    uploads = [f for f in files if f.filename]  # браузер шле порожню частину, коли файл не вибрано
+    existing = db.scalar(select(func.count()).select_from(EvidenceFile).where(
+        EvidenceFile.campaign_id == campaign.id, EvidenceFile.question_id == question.id,
+        EvidenceFile.deleted_at.is_(None)))
+    limit = get_settings().evidence_max_files_per_item
+    if existing + len(uploads) > limit:
+        raise ApiError(409, f"До пункту можна додати не більше {limit} файлів (уже {existing})",
+                       code="too_many_files", hint="Видаліть зайвий файл або об'єднайте документи.")
+
+    stored: list[tuple[str, str, str, int]] = []
+    try:
+        for upload in uploads:
+            stored.append(await storage.store(upload))
+    except BaseException:
+        drop_orphans(db, [sha for _, _, sha, _ in stored])
+        raise
+
+    entry = apply_entry(db, campaign, question, user, status_, evidence, comment)
+    for filename, mime, sha, size in stored:
+        record = EvidenceFile(campaign_id=campaign.id, question_id=question.id, filename=filename,
+                              content_type=mime, size=size, sha256=sha, uploaded_by_id=user.id)
+        db.add(record)
+        db.flush()
+        log_action(db, user, "upload", "evidence_file", record.id,
+                   {"item": question.code, "filename": filename, "sha256": sha, "size": size, "unconfirmed": True})
     db.commit()
     return to_item(question, entry, files_of(db, campaign.id, question.id),
                    db.get(ChecklistAssignment, (campaign.id, question.id)))
+
+
+def drop_orphans(db: Session, shas: list[str]) -> None:
+    """Прибрати з диска щойно збережені файли, на які не посилається жоден запис (відкат submit)."""
+    for sha in set(shas):
+        if db.scalar(select(func.count()).select_from(EvidenceFile).where(EvidenceFile.sha256 == sha)):
+            continue
+        try:
+            storage.path_for(sha).unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 @router.post("/{question_id}/confirm", response_model=ChecklistItemOut)
@@ -377,7 +461,11 @@ def confirm_entry(
     db: Session = Depends(get_db),
     user: User = Depends(require_confirmer),
 ):
-    """Підтвердити пункт можна лише за наявності доказу. Підтверджує не той, хто вніс."""
+    """Підтвердити пункт можна лише за наявності доказу. Підтверджує не той, хто вніс.
+
+    За CHECKLIST_REQUIRE_FILE пункт «повністю» чи «частково» потребує хоча б одного файлу:
+    текстового опису замало (422, code=file_required).
+    """
     campaign, questionnaire = checklist_of(db, campaign_id)
     if campaign.status != CampaignStatus.OPEN:
         raise HTTPException(status_code=409, detail="Хвиля не відкрита")
@@ -389,6 +477,10 @@ def confirm_entry(
     files = files_of(db, campaign.id, question.id)
     if not entry.evidence and not files:
         raise HTTPException(status_code=422, detail="Без доказу пункт підтвердити не можна")
+    if needs_file(entry.status) and not files:
+        raise ApiError(422, "Для підтвердження потрібен документ: одного текстового опису замало",
+                       code="file_required",
+                       hint="Член робочої групи додає файл: POST .../files або POST .../submit.")
     if entry.entered_by_id == user.id:
         raise HTTPException(status_code=409, detail="Не можна підтверджувати власний запис")
     entry.confirmed_by_id = user.id

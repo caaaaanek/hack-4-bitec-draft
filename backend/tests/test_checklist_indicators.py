@@ -1,7 +1,7 @@
 """Чек-лист з підтвердженням і прийом фактів."""
 
 from tests.conftest import auth
-from tests.helpers import API, ROOT, close, fill_checklist, open_campaign, post_fact, results, units
+from tests.helpers import API, ROOT, close, fill_checklist, open_campaign, post_fact, results, submit_item, units
 
 
 def first_items(client, campaign_id, count=2):
@@ -19,6 +19,13 @@ def test_checklist_enter_and_confirm(client):
 
     r = client.put(f"{url}/{with_proof['question_id']}", json={"status": "full", "evidence": "Наказ №5"}, headers=wg)
     assert r.json()["score"] == 50.0 and r.json()["confirmed"] is False  # повністю без підтвердження = 50
+    assert r.json()["file_required"] is True
+
+    # Лише текстом «повністю» не підтверджується: потрібен документ.
+    r = client.post(f"{url}/{with_proof['question_id']}/confirm", headers=commissioner)
+    assert r.status_code == 422 and r.json()["code"] == "file_required"
+    r = submit_item(client, campaign_id, with_proof["question_id"], wg, evidence="Наказ №5")
+    assert r.status_code == 200 and r.json()["file_required"] is False and len(r.json()["files"]) == 1
 
     r = client.post(f"{url}/{with_proof['question_id']}/confirm", headers=commissioner)
     assert r.status_code == 200 and r.json()["score"] == 100.0 and r.json()["confirmed"] is True
