@@ -564,7 +564,16 @@ export async function apiLoadCk(sel) {
 }
 export function apiCkReload(sel) { API.ck = null; API.loading.ck = true; render(true); apiLoadCk(sel).then(v => { API.ck = v; }, e => { API.ck = { error: apiErrText(e) }; }).finally(() => { API.loading.ck = false; render(true); }); }
 // Внести пункт разом із документами одним запитом (multipart). Атомарно: якщо файл не пройшов, не змінюється нічого.
+// Той самий документ (той самий sha256) вдруге не додаємо: сервер приймає дублікат мовчки
+const sha256 = async f => { const h = await crypto.subtle.digest("SHA-256", await f.arrayBuffer()); return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, "0")).join(""); };
+async function dupFile(qid, files) {
+  if (!files.length || !(window.crypto && crypto.subtle)) return false;
+  const it = API.ck && API.ck.data && (API.ck.data.items || []).find(i => i.question_id === qid), seen = new Set(((it && it.files) || []).map(f => f.sha256).filter(Boolean));
+  for (const f of files) { const h = await sha256(f); if (seen.has(h)) return true; seen.add(h); }
+  return false;
+}
 export async function apiSaveItem(camp, qid, body, files = []) {
+  if (await dupFile(qid, files)) throw new ApiErr(409, { message: "Цей документ уже додано", code: "dup_file" });
   const fd = new FormData();
   fd.append("status", body.status); fd.append("evidence", body.evidence || ""); fd.append("comment", body.comment || "");
   for (const f of files) fd.append("files", f);
