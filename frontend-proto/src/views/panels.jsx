@@ -1,7 +1,7 @@
 /* Пояснювальні бічні панелі: індекс, достовірність, методика, відповіді, питання, джерела, захід. */
 import { Ic } from "../lib/icons.jsx";
 import { S, AI_ROLES, SURVEY_Q, FACT_META, logItems } from "../lib/state.js";
-import { API, CATEGORY_SRC } from "../lib/api.js";
+import { API, CATEGORY_SRC, dn } from "../lib/api.js";
 import { FLAGS, COMPS, COMP, LEVELS, LSHORT, LDESC, BOUNDS, CAP, TRUST, TRUST_HINT, SRC, SRC_HINT, GROUPS, ALPHA, M_ST, level, allItems, measures, overdueDays, daysWord, verif, CYCLE } from "../lib/model.js";
 import { fb, f2, ua } from "../lib/format.js";
 import { openDrawer, closeDrawer, toast } from "../lib/store.js";
@@ -65,7 +65,11 @@ export function openHow() {
 }
 
 // Плашка «Відповідей у циклі»: скільки відповіли за групами і що означає k
+// З бекендом це справжні групи хвилі (groups у результатах): раніше модель сервера мала id «alpha»,
+// і тут показувалися демо-числа «Альфи». Групи менше k позначені hidden, їхні кількості не показуємо.
+const GRP_T = { working_group: "Робоча група", expert: "Експерти", staff: "Особовий склад" };
 export function respGroups(m) {
+  if (API.on) return (m.groups || []).map(g => ({ n: GRP_T[g.category] || dn(g.title), inv: g.eligible ?? 0, resp: g.submitted ?? 0, hidden: !g.sufficient || !!g.suppressed }));
   if (m.id === ALPHA) return GROUPS.map(g => ({ ...g }));
   const n = m.responses, wg = Math.round(n * .2), ex = 5, os = n - wg - ex;
   return [{ n: "Робоча група", inv: wg + 1, resp: wg }, { n: "Особовий склад", inv: os + 8, resp: os }, { n: "Експерти", inv: ex, resp: ex }];
@@ -107,8 +111,8 @@ export function openResp() {
   openDrawer("Відповіді в циклі " + CYCLE, () => {
     const m = cur(), gs = respGroups(m), inv = gs.reduce((a, g) => a + g.inv, 0), resp = gs.reduce((a, g) => a + g.resp, 0);
     return <>
-      <div className="stat4 tnum" style={{ gridTemplateColumns: "repeat(3,1fr)" }}><div><small>Запрошено</small><b>{inv}</b></div><div><small>Відповіли</small><b>{resp}</b></div><div><small>Охоплення</small><b>{Math.round(resp / inv * 100)} %</b></div></div>
-      <div><div className="lbl" style={{ marginBottom: 6 }}>За групами</div><div className="rows">{gs.map(g => { const hid = g.resp < S.k && g.unit; return <div key={g.n} className="row"><div className="grow"><div className="t">{g.n}</div><div className="dist-bar" style={{ marginTop: 6 }}><i style={{ width: `${g.resp / g.inv * 100}%`, background: hid ? "var(--faint)" : "var(--teal)" }} /></div></div><b className="tnum">{g.resp} з {g.inv}</b>{hid && <Pill cls="p-mute nodot">Приховано</Pill>}</div>; })}</div></div>
+      <div className="stat4 tnum" style={{ gridTemplateColumns: "repeat(3,1fr)" }}><div><small>Запрошено</small><b>{inv}</b></div><div><small>Відповіли</small><b>{resp}</b></div><div><small>Охоплення</small><b>{inv ? `${Math.round(resp / inv * 100)} %` : "немає даних"}</b></div></div>
+      <div><div className="lbl" style={{ marginBottom: 6 }}>За групами</div><div className="rows">{gs.map(g => { const hid = g.hidden || (g.resp < S.k && g.unit); return <div key={g.n} className="row"><div className="grow"><div className="t">{g.n}</div><div className="dist-bar" style={{ marginTop: 6 }}><i style={{ width: g.hidden || !g.inv ? 0 : `${g.resp / g.inv * 100}%`, background: hid ? "var(--faint)" : "var(--teal)" }} /></div></div>{g.hidden ? <span className="lbl">менше {S.k}</span> : <b className="tnum">{g.resp} з {g.inv}</b>}{hid && <Pill cls="p-mute nodot">Приховано</Pill>}</div>; })}</div></div>
       <div className="note-box"><b>Мінімальна група k = {S.k}</b><span className="lbl">Результати групи показуються, лише якщо відповіли щонайменше {S.k} людей. Менші групи додаються до вищого рівня, щоб нікого не можна було впізнати. Окремі відповіді не зберігаються разом з особою: жетон одноразовий і не повʼязаний з іменем.</span></div>
     </>;
   });
