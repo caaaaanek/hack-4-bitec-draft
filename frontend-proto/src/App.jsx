@@ -2,7 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { Ic } from "./lib/icons.jsx";
 import { S, ROLE, NAV, NAV_GROUP, NAV_GROUP_T, HOME, AI_ROLES, persist, resetDemo, addLog, simpleMode, setSimpleMode, SIMPLE_ROUTES } from "./lib/state.js";
-import { API, login, loginProxy, logout, apiErrText, retryBoot, startDemo, apiModReset } from "./lib/api.js";
+import { API, login, loginProxy, logout, apiErrText, retryBoot, startDemo, apiModReset, dn } from "./lib/api.js";
 import { NotesPop, notesState, markNotesSeen } from "./components/NotesPop.jsx";
 import { COMPS, COMP, INSTITUTIONS, allItems, pendingRecs, measures, overdueDays, clamp, CYCLE } from "./lib/model.js";
 import { useStore, getViewKey, render, toast, ui, openPop, closePop, closeDrawer } from "./lib/store.js";
@@ -224,7 +224,7 @@ export default function App() {
           return g ? <div key={g} className="nav-grp" role="group" aria-labelledby={`ng-${g}`}><div className="nav-g" id={`ng-${g}`}>{NAV_GROUP_T[g]}</div>{links}</div> : links;
         })}{!login && simple && <button type="button" className="link-btn nav-all" onClick={() => setSimpleMode(false)}>Простий режим: показати все меню</button>}</nav>
         <div className="side-foot"><div className="role-card">{API.down ? null : API.on ? (u ? <>
-          <small>Ви увійшли як</small><b style={{ fontSize: 14 }}>{u.display_name}</b><small>{ROLE[S.role][0]} · {u.login}</small>
+          <small>Ви увійшли як</small><b style={{ fontSize: 14 }}>{dn(u.display_name)}</b><small>{ROLE[S.role][0]} · {u.login}</small>
           <button className="btn btn-ghost" id="logoutBtn" type="button" onClick={logout}><Ic n="arrowL" />Вийти</button></> : null) : <>
           <small>Демо: роль</small>
           <select id="role" aria-label="Роль для демо" value={S.role} onChange={e => { S.role = e.target.value; addLog(ROLE[S.role][0], "Вхід у систему"); persist(); ui.ai = false; ui.drawer = null; location.hash = HOME[S.role]; render(); toast("Роль: " + ROLE[S.role][0]); }}>{Object.entries(ROLE).map(([k, [n]]) => <option key={k} value={k}>{n}</option>)}</select>
@@ -257,7 +257,7 @@ export default function App() {
       {pk === "a11y" && <A11yPop />}
       {pk === "notes" && ns && <NotesPop ns={ns} />}
       {pk === "search" && <SearchPop q={q} hits={hits} sel={sel} pick={pick} />}
-      {pk === "profile" && <><div style={{ fontWeight: 600 }}>{u ? u.display_name : ROLE[S.role][0]}</div><div className="lbl" style={{ margin: "2px 0 12px" }}>{ROLE[S.role][0]}{u ? ` · ${u.login}` : ""}</div>{u ? <button className="btn btn-ghost" style={{ width: "100%", justifyContent: "center" }} onClick={() => { closePop(); logout(); }}><Ic n="arrowL" />Вийти</button> : <div className="lbl">Демо-режим: вихід не потрібен.</div>}</>}
+      {pk === "profile" && <><div style={{ fontWeight: 600 }}>{u ? dn(u.display_name) : ROLE[S.role][0]}</div><div className="lbl" style={{ margin: "2px 0 12px" }}>{ROLE[S.role][0]}{u ? ` · ${u.login}` : ""}</div>{u ? <button className="btn btn-ghost" style={{ width: "100%", justifyContent: "center" }} onClick={() => { closePop(); logout(); }}><Ic n="arrowL" />Вийти</button> : <div className="lbl">Демо-режим: вихід не потрібен.</div>}</>}
     </Pop>
     <ExportDialog />
     <Builder />
