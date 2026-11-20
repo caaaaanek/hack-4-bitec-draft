@@ -258,6 +258,5 @@ export function Me() {
       <div className="rows">{["Спростили процедуру звернень: тепер подати звернення можна за кілька хвилин.", "Провели два практичних заняття з прикладами з роботи закладу.", "Оприлюднили підсумки минулої перевірки разом із кроками, що робитимуть далі."].map(t => <div key={t} className="row" style={{ alignItems: "flex-start" }}><span className="comp-ic" style={{ background: "var(--teal-soft)", color: "var(--teal-deep)", width: 28, height: 28 }}><Ic n="ok" /></span><div className="grow">{t}</div></div>)}</div></section>
     <section className="card c6 rise"><div className="card-h"><h2>Що буде далі</h2></div>
       <div className="rows">{["Опублікуємо короткий посібник про те, куди й як повідомляти про проблеми.", "У наступному циклі окремо запитаємо, чи стало зрозуміліше, що відбувається після звернення."].map(t => <div key={t} className="row" style={{ alignItems: "flex-start" }}><span className="comp-ic" style={{ background: "var(--amber-soft)", color: "var(--amber)", width: 28, height: 28 }}><Ic n="arrowR" /></span><div className="grow">{t}</div></div>)}</div></section>
-    <section className="c12 rise"><div className="lbl" style={{ textAlign: "center" }}>Тут лише узагальнені дані групи. Окремих відповідей, імен і порівнянь підрозділів немає.</div></section>
   </>;
 }

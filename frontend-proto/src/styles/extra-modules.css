@@ -120,7 +120,7 @@
 @media (max-width: 640px) { .ap-fields .field, .ap-fields .ap-num { width: calc(50% - 6px); } .ap-fields .btn { width: 100%; justify-content: center; } }
 /* «Що люди бояться сказати прямо» і «Ознаки підгонки» на «Огляді» */
 .cd-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 14px; }
-.cd-item { background: var(--soft); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cd-item { border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
 .cd-st { font-weight: 600; overflow-wrap: anywhere; }
 .cd-nums { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .cd-nums > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
@@ -145,8 +145,9 @@
 .bf-num b { font-size: 15px; overflow-wrap: anywhere; }
 .row .t.nl-t { white-space: normal; overflow-wrap: anywhere; }
 /* Підрозділи за рівнями: стовпчики без назв */
-.ch-bars { display: flex; align-items: flex-end; gap: 14px; height: 130px; padding-top: 8px; }
-.ch-b { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; max-width: 72px; }
+.ch-bars { display: flex; align-items: flex-end; gap: 16px; height: 170px; padding-top: 8px; }
+.ch-b { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; min-width: 0; }
+.ch-b span { font-size: 15px; font-weight: 600; }
 .ch-b i { width: 100%; border-radius: 8px 8px 3px 3px; }
 .ch-b small { color: var(--muted); }
 .rv-units { white-space: normal; overflow-wrap: anywhere; }
@@ -204,3 +205,73 @@
 @media (max-width: 620px) { .as-row { grid-template-columns: 1fr 1fr; } .as-row b { grid-column: 1 / -1; } .adm-acts { text-align: left; } }
 .ck-who { margin-top: 6px; }
 .adm-line { font-size: 14px; line-height: 1.5; }
+/* «Питання перевірки»: список як чек-лист підготовки */
+.adv-list { display: flex; flex-direction: column; border-top: 1px solid var(--line); }
+.adv-row { border-bottom: 1px solid var(--line); }
+.adv-row > summary { list-style: none; display: grid; grid-template-columns: 20px 22px minmax(0, 1fr) 20px; gap: 12px; align-items: start; padding: 14px 4px; cursor: pointer; }
+.adv-row > summary::-webkit-details-marker { display: none; }
+.adv-row > summary:hover { background: color-mix(in srgb, var(--soft) 60%, transparent); }
+.adv-row input { margin-top: 3px; width: 17px; height: 17px; accent-color: var(--teal); }
+.adv-n { color: var(--muted); font-size: 13px; padding-top: 2px; }
+.adv-q { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.adv-q .txt { font-size: 15px; font-weight: 600; line-height: 1.45; }
+.adv-hot { color: color-mix(in srgb, var(--red) 70%, var(--fg)); font-weight: 600; }
+.adv-row .chev { color: var(--muted); padding-top: 2px; transition: transform .15s; }
+.adv-row[open] .chev { transform: rotate(180deg); }
+.adv-row.done .adv-q .txt { text-decoration: line-through; color: var(--muted); font-weight: 500; }
+.adv-body { display: flex; flex-direction: column; gap: 10px; padding: 0 4px 16px 66px; }
+.adv-prog { display: flex; align-items: center; gap: 10px; min-width: 200px; }
+.adv-prog .dist-bar { width: 120px; }
+@media (max-width: 640px) { .adv-body { padding-left: 4px; } .adv-prog { min-width: 0; width: 100%; } .adv-prog .dist-bar { flex: 1; } }
+.notes-sig { border-bottom: 1px solid var(--line); }
+.notes-sig > li { padding: 0; }
+.sig-row { display: flex; gap: 10px; align-items: flex-start; width: 100%; padding: 11px 0; border: 0; background: none; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+button.sig-row:hover .notes-t { text-decoration: underline; }
+.sig-row .dot { margin-top: 7px; flex: none; }
+.sig-row .grow { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.sig-row svg { width: 16px; height: 16px; color: var(--muted); margin-top: 3px; flex: none; }
+/* Таблиця, що на вузькому екрані стає картками: підпис колонки з data-l */
+@media (max-width: 700px) {
+  .tbl-stack, .tbl-stack tbody, .tbl-stack tr, .tbl-stack td { display: block; width: 100%; }
+  .tbl-stack thead { display: none; }
+  .tbl-stack tr { padding: 12px 0; border-bottom: 1px solid var(--line); }
+  .tbl-stack tr:last-child { border-bottom: 0; }
+  .tbl-stack td { border: 0 !important; padding: 4px 0 !important; min-width: 0 !important; white-space: normal !important; }
+  .tbl-stack td[data-l] { display: flex; gap: 12px; justify-content: space-between; align-items: baseline; }
+  .tbl-stack td[data-l]::before { content: attr(data-l); color: var(--muted); font-size: 12.5px; flex: none; }
+  .tbl-stack td[data-l] > * { text-align: right; }
+}
+@media (max-width: 700px) { .tbl-stack td.blk { padding-top: 6px !important; } }
+/* Телефон: довгі назви в списках переносяться, а не обрізаються; заголовки таблиці розкладу теж */
+@media (max-width: 640px) {
+  .rows .row .t { white-space: normal; overflow: visible; }
+  .ex-tbl th { white-space: normal; }
+}
+/* Телефон: шапка в один рядок. Доступність і тема переїжджають у меню профілю */
+.only-m { display: none; }
+@media (max-width: 600px) {
+  #a11yBtn, #themeBtn { display: none; }
+  .only-m { display: flex; }
+  .prof-m { flex-direction: column; gap: 6px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .prof-m .btn { justify-content: flex-start; }
+  .top { flex-wrap: nowrap; gap: 8px; }
+  .top h1 { flex: 1 1 0; min-width: 0; font-size: 17px; overflow-wrap: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .top .sp { display: none; }
+}
+.ck-st { display: flex; gap: 8px; align-items: baseline; line-height: 1.45; }
+.ck-st .dot { flex: none; transform: translateY(-1px); }
+.ck-need { color: color-mix(in srgb, var(--amber) 70%, var(--fg)); }
+.cov-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+.cov-line b { font-size: 32px; font-weight: 700; letter-spacing: -.02em; }
+.fd-h { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.fd-h .dot { transform: translateY(-1px); }
+.rec-meta { margin-bottom: 8px; display: flex; align-items: center; flex-wrap: wrap; gap: 0 4px; }
+.rec-hi { color: color-mix(in srgb, var(--red) 65%, var(--fg)); font-weight: 600; }
+/* Шкала рівнів у вузькій картці: назву й межі показуємо лише для поточного рівня, решта у підказці */
+.lvs-compact .lvs-lbl > div:not(.here) span, .lvs-compact .lvs-lbl > div:not(.here) small { display: none; }
+.lvs-compact .lvs-lbl > div.here { overflow: visible; white-space: nowrap; }
+.dp-inline { display: inline-flex; align-items: center; gap: 8px; }
+/* Довгі пункти чек-листа: три рядки, повністю — по кліку чи фокусу */
+.ck-txt { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; outline: none; }
+.ck-txt:focus { display: block; overflow: visible; }
+.ck-txt:focus-visible { box-shadow: 0 0 0 2px var(--teal); border-radius: 4px; }

@@ -24,7 +24,7 @@ function aiCtx() {
     components: m.components.map(c => ({ name: COMP[c.id].n, perception: c.P, facts: c.F, credited: c.cr.v, limitedByFacts: c.cr.lim, rule: c.cr.lim ? c.cr.reason : null })),
     perceptionItems: m.pItems.map(x => ({ name: x.t, component: COMP[x.c].n, source: SRC[x.src][0], weight: x.w, value: x.v })),
     factItems: m.fItems.map(x => ({ name: x.t, component: COMP[x.c].n, data: x.kind === "pct" ? `${x.val[0]} з ${x.val[1]}` : `рівень ${x.val} з 5`, weight: x.w, value: x.v })),
-    flags: m.raised.map(f => ({ title: f.t, weight: f.w === "major" ? "серйозний" : "незначний", explanation: f.ex })),
+    flags: m.raised.map(f => ({ title: f.t, weight: f.w === "major" ? "серйозний" : f.w === "info" ? "до відома" : "незначний", explanation: f.ex })),
     recommendations: m.id === ALPHA ? buildRecs(m).map(r => ({ title: r.t, component: COMP[r.c].n, priority: PRI[r.pri][0], status: REC_ST[r.st][0], why: r.why, basedOn: r.evidence.map(e => `${e.t}: ${e.v}`) })) : [],
     measures: m.id === ALPHA ? measures().map(x => ({ title: x.t, responsible: x.who, due: x.due, status: M_ST[dispSt(x)][0] })) : [],
     anonymityThreshold: S.k, responses: m.responses,
@@ -33,8 +33,8 @@ function aiCtx() {
 export function aiTemplate(q) {
   const s = q.toLowerCase(), m = cur(), recs = m.id === ALPHA ? buildRecs(m) : [];
   const comps = m.components.map(c => `${COMP[c.id].n} ${fb(c.cr.v)}`);
-  if (/чому така достовірн|прапор|достовірн/.test(s)) return { t: trustText(m), src: [`Достовірність ${TRUST[m.trust][0]}`, ...m.flags.map(f => `${f.id}: ${f.raised ? "так" : "ні"}`)], fixed: true };
-  if (/чому такий індекс/.test(s)) return { t: `${whyText(m, true)}\n\n${flagsText(m)}`, src: ["Методика v1.0", `Індекс ${f1(m.index)}`, `Достовірність ${TRUST[m.trust][0]}`, ...m.raised.map(f => f.id)], fixed: true };
+  if (/чому така достовірн|прапор|достовірн/.test(s)) return { t: trustText(m), src: [`Достовірність ${TRUST[m.trust][0]}`, ...m.raised.map(f => f.t)], fixed: true };
+  if (/чому такий індекс/.test(s)) return { t: `${whyText(m, true)}\n\n${flagsText(m)}`, src: ["Методика v1.0", `Індекс ${f1(m.index)}`, `Достовірність ${TRUST[m.trust][0]}`, ...m.raised.map(f => f.t)], fixed: true };
   if (/звіт|чернетк|опис/.test(s)) {
     const sorted = [...m.components].sort((a, b) => b.cr.v - a.cr.v), low = [...allItems(m)].sort((a, b) => a.v - b.v).slice(0, 3);
     const t = `За результатами циклу ${CYCLE} ${m.name} перебуває на рівні зрілості ${m.level} «${LEVELS[m.level - 1]}»: індекс доброчесності ${f1(m.index)} з 100, ${m.delta == null ? "дані про попередній цикл зараз недоступні" : (m.delta >= 0 ? "на " + pts(m.delta) + " вище" : "на " + pts(m.delta) + " нижче") + ", ніж у попередньому циклі"}.
@@ -42,7 +42,7 @@ export function aiTemplate(q) {
 Найвищий результат має компонент «${COMP[sorted[0].id].n}» (${fb(sorted[0].cr.v)}), найнижчий – «${COMP[sorted[2].id].n}» (${fb(sorted[2].cr.v)}).${m.limited ? ` Для компонента «${COMP[m.limited.id].n}» самооцінку не підтверджують факти: самооцінка ${fb(m.limited.P)} проти фактів ${fb(m.limited.F)}, тому зараховано ${fb(m.limited.cr.v)}.` : ""}
 
 Першочергової уваги потребують: ${low.map(x => `«${x.t}» (${fb(x.v)})`).join(", ")}. Достовірність результату: ${TRUST[m.trust][0]}, ${TRUST[m.trust][1].toLowerCase()}${m.raised.length ? `; прапорці: ${m.raised.map(f => f.t.toLowerCase()).join("; ")}` : ""}.`;
-    return { t, draft: true, src: ["Методика v1.0", `Індекс ${f1(m.index)}`, ...low.map(x => `${x.id} ${fb(x.v)}`)] };
+    return { t, draft: true, src: ["Методика v1.0", `Індекс ${f1(m.index)}`, ...low.map(x => `${x.t}: ${fb(x.v)}`)] };
   }
   if (/перш|пріоритет|що робити|почати/.test(s)) {
     const open = recs.filter(r => r.st === "proposed" || r.st === "clarified").slice(0, 3);
@@ -113,7 +113,7 @@ function Typed({ t, log }) {
 function Msg({ m, i, log }) {
   if (m.r === "u") return <div className="m u">{m.t}</div>;
   const canAccept = S.role === "leader" && m.draft;
-  return <div className="m a"><div className="m-h"><Pill cls="p-info nodot">Чернетка ШІ</Pill></div>
+  return <div className="m a">{m.draft && <div className="m-h"><Pill cls="p-info nodot">Чернетка для звіту</Pill></div>}
     <div className="m-t" data-i={i}>{AI.typing === i ? <Typed t={m.t} log={log} /> : m.t}</div>
     {m.src && m.src.length > 0 && <div className="src">{m.src.map((x, k) => <span key={k}>{x}</span>)}</div>}
     <div className="m-act"><button type="button" onClick={() => copyText(m.t, () => toast("Скопійовано"))}><Ic n="copy" />Копіювати</button>{canAccept && (m.accepted ? <button type="button" disabled><Ic n="ok" />Додано до звіту</button> : <button type="button" className="ok" onClick={() => aiAccept(i)}><Ic n="ok" />Затвердити у звіт</button>)}</div></div>;

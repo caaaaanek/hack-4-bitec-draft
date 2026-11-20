@@ -27,7 +27,9 @@ export function apiView(r) {
   if (S.role === "observer") { if (r === "institutions") return <DeptInstitutions />; if (RESULT_VIEWS.includes(r) && !API.deptUnit) return <ChooseInst />; }
   if (RESULT_VIEWS.includes(r) && r !== "sources" && !API.model && API.resErr) return <Failed e={API.resErr} onRetry={apiRetryResults} />;
   if (RESULT_VIEWS.includes(r) && r !== "sources" && !API.model)
-    return API.empty ? <Empty t="Ще немає закритої хвилі оцінювання">Результати зʼявляться, коли уповноважений закриє хвилю: система порахує індекс і збереже незмінний знімок.</Empty> : <Loading t="Результати" />;
+    return API.empty ? (API.emptyCode === "no_indexed_wave"
+      ? <Empty t="Індексу ще немає">Для цього підрозділу ще не було закритої хвилі з достатньою кількістю відповідей. Індекс зʼявиться, коли в групах набереться щонайменше {S.k} осіб.</Empty>
+      : <Empty t="Ще немає закритої хвилі оцінювання">Результати зʼявляться, коли уповноважений закриє хвилю: система порахує індекс і збереже незмінний знімок.</Empty>) : <Loading t="Результати" />;
   if (r === "survey") return apiSurveyView();
   if (r === "me") return <ApiMe />;
   if (r === "manage") return <ApiManage />;
@@ -45,8 +47,7 @@ function apiSurveyView() {
         <section className="c12 rise toolbar"><span className="lbl">{r.campaign_title}{r.closed_on ? `, закрито ${ua(r.closed_on)}` : ""}. Відповіді анонімні: посилання не повʼязане з вашою відповіддю.</span></section>
         {r.my_unit && <ApiScope sc={r.my_unit} title={"Ваша група: " + r.my_unit.unit_name} />}
         <ApiScope sc={r.institution} title={orgCap("nominative") + ": " + r.institution.unit_name} />
-        {r.summary && r.summary.length > 0 && <section className="card c12 rise"><div className="card-h"><h2>Коротко</h2></div><div className="rows">{r.summary.map(t => <div key={t} className="row"><span className="dot" style={{ background: "var(--teal)" }} /><div className="grow">{t}</div></div>)}</div></section>}
-        <section className="c12 rise"><div className="lbl" style={{ textAlign: "center" }}>Тут лише узагальнені дані груп не менше {S.k} осіб. Окремих відповідей, імен і порівнянь підрозділів немає.</div></section>
+        {r.summary && r.summary.length > 0 && <section className="card c12 rise"><div className="card-h"><h2>Коротко</h2></div><div className="rows">{r.summary.map(t => <div key={t} className="row"><span className="dot" style={{ background: "var(--teal)" }} /><div className="grow">{uaSum(t)}</div></div>)}</div></section>}
       </>;
     }
     if (API.surveyMsg && !API.survey) {
@@ -70,14 +71,15 @@ function apiSurveyView() {
   return <Empty t="Зараз немає анкет до проходження">{todo.length ? `Ви вже пройшли: ${todo.map(a => a.questionnaire_title).join(", ")}.` : staffTokenOnly() ? "Особовий склад проходить анкету анонімно, без входу: за персональним посиланням або QR, які роздає уповноважений. Скористайтеся посиланням, коли його отримаєте." : "Анкети зʼявляться, коли уповноважений відкриє хвилю оцінювання."}<br /><br /><a className="btn btn-soft" href="#me">Мої результати <Ic n="arrowR" /></a></Empty>;
 }
 
+const uaSum = t => String(t).replace(/Integrity Index/g, "Індекс доброчесності");
 function ApiScope({ sc, title }) {
   if (!sc.sufficient) return <section className="card c12 rise"><div className="lock"><Ic n="lock" /><div><b>{title}: результати приховано</b><div className="lbl">Відповіло менше {S.k} осіб. Так ми не дозволяємо обчислити відповіді окремих людей.</div></div></div></section>;
   const idx = sc.index.score ?? 0, lv = (sc.index.level && sc.index.level.level) || level(idx);
   return <>
     <section className="card c5 rise"><div className="lbl">{title}</div>
       <div className="big tnum" style={{ marginTop: 12 }}><Num v={idx} /><span className="of">з 100</span></div>
-      <div style={{ margin: "10px 0 14px" }}><LvPill l={lv} /></div><LevelBar v={idx} /></section>
-    <section className="card c7 rise"><div className="card-h"><h2>Три компоненти</h2></div>
+      <div style={{ margin: "10px 0 14px" }}><LvPill l={lv} /></div><div className="lvs-compact"><LevelBar v={idx} /></div></section>
+    <section className="card c7 rise"><div className="card-h"><h2>{title.split(":")[0]}: компоненти</h2></div>
       <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>{sc.components.filter(c => COMPS.includes(c.code)).map((c, i) => { const v = c.score ?? 0; return <div key={c.code}><div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 }}><span style={{ display: "flex", gap: 10, alignItems: "center" }}><span className="comp-ic" style={{ background: COMP[c.code].s, color: COMP[c.code].c }}><Ic n={COMP[c.code].ic} /></span><b>{COMP[c.code].n}</b></span><span style={{ display: "flex", gap: 8, alignItems: "center" }}><b className="tnum">{c.score == null ? "н/д" : fb(v)}</b><LvPill l={(c.level && c.level.level) || level(v)} /></span></div>
         <Ticks n={20} on={Math.round(v / 5)} color={COMP[c.code].c} delay={i * 120} /></div>; })}</div></section>
   </>;
@@ -95,12 +97,11 @@ function ApiMe() {
       {S.role === "checklist_editor" && <div className="lbl" style={{ marginTop: 10 }}>Ви в робочій групі: <a className="link" href="#checklist">заповнити чек-лист</a>.</div>}</section>
     <LearnCard />
     {latest ? <>
-      <section className="c12 rise toolbar"><span className="lbl">{latest.campaign_title}{latest.closed_on ? `, закрито ${ua(latest.closed_on)}` : ""}</span></section>
-      {latest.my_unit && <ApiScope sc={latest.my_unit} title={"Мій підрозділ: " + latest.my_unit.unit_name} />}
-      <ApiScope sc={latest.institution} title={orgCap("nominative") + ": " + latest.institution.unit_name} />
-      {latest.summary && latest.summary.length > 0 && <section className="card c12 rise"><div className="card-h"><h2>Коротко</h2></div><div className="rows">{latest.summary.map(t => <div key={t} className="row"><span className="dot" style={{ background: "var(--teal)" }} /><div className="grow">{t}</div></div>)}</div></section>}
+      <section className="c12 rise toolbar"><span className="lbl">{dn(latest.campaign_title)}{latest.closed_on ? `, закрито ${ua(latest.closed_on)}` : ""}</span></section>
+      {latest.my_unit && <ApiScope sc={latest.my_unit} title={"Мій підрозділ: " + dn(latest.my_unit.unit_name)} />}
+      <ApiScope sc={latest.institution} title={orgCap("nominative") + ": " + dn(latest.institution.unit_name)} />
+      {latest.summary && latest.summary.length > 0 && <section className="card c12 rise"><div className="card-h"><h2>Коротко</h2></div><div className="rows">{latest.summary.map(t => <div key={t} className="row"><span className="dot" style={{ background: "var(--teal)" }} /><div className="grow">{uaSum(t)}</div></div>)}</div></section>}
     </> : <Empty t="Результатів ще немає">Вони зʼявляться після закриття хвилі.</Empty>}
-    <section className="c12 rise"><div className="lbl" style={{ textAlign: "center" }}>Тут лише узагальнені дані груп не менше {S.k} осіб. Окремих відповідей, імен і порівнянь підрозділів немає.</div></section>
   </>;
 }
 
@@ -125,8 +126,7 @@ function ApiManage() {
   return <>
     <section className="card c8 rise">
       {c ? <>
-        <div className="card-h"><h2>{dn(c.title)}</h2>{c.waitingOpen ? <Pill cls="p-warn">Чекає на підтвердження аудиту</Pill> : <Pill cls={CST[c.status][1]}>{CST[c.status][0]}</Pill>}<div className="sp" /><span className="lbl">{c.opened_on ? ua(c.opened_on) : "ще не відкрито"} – {c.closed_on ? ua(c.closed_on) : "триває"}</span></div>
-        {c.status === "open" && <div className="lbl" style={{ marginBottom: 8 }}>Склад учасників зафіксовано під час відкриття: нові облікові записи в хвилю не потрапляють, а переведення між підрозділами заблоковано до закриття.</div>}
+        <div className="card-h"><h2>{dn(c.title)}</h2>{c.waitingOpen ? <Pill cls="p-warn">Чекає на підтвердження аудиту</Pill> : <Pill cls={CST[c.status][1]}>{CST[c.status][0]}</Pill>}<div className="sp" />{c.opened_on && <span className="lbl tnum">{c.closed_on ? `${ua(c.opened_on)} – ${ua(c.closed_on)}` : `з ${ua(c.opened_on)}`}</span>}</div>
         <div className="rows">{(A.progress ? A.progress.items : []).length ? A.progress.items.map((i, k) => { const n = i.too_few_people ? 30 : Math.max(1, Math.min(30, i.eligible || 30)), on = i.too_few_people || !i.eligible ? 0 : Math.round((i.submitted || 0) / i.eligible * n); return <div key={k} className="row prog-row"><div className="grow"><div className="prog-h"><span className="t">{i.questionnaire_title}</span>{i.too_few_people && <span className="prog-lock" data-tip={`Менше ${c.min_group_size} осіб: кількості приховано`}><Ic n="lock" /></span>}<b className="tnum prog-n">{i.too_few_people ? "приховано" : `${i.submitted} з ${i.eligible}`}</b></div>
           <div className="ticks" style={{ height: 14, marginTop: 8 }}>{Array.from({ length: n }, (_, j) => <span key={j} style={j < on ? { background: "var(--teal)" } : undefined} />)}</div>
           {i.over_expected && <QrOver />}</div></div>; }) : <div className="lbl">Анкет у хвилі немає.</div>}</div>
@@ -227,7 +227,7 @@ function ApiSurveys() {
     <section className="c12 rise toolbar"><div className="sp" /><button className="btn btn-primary" onClick={bldNew}><Ic n="plus" />Нова анкета</button></section>
     {list.map(q => <section key={q.id} className="card c6 rise">
       <div className="comp-top"><span className="comp-ic" style={{ background: "var(--lime-soft)", color: "var(--teal-deep)" }}><Ic n={q.kind === "checklist" ? "check" : "survey"} /></span><b>{q.title}</b><div className="sp" style={{ flex: 1 }} /><Pill cls={QST[q.status][1]}>{QST[q.status][0]}</Pill></div>
-      <div className="stat4 tnum" style={{ gridTemplateColumns: "repeat(3,1fr)", marginTop: 14 }}><div><small>Група</small><b style={{ fontSize: 14 }}>{q.kind === "checklist" ? "Чек-лист" : QCAT[q.target_category]}</b></div><div><small>Версія</small><b>{q.version}</b></div><div><small>Код</small><b style={{ fontSize: 12 }}>{q.code}</b></div></div>
+      <div className="lbl" style={{ marginTop: 10 }}>{q.kind === "checklist" ? "Чек-лист" : QCAT[q.target_category]} · версія {q.version}</div>
       {/* wrap-reverse: якщо кнопки не вміщаються, дата лишається внизу ліворуч, а кнопки піднімаються рядком вище */}
       <div className="q-foot"><span className="lbl">Оновлено {ua(q.updated_at.slice(0, 10))}</span><div className="q-acts">
         <button className="btn btn-soft" onClick={() => apiOpenQ(q.id)}><Ic n="eye" />Переглянути</button>
@@ -286,18 +286,16 @@ function ApiChecklist() {
   const camp = K.camps.find(c => c.id === K.sel), open = camp && camp.status === "open";
   const conf = (API.cfg.policies && API.cfg.policies.checklist_confirmers) || ["auditor"];
   const ed = S.role === "checklist_editor" && open, ap = conf.includes(S.role) && open, D = K.data;
-  const head = <section className="c12 rise toolbar">{!(ed || ap) && <span className="lbl">Режим перегляду.</span>}<div className="sp" />
+  const head = <section className="c12 rise toolbar">{D && <span className="lbl tnum">Внесено {D.filled} з {D.total} · підтверджено {D.confirmed}</span>}<div className="sp" />
     {K.camps.length > 1 ? <select className="inp" aria-label="Хвиля" value={K.sel} onChange={e => apiCkReload(e.target.value)}>{K.camps.map(c => <option key={c.id} value={c.id}>{dn(c.title)}</option>)}</select> : <span className="lbl">{camp ? camp.title : ""}</span>}</section>;
   if (!D) return <>{head}<Empty t="Чек-лист недоступний">{K.err || ""}</Empty></>;
   const asg = loadAsg(K.sel), AS = Object.fromEntries(((asg && asg.data) || []).map(a => [a.question_id, a]));
   const mine = it => !it.enterer_id || it.enterer_id === (API.user && API.user.id);
-  const tile = (ic, t, v) => <section className="card rise kpi-tile"><div className="kt-h"><span className="kt-ic"><Ic n={ic} /></span><span className="lbl">{t}</span></div><div className="kt-b"><span className="mid tnum">{v}</span></div></section>;
   return <>{head}{S.role === "auditor" && <LotteryCard campaignId={K.sel} status={camp && camp.status} />}
-    <div className="c12 kpi-row kpi-row-s">{tile("check", "Пунктів", D.total)}{tile("edit", "Внесено", D.filled)}{tile("ok", "Підтверджено", D.confirmed)}</div>
     <section className="card c12 rise"><div className="tbl-wrap"><table><thead><tr><th>Пункт</th><th>Компонент</th><th>Стан і доказ</th><th>Документи</th><th></th></tr></thead><tbody>
-      {D.items.map(it => <tr key={it.question_id} id={`ck-${it.question_id}`}><td style={{ minWidth: 260 }}><b style={{ fontWeight: 600 }}>{it.number}.</b> {it.text.replace(/^\d+(\.\d+)*\.\s*/, "")}</td>
-        <td>{COMPS.includes(it.component) && <Pill cls="p-mute nodot">{COMP[it.component].n}</Pill>}</td>
-        <td style={{ minWidth: 200 }}><div className="tags" style={{ alignItems: "flex-start" }}>{it.status ? <Pill cls={CKS[it.status][1]}>{CKS[it.status][0]}</Pill> : <Pill cls="p-mute">Не внесено</Pill>}{it.confirmed ? <Pill cls="p-good nodot">Підтверджено</Pill> : it.status ? <Pill cls="p-mute nodot">Не підтверджено</Pill> : null}{it.file_required && <Pill cls="p-warn nodot">Потрібен документ</Pill>}</div>{it.evidence && <div className="lbl" style={{ marginTop: 8, lineHeight: 1.45 }}>{it.evidence}</div>}{AS[it.question_id] && (AS[it.question_id].enterer || AS[it.question_id].confirmer) && <div className="lbl ck-who">{AS[it.question_id].enterer && <>Вносить: {dn(AS[it.question_id].enterer)}</>}{AS[it.question_id].enterer && AS[it.question_id].confirmer && " · "}{AS[it.question_id].confirmer && <>підтверджує: {dn(AS[it.question_id].confirmer)}</>}</div>}</td>
+      {D.items.map(it => <tr key={it.question_id} id={`ck-${it.question_id}`}><td style={{ minWidth: 260 }}><div className="ck-txt" tabIndex={0} title="Натисніть, щоб розгорнути"><b style={{ fontWeight: 600 }}>{it.number}.</b> {it.text.replace(/^\d+(\.\d+)*\.\s*/, "")}</div></td>
+        <td className="lbl">{COMPS.includes(it.component) && COMP[it.component].n}</td>
+        <td style={{ minWidth: 240 }}><div className="ck-st"><span className="dot" style={{ background: it.status ? CKC[it.status] : "var(--faint)" }} /><span><b style={{ fontWeight: 500 }}>{it.status ? CKS[it.status][0] : "Не внесено"}</b>{it.status && <span className="lbl">{it.confirmed ? " · підтверджено" : " · не підтверджено"}</span>}{it.file_required && <span className="lbl ck-need"> · потрібен документ</span>}</span></div>{it.evidence && <div className="lbl" style={{ marginTop: 8, lineHeight: 1.45 }}>{it.evidence}</div>}{AS[it.question_id] && (AS[it.question_id].enterer || AS[it.question_id].confirmer) && <div className="lbl ck-who">{AS[it.question_id].enterer && <>Вносить: {dn(AS[it.question_id].enterer)}</>}{AS[it.question_id].enterer && AS[it.question_id].confirmer && " · "}{AS[it.question_id].confirmer && <>підтверджує: {dn(AS[it.question_id].confirmer)}</>}</div>}</td>
         <td className="lbl" style={{ minWidth: 160 }}>{it.files.length ? it.files.map(f => <div key={f.id}><a className="link" href="#checklist" onClick={e => { e.preventDefault(); apiDownload(K.sel, it.question_id, f.id, f.filename); }}>{f.filename}</a> <span className="hash" title={`sha256 ${f.sha256}`}>{f.sha256.slice(0, 10)}</span>{ed && <> <a className="link" href="#checklist" aria-label="Прибрати файл" onClick={e => { e.preventDefault(); apiDelFile(K.sel, it.question_id, f.id); }}>×</a></>}</div>) : it.status ? "Документа немає" : "–"}</td>
         <td style={{ whiteSpace: "nowrap" }}>{ed && mine(it) && <button className="btn btn-soft" style={{ padding: "6px 12px" }} onClick={() => apiEditItem(it.question_id)}><Ic n="edit" />Внести</button>}{ap && it.status && (!it.confirmer_id || it.confirmer_id === (API.user && API.user.id)) ? (it.confirmed ? <button className="btn btn-ghost" style={{ padding: "6px 12px" }} onClick={() => apiConfirm(it.question_id, false)}>Відкликати</button> : it.file_required ? <span data-tip="Без документа пункт підтвердити не можна. Попросіть робочу групу додати документ."><button className="btn btn-primary" style={{ padding: "6px 12px" }} disabled><Ic n="ok" />Підтвердити</button></span>
           : <button className="btn btn-primary" style={{ padding: "6px 12px" }} onClick={() => apiConfirm(it.question_id, true)}><Ic n="ok" />Підтвердити</button>) : null}</td></tr>)}
@@ -334,13 +332,15 @@ function apiEditItem(qid) {
   });
 }
 
+const CKC = { full: "var(--teal)", partial: "var(--amber)", none: "var(--red)" };
 /* --- Журнал --- */
 function ApiAudit() {
   if (!apiEnsure("log", apiLoadLog)) return <Loading t="Журнал" />;
   if (API.log.error) return <Failed e={API.log.error} />;
   const { rows, units, users } = API.log, F = { q: "", ent: "all", who: "all", ...API.logF };
-  const set = (k, v) => { API.logF = { ...(API.logF || {}), [k]: v }; render(true); };
-  const who = id => { const u = users.find(u => u.id === id); return u ? u.display_name : id ? "Користувач …" + String(id).slice(-4) : "Система"; };
+  const set = (k, v) => { API.logF = { ...(API.logF || {}), [k]: v }; API.logLim = 50; render(true); };
+  const lim = API.logLim || 50;
+  const who = id => { const u = users.find(u => u.id === id); return u ? dn(u.display_name) + (API.user && u.id === API.user.id ? " (ви)" : "") : id ? `Користувач ${(unk[id] ??= Object.keys(unk).length + 1)}` : "Система"; }, unk = {};
   const act = x => AUDIT_ACT[`${x.entity}:${x.action}`] || `${AUDIT_ENT[x.entity] || x.entity}: ${x.action}`;
   const fmt = at => new Date(at).toLocaleString("uk-UA", { dateStyle: "short", timeStyle: "short" });
   const items = rows.map(x => ({ x, a: act(x), w: who(x.actor_id), d: auditDetails(x, units), t: fmt(x.at) }));
@@ -351,11 +351,11 @@ function ApiAudit() {
   const actors = [...new Set(rows.map(x => x.actor_id).filter(Boolean))].map(id => [id, who(id)]).sort((a, b) => a[1].localeCompare(b[1], "uk"));
   return <><AnchorCard /><section className="card c12 rise">
     <div className="card-h" style={{ flexWrap: "wrap" }}><h2>Журнал дій</h2><div className="sp" /><span id="chainSt">{API.chain && <Pill cls={API.chain.ok ? "p-good" : "p-bad"}>{API.chain.ok ? `Ланцюг цілісний: перевірено ${API.chain.checked} записів` : `Ланцюг порушено на записі № ${API.chain.broken_seq}`}</Pill>}</span><button className="btn btn-soft" onClick={apiVerify}><Ic n="shield" />Перевірити цілісність</button></div>
-    <div className="lbl" style={{ marginBottom: 10 }}>Хто, коли й що змінив. Кожен запис містить хеш попереднього (sha256), тож тиха правка чи видалення ламає ланцюг. Подань анкет у журналі немає.</div>
     <div className="toolbar" style={{ marginBottom: 8 }}><label className="search inst-search"><span><Ic n="search" /></span><input id="logQ" placeholder="Дія, хто, підрозділ, дата або хеш" value={F.q || ""} onChange={e => set("q", e.target.value)} /></label>
       <select className="inp" aria-label="Тип дії" value={F.ent} onChange={e => set("ent", e.target.value)}><option value="all">Усі дії</option>{ents.map(e => <option key={e} value={e}>{AUDIT_ENT[e] || e}</option>)}</select>
       {actors.length > 0 && <select className="inp" aria-label="Хто" value={F.who} onChange={e => set("who", e.target.value)}><option value="all">Усі користувачі</option>{actors.map(([id, n]) => <option key={id} value={id}>{n}</option>)}</select>}
       <span className="lbl tnum">Показано {shown.length} з {rows.length}</span></div>
-    {groups.length ? <div className="tl">{groups.map((g, i) => { const f = g[0], l = g[g.length - 1]; return <div key={f.x.seq} className="tl-i rise" style={{ animationDelay: `${Math.min(i, 12) * 40}ms` }}><span className="nd" /><div><div style={{ fontWeight: 500 }}>{f.a}{g.length > 1 && <> <span className="pill p-mute nodot">×{g.length}</span></>}</div><div className="lbl">{f.w} · {g.length > 1 ? `${l.t} – ${f.t}` : f.t}{f.d ? " · " + f.d : ""}</div></div><span className="hash" data-tip={`Запис № ${f.x.seq}`}>{f.x.hash.slice(0, 10)}</span></div>; })}</div> : <div className="empty">Записів за цим запитом немає.</div>}
+    {groups.length ? <><div className="tl">{groups.slice(0, lim).map((g, i) => { const f = g[0], l = g[g.length - 1]; return <div key={f.x.seq} className="tl-i rise" style={{ animationDelay: `${Math.min(i, 12) * 40}ms` }}><span className="nd" /><div><div style={{ fontWeight: 500 }}>{f.a}{g.length > 1 && <> <span className="pill p-mute nodot">×{g.length}</span></>}</div><div className="lbl">{f.w} · {g.length > 1 ? `${l.t} – ${f.t}` : f.t}{f.d ? " · " + f.d : ""}</div></div><span className="hash" data-tip={`Запис № ${f.x.seq}`}>{f.x.hash.slice(0, 10)}</span></div>; })}</div>
+      {groups.length > lim && <button type="button" className="btn btn-soft" style={{ marginTop: 12 }} onClick={() => { API.logLim = lim + 50; render(true); }}>Показати ще {Math.min(50, groups.length - lim)} з {groups.length - lim}</button>}</> : <div className="empty">Записів за цим запитом немає.</div>}
   </section></>;
 }

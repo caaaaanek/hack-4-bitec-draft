@@ -97,38 +97,40 @@ function CardState({ r, t }) {
 }
 
 /* «Що люди бояться сказати прямо» */
-// Якщо в хвилі немає непрямих питань чи сигналів, показуємо приклад на синтетичних даних із чіткою позначкою
-const ExNote = ({ t }) => <div className="note-box ex-note"><b>Приклад на синтетичних даних</b><span className="lbl">{t}</span></div>;
+// Якщо в хвилі немає непрямих питань, картку не показуємо: прикладів замість даних на «Огляді» немає
 export function CandorCard() {
-  const r = useCandor(), st = <CardState r={r} t="картка" />, real = r && r.data && r.data.candor;
-  const ex = !!(r && r.data) && !((real && real.list_experiments || []).length || (real && real.mirrors || []).length), c = ex ? DEMO_CANDOR.candor : real;
+  const r = useCandor(), st = <CardState r={r} t="картка" />, c = r && r.data && r.data.candor;
+  if (r && (r.none || (r.data && !((c && c.list_experiments || []).length || (c && c.mirrors || []).length)))) return null;
   const lists = (c && c.list_experiments) || [], mirrors = (c && c.mirrors) || [], flags = (c && c.flags) || [];
   return <section className="card c12 rise cd-card" aria-labelledby="cdTitle">
     <div className="card-h"><h2 id="cdTitle">Що люди бояться сказати прямо</h2><div className="sp" /><button type="button" className="pill-btn" onClick={openCandorHow}><Ic n="help" />Як це рахується</button></div>
     {r && r.data ? <>
-      {ex && <ExNote t="У цій хвилі не було непрямих питань, тому нижче показано, як картка виглядатиме, коли їх додати в анкету." />}
       {<div className="cd-grid">
         {lists.map((x, i) => <ListExp key={"l" + i} x={x} />)}
         {mirrors.map((x, i) => <Mirror key={"m" + i} x={x} />)}
       </div>}
-      {flags.length > 0 && <div className="cd-flags">{flags.filter(f => FLAG_TXT[f]).map(f => <div key={f} className="cd-flag"><Pill cls={f === "concealment" ? "p-warn" : "p-info"}>{FLAG_TXT[f][0]}</Pill><span className="lbl">{FLAG_TXT[f][1]}</span></div>)}{!ex && <Links />}</div>}
-      <div className="lbl cd-foot">Окрема відповідь нічого не розкриває: ні система, ні колеги не знають, на яке твердження відповідала людина. В індекс цей розділ не входить.</div>
+      {flags.length > 0 && <div className="cd-flags">{flags.filter(f => FLAG_TXT[f]).map(f => <div key={f} className="cd-flag"><Pill cls={f === "concealment" ? "p-warn" : "p-info"}>{FLAG_TXT[f][0]}</Pill><span className="lbl">{FLAG_TXT[f][1]}</span></div>)}<Links /></div>}
     </> : st}
   </section>;
 }
 
 /* «Ознаки підгонки показників» (детектор Гудхарта) */
 const GOODHART_RULES = "Правила шукають п'ять слідів: значення фактів скупчуються якраз над порогами методики, сплеск «Виконано» в трекері перед хвилею, масова зміна чек-листа на «повністю» перед закриттям, однакові анкети в робочій групі, різкий ріст участі в останній день з ідеальними відповідями.";
+function openGamingHow() {
+  openDrawer("Як шукаються ознаки підгонки", () => <>
+    <div className="lbl">{GOODHART_RULES}</div>
+    <div className="lbl">Сигнал це привід для питання, а не висновок. Якщо він спрацював, достовірність знижується на один щабель.</div>
+  </>);
+}
 export function GamingCard() {
-  const r = useCandor(), g0 = r && r.data && r.data.goodhart, ex = !!(r && r.data) && !((g0 && g0.signals) || []).length, g = ex ? DEMO_CANDOR.goodhart : g0, sig = (g && g.signals) || [];
+  const r = useCandor(), g = r && r.data && r.data.goodhart, sig = (g && g.signals) || [];
+  if (r && r.none) return null;
   return <section className="card c12 rise gm-card" aria-labelledby="gmTitle">
-    <div className="card-h"><h2 id="gmTitle">Ознаки підгонки показників</h2><div className="sp" />{r && r.data && (ex ? <Pill cls="p-good">Ознак немає</Pill> : <Pill cls="p-warn">Можлива підгонка</Pill>)}</div>
+    <div className="card-h" style={{ flexWrap: "wrap" }}><h2 id="gmTitle">Ознаки підгонки показників</h2><div className="sp" />{r && r.data && (sig.length ? <Pill cls="p-warn">Можлива підгонка</Pill> : <Pill cls="p-good">Ознак немає</Pill>)}<button type="button" className="pill-btn" onClick={openGamingHow}><Ic n="help" />Як це працює</button></div>
     {r && r.data ? <>
-      {ex && <ExNote t="У цій хвилі ознак підгонки не знайдено. Нижче приклад того, як виглядає сигнал, якщо правило спрацює." />}
       {sig.length ? <div className="rows">{sig.map((s, i) => <div key={s.code || i} className="row" style={{ alignItems: "flex-start" }}><span className="dot" style={{ background: "var(--amber)", marginTop: 7 }} /><div className="grow"><div className="t gm-t">{dsh(s.title)}</div><div className="lbl">{dsh(s.description)}</div>{s.rule && <div className="lbl" style={{ fontSize: 12 }}>Правило: {dsh(s.rule).replace(/\bk\b/g, "мінімальна група")}</div>}</div></div>)}</div>
-        : <div className="lbl">Ознак підгонки не знайдено.</div>}
-      <p className="lbl" style={{ margin: "10px 0 0" }}>{GOODHART_RULES} Сигнал це привід для питання, а не висновок.{sig.length && !ex ? " Через нього достовірність знижено на один щабель." : ""}</p>
-      {sig.length > 0 && !ex && <Links />}
+        : <div className="lbl">У цій хвилі ознак підгонки не знайдено.</div>}
+      {sig.length > 0 && <><p className="lbl" style={{ margin: "10px 0 0" }}>Через це достовірність знижено на один щабель.</p><Links /></>}
     </> : <CardState r={r} t="перевірка" />}
   </section>;
 }

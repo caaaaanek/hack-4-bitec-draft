@@ -1,7 +1,7 @@
 /* Адміністрування з бекендом: «Люди» (лише технічний адміністратор: /admin/users, запрошення, імпорт CSV), «Довідники»
  * (/dictionaries/categories|facts|positions), «Реєстр ризиків» (/units/{id}/risk-register), сторінка запрошення /invite/<токен>.
  * Завантажується окремим чанком (React.lazy в App.jsx). */
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Ic } from "../lib/icons.jsx";
 import { S } from "../lib/state.js";
 import { API, api, apiMod, apiModReset, apiErrText, ApiErr, dn, apiInviteDone, orgT } from "../lib/api.js";
@@ -12,7 +12,7 @@ import { copyText } from "../lib/util.js";
 import { Loading, Failed, Empty, NoAccess, NeedServer } from "../components/states.jsx";
 import { SROLE, Err, importErr, unitOpts, loadUnits, loadCats, Dot, inviteAbs } from "./WaveAdmin.jsx";
 import { useApprovals } from "./Transparency.jsx";
-import { showInvite } from "./invite.jsx";
+import { copyInvite } from "./invite.jsx";
 
 /* ---------- Люди (лише технічний адміністратор) ---------- */
 // Записи, які чекають підтвердження уповноваженого (activate_users), — з власних запитів техадміна
@@ -46,10 +46,10 @@ export function People() {
       <label className="search inst-search"><span><Ic n="search" /></span><input id="ppQ" placeholder="Логін, імʼя або підрозділ" value={q} onChange={e => setQ(e.target.value)} /></label>
       <select className="inp" aria-label="Роль" value={role} onChange={e => setRole(e.target.value)}><option value="all">Усі ролі</option>{roles.map(x => <option key={x} value={x}>{SROLE[x] || x}</option>)}</select>
       <span className="lbl tnum">{rows.length} з {r.data.length}</span><div className="sp" />
-      <label className={`btn btn-soft ${busy ? "dis" : ""}`} id="ppImp"><Ic n="file" />{busy ? "Імпортуємо…" : "Імпорт CSV"}<input type="file" accept=".csv,text/csv" hidden onChange={upload} disabled={busy} /></label>
+      <label className={`btn btn-soft ${busy ? "dis" : ""}`} id="ppImp" data-tip="CSV у UTF-8: login, category, unit і за бажанням display_name. Кожен отримає запрошення й сам поставить пароль."><Ic n="file" />{busy ? "Імпортуємо…" : "Імпорт CSV"}<input type="file" accept=".csv,text/csv" hidden onChange={upload} disabled={busy} /></label>
       <button type="button" className="btn btn-primary" id="ppNew" onClick={() => userForm(null, units)}><Ic n="plus" />Новий обліковий запис</button>
     </section>
-    <section className="c12 rise"><div className="lbl">Імпорт CSV у UTF-8: <code>login,category,unit[,display_name]</code>. Кожен отримає одноразове запрошення й сам поставить пароль. Нові записи активує уповноважений.</div>{err && <div style={{ marginTop: 6 }}><Err t={err} /></div>}</section>
+    {err && <section className="c12 rise"><Err t={err} /></section>}
     <section className="card c12 rise"><div className="tbl-wrap"><table className="adm-tbl"><thead><tr><th>Логін</th><th>Імʼя</th><th>Роль</th><th>Підрозділ</th><th>Стан</th><th></th></tr></thead><tbody>
       {rows.map(u => { const self = u.id === meId; return <tr key={u.id}>
         <td className="tnum"><b style={{ fontWeight: 600 }}>{u.login}</b>{self && <span className="lbl"> (ви)</span>}</td><td>{dn(u.display_name)}</td>
@@ -57,29 +57,27 @@ export function People() {
         <td>{uName(u.unit_id) || <span className="lbl">–</span>}</td>
         <td className="adm-st">{u.is_active ? <><Dot c="var(--teal)" />Активний</> : pend.has(u.id) ? <><Dot c="var(--amber)" />Чекає підтвердження</> : <><Dot c="var(--muted)" />Заблоковано</>}</td>
         <td className="adm-acts"><button type="button" className="btn btn-ghost btn-s" onClick={() => userForm(u, units)}><Ic n="edit" />Змінити</button>
-          {!self && <button type="button" className="btn btn-ghost btn-s" onClick={() => reinvite(u)} data-tip="Нове запрошення: людина сама поставить новий пароль"><Ic n="send" />Нове запрошення</button>}</td>
+          {!self && <InviteBtn u={u} />}</td>
       </tr>; })}
     </tbody></table></div>{!rows.length && <div className="empty">Нікого не знайдено.</div>}</section>
   </>;
 }
-function reinvite(u) {
-  openDrawer("Нове запрошення", () => {
-    const [busy, setBusy] = useState(false), [err, setErr] = useState("");
-    const go = async () => {
-      setBusy(true); setErr("");
-      try {
-        const x = await api(`/admin/users/${u.id}/invite`, { method: "POST" });
-        if (x.pending_approval_id) { closeDrawer(); apiModReset("approvals"); toast("Скидання передано на підтвердження. Посилання отримає той, хто підтвердить."); }
-        else showInvite(u.login, x.invite_link, x.invite_expires_at);
-      } catch (e) { setErr(apiErrText(e)); setBusy(false); }
-    };
-    return <>
-      <div>Для <b>{u.login}</b> буде створено нове одноразове посилання. Старий пароль і всі сесії людини перестануть діяти.</div>
-      <Err t={err} />
-      <button type="button" className="btn btn-primary" style={{ justifyContent: "center" }} disabled={busy} onClick={go}><Ic n="send" />{busy ? "Створюємо…" : "Скинути пароль і створити запрошення"}</button>
-      <button type="button" className="btn btn-ghost" style={{ justifyContent: "center" }} onClick={closeDrawer}>Скасувати</button>
-    </>;
-  });
+// Нове запрошення прямо в рядку: перший клік питає підтвердження (старий пароль перестане діяти), другий створює посилання й копіює його
+function InviteBtn({ u }) {
+  const [ask, setAsk] = useState(false), [busy, setBusy] = useState(false);
+  useEffect(() => { if (!ask) return; const t = setTimeout(() => setAsk(false), 4000); return () => clearTimeout(t); }, [ask]);
+  const go = async () => {
+    if (!ask) return setAsk(true);
+    setAsk(false); setBusy(true);
+    try {
+      const x = await api(`/admin/users/${u.id}/invite`, { method: "POST" });
+      if (x.pending_approval_id) { apiModReset("approvals"); toast("Скидання передано на підтвердження. Посилання отримає той, хто підтвердить."); }
+      else copyInvite(u.login, x.invite_link, x.invite_expires_at);
+    } catch (e) { toast(apiErrText(e)); }
+    setBusy(false);
+  };
+  return <button type="button" className={`btn btn-s ${ask ? "btn-soft" : "btn-ghost"}`} disabled={busy} onClick={go}
+    data-tip={ask ? "Старий пароль і сесії людини перестануть діяти" : u.is_active ? "Якщо людина забула пароль: нове посилання, за яким вона поставить новий" : "Створити посилання для входу й скопіювати його"}><Ic n={u.is_active ? "reset" : "send"} />{busy ? "Створюємо…" : ask ? "Точно? Натисніть ще раз" : u.is_active ? "Скинути пароль" : "Запрошення"}</button>;
 }
 // Результат масового імпорту: логін і посилання кожному, показуються один раз; CSV формується в браузері й ніде не зберігається
 function showImported(x) {
@@ -116,7 +114,7 @@ function userForm(u, units) {
         const x = u ? await api(`/admin/users/${u.id}`, { method: "PATCH", body: self ? body : { ...body, is_active: f.is_active } })
           : await api("/admin/users", { method: "POST", body: { ...body, login: f.login.trim() } });
         apiModReset("users", "approvals");
-        if (x.invite_link) showInvite(x.login, x.invite_link, x.invite_expires_at, x.pending_approval_id ? "Запис неактивний, доки його не підтвердить уповноважений." : null);
+        if (x.invite_link) copyInvite(x.login, x.invite_link, x.invite_expires_at, x.pending_approval_id ? "Запис неактивний, доки його не підтвердить уповноважений." : null);
         else if (x.pending_approval_id) { closeDrawer(); pendToast(); }
         else { closeDrawer(); toast(u ? "Збережено" : `Обліковий запис ${x.login} створено`); }
       } catch (e) { setErr(apiErrText(e)); setBusy(false); }
@@ -148,19 +146,25 @@ async function unitReq(path, method, body) {
   return x;
 }
 export function Units() {
+  const [shut, setShut] = useState(() => new Set());
   if (!API.on) return <NeedServer t="Підрозділи" />;
   const un = loadUnits();
   if (!un) return <Loading t="Підрозділи" />;
   if (un.error) return un.status === 403 ? <NoAccess /> : <Failed e={un.error} onRetry={() => apiModReset("admUnits")} />;
   const units = un.data, opts = unitOpts(units), byId = Object.fromEntries(units.map(u => [u.id, u]));
   const depth = u => { let d = 0; for (let p = u.parent_id && byId[u.parent_id]; p; p = p.parent_id && byId[p.parent_id]) d++; return d; };
+  // Дерево, що згортається: вузол сховано, якщо згорнуто когось із його предків
+  const kids = id => units.filter(x => x.parent_id === id).length, parents = units.filter(u => kids(u.id) && u.parent_id && byId[u.parent_id]).map(u => u.id); // корінь не згортаємо: перший рівень видно завжди
+  const hidden = u => { for (let p = u.parent_id && byId[u.parent_id]; p; p = p.parent_id && byId[p.parent_id]) if (shut.has(p.id)) return true; return false; };
+  const tog = id => setShut(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const allShut = parents.length > 0 && parents.every(id => shut.has(id));
   return <>
-    <section className="c12 rise toolbar"><span className="lbl tnum">Підрозділів: {units.length}</span><div className="sp" />
-      <button type="button" className="btn btn-primary" id="unNew" onClick={() => unitForm(null, units)}><Ic n="plus" />Новий підрозділ</button></section>
-    <section className="c12 rise"><div className="lbl">Поки триває хвиля, її підрозділи не можна створювати, переносити чи видаляти. Зміни в чернетці хвилі підтверджує уповноважений. Перейменувати можна завжди.</div></section>
-    <section className="card c12 rise"><div className="tbl-wrap"><table className="adm-tbl"><thead><tr><th>Підрозділ</th><th>Входить до</th><th></th></tr></thead><tbody>
-      {opts.map(([id]) => { const u = byId[id], d = depth(u); return <tr key={id}>
-        <td style={{ paddingLeft: 12 + d * 18 }}>{d ? <span className="lbl">└ </span> : null}<b style={{ fontWeight: d ? 400 : 600 }}>{dn(u.name)}</b></td>
+    <section className="card c12 rise"><div className="card-h" style={{ flexWrap: "wrap" }}><div className="big-stats" style={{ flex: "1 1 auto" }}><div><b className="tnum">{units.length}</b><span>{plural(units.length, "підрозділ", "підрозділи", "підрозділів")}</span></div></div>
+      {parents.length > 0 && <button type="button" className="btn btn-ghost" onClick={() => setShut(allShut ? new Set() : new Set(parents))}><Ic n={allShut ? "chev" : "chevR"} />{allShut ? "Розгорнути все" : "Згорнути все"}</button>}
+      <button type="button" className="btn btn-primary" id="unNew" onClick={() => unitForm(null, units)}><Ic n="plus" />Новий підрозділ</button></div>
+    <div className="tbl-wrap"><table className="adm-tbl un-tree"><thead><tr><th>Підрозділ</th><th>Входить до</th><th></th></tr></thead><tbody>
+      {opts.filter(([id]) => !hidden(byId[id])).map(([id]) => { const u = byId[id], d = depth(u), n = kids(id); return <tr key={id}>
+        <td style={{ paddingLeft: 8 + d * 22 }}>{n ? <button type="button" className={`un-tog ${shut.has(id) ? "shut" : ""}`} aria-expanded={!shut.has(id)} aria-label={`${shut.has(id) ? "Розгорнути" : "Згорнути"} «${dn(u.name)}»`} onClick={() => tog(id)}><Ic n="chev" /></button> : <span className="un-gap" />}<b style={{ fontWeight: d ? 400 : 600 }}>{dn(u.name)}</b>{n && shut.has(id) ? <span className="lbl"> · {n} {plural(n, "вкладений", "вкладені", "вкладених")}</span> : null}</td>
         <td>{u.parent_id && byId[u.parent_id] ? dn(byId[u.parent_id].name) : <span className="lbl">–</span>}</td>
         <td className="adm-acts"><button type="button" className="btn btn-ghost btn-s" onClick={() => unitForm(u, units)}><Ic n="edit" />Змінити</button></td></tr>; })}
     </tbody></table></div>{!units.length && <div className="empty">Підрозділів ще немає.</div>}</section>
@@ -200,11 +204,10 @@ export function Summary() {
   const d = r.data, u = d.users || {}, cName = c => ((cats && cats.data || []).find(x => x.code === c) || {}).title || c;
   const kv = (obj, f) => Object.entries(obj || {}).sort((a, b) => b[1] - a[1]).flatMap(([k, n]) => [<dt key={"t" + k}>{f(k)}</dt>, <dd key={"v" + k} className="tnum">{n}</dd>]);
   return <>
-    <section className="card c12 rise"><div className="card-h"><h2>Облікові записи</h2><div className="sp" /><a className="pill-btn" href="#people"><Ic n="users" />Люди</a></div>
-      <dl className="inst-kv"><dt>Усього</dt><dd className="tnum">{u.total}</dd><dt>Неактивні (заблоковані чи чекають підтвердження)</dt><dd className="tnum">{u.inactive}</dd><dt>Підрозділів</dt><dd className="tnum">{d.units ? d.units.total : "–"}</dd></dl></section>
-    <section className="card c6 rise"><div className="card-h"><h2>За роллю</h2></div><dl className="inst-kv">{kv(u.by_role, k => SROLE[k] || k)}</dl></section>
-    <section className="card c6 rise"><div className="card-h"><h2>Респонденти за категорією</h2></div><dl className="inst-kv">{kv(u.by_category, cName)}</dl></section>
-    <section className="c12 rise"><div className="lbl" style={{ textAlign: "center" }}>Хвилі, результати й журнал технічному адміністратору не показуються: їх веде уповноважений.</div></section>
+    <section className="card c12 rise"><div className="card-h"><h2>Облікові записи</h2><div className="sp" /><a className="pill-btn" href="#people"><Ic n="users" />Люди</a><a className="pill-btn" href="#units"><Ic n="building" />Підрозділи</a></div>
+      <div className="big-stats"><div><b className="tnum">{u.total}</b><span>облікових записів</span></div><div><b className="tnum">{u.inactive}</b><span>неактивних (заблоковані чи чекають підтвердження)</span></div><div><b className="tnum">{d.units ? d.units.total : "–"}</b><span>підрозділів</span></div></div></section>
+    <section className="card c6 rise"><div className="card-h"><h2>За роллю</h2></div><dl className="kv-big">{kv(u.by_role, k => SROLE[k] || k)}</dl></section>
+    <section className="card c6 rise"><div className="card-h"><h2>Респонденти за категорією</h2></div><dl className="kv-big">{kv(u.by_category, cName)}</dl></section>
   </>;
 }
 
@@ -244,7 +247,6 @@ function CatsCard({ mgr }) {
   const r = loadCats();
   return <section className="card c12 rise">
     <div className="card-h"><h2>Категорії респондентів</h2><div className="sp" />{mgr && <button type="button" className="btn btn-soft btn-s" id="dcNew" onClick={() => catForm(null)}><Ic n="plus" />Додати</button>}</div>
-    <div className="lbl" style={{ marginBottom: 8 }}>Без ваги категорія лише порівнюється з іншими й в індекс не йде.</div>
     {!r ? <span className="lbl">Завантажуємо…</span> : r.error ? <Err t={r.error} /> : <div className="tbl-wrap"><table className="adm-tbl"><thead><tr><th>Назва</th><th>Код</th><th>Вага в індексі</th><th>Стан</th><th></th></tr></thead><tbody>
       {r.data.map(c => <tr key={c.code}><td>{c.title}</td><td className="tnum lbl">{c.code}</td><td className="tnum">{c.weight != null && c.in_index ? Math.round(c.weight * 100) + " %" : <span className="lbl">лише порівняння</span>}</td>
         <td className="adm-st">{c.active ? <><Dot c="var(--teal)" />Діє</> : <><Dot c="var(--muted)" />Вимкнено</>}</td>
@@ -258,18 +260,17 @@ function catForm(c) {
     const ok = async () => {
       if (!c && !/^[a-z][a-z0-9_]{1,31}$/.test(code)) return setErr("Код: латиниця з малої літери, цифри, «_», від 2 символів.");
       if (!title.trim()) return setErr("Вкажіть назву.");
-      const wv = w.trim() === "" ? null : +w / 100;
-      if (wv != null && !(wv > 0 && wv <= 1)) return setErr("Вага: від 1 до 100 % або порожньо.");
       try {
-        if (c) await api(`/dictionaries/categories/${encodeURIComponent(c.code)}`, { method: "PATCH", body: { title: title.trim(), weight: wv, active: act } });
-        else await api("/dictionaries/categories", { method: "POST", body: { code, title: title.trim(), weight: wv } });
+        if (c) await api(`/dictionaries/categories/${encodeURIComponent(c.code)}`, { method: "PATCH", body: { title: title.trim(), active: act } });
+        else await api("/dictionaries/categories", { method: "POST", body: { code, title: title.trim() } });
         apiModReset("dCats"); closeDrawer(); toast("Збережено");
       } catch (e) { setErr(apiErrText(e)); }
     };
     return <>
       {!c && <div className="field"><label htmlFor="cf-c">Код</label><input className="inp" id="cf-c" placeholder="cadets" value={code} onChange={e => setCode(e.target.value.trim())} /></div>}
       <div className="field"><label htmlFor="cf-t">Назва</label><input className="inp" id="cf-t" value={title} onChange={e => setTitle(e.target.value)} /></div>
-      <div className="field"><label htmlFor="cf-w">Вага в індексі, %</label><input className="inp tnum" id="cf-w" inputMode="numeric" value={w} onChange={e => setW(e.target.value)} /><span className="lbl">Порожньо: лише для порівняння.</span></div>
+      {/* Вага впливає на індекс напряму, тому тут лише показується: її задає методика */}
+      <div className="field"><span className="lbl">Вага в індексі</span><div className="tnum">{w ? `${w} %` : "лише порівняння"}</div><span className="lbl">Змінюється лише в методиці.</span></div>
       {c && <label className="adm-chk"><input type="checkbox" checked={act} onChange={e => setAct(e.target.checked)} />Категорія діє</label>}
       <Err t={err} />
       <button type="button" className="btn btn-primary" id="cf-ok" style={{ justifyContent: "center" }} onClick={ok}><Ic n="ok" />Зберегти</button>
@@ -281,8 +282,8 @@ function FactsCard({ mgr }) {
   const r = apiMod("dFacts", () => api("/dictionaries/facts"));
   return <section className="card c12 rise">
     <div className="card-h"><h2>Факти</h2><div className="sp" />{mgr && <button type="button" className="btn btn-soft btn-s" id="dfNew" onClick={() => factForm(null)}><Ic n="plus" />Додати</button>}</div>
-    {!r ? <span className="lbl">Завантажуємо…</span> : r.error ? <Err t={r.error} /> : <div className="tbl-wrap"><table className="adm-tbl"><thead><tr><th>Факт</th><th>Компонент</th><th>Межі рівнів, %</th><th>Хто передає</th><th>Стан</th><th></th></tr></thead><tbody>
-      {r.data.map(f => <tr key={f.code}><td style={{ minWidth: 220 }}>{f.title}</td><td>{COMP[f.component] ? COMP[f.component].n : f.component}</td><td className="tnum">{f.thresholds.join(" / ")}</td>
+    {!r ? <span className="lbl">Завантажуємо…</span> : r.error ? <Err t={r.error} /> : <div className="tbl-wrap"><table className="adm-tbl"><thead><tr><th>Факт</th><th>Компонент</th><th>Поріг для рівнів 2 · 3 · 4 · 5</th><th>Хто передає</th><th>Стан</th><th></th></tr></thead><tbody>
+      {r.data.map(f => <tr key={f.code}><td style={{ minWidth: 220 }}>{f.title}</td><td>{COMP[f.component] ? COMP[f.component].n : f.component}</td><td className="tnum" data-tip="Від першого порогу рівень 2, від другого 3 і так далі; нижче першого рівень 1. Бали: (рівень − 1) · 25"><span style={{ whiteSpace: "nowrap" }}>{f.thresholds.map((t, i) => <span key={i}>{i ? <span className="lbl"> · </span> : null}{t}</span>)} %</span></td>
         <td>{f.owner_sources && f.owner_sources.length ? f.owner_sources.map(s => OWN[s] || s).join(", ") : <span className="lbl">будь-яке джерело</span>}</td>
         <td className="adm-st">{f.active ? <><Dot c="var(--teal)" />Діє</> : <><Dot c="var(--muted)" />Вимкнено</>}</td>
         <td className="adm-acts">{mgr && <button type="button" className="btn btn-ghost btn-s" onClick={() => factForm(f)}><Ic n="edit" />Змінити</button>}</td></tr>)}
@@ -332,7 +333,6 @@ function PosCard() {
   const list = r && r.data ? r.data.filter(p => p.active) : [];
   return <section className="card c12 rise">
     <div className="card-h"><h2>Посади</h2></div>
-    <div className="lbl" style={{ marginBottom: 8 }}>З цього списку обирають відповідального за захід. Лише посади, без ПІБ.</div>
     {!r ? <span className="lbl">Завантажуємо…</span> : r.error ? <Err t={r.error} /> : <div className="rows">{list.map(p => <div key={p.id} className="row"><div className="grow">{p.title}</div>
       {ed && <button type="button" className="btn btn-ghost btn-s" aria-label={`Вимкнути посаду ${p.title}`} onClick={() => del(p)}><Ic n="x" />Вимкнути</button>}</div>)}</div>}
     {ed && <form className="adm-add" onSubmit={add}><input className="inp" id="dpNew" aria-label="Нова посада" placeholder="Нова посада" value={t} onChange={e => setT(e.target.value)} /><button type="submit" className="btn btn-soft"><Ic n="plus" />Додати</button></form>}
@@ -364,9 +364,9 @@ export function Risks() {
     <section className="c12 rise toolbar">
       {units.length > 1 && <select className="inp" aria-label="Підрозділ" value={id} onChange={e => setUid(e.target.value)}>{unitOpts(units).map(([k, n]) => <option key={k} value={k}>{n}</option>)}</select>}
       <div className="sp" />
-      {imp && <label className={`btn btn-soft ${busy ? "dis" : ""}`} id="rkImp"><Ic n="file" />{busy ? "Імпортуємо…" : "Імпорт CSV"}<input type="file" accept=".csv,text/csv" hidden onChange={upload} disabled={busy} /></label>}
+      {imp && <label className={`btn btn-soft ${busy ? "dis" : ""}`} id="rkImp" data-tip="CSV у UTF-8: назва ризику, компонент, за бажанням ймовірність, вплив, захід, відповідальний, стан. Повторний імпорт оновлює ризики з тим самим кодом."><Ic n="file" />{busy ? "Імпортуємо…" : "Імпорт CSV"}<input type="file" accept=".csv,text/csv" hidden onChange={upload} disabled={busy} /></label>}
     </section>
-    {imp && <section className="c12 rise"><div className="lbl">CSV у UTF-8: <code>code,title,component</code> і за потреби <code>likelihood,impact,measure,owner,status</code>. Компонент: culture, system, accountability. Повторний імпорт оновлює ризики за кодом.</div>{err && <div style={{ marginTop: 6 }}><Err t={err} /></div>}</section>}
+    {err && <section className="c12 rise"><Err t={err} /></section>}
     {!r ? <Loading t="Реєстр ризиків" /> : r.error ? (r.status === 403 ? <NoAccess /> : <Failed e={r.error} onRetry={() => apiModReset(key)} />) : !d.items.length
       ? <Empty t="Реєстр порожній">{imp ? `Імпортуйте таблицю ризиків (${orgT("genitive")}) у CSV.` : "Ризики ще не імпортували."}</Empty>
       : <section className="card c12 rise">

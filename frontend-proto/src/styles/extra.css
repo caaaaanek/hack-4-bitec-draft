@@ -45,6 +45,7 @@
 .cap-row { display: grid; grid-template-columns: 90px 1fr 40px; gap: 8px; align-items: center; font-size: 12px; }
 .flag-ic { width: 28px; height: 28px; border-radius: 8px; display: grid; place-items: center; flex: none; background: var(--amber-soft); color: var(--amber); }
 .flag-ic.major { background: var(--red-soft); color: var(--red); }
+.flag-ic.info { background: var(--soft); color: var(--muted); }
 .flag-ic svg { width: 16px; height: 16px; }
 .toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .toolbar .sp { flex: 1; }
@@ -450,3 +451,20 @@ html[data-role="respondent"] .top .synthetic, html[data-role="checklist_editor"]
   .ibars { grid-template-columns: none !important; grid-auto-flow: column; grid-auto-columns: minmax(30px, 1fr); overflow-x: auto; padding-bottom: 4px; }
   .ibar .v { font-size: 11px; }
 }
+/* Зведення й заклади Департаменту: крупні числа, рядки з роздільниками */
+.kv-big { display: grid; grid-template-columns: minmax(0, 1fr) auto; margin: 0; }
+.kv-big dt, .kv-big dd { margin: 0; padding: 10px 0; border-bottom: 1px solid var(--line); display: flex; align-items: center; min-height: 46px; }
+.kv-big dd { justify-content: flex-end; padding-left: 12px; }
+.kv-big dt { font-size: 14.5px; }
+.kv-big dd { font-size: 20px; font-weight: 600; text-align: right; letter-spacing: -.01em; }
+.kv-big dt:nth-last-of-type(1), .kv-big dd:last-of-type { border-bottom: 0; }
+.big-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 180px), 1fr)); gap: 16px; }
+.big-stats > div { display: flex; flex-direction: column; gap: 4px; }
+.big-stats b { font-size: 40px; font-weight: 600; letter-spacing: -.03em; line-height: 1.1; }
+.big-stats span { color: var(--muted); font-size: 14px; }
+.un-tree td:first-child { white-space: nowrap; }
+.un-tog { width: 26px; height: 26px; border: 0; background: none; border-radius: 6px; display: inline-grid; place-items: center; color: var(--muted); cursor: pointer; vertical-align: middle; margin-right: 4px; }
+.un-tog:hover { background: var(--soft); color: var(--fg); }
+.un-tog svg { width: 16px; height: 16px; transition: transform .15s; }
+.un-tog.shut svg { transform: rotate(-90deg); }
+.un-gap { display: inline-block; width: 30px; }

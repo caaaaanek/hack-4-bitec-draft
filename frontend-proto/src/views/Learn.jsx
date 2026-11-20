@@ -47,13 +47,13 @@ function Coverage() {
   const st = useStats(); if (!st) return null;
   if (st.error) return <Failed e={st.error} onRetry={() => apiModReset("lstats")} />;
   const d = st.data;
-  return <section className="card c12 rise"><ModHead ic="users" tone="teal" title="Охоплення навчанням">{d && d.demo ? <Pill cls="p-mute nodot">Приклад з демо-даних</Pill> : <span className="lbl">Лише узагальнені дані, без імен</span>}</ModHead>
+  return <section className="card c12 rise"><ModHead ic="users" tone="teal" title="Охоплення навчанням">{d && d.demo ? <Pill cls="p-mute nodot">Приклад з демо-даних</Pill> : null}</ModHead>
     {!d ? <div className="lbl" role="status">Завантажуємо…</div>
       : d.suppressed ? <div className="lock"><Ic n="lock" /><div><b>Показник приховано</b><div className="lbl">У підрозділі менше {S.k} учасників. Так ми не показуємо, хто саме пройшов навчання.</div></div></div>
-      : <><div className="stat4 tnum" style={{ gridTemplateColumns: "repeat(3,1fr)" }}><div><small>Учасників</small><b>{d.eligible}</b></div><div><small>Пройшли навчання</small><b>{d.trained}</b></div><div><small>Частка</small><b>{fb(d.percent)} %</b></div></div>
+      : <><div className="cov-line tnum"><b>{fb(d.percent)} %</b><span className="lbl">пройшли навчання: {d.trained} з {d.eligible} учасників</span></div>
         <Ticks n={30} on={Math.round((d.percent || 0) / 100 * 30)} color="var(--teal)" h={12} />
         {Object.keys(d.by_deck).length > 0 && <More t="За колодами"><div className="rows">{d.required.map(c => <div key={c} className="row"><div className="grow txt">{deckTitle(c)}</div><b className="tnum">{d.by_deck[c] == null ? "…" : d.by_deck[c]}</b></div>)}</div></More>}</>}
-    <div className="lbl" style={{ marginTop: 8 }}>Пройшов навчання: усі обовʼязкові колоди за останні {d ? d.valid_days : 365} днів. Групи, менші за {S.k} осіб, не показуються.</div></section>;
+  </section>;
 }
 const deckTitle = c => { const r = useDecks(), k = r && r.data && r.data.decks.find(x => x.code === c); return k ? dsh(k.title) : c; };
 
@@ -63,12 +63,8 @@ function DeckList() {
   if (r.error) return <Failed e={r.error} onRetry={() => apiModReset("decks")} />;
   const d = r.data, done = d.decks.filter(k => k.my_valid).length, reqDone = d.required.filter(c => (d.decks.find(k => k.code === c) || {}).my_valid).length, cov = st && st.data;
   return <>
-    <KpiRow items={[{ ic: "book", t: "Колод", v: d.decks.length, sub: `обовʼязкових ${d.required.length}` },
-      { ic: "check", t: "Пройдено", v: `${done} з ${d.decks.length}`, tone: d.i_am_trained ? "teal" : undefined, sub: d.i_am_trained ? "навчання зараховано" : `обовʼязкових ${reqDone} з ${d.required.length}` },
-      cov ? { ic: "users", t: "Охоплення", v: cov.suppressed ? "приховано" : cov.percent, d: true, sub: cov.suppressed ? "замала група" : "% учасників" }
-        : { ic: "cal", t: "Чинність", v: `${d.valid_days} днів`, sub: "після проходження" }]} />
-    <section className="card c12 rise"><ModHead ic="book" tone="teal" title="Колоди"><Pill cls={d.i_am_trained ? "p-good" : "p-warn"}>{d.i_am_trained ? "Навчання пройдено" : "Навчання не завершено"}</Pill></ModHead>
-      <div className="lbl" style={{ marginBottom: 14 }}>Вигадані ситуації: що робити й чому. Ваш прогрес бачите лише ви.{!API.on ? " Демо: прогрес живе до перезавантаження сторінки." : ""}</div>
+    <section className="card c12 rise"><ModHead ic="book" tone="teal" title="Колоди"><Pill cls={d.i_am_trained ? "p-good" : "p-warn"}>{d.i_am_trained ? "Обовʼязкові пройдено" : "Обовʼязкові не пройдено"}</Pill></ModHead>
+      <div className="lbl tnum" style={{ marginBottom: 14 }}>Пройдено {done} з {d.decks.length}, обовʼязкових {reqDone} з {d.required.length}. Ваш прогрес бачите лише ви.{!API.on ? " Демо: прогрес живе до перезавантаження сторінки." : ""}</div>
       <div className="deck-grid">{d.decks.map(k => { const s = deckState(k), C = COMP[k.component]; return <article key={k.code} className="deck">
         <div className="deck-h"><ToneIc ic={C ? C.ic : "book"} tone={TONE[k.component] || "teal"} /><div className="grow"><b className="txt">{dsh(k.title)}</b><div className="lbl">{k.cards} карток{k.required ? ", обовʼязкова" : ""}</div></div></div>
         <div className="lbl txt deck-d">{dsh(k.description)}</div>
@@ -153,9 +149,9 @@ export function LearnCard() {
   const r = useDecks();
   if (!r) return <section className="card c12 rise" role="status"><div className="lbl">Завантажуємо навчання…</div></section>;
   if (r.error) return <Failed e={r.error} onRetry={() => apiModReset("decks")} />;
-  const d = r.data, done = d.decks.filter(k => k.my_valid).length, next = d.decks.find(k => k.required && !k.my_valid) || d.decks.find(k => !k.my_valid), s = next ? deckState(next) : null;
-  return <section className="card c12 rise"><ModHead ic="book" tone="teal" title="Навчання"><Pill cls={d.i_am_trained ? "p-good" : "p-warn"}>{d.i_am_trained ? "Навчання пройдено" : "Навчання не завершено"}</Pill></ModHead>
-    <div className="lbl">Пройдено колод: {done} з {d.decks.length}</div>
+  const d = r.data, done = d.decks.filter(k => k.my_valid).length, reqDone = d.required.filter(c => (d.decks.find(k => k.code === c) || {}).my_valid).length, next = d.decks.find(k => k.required && !k.my_valid) || d.decks.find(k => !k.my_valid), s = next ? deckState(next) : null;
+  return <section className="card c12 rise"><ModHead ic="book" tone="teal" title="Навчання"><Pill cls={d.i_am_trained ? "p-good" : "p-warn"}>{d.i_am_trained ? "Обовʼязкові пройдено" : "Обовʼязкові не пройдено"}</Pill></ModHead>
+    <div className="lbl">Обовʼязкових пройдено: {reqDone} з {d.required.length} · усього колод: {done} з {d.decks.length}</div>
     <div className="deck-bar" style={{ marginTop: 8 }} role="progressbar" aria-label={`Пройдено колод ${done} з ${d.decks.length}`} aria-valuemin={0} aria-valuemax={d.decks.length} aria-valuenow={done}><i style={{ width: `${done / d.decks.length * 100}%` }} /></div>
     {next ? <div className="chk-row" style={{ marginTop: 12, flexWrap: "wrap" }}><div className="grow" style={{ minWidth: 200 }}><b className="txt">{dsh(next.title)}</b><div className="lbl">{s.on ? `Переглянуто ${s.on} з ${next.cards}` : `${next.cards} карток${next.required ? ", обовʼязкова" : ""}`}</div></div>
       <button type="button" className="btn btn-primary" onClick={() => go("learn/" + next.code)}><Ic n="book" />{s.btn}</button></div>

@@ -17,7 +17,7 @@ import { Manage, Surveys, Checklist, Audit, Survey, Me } from "./views/demo.jsx"
 import { apiView } from "./views/api-views.jsx";
 import { Builder } from "./views/Builder.jsx";
 import { Learn } from "./views/Learn.jsx";
-import { Watch, Advocate } from "./views/Insights.jsx";
+import { Advocate } from "./views/Insights.jsx";
 import { Autopilot } from "./views/Autopilot.jsx";
 import { Normative } from "./views/Normative.jsx";
 import { Checks } from "./views/Checks.jsx";
@@ -28,7 +28,7 @@ import { UrnScreen } from "./views/Urn.jsx";
 const lazyAdm = k => { const C = lazy(() => import("./views/Admin.jsx").then(m => ({ default: m[k] }))); return () => <Suspense fallback={null}><C /></Suspense>; };
 const People = lazyAdm("People"), Units = lazyAdm("Units"), Summary = lazyAdm("Summary"), Dicts = lazyAdm("Dicts"), Risks = lazyAdm("Risks"), InvitePage = lazyAdm("InvitePage");
 
-const V = { people: People, units: Units, summary: Summary, dicts: Dicts, risks: Risks, urn: UrnScreen, approvals: Approvals, views: ResultViews, learn: Learn, watch: Watch, advocate: Advocate, autopilot: Autopilot, normative: Normative, checks: Checks, overview: Overview, explain: Explain, trends: Trends, compare: Compare, whatif: WhatIf, recs: Recs, tracker: Tracker, sources: Sources, report: Report, manage: Manage, surveys: Surveys, checklist: Checklist, audit: Audit, survey: Survey, me: Me, institutions: Institutions };
+const V = { people: People, units: Units, summary: Summary, dicts: Dicts, risks: Risks, urn: UrnScreen, approvals: Approvals, views: ResultViews, learn: Learn, advocate: Advocate, autopilot: Autopilot, normative: Normative, checks: Checks, overview: Overview, explain: Explain, trends: Trends, compare: Compare, whatif: WhatIf, recs: Recs, tracker: Tracker, sources: Sources, report: Report, manage: Manage, surveys: Surveys, checklist: Checklist, audit: Audit, survey: Survey, me: Me, institutions: Institutions };
 const html = document.documentElement;
 
 /* ---------- Маршрут: що зробити при переході ---------- */
@@ -152,11 +152,9 @@ function Login() {
         <button className="btn btn-primary" type="submit" style={{ justifyContent: "center" }} disabled={busy}>Увійти <Ic n="arrowR" /></button>
       </form>}
       {a.proxy && <button className="btn btn-soft" id="lproxy" style={{ justifyContent: "center", marginTop: 10 }} onClick={loginProxy}>Увійти через систему організації</button>}
-      <div className="lbl" style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center" }}><span style={{ display: "inline-flex", width: 16 }}><Ic n="shield" /></span>Анонімна анкета за одноразовим посиланням відкривається без входу.</div>
     </section>
     {a.password && <section className="card rise login-card">
       <h2 style={{ margin: "0 0 4px", fontSize: 16 }}>Демо-облікові записи</h2>
-      <div className="lbl" style={{ marginBottom: 10 }}>Пароль у всіх однаковий: DEMO_PASSWORD з файлу .env. Дані синтетичні.</div>
       <div className="rows">{DEMO_ROLES.map(([r, t, ls]) => <div key={r} className="row demo-role"><div className="grow"><b>{r}</b><div className="lbl">{t}</div></div>
         <div className="demo-logins">{ls.map(l => <a key={l} href="#" data-tip="Підставити логін" onClick={e => { e.preventDefault(); setU(l); lp.current && lp.current.focus(); }}>{l}</a>)}</div></div>)}</div>
     </section>}
@@ -203,7 +201,7 @@ export default function App() {
   const mini = html.classList.contains("side-mini"), u = API.user;
   const [q, setQ] = useState(""), [sel, setSel] = useState(0), qRef = useRef(null), box = useRef(null);
   const hits = searchHits(q), ns = notesState();
-  const navAll = NAV.filter(n => n[3].includes(S.role) && (n[0] !== "approvals" || fourEyes()) && (n[0] !== "urn" || S.role === "auditor")), simple = simpleMode() && navAll.some(n => n[0] === "overview");
+  const navAll = NAV.filter(n => n[3].includes(S.role) && (n[0] !== "approvals" || fourEyes()) && (n[0] !== "urn" || S.role === "auditor")), simple = simpleMode() && navAll.some(n => n[0] === "overview") && navAll.some(n => !SIMPLE_ROUTES.includes(n[0]));
   const navG = navGroups(simple ? navAll.filter(n => SIMPLE_ROUTES.includes(n[0])) : navAll);
   html.dataset.role = S.role;
   useEffect(() => {
@@ -225,6 +223,7 @@ export default function App() {
   const scrimOn = !!ui.drawer || ui.ai || ui.side;
   const pk = ui.pop && ui.pop.kind;
   const profile = el => { hideTip(); openPop("profile", el); };
+  const toggleTheme = () => { html.dataset.theme = isDark() ? "light" : "dark"; try { localStorage.setItem("ii-theme", html.dataset.theme); } catch (e) { /* немає */ } render(true); };
   return <>
     <div className={`app ${login ? "login" : ""} ${anon ? "anon" : ""}`} inert={ui.drawer || ui.ai ? "" : undefined}>
       <aside className={`side ${ui.side ? "on" : ""}`} id="side">
@@ -254,11 +253,11 @@ export default function App() {
           <div className="sp" />
           <span className="synthetic hide-m">Синтетичні дані</span>
           <button className="pill-btn hide-m" id="cycleBtn" data-tip="Цикл оцінювання: один повний раунд опитування й збору фактів. Індекс порівнюється з попереднім циклом."><Ic n="cal" />Цикл {CYCLE}</button>
-          <button className={`pill-btn ai-btn ${S.aiOn ? "" : "off"}`} id="aiBtn" hidden={!AI_ROLES.includes(S.role)} onClick={() => aiOpen()}><Ic n="spark" /><span className="hide-m">Асистент</span></button>
+          <button className={`pill-btn ai-btn ${S.aiOn ? "" : "off"}`} id="aiBtn" hidden={!AI_ROLES.includes(S.role)} aria-label="Асистент" onClick={() => aiOpen()}><Ic n="spark" /><span className="hide-m">Асистент</span></button>
           {ns && <button type="button" className="icon-btn" id="notesBtn" aria-label={ns.fresh ? `Сповіщення: нових ${ns.fresh}` : "Сповіщення"} aria-haspopup="dialog" data-tip="Сповіщення" style={{ position: "relative" }} onClick={e => { hideTip(); apiModReset("notes"); markNotesSeen(); openPop("notes", e.currentTarget); }}><Ic n="bell" />{ns.fresh > 0 && <span className="badge" style={{ position: "absolute", top: -4, right: -4 }}>{ns.fresh}</span>}</button>}
           <span className="sr-only" role="status" aria-live="polite">{ns && ns.fresh ? `Нових сповіщень: ${ns.fresh}` : ""}</span>
           <button className="icon-btn" id="a11yBtn" aria-label="Доступність: розмір тексту й контраст" aria-haspopup="dialog" data-tip="Доступність" onClick={e => openPop("a11y", e.currentTarget)}><Ic n="a11y" /></button>
-          <button className="icon-btn" id="themeBtn" aria-label="Тема" onClick={() => { html.dataset.theme = isDark() ? "light" : "dark"; try { localStorage.setItem("ii-theme", html.dataset.theme); } catch (e) { /* немає */ } render(true); }}><Ic n={isDark() ? "sun" : "moon"} /></button>
+          <button className="icon-btn" id="themeBtn" aria-label="Тема" onClick={toggleTheme}><Ic n={isDark() ? "sun" : "moon"} /></button>
           <div className="avatar" id="avatar" role="button" tabIndex={0} aria-label="Профіль і вихід" data-tip={ROLE[S.role][0]} onClick={e => profile(e.currentTarget)} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); profile(e.currentTarget); } }}>{ROLE[S.role][1]}</div>
         </header>
         <View r={login ? "login" : r} vk={vk} />
@@ -273,7 +272,7 @@ export default function App() {
       {pk === "a11y" && <A11yPop />}
       {pk === "notes" && ns && <NotesPop ns={ns} />}
       {pk === "search" && <SearchPop q={q} hits={hits} sel={sel} pick={pick} />}
-      {pk === "profile" && <>{u && <div className="lbl" style={{ fontSize: 12 }}>Ви увійшли як</div>}<div style={{ fontWeight: 600 }}>{u ? dn(u.display_name) : ROLE[S.role][0]}</div><div className="lbl" style={{ margin: "2px 0 12px" }}>{ROLE[S.role][0]}{u ? ` · ${u.login}` : ""}</div>{u ? <button className="btn btn-ghost" style={{ width: "100%", justifyContent: "center" }} onClick={() => { closePop(); logout(); }}><Ic n="arrowL" />Вийти</button> : <div className="lbl">Демо-режим: вихід не потрібен.</div>}</>}
+      {pk === "profile" && <><div className="only-m prof-m"><button type="button" className="btn btn-soft" onClick={e => { const a = document.getElementById("avatar"); closePop(); openPop("a11y", a); }}><Ic n="a11y" />Доступність</button><button type="button" className="btn btn-soft" onClick={toggleTheme}><Ic n={isDark() ? "sun" : "moon"} />{isDark() ? "Світла тема" : "Темна тема"}</button></div>{u && <div className="lbl" style={{ fontSize: 12 }}>Ви увійшли як</div>}<div style={{ fontWeight: 600 }}>{u ? dn(u.display_name) : ROLE[S.role][0]}</div><div className="lbl" style={{ margin: "2px 0 12px" }}>{ROLE[S.role][0]}{u ? ` · ${u.login}` : ""}</div>{u ? <button className="btn btn-ghost" style={{ width: "100%", justifyContent: "center" }} onClick={() => { closePop(); logout(); }}><Ic n="arrowL" />Вийти</button> : <div className="lbl">Демо-режим: вихід не потрібен.</div>}</>}
     </Pop>
     <ExportDialog />
     <Builder />

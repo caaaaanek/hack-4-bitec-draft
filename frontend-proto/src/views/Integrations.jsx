@@ -14,7 +14,7 @@ export function MitraCard() {
   if (!r.data) return <section className="card c12 rise">{head}{r.error ? <div role="alert"><div className="lbl">Не вдалося завантажити стан: {r.error}</div><button type="button" className="btn btn-soft" style={{ marginTop: 8 }} onClick={() => apiModReset("integr")}>Спробувати ще раз</button></div> : <div className="lbl" role="status">Завантажуємо…</div>}</section>;
   const d = r.data, failed = d.theme2_failed || [];
   const sync = async () => { setBusy(true); try { const x = await api("/integrations/theme2/sync?retry_failed=true", { method: "POST" }); toast(`Надіслано: ${x.sent}. Не вдалося: ${x.failed}. У черзі: ${x.pending}.`); } catch (e) { toast(apiErrText(e)); } finally { setBusy(false); apiModReset("integr"); } };
-  if (!d.theme2_enabled) return <section className="card c12 rise">{head}<div className="lbl">Адресу Mitra не задано в налаштуваннях сервера, тож заходи туди не надсилаються.</div></section>;
+  if (!d.theme2_enabled) return null; // не налаштовано: картці нічого показати
   return <section className="card c12 rise" aria-label="Інтеграція з Mitra">{head}
     <div className="lbl">Прийняті заходи надсилаються в Mitra, а звідти повертаються стан виконання й звіт виконавця.</div>
     <dl className="inst-kv" style={{ marginTop: 10 }}><dt>У черзі на відправку</dt><dd className="tnum">{d.theme2_pending}</dd><dt>Не вдалося надіслати</dt><dd className="tnum">{failed.length}</dd>{d.theme2_auto_sync_seconds > 0 && <><dt>Автоматична відправка</dt><dd>кожні {Math.round(d.theme2_auto_sync_seconds)} с</dd></>}{d.theme2_public_url && <><dt>Адреса Mitra</dt><dd className="mt-url"><a href={d.theme2_public_url} target="_blank" rel="noopener noreferrer">{d.theme2_public_url}</a></dd></>}</dl>
