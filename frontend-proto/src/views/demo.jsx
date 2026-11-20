@@ -6,6 +6,7 @@ import { S, SURVEY, SV, SQ, persist, addLog, me, logItems, fnv } from "../lib/st
 import { API, apiSubmitSurvey } from "../lib/api.js";
 import { COMPS, COMP, FACTS, GROUPS, UNITS, UNIT_RESP, UNIT_CR, ALPHA, factValue, inst, level, indexOf, resolveUnit, CYCLE, TODAY_UA } from "../lib/model.js";
 import { fb, f1, dsh } from "../lib/format.js";
+import { PrivacyNote } from "./Privacy.jsx";
 import { render, toast, openDrawer, closeDrawer } from "../lib/store.js";
 import { Pill, LvPill, Num, LevelBar, Ticks } from "../components/ui.jsx";
 
@@ -196,6 +197,7 @@ export function Survey() {
       <div><Ic n="eye" /><b>Лише кількість</b><span className="lbl">Адміністратор бачить лише кількість відповідей, а не те, що ви відповіли.</span></div>
       <div><Ic n="users" /><b>Від {S.k} осіб</b><span className="lbl">Результати показують лише для груп не менше {S.k} осіб.</span></div>
     </div>
+    <PrivacyNote />
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 24, flexWrap: "wrap", gap: 12 }}><span className="lbl">{answered() ? `Збережені раніше відповіді на цьому пристрої буде підставлено (${answered()} з ${N}).` : "Відповіді зберігаються на цьому пристрої, поки ви заповнюєте."}</span><button className="btn btn-primary" onClick={() => { S.survey.phase = "form"; render(); }}>Розумію, почати <Ic n="arrowR" /></button></div>
   </section></div>;
   if (sv.phase === "done") return <div className="survey c12"><section className="card rise" style={{ padding: 36, textAlign: "center" }}><div className="done-ic"><Ic n="ok" /></div>
