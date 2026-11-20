@@ -20,7 +20,7 @@ import uuid
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import DataError, IntegrityError
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 log = logging.getLogger("app.errors")
@@ -245,6 +245,19 @@ def install(app: FastAPI) -> None:
                     reason)
         body["request_id"] = rid
         return JSONResponse(body, status_code=status, headers={REQUEST_ID_HEADER: rid})
+
+    @app.exception_handler(DataError)
+    async def data_error(request: Request, exc: DataError):
+        # Значення, яке пройшло перевірку схеми, але БД його не приймає: байт NUL у тексті (PostgreSQL),
+        # рядок довший за колонку, число поза діапазоном. Це помилка запиту, а не збій сервера (раніше — 500).
+        # Транзакцію відкотить get_db при закритті сесії.
+        rid = _request_id(request)
+        reason = str(exc.orig).splitlines()[0] if exc.orig else type(exc).__name__
+        log.warning("%s → 422: БД не прийняла значення (request_id=%s): %s", _where(request), rid, reason)
+        body = error_body(422, "Недопустиме значення в запиті", code="invalid_value",
+                          hint="Перевірте поля: керівні символи (зокрема NUL), довжину тексту й діапазон чисел.")
+        body["request_id"] = rid
+        return JSONResponse(body, status_code=422, headers={REQUEST_ID_HEADER: rid})
 
     @app.exception_handler(Exception)
     async def unhandled(request: Request, exc: Exception):

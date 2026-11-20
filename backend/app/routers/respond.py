@@ -270,6 +270,8 @@ class BallotKeyOut(BaseModel):
 
 class BallotIn(BaseModel):
     blinded: str = Field(pattern=r"^[0-9a-f]{1,1024}$", description="Засліплене повідомлення m·rᵉ mod n, hex")
+    key_id: uuid.UUID | None = Field(default=None, description="key_id з GET .../ballot-key, яким засліплено "
+                                                               "повідомлення (рекомендовано)")
 
 
 class BallotOut(BaseModel):
@@ -319,7 +321,15 @@ def issue_ballot(campaign_id: uuid.UUID, questionnaire_id: uuid.UUID, data: Ball
     campaign, questionnaire = load_assignment(db, user, campaign_id, questionnaire_id)
     if already_submitted(db, campaign.id, questionnaire.id, user.id):
         raise ApiError(409, "Ви вже отримали жетон або пройшли цю анкету", code="already_submitted")
-    key = ballots.key_for(db, campaign, questionnaire, ballot_unit(db, campaign, questionnaire, user))
+    unit_id = ballot_unit(db, campaign, questionnaire, user)
+    if data.key_id is not None:
+        # Підписуємо саме тим ключем, яким клієнт засліплював: інакше жетон не перевіриться, а участь уже записано.
+        key = ballots.group_key(db, data.key_id, campaign, questionnaire, unit_id)
+        if key is None:
+            raise ApiError(422, "Ключ не належить вашій групі", code="invalid",
+                           hint="Отримайте ключ ще раз: GET .../ballot-key.")
+    else:
+        key = ballots.key_for(db, campaign, questionnaire, unit_id)
     try:
         signature = ballots.sign_blinded(key, data.blinded)
     except ValueError as e:

@@ -111,7 +111,7 @@ def get_findings(run_id: uuid.UUID | None = None, unit_id: uuid.UUID | None = No
                  status: Literal["new", "reviewed", "dismissed"] | None = None,
                  risk_level: Literal["low", "medium", "high"] | None = None,
                  period: str | None = Query(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$"),
-                 limit: int = Query(default=200, ge=1, le=1000), offset: int = Query(default=0, ge=0),
+                 limit: int = Query(default=200, ge=1, le=1000), offset: int = Query(default=0, ge=0, le=10_000_000),
                  db: Session = Depends(get_db), user: User = Depends(require_roles(Role.ADMIN))):
     """Знахідки з фільтрами (уповноважений зі своєю зоною — лише підрозділи зони)."""
     if unit_id is not None:

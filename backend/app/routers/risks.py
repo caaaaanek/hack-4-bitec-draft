@@ -81,13 +81,13 @@ def _int(value: str, n: int, field: str, issues: list) -> int | None:
 
 
 @router.post("/units/{unit_id}/risk-register/import")
-async def import_risks(unit_id: uuid.UUID, file: UploadFile = File(...), db: Session = Depends(get_db),
-                       user: User = Depends(require_roles(Role.ADMIN))) -> dict:
+def import_risks(unit_id: uuid.UUID, file: UploadFile = File(...), db: Session = Depends(get_db),
+                 user: User = Depends(require_roles(Role.ADMIN))) -> dict:
     if db.get(Unit, unit_id) is None:
         raise HTTPException(status_code=404, detail="Підрозділ не знайдено")
     # Уповноважений зі своєю зоною імпортує ризики лише своїх підрозділів.
     ensure_unit_access(db, user, unit_id, "manage")
-    raw = await file.read(MAX_BYTES + 1)
+    raw = file.file.read(MAX_BYTES + 1)
     if len(raw) > MAX_BYTES:
         raise ApiError(413, "Файл завеликий (до 512 КБ)")
     try:

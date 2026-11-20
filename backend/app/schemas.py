@@ -176,7 +176,7 @@ class AnchorIn(BaseModel):
 
 
 class AnchorCheckIn(BaseModel):
-    seq: int = Field(ge=1)
+    seq: int = Field(ge=1, le=2**31 - 1)  # колонка INTEGER: більше значення давало 500 замість 422
     hash: str = Field(pattern=r"^[0-9a-f]{64}$")
 
 
