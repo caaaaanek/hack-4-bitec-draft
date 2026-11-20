@@ -9,7 +9,7 @@ import { cur, go, can } from "../lib/nav.js";
 import { Pill, LvPill, TrustPill, SrcDot, Num, Delta, LevelBar, useWidth } from "../components/ui.jsx";
 import { MiniTrend, TrendChart, Radar } from "../components/charts.jsx";
 import { DigestRows, digestTop, PrepBtn } from "./Insights.jsx";
-import { CandorCard } from "./Candor.jsx";
+import { CandorCard, GamingCard } from "./Candor.jsx";
 import { openWhy, openTrust, openHow, openResp, openItem, openApiQ, openTrustHow, openTrackerHow, openRespHow, itemQs } from "./panels.jsx";
 
 const enter = f => e => { if (e.key === "Enter") f(e); };
@@ -94,6 +94,7 @@ export function Overview() {
         </div>
       </a>;
     })}</div>
+    <GamingCard />
     <section className="card c8 rise lv-card">
       <div className="card-h"><h2>Рівень зрілості</h2><div className="sp" /><button type="button" className="pill-btn" onClick={openHow}><Ic n="help" />Як рахується</button></div>
       <LevelBar v={m.index} />
