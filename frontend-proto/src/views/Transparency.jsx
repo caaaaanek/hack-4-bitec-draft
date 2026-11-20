@@ -11,6 +11,7 @@ import { toast, render } from "../lib/store.js";
 import { copyText } from "../lib/util.js";
 import { Pill } from "../components/ui.jsx";
 import { Loading, Failed, Empty, NoAccess } from "../components/states.jsx";
+import { showInvite } from "./invite.jsx";
 
 const when = t => new Date(t).toLocaleString("uk-UA", { dateStyle: "short", timeStyle: "short" });
 const copy = (t, what) => copyText(t, () => toast(`${what} скопійовано`));
@@ -77,16 +78,19 @@ export function LotteryCard({ campaignId, status }) {
 }
 
 /* --- 3. Запити другій людині --- */
-const KIND = { user_role: "Привілейована роль", user_category: "Зміна категорії", activate_users: "Нові облікові записи", open_campaign: "Відкриття хвилі" };
-const ROLE_T = { admin: "уповноважений", coordinator: "технічний адміністратор", commissioner: "укладач анкет", auditor: "внутрішній аудит" };
+const KIND = { activate_users: "Нові облікові записи", user_role: "Зміна ролі чи блокування", user_category: "Зміна категорії", user_invite: "Скидання пароля", unit_change: "Зміна підрозділів у чернетці хвилі", open_campaign: "Відкриття хвилі" };
+const ROLE_T = { admin: "уповноважений", coordinator: "технічний адміністратор", auditor: "внутрішній аудит", leader: "керівник", department: "Департамент" };
 export const fourEyes = () => !!(API.cfg && API.cfg.policies && API.cfg.policies.four_eyes);
 export const useApprovals = () => API.on && fourEyes() ? apiMod("approvals", () => api("/admin/approvals?status=pending")) : null;
-const decideErr = e => e instanceof ApiErr && e.code === "same_person" ? "Цей запит створили ви: підтвердити чи відхилити його має інша людина."
-  : e instanceof ApiErr && e.code === "forbidden_role" ? `Цей запит підтверджує інша роль: ${String(e.message).replace(/^.*?:\s*/, "").split(/,\s*/).map(r => ROLE_T[r] || r).join(", ")}.`
-  : apiErrText(e);
+// same_person, forbidden_role, out_of_zone: сервер пояснює сам (message і hint)
+const decideErr = e => apiErrText(e);
+const whoDecides = x => (x.approver_roles || []).map(r => ROLE_T[r] || r).join(" або ");
 
 // Заголовок запиту: текст сервера містить службові коди категорій, тому для відкриття хвилі будуємо свій
-const apTitle = x => x.kind === "open_campaign" ? `Відкрити хвилю ${(/«[^»]+»/.exec(x.summary || "") || ["«без назви»"])[0]}` : dsh(x.summary) || KIND[x.kind] || "Запит";
+const CODE_T = { respondent: "респондент", admin: "уповноважений", coordinator: "технічний адміністратор", auditor: "внутрішній аудит", leader: "керівник", department: "Департамент", staff: "особовий склад", expert: "експерт", working_group: "робоча група" };
+// Службові коди ролей і категорій — словами; логіни в «лапках» не чіпаємо
+const human = t => dsh(t).split(/(«[^»]*»)/).map(p => p.startsWith("«") ? p : p.replace(/\b[a-z_]{3,}\b/g, w => CODE_T[w] || (QCAT[w] ? QCAT[w].toLowerCase() : w))).join("");
+const apTitle = x => x.kind === "open_campaign" ? `Відкрити хвилю ${(/«[^»]+»/.exec(x.summary || "") || ["«без назви»"])[0]}` : human(x.summary) || KIND[x.kind] || "Запит";
 export function Approvals() {
   const r = useApprovals(), [busy, setBusy] = useState(""), [note, setNote] = useState({});
   if (!API.on) return <Empty t="Запити другій людині">Доступно в режимі з сервером, коли увімкнено принцип двох осіб.</Empty>;
@@ -97,7 +101,12 @@ export function Approvals() {
   const me = API.user && API.user.id;
   const act = async (x, how) => {
     setBusy(x.id + how);
-    try { await api(`/admin/approvals/${x.id}/${how}`, { method: "POST", body: { comment: note[x.id] || "" } }); toast(how === "approve" ? "Запит підтверджено" : "Запит відхилено"); apiModReset("approvals"); }
+    try {
+      const y = await api(`/admin/approvals/${x.id}/${how}`, { method: "POST", body: { comment: note[x.id] || "" } });
+      apiModReset("approvals"); API.adm = null;
+      if (y && y.invite_link) showInvite(String((/«([^»]+)»/.exec(x.summary || "") || [, "людини"])[1]), y.invite_link, y.invite_expires_at);
+      else toast(how === "approve" ? (x.kind === "open_campaign" ? "Підтверджено: хвилю відкрито" : "Запит підтверджено") : "Запит відхилено");
+    }
     catch (e) { toast(decideErr(e)); } finally { setBusy(""); render(true); }
   };
   const intro = <section className="c12 rise"><div className="lbl">Привілейовані дії одна людина лише просить, а виконує інша: так ніхто сам не видасть собі права, не додасть підставних респондентів і не відкриє хвилю з підкрученим складом.</div></section>;
@@ -108,7 +117,7 @@ export function Approvals() {
       <div className="lbl">Запит від {when(x.requested_at)}{own ? " · ви створили цей запит" : ""}</div>
       {x.kind === "open_campaign" && p.eligible && <dl className="inst-kv" style={{ marginTop: 10 }}>{Object.entries(p.eligible).flatMap(([c, n]) => [<dt key={"t" + c}>Склад: {(QCAT[c] || c).toLowerCase()}</dt>, <dd key={"v" + c} className="tnum">{n}</dd>])}{p.created_last_30_days != null && <><dt>Нових облікових записів за 30 днів</dt><dd className="tnum">{p.created_last_30_days}</dd></>}</dl>}
       {x.kind === "activate_users" && Array.isArray(p.user_ids) && <div className="lbl" style={{ marginTop: 8 }}>Облікових записів: {p.user_ids.length}</div>}
-      {own ? <div className="note-box" style={{ marginTop: 10 }}><span className="lbl">Підтвердити чи відхилити власний запит не можна: це має зробити інша людина.</span></div>
+      {!x.can_decide ? <div className="note-box" style={{ marginTop: 10 }}><span className="lbl">{whoDecides(x) ? `Підтверджує: ${whoDecides(x)}.` : ""}{own ? " Власний запит підтвердити чи відхилити не можна." : ""}</span></div>
         : <div className="ap-act">
           <div className="field"><label htmlFor={`apc-${x.id}`}>Коментар (необов'язково)</label><input id={`apc-${x.id}`} className="inp" maxLength={1000} value={note[x.id] || ""} onChange={e => setNote({ ...note, [x.id]: e.target.value })} /></div>
           <button type="button" className="btn btn-primary" disabled={!!busy} onClick={() => act(x, "approve")}><Ic n="ok" />{busy === x.id + "approve" ? "Підтверджуємо…" : "Підтвердити"}</button>

@@ -31,14 +31,13 @@ export const SQ = () => API.survey ? API.survey.sections.flatMap((s, si) => s.q.
 /* ---------- Ролі ---------- */
 export const ROLE = {
   admin: ["Уповноважений (адміністратор)", "УП"],
-  commissioner: ["Укладач анкет", "УА"],
   respondent: ["Респондент", "Р"],
   leader: ["Керівник закладу", "КЗ"],
-  observer: ["Спостерігач Департаменту", "СД"],
+  observer: ["Департамент", "Д"],
   checklist_editor: ["Вносить дані чек-листа", "ВД"],
-  checklist_approver: ["Підтверджує дані чек-листа", "ПД"],
+  checklist_approver: ["Внутрішній аудит: підтверджує чек-лист", "ВА"],
   auditor: ["Внутрішній аудит", "ВА"],
-  coordinator: ["Координатор", "К"],
+  coordinator: ["Технічний адміністратор", "ТА"],
 };
 export const NAV = [
   ["institutions", "Заклади", "building", ["observer"]],
@@ -50,25 +49,27 @@ export const NAV = [
   ["recs", "Рекомендації", "bulb", ["leader"]],
   ["tracker", "Трекер заходів", "target", ["leader", "auditor"]],
   ["sources", "Джерела", "plug", ["leader", "observer", "auditor"]],
-  ["watch", "Сигнали", "eye", ["observer", "auditor", "admin", "commissioner", "coordinator"]],
-  ["advocate", "Питання перевірки", "scale", ["leader", "observer", "auditor", "admin", "commissioner"]],
+  ["watch", "Сигнали", "eye", ["observer", "auditor", "admin"]],
+  ["advocate", "Питання перевірки", "scale", ["leader", "observer", "auditor", "admin"]],
   ["report", "Звіт", "file", ["leader", "observer"]],
   ["manage", "Керування циклом", "sliders", ["admin"]],
-  ["autopilot", "Автопілот хвилі", "bolt", ["coordinator", "auditor"]],
+  ["autopilot", "Автопілот хвилі", "bolt", ["auditor"]],
   ["checks", "Перевірки", "shield", ["admin"]],
-  ["surveys", "Анкети", "survey", ["commissioner"]],
+  ["surveys", "Анкети", "survey", ["observer"]],
   ["checklist", "Чек-лист", "check", ["checklist_editor", "checklist_approver"]],
-  ["normative", "Нормативка", "layers", ["leader", "observer", "auditor", "admin", "commissioner", "coordinator"]],
-  ["people", "Люди", "users", []],
+  ["normative", "Нормативка", "layers", ["leader", "observer", "auditor", "admin"]],
+  ["people", "Люди", "users", ["coordinator"]],
+  ["units", "Підрозділи", "building", ["coordinator"]],
+  ["summary", "Зведення", "gauge", ["coordinator"]],
   ["dicts", "Довідники", "layers", []],
   ["risks", "Реєстр ризиків", "flag", []],
   ["audit", "Журнал", "history", ["admin", "auditor"]],
   ["views", "Перегляди підрозділів", "eye", ["admin", "auditor"]],
-  ["approvals", "Запити другій людині", "users", ["admin", "commissioner", "auditor", "coordinator"]],
-  ["urn", "Урна з трьома ключами", "lock", ["admin", "auditor", "commissioner", "respondent", "checklist_editor"]],
+  ["approvals", "Запити другій людині", "users", ["admin", "auditor", "coordinator"]],
+  ["urn", "Урна з трьома ключами", "lock", ["admin", "auditor", "respondent", "checklist_editor"]],
   ["survey", "Пройти опитування", "survey", ["respondent"]],
   ["me", "Мої результати", "user", ["respondent"]],
-  ["learn", "Навчання", "book", ["respondent", "checklist_editor", "checklist_approver", "leader", "observer", "auditor", "admin", "commissioner", "coordinator"]],
+  ["learn", "Навчання", "book", ["respondent", "checklist_editor", "checklist_approver", "leader", "observer", "auditor", "admin"]],
 ];
 // Групи меню: «Результати», «Дії», «Інструменти» (маршрути без змін)
 export const NAV_GROUP = { overview: "res", explain: "res", trends: "res", compare: "res", whatif: "res", institutions: "res", recs: "act", tracker: "act", manage: "act", surveys: "act", checklist: "act", survey: "act", me: "act", autopilot: "act", checks: "act" };
@@ -76,10 +77,10 @@ export const NAV_GROUP_T = { res: "Результати", act: "Дії", tools: 
 // «Простий режим» для вищого керівництва: у меню лише Огляд і Звіт (брифінг на «Огляді»).
 // Вибір зберігається в localStorage (лише "1" або "0", без персональних даних); за замовчуванням увімкнено для Департаменту.
 const SIMPLE_KEY = "ii-simple-mode";
-export const SIMPLE_ROUTES = ["institutions", "overview", "report"];
+export const SIMPLE_ROUTES = ["institutions", "overview", "report", "surveys"]; // анкети Департаменту лишаються і в простому режимі
 export function simpleMode() { try { const v = localStorage.getItem(SIMPLE_KEY); if (v === "1" || v === "0") return v === "1"; } catch (e) { /* сховище недоступне */ } return S.role === "observer"; }
 export function setSimpleMode(on) { try { localStorage.setItem(SIMPLE_KEY, on ? "1" : "0"); } catch (e) { /* сховище недоступне */ } render(true); }
-export const HOME = { admin: "manage", commissioner: "surveys", respondent: "me", leader: "overview", observer: "institutions", checklist_editor: "checklist", checklist_approver: "checklist", auditor: "overview", coordinator: "watch" };
+export const HOME = { admin: "manage", respondent: "me", leader: "overview", observer: "institutions", checklist_editor: "checklist", checklist_approver: "checklist", auditor: "overview", coordinator: "people" };
 export const AI_ROLES = ["leader", "observer", "auditor"];
 
 /* ---------- Стан ---------- */
@@ -126,9 +127,9 @@ export function fnv(s) { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) 
 const SEEDLOG = [
   ["2026-11-01 09:12", "Уповноважений (адміністратор)", "Відкрито цикл 2026-11, мінімальна група 10 осіб"],
   ["2026-11-01 09:20", "Уповноважений (адміністратор)", "Видано 84 одноразові жетони (РГ 15, ОС 64, експерти 5)"],
-  ["2026-11-02 10:05", "Укладач анкет", "Опубліковано анкету «Анонімне опитування особового складу», версія 3"],
+  ["2026-11-02 10:05", "Департамент", "Опубліковано анкету «Анонімне опитування особового складу», версія 3"],
   ["2026-11-10 14:05", "Вносить дані чек-листа", "Чек-лист: внесено 8 показників фактів"],
-  ["2026-11-11 10:41", "Підтверджує дані чек-листа", "Чек-лист: підтверджено 8 показників"],
+  ["2026-11-11 10:41", "Внутрішній аудит", "Чек-лист: підтверджено 8 показників"],
   ["2026-11-12 16:20", "Уповноважений (адміністратор)", "Журнал звернень: внесено 36 з 60 розглянутих у строк"],
   ["2026-11-15 18:00", "Система", "Розрахунок індексу за методикою v1.0: 54,2"],
 ];

@@ -12,19 +12,23 @@ import { copyText } from "../lib/util.js";
 import { Loading, Failed, Empty, NoAccess, NeedServer } from "../components/states.jsx";
 
 export const pol = () => (API.cfg && API.cfg.policies) || {};
-export const SROLE = { admin: "Уповноважений", commissioner: "Укладач анкет", respondent: "Респондент", leader: "Керівник", auditor: "Внутрішній аудит", coordinator: "Координатор", department: "Департамент" };
+export const SROLE = { admin: "Уповноважений", respondent: "Респондент", leader: "Керівник", auditor: "Внутрішній аудит", coordinator: "Технічний адміністратор", department: "Департамент" };
 export const Err = ({ t }) => <span className="lbl adm-err" role={t ? "alert" : undefined}>{t}</span>;
 // Помилки імпорту CSV: «line 3» → «рядок 3»
 export const importErr = e => e instanceof ApiErr && e.errors && e.errors.length
   ? e.errors.slice(0, 5).map(i => `${String(i.path || "").replace(/^line /, "рядок ")}: ${i.message}`).join("; ") + (e.errors.length > 5 ? `; ще ${e.errors.length - 5}` : "") + ". Нічого не змінено."
   : apiErrText(e);
-// Підрозділи деревом для <select>: відступ за рівнем
+// Підрозділи деревом для <select>: відступ за рівнем. Батько поза списком (зона) — корінь.
 export function unitOpts(units) {
-  const kids = id => units.filter(u => (u.parent_id || null) === id).sort((a, b) => a.name.localeCompare(b.name, "uk"));
+  const has = new Set(units.map(u => u.id));
+  const kids = id => units.filter(u => id === null ? !u.parent_id || !has.has(u.parent_id) : u.parent_id === id).sort((a, b) => a.name.localeCompare(b.name, "uk"));
   const out = [], walk = (id, d) => kids(id).forEach(u => { out.push([u.id, " ".repeat(d) + dn(u.name)]); walk(u.id, d + 1); });
   walk(null, 0); return out;
 }
-export const loadUnits = () => apiMod("admUnits", () => api("/admin/units"));
+// Повне дерево підрозділів веде технічний адміністратор (/admin/units); решта бачить свою зону (/units)
+export const loadUnits = () => apiMod("admUnits", () => api(S.role === "coordinator" ? "/admin/units" : "/units"));
+// З кого уповноважений обирає людей для хвилі: активні записи підрозділу хвилі й піддерева
+export const loadPeople = (cid, q = "") => apiMod(`people:${cid}:${q}`, () => api(`/campaigns/${cid}/people${q ? "?" + q : ""}`));
 export const loadCats = () => apiMod("dCats", () => api("/dictionaries/categories"));
 export const Dot = ({ c }) => <span className="dot" style={{ background: c }} />;
 
@@ -42,9 +46,8 @@ export function ParticipantsSection({ c }) {
     const fd = new FormData(); fd.append("file", file); setBusy(true); setErr("");
     try {
       const x = await api(`/campaigns/${c.id}/participants/import`, { method: "POST", body: fd }); apiModReset(key);
-      if (x.pending_approval_id) toast("Імпорт чекає підтвердження другої людини.");
-      else { toast(`Додано учасників: ${x.added_participants}, нових облікових записів: ${x.created_users}`); if ((x.credentials || []).length) showCreds(x.credentials); }
-    } catch (er) { setErr(importErr(er)); } finally { setBusy(false); }
+      toast(`Додано учасників: ${x.added_participants}`); if ((x.credentials || []).length) showCreds(x.credentials);
+    } catch (er) { setErr(importErr(er).replace(/(немає|не знайдено)[^;.]*/gi, m => /логін|login|користувач/i.test(m) ? m + " (людей заводить технічний адміністратор)" : m)); } finally { setBusy(false); }
   };
   const clear = async () => { try { await api(`/campaigns/${c.id}/participants`, { method: "DELETE" }); apiModReset(key); toast("Список скинуто: беруть участь усі з підрозділу"); } catch (er) { setErr(apiErrText(er)); } };
   const d = r && r.data, n = d ? d.participants.length : 0;
@@ -56,7 +59,7 @@ export function ParticipantsSection({ c }) {
     </div>
     {!r ? <span className="lbl">Завантажуємо…</span> : r.error ? <Err t={r.error} /> : <div className="adm-line">{d.explicit ? <>Явний список: <b className="tnum">{n}</b> {plural(n, "людина", "людини", "людей")}{n ? <span className="lbl">, зокрема {d.participants.slice(0, 4).map(p => dn(p.display_name || p.login)).join(", ")}{n > 4 ? "…" : ""}</span> : null}</>
       : <>Беруть участь усі респонденти підрозділу хвилі.</>}</div>}
-    {ed && <div className="lbl" style={{ marginTop: 6 }}>CSV у UTF-8: <code>login,category,unit[,display_name]</code>. Лише псевдоніми: стовпці з ПІБ, email чи телефоном сервер відхилить.</div>}
+    {ed && <div className="lbl" style={{ marginTop: 6 }}>CSV у UTF-8: <code>login,category,unit[,display_name]</code>. Імпорт лише додає людей, які вже мають обліковий запис: нових заводить технічний адміністратор. Стовпці з ПІБ, email чи телефоном сервер відхилить.</div>}
     {!ed && <div className="lbl" style={{ marginTop: 6 }}>Склад змінюється лише в чернетці.</div>}
     <Err t={err} />
   </section>;
@@ -70,11 +73,11 @@ function showCreds(list) {
 }
 function pickParticipants(c, d) {
   openDrawer("Учасники хвилі", () => {
-    const r = apiMod("users", () => api("/admin/users"));
+    const r = loadPeople(c.id, "role=respondent");
     const [sel, setSel] = useState(() => new Set(d && d.explicit ? d.participants.map(p => p.id) : [])), [q, setQ] = useState(""), [err, setErr] = useState("");
     if (!r) return <span className="lbl">Завантажуємо…</span>;
     if (r.error) return <Err t={r.error} />;
-    const all = r.data.filter(u => u.role === "respondent" && u.is_active), s = q.trim().toLowerCase();
+    const all = r.data, s = q.trim().toLowerCase();
     const shown = all.filter(u => !s || `${u.login} ${u.display_name}`.toLowerCase().includes(s));
     const tog = id => setSel(x => { const n = new Set(x); n.has(id) ? n.delete(id) : n.add(id); return n; });
     const save = async () => {
@@ -105,13 +108,13 @@ export function AssignSection({ c }) {
 }
 function assignForm(c) {
   openDrawer("Відповідальні за пункти", () => {
-    const r = apiMod("users", () => api("/admin/users")), a = loadAsg(c.id);
-    const [v, setV] = useState(null), [err, setErr] = useState(""), [busy, setBusy] = useState(false);
-    if (!r || !a) return <span className="lbl">Завантажуємо…</span>;
-    if (r.error || a.error) return <Err t={r.error || a.error} />;
-    const cur = v || Object.fromEntries(a.data.map(x => [x.question_id, [x.enterer_id || "", x.confirmer_id || ""]]));
     const conf = pol().checklist_confirmers || ["auditor"];
-    const wg = r.data.filter(u => u.is_active && u.role === "respondent" && u.category === "working_group"), cf = r.data.filter(u => u.is_active && conf.includes(u.role));
+    const w = loadPeople(c.id, "category=working_group"), r = loadPeople(c.id), a = loadAsg(c.id);
+    const [v, setV] = useState(null), [err, setErr] = useState(""), [busy, setBusy] = useState(false);
+    if (!r || !w || !a) return <span className="lbl">Завантажуємо…</span>;
+    if (r.error || w.error || a.error) return <Err t={r.error || w.error || a.error} />;
+    const cur = v || Object.fromEntries(a.data.map(x => [x.question_id, [x.enterer_id || "", x.confirmer_id || ""]]));
+    const wg = w.data.filter(u => u.role === "respondent"), cf = r.data.filter(u => conf.includes(u.role));
     const set = (qid, i, val) => setV(() => { const n = { ...cur, [qid]: [...cur[qid]] }; n[qid][i] = val; return n; });
     const save = async () => {
       const bad = a.data.find(x => cur[x.question_id][0] && cur[x.question_id][0] === cur[x.question_id][1]);

@@ -54,7 +54,7 @@ export function Manage() {
   </>;
 }
 
-/* Анкети (укладач) */
+/* Анкети (Департамент) */
 export function Surveys() {
   return <>{S.qs.map((q, i) => <section key={q.id} className="card c6 rise">
     <div className="comp-top"><span className="comp-ic" style={{ background: "var(--lime-soft)", color: "var(--teal-deep)" }}><Ic n="survey" /></span><b>{q.t}</b><div className="sp" style={{ flex: 1 }} /><Pill cls={q.st === "published" ? "p-good" : "p-warn"}>{q.st === "published" ? "Опубліковано" : "Чернетка"}</Pill></div>

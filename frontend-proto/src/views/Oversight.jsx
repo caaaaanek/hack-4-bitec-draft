@@ -37,7 +37,7 @@ function ChildBars({ d }) {
 }
 
 /* --- Хто дивився дочірні підрозділи --- */
-const ROLE_T = { admin: "Уповноважений", leader: "Керівник", auditor: "Внутрішній аудит", department: "Департамент", commissioner: "Укладач анкет", coordinator: "Технічний адміністратор" };
+const ROLE_T = { admin: "Уповноважений", leader: "Керівник", auditor: "Внутрішній аудит", department: "Департамент", coordinator: "Технічний адміністратор" };
 const WHAT = { results: "Результати хвилі", history: "Історія підрозділу", dashboard: "Огляд", compare: "Порівняння хвиль", report: "Звіт", recommendations: "Рекомендації", candor: "Картка відвертості", briefing: "Брифінг", indicators: "Факти", "risk-signals": "Сигнали ризиків" };
 const DEMO_VIEWS = { by_actor: [{ actor_id: "a1", login: "auditor", role: "auditor", views: 1, units: ["Підрозділ А"] }], items: [{ at: "2026-11-16T09:12:00Z", actor_id: "a1", login: "auditor", unit_name: "Підрозділ А", endpoint: "results" }] };
 const when = t => new Date(t).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", year: "2-digit", hour: "2-digit", minute: "2-digit" });

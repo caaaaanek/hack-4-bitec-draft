@@ -4,7 +4,7 @@ import { Ic } from "../lib/icons.jsx";
 import { FileDrop } from "../components/FileDrop.jsx";
 import { S } from "../lib/state.js";
 import { API, api, staffTokenOnly, apiEnsure, apiRetry, apiRetryResults, apiLoadForm, apiFail, apiErrText, RESULT_VIEWS, dn, apiLoadAdm, apiAdmReload, apiCreateCampaign, apiCampaignAct, apiQrCreate, apiQrRevoke, apiQrTick,
-  QST, QCAT, apiQAct, orgCap, bldOpen, CKS, apiLoadCk, apiCkReload, apiSaveItem, apiConfirm, apiDelFile, apiDownload, AUDIT_ENT, AUDIT_ACT, apiLoadLog, auditDetails, apiVerify } from "../lib/api.js";
+  QST, QCAT, apiQAct, orgCap, bldOpen, CKS, apiLoadCk, apiCkReload, apiSaveItem, requireFile, fourEyesOn, apiConfirm, apiDelFile, apiDownload, AUDIT_ENT, AUDIT_ACT, apiLoadLog, auditDetails, apiVerify } from "../lib/api.js";
 import { COMPS, COMP, level } from "../lib/model.js";
 import { fb, ua, plural } from "../lib/format.js";
 import { render, toast, openDrawer, closeDrawer, ui } from "../lib/store.js";
@@ -109,6 +109,8 @@ const CST = { draft: ["Чернетка", "p-mute"], open: ["Триває", "p-g
 function ApiManage() {
   const [ask, setAsk] = useState(null), [tq, setTq] = useState(null), [tu, setTu] = useState(null), [tn, setTn] = useState(30), [show, setShow] = useState(null);
   useEffect(() => { const t = setInterval(apiQrTick, 4000); return () => clearInterval(t); }, []);
+  // Поки хвиля чекає підтвердження аудиту, тихо перевіряємо, чи її вже відкрили (в іншому вікні)
+  useEffect(() => { const t = setInterval(() => { const A = API.adm; if (A && !A.error && A.campaigns.some(x => x.waitingOpen) && !API.loading.adm) apiLoadAdm(A.sel).then(v => { API.adm = v; render(true); }, () => {}); }, 8000); return () => clearInterval(t); }, []);
   const hideQr = useCallback(() => setShow(null), []);
   if (!apiEnsure("adm", () => apiLoadAdm())) return <Loading t="Керування циклом" />;
   const A = API.adm; if (A.error) return <Failed e={A.error} />;
@@ -123,27 +125,28 @@ function ApiManage() {
   return <>
     <section className="card c8 rise">
       {c ? <>
-        <div className="card-h"><h2>{dn(c.title)}</h2><Pill cls={CST[c.status][1]}>{CST[c.status][0]}</Pill><div className="sp" /><span className="lbl">{c.opened_on ? ua(c.opened_on) : "ще не відкрито"} – {c.closed_on ? ua(c.closed_on) : "триває"}</span></div>
+        <div className="card-h"><h2>{dn(c.title)}</h2>{c.waitingOpen ? <Pill cls="p-warn">Чекає на підтвердження аудиту</Pill> : <Pill cls={CST[c.status][1]}>{CST[c.status][0]}</Pill>}<div className="sp" /><span className="lbl">{c.opened_on ? ua(c.opened_on) : "ще не відкрито"} – {c.closed_on ? ua(c.closed_on) : "триває"}</span></div>
         {c.status === "open" && <div className="lbl" style={{ marginBottom: 8 }}>Склад учасників зафіксовано під час відкриття: нові облікові записи в хвилю не потрапляють, а переведення між підрозділами заблоковано до закриття.</div>}
         <div className="rows">{(A.progress ? A.progress.items : []).length ? A.progress.items.map((i, k) => { const n = i.too_few_people ? 30 : Math.max(1, Math.min(30, i.eligible || 30)), on = i.too_few_people || !i.eligible ? 0 : Math.round((i.submitted || 0) / i.eligible * n); return <div key={k} className="row prog-row"><div className="grow"><div className="prog-h"><span className="t">{i.questionnaire_title}</span>{i.too_few_people && <span className="prog-lock" data-tip={`Менше ${c.min_group_size} осіб: кількості приховано`}><Ic n="lock" /></span>}<b className="tnum prog-n">{i.too_few_people ? "приховано" : `${i.submitted} з ${i.eligible}`}</b></div>
           <div className="ticks" style={{ height: 14, marginTop: 8 }}>{Array.from({ length: n }, (_, j) => <span key={j} style={j < on ? { background: "var(--teal)" } : undefined} />)}</div>
           {i.over_expected && <QrOver />}</div></div>; }) : <div className="lbl">Анкет у хвилі немає.</div>}</div>
         <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }} id="cActs">
           {ask === c.id ? <><div className="lbl" style={{ width: "100%" }}>Прийом відповідей зупиниться, система порахує індекс і збереже незмінний знімок. Відкриті, але не подані форми стануть недійсними. Скасувати не можна.</div><button className="btn btn-ghost" onClick={() => setAsk(null)}>Скасувати</button><button className="btn btn-danger" disabled={!!API.campBusy} onClick={() => { setAsk(null); apiCampaignAct(c.id, "close"); }}>Завершити</button></> : <>
-            {c.status === "draft" && <button className="btn btn-primary" disabled={!!API.campBusy} onClick={() => apiCampaignAct(c.id, "open")}><Ic n="ok" />Відкрити хвилю</button>}
+            {c.status === "draft" && (c.waitingOpen ? <div className="lbl">Запит на відкриття надіслано. Хвиля відкриється, щойно внутрішній аудит підтвердить склад учасників.</div>
+              : <button className="btn btn-primary" disabled={!!API.campBusy} onClick={() => apiCampaignAct(c.id, "open")}><Ic n="ok" />{fourEyesOn() ? "Попросити відкрити хвилю" : "Відкрити хвилю"}</button>)}
             {c.status === "open" && <button className="btn btn-soft" onClick={() => setAsk(c.id)}><Ic n="lock" />Завершити й порахувати індекс</button>}</>}
         </div></> : <div className="empty"><b>Хвиль ще немає</b><br />Створіть першу хвилю оцінювання.</div>}
     </section>
     <section className="card c4 rise waves-card">
       <div className="card-h"><h2>Хвилі</h2><div className="sp" /><button className="btn btn-soft" style={{ padding: "6px 12px" }} onClick={apiNewCampaign}><Ic n="plus" />Нова</button></div>
-      <div className="rows">{A.campaigns.map(x => <a key={x.id} className="row click" href="#manage" onClick={e => { e.preventDefault(); setAsk(null); setTq(null); setTu(null); apiAdmReload(x.id); }} style={x.id === A.sel ? { background: "var(--soft)" } : undefined}><div className="grow"><div className="t">{dn(x.title)}</div><div className="s">{x.access_mode === "token" ? "анонімно за QR" : "за обліковими записами"}</div></div><Pill cls={CST[x.status][1]}>{CST[x.status][0]}</Pill></a>)}</div>
+      <div className="rows">{A.campaigns.map(x => <a key={x.id} className="row click" href="#manage" onClick={e => { e.preventDefault(); setAsk(null); setTq(null); setTu(null); apiAdmReload(x.id); }} style={x.id === A.sel ? { background: "var(--soft)" } : undefined}><div className="grow"><div className="t">{dn(x.title)}</div><div className="s">{x.access_mode === "token" ? "анонімно за QR" : "за обліковими записами"}</div></div>{x.waitingOpen ? <Pill cls="p-warn">Чекає аудиту</Pill> : <Pill cls={CST[x.status][1]}>{CST[x.status][0]}</Pill>}</a>)}</div>
     </section>
     {c && c.access_mode === "token" && (c.status !== "closed" || qrs.length > 0) && <section className="card c12 rise">
       <div className="card-h"><h2>QR для зали</h2></div>
       <div className="lbl" style={{ marginBottom: 12 }}>Одне посилання на групу. Кожен скан відкриває нову одноразову форму, завершена форма це одна відповідь. Закрили форму без подання й відсканували знову: нова форма, попередня нічого не рахує. Вкажіть, скільки людей у групі: від цього рахується участь, а відповіді понад це число позначаються як можлива накрутка.</div>
       {c.status !== "closed" && <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
         <div className="field" style={{ flex: 2, minWidth: 220 }}><label htmlFor="qr-q">Анкета</label><select className="inp" id="qr-q" value={q ? q.id : ""} onChange={e => setTq(e.target.value)}>{surveys.map(x => <option key={x.id} value={x.id}>{x.title}</option>)}</select></div>
-        <div className="field" style={{ flex: 1, minWidth: 180 }}><label htmlFor="qr-u">Підрозділ</label><UnitCombo id="qr-u" units={A.units} value={unit} onChange={setTu} canCreate={false} /></div>
+        <div className="field" style={{ flex: 1, minWidth: 180 }}><label htmlFor="qr-u">Підрозділ</label><UnitCombo id="qr-u" units={A.units} value={unit} onChange={setTu} /></div>
         <div className="field" style={{ width: 130 }}><label htmlFor="qr-n">Людей у групі</label><input className="inp tnum" id="qr-n" type="number" min="1" max="100000" value={tn} onChange={e => setTn(e.target.value)} /></div>
         <button className="btn btn-primary" onClick={createQr}><Ic n="qr" />Створити QR</button>
       </div>}
@@ -205,6 +208,7 @@ function apiNewCampaign() {
     return <>
       <div className="field"><label htmlFor="n-t">Назва</label><input className="inp" id="n-t" placeholder="Хвиля 3 (весна)" value={title} onChange={e => setTitle(e.target.value)} /></div>
       <UnitPick id="n-u" units={A.units} value={unit} onChange={setUnit} />
+      <span className="lbl">Немає потрібного підрозділу? Новий підрозділ створює технічний адміністратор.</span>
       <div className="field"><label>Анкети</label>{A.qs.map(q => <label key={q.id} className="chk-row"><input type="checkbox" className="n-q" value={q.id} checked={ids.includes(q.id)} onChange={e => setIds(v => e.target.checked ? [...v, q.id] : v.filter(x => x !== q.id))} /><span>{q.title} <span className="lbl">v{q.version}</span></span></label>)}</div>
       <div className="field"><label>Як проходять</label><div className="seg seg-full" id="n-m">{[["token", "Анонімно за QR"], ["login", "За обліковими записами"]].map(([m, n]) => <button key={m} type="button" className={mode === m ? "on" : ""} onClick={() => setMode(m)}>{n}</button>)}</div><span className="lbl" id="n-mh">{MODE_HINT[mode]}</span></div>
       <div className="field"><label htmlFor="n-k">Мінімальна група, осіб</label><input className="inp tnum" id="n-k" type="number" min="5" value={k} onChange={e => setK(e.target.value)} /><span className="lbl">Менші групи не показуються. Не менше 5.</span></div>
@@ -214,7 +218,7 @@ function apiNewCampaign() {
   });
 }
 
-/* --- Анкети (укладач) --- */
+/* --- Анкети (Департамент) --- */
 function ApiSurveys() {
   if (!apiEnsure("qs", () => api("/questionnaires"))) return <Loading t="Анкети" />;
   if (API.qs.error) return <Failed e={API.qs.error} />;
@@ -274,53 +278,54 @@ function bldNew() {
   });
 }
 
-/* --- Чек-лист: вносить робоча група, підтверджує укладач --- */
+/* --- Чек-лист: вносить робоча група, підтверджує внутрішній аудит (policies.checklist_confirmers) --- */
 function ApiChecklist() {
   if (!apiEnsure("ck", () => apiLoadCk())) return <Loading t="Чек-лист" />;
   const K = API.ck; if (K.error) return <Failed e={K.error} />;
   if (!K.camps.length) return <Empty t="Немає хвилі з чек-листом">Чек-лист зʼявиться, коли уповноважений відкриє хвилю з ним.</Empty>;
   const camp = K.camps.find(c => c.id === K.sel), open = camp && camp.status === "open";
-  const ed = S.role === "checklist_editor" && open, ap = S.role === "commissioner" && open, D = K.data;
+  const conf = (API.cfg.policies && API.cfg.policies.checklist_confirmers) || ["auditor"];
+  const ed = S.role === "checklist_editor" && open, ap = conf.includes(S.role) && open, D = K.data;
   const head = <section className="c12 rise toolbar">{!(ed || ap) && <span className="lbl">Режим перегляду.</span>}<div className="sp" />
     {K.camps.length > 1 ? <select className="inp" aria-label="Хвиля" value={K.sel} onChange={e => apiCkReload(e.target.value)}>{K.camps.map(c => <option key={c.id} value={c.id}>{dn(c.title)}</option>)}</select> : <span className="lbl">{camp ? camp.title : ""}</span>}</section>;
   if (!D) return <>{head}<Empty t="Чек-лист недоступний">{K.err || ""}</Empty></>;
   const asg = loadAsg(K.sel), AS = Object.fromEntries(((asg && asg.data) || []).map(a => [a.question_id, a]));
   const mine = it => !it.enterer_id || it.enterer_id === (API.user && API.user.id);
   const tile = (ic, t, v) => <section className="card rise kpi-tile"><div className="kt-h"><span className="kt-ic"><Ic n={ic} /></span><span className="lbl">{t}</span></div><div className="kt-b"><span className="mid tnum">{v}</span></div></section>;
-  return <>{head}{["auditor", "commissioner"].includes(S.role) && <LotteryCard campaignId={K.sel} status={camp && camp.status} />}
+  return <>{head}{S.role === "auditor" && <LotteryCard campaignId={K.sel} status={camp && camp.status} />}
     <div className="c12 kpi-row kpi-row-s">{tile("check", "Пунктів", D.total)}{tile("edit", "Внесено", D.filled)}{tile("ok", "Підтверджено", D.confirmed)}</div>
     <section className="card c12 rise"><div className="tbl-wrap"><table><thead><tr><th>Пункт</th><th>Компонент</th><th>Стан і доказ</th><th>Документи</th><th></th></tr></thead><tbody>
       {D.items.map(it => <tr key={it.question_id} id={`ck-${it.question_id}`}><td style={{ minWidth: 260 }}><b style={{ fontWeight: 600 }}>{it.number}.</b> {it.text.replace(/^\d+(\.\d+)*\.\s*/, "")}</td>
         <td>{COMPS.includes(it.component) && <Pill cls="p-mute nodot">{COMP[it.component].n}</Pill>}</td>
-        <td style={{ minWidth: 200 }}><div className="tags" style={{ alignItems: "flex-start" }}>{it.status ? <Pill cls={CKS[it.status][1]}>{CKS[it.status][0]}</Pill> : <Pill cls="p-mute">Не внесено</Pill>}{it.confirmed ? <Pill cls="p-good nodot">Підтверджено</Pill> : it.status ? <Pill cls="p-mute nodot">Не підтверджено</Pill> : null}</div>{it.evidence && <div className="lbl" style={{ marginTop: 8, lineHeight: 1.45 }}>{it.evidence}</div>}{AS[it.question_id] && (AS[it.question_id].enterer || AS[it.question_id].confirmer) && <div className="lbl ck-who">{AS[it.question_id].enterer && <>Вносить: {dn(AS[it.question_id].enterer)}</>}{AS[it.question_id].enterer && AS[it.question_id].confirmer && " · "}{AS[it.question_id].confirmer && <>підтверджує: {dn(AS[it.question_id].confirmer)}</>}</div>}</td>
+        <td style={{ minWidth: 200 }}><div className="tags" style={{ alignItems: "flex-start" }}>{it.status ? <Pill cls={CKS[it.status][1]}>{CKS[it.status][0]}</Pill> : <Pill cls="p-mute">Не внесено</Pill>}{it.confirmed ? <Pill cls="p-good nodot">Підтверджено</Pill> : it.status ? <Pill cls="p-mute nodot">Не підтверджено</Pill> : null}{it.file_required && <Pill cls="p-warn nodot">Потрібен документ</Pill>}</div>{it.evidence && <div className="lbl" style={{ marginTop: 8, lineHeight: 1.45 }}>{it.evidence}</div>}{AS[it.question_id] && (AS[it.question_id].enterer || AS[it.question_id].confirmer) && <div className="lbl ck-who">{AS[it.question_id].enterer && <>Вносить: {dn(AS[it.question_id].enterer)}</>}{AS[it.question_id].enterer && AS[it.question_id].confirmer && " · "}{AS[it.question_id].confirmer && <>підтверджує: {dn(AS[it.question_id].confirmer)}</>}</div>}</td>
         <td className="lbl" style={{ minWidth: 160 }}>{it.files.length ? it.files.map(f => <div key={f.id}><a className="link" href="#checklist" onClick={e => { e.preventDefault(); apiDownload(K.sel, it.question_id, f.id, f.filename); }}>{f.filename}</a> <span className="hash" title={`sha256 ${f.sha256}`}>{f.sha256.slice(0, 10)}</span>{ed && <> <a className="link" href="#checklist" aria-label="Прибрати файл" onClick={e => { e.preventDefault(); apiDelFile(K.sel, it.question_id, f.id); }}>×</a></>}</div>) : it.status ? "Документа немає" : "–"}</td>
-        <td style={{ whiteSpace: "nowrap" }}>{ed && mine(it) && <button className="btn btn-soft" style={{ padding: "6px 12px" }} onClick={() => apiEditItem(it.question_id)}><Ic n="edit" />Внести</button>}{ap && it.status && (!it.confirmer_id || it.confirmer_id === (API.user && API.user.id)) ? (it.confirmed ? <button className="btn btn-ghost" style={{ padding: "6px 12px" }} onClick={() => apiConfirm(it.question_id, false)}>Відкликати</button> : <button className="btn btn-primary" style={{ padding: "6px 12px" }} onClick={() => apiConfirm(it.question_id, true)}><Ic n="ok" />Підтвердити</button>) : null}</td></tr>)}
+        <td style={{ whiteSpace: "nowrap" }}>{ed && mine(it) && <button className="btn btn-soft" style={{ padding: "6px 12px" }} onClick={() => apiEditItem(it.question_id)}><Ic n="edit" />Внести</button>}{ap && it.status && (!it.confirmer_id || it.confirmer_id === (API.user && API.user.id)) ? (it.confirmed ? <button className="btn btn-ghost" style={{ padding: "6px 12px" }} onClick={() => apiConfirm(it.question_id, false)}>Відкликати</button> : it.file_required ? <span data-tip="Без документа пункт підтвердити не можна. Попросіть робочу групу додати документ."><button className="btn btn-primary" style={{ padding: "6px 12px" }} disabled><Ic n="ok" />Підтвердити</button></span>
+          : <button className="btn btn-primary" style={{ padding: "6px 12px" }} onClick={() => apiConfirm(it.question_id, true)}><Ic n="ok" />Підтвердити</button>) : null}</td></tr>)}
     </tbody></table></div></section>
   </>;
 }
 function apiEditItem(qid) {
   const it = API.ck.data.items.find(x => x.question_id === qid), camp = API.ck.sel;
   openDrawer("Внести пункт чек-листа", () => {
-    const [st, setSt] = useState(it.status), [ev, setEv] = useState(it.evidence || ""), [cm, setCm] = useState(it.comment || ""), [files, setFiles] = useState([]), [err, setErr] = useState(""), [busy, setBusy] = useState(false), E = API.cfg.evidence;
+    const [st, setSt] = useState(it.status), [ev, setEv] = useState(it.evidence || ""), [cm, setCm] = useState(it.comment || ""), [files, setFiles] = useState([]), [err, setErr] = useState(""), [busy, setBusy] = useState(false), E = API.cfg.evidence, needDoc = requireFile() && (st === "full" || st === "partial");
     const ok = async () => {
       if (!st) return setErr("Оберіть статус.");
-      // Сервер (checklist_require_file) не підтвердить пункт без файлу, тож кажемо про це одразу
-      if (API.cfg.policies && API.cfg.policies.checklist_require_file && st !== "none" && !it.files.length && !files.length) return setErr("Додайте документ: без нього пункт не підтвердять.");
-      setBusy(true);
+      setBusy(true); setErr("");
       try {
-        const r = await apiSaveItem(camp, qid, { status: st, evidence: ev.trim(), comment: cm.trim() }, files);
-        toast(r.length ? `Пункт ${it.number} збережено, документів додано: ${r.length}` : `Пункт ${it.number} збережено`);
+        await apiSaveItem(camp, qid, { status: st, evidence: ev.trim(), comment: cm.trim() }, files);
+        toast(files.length ? `Пункт ${it.number} збережено, документів додано: ${files.length}` : `Пункт ${it.number} збережено`);
         closeDrawer(); apiCkReload(camp);
-      } catch (e) { setErr(apiErrText(e)); setBusy(false); apiCkReload(camp); }
+      } catch (e) { setErr(apiErrText(e)); setBusy(false); } // нічого не змінилось: форма лишається заповненою
     };
     return <>
       <div><div className="lbl">Пункт {it.number}</div><div style={{ fontWeight: 600, marginTop: 4 }}>{it.text}</div></div>
       {it.indicator && <div className="lbl">{it.indicator}</div>}
       <div className="field"><label>Статус</label><div className="seg" id="e-st">{Object.entries(CKS).map(([k, [n]]) => <button key={k} type="button" className={st === k ? "on" : ""} onClick={() => setSt(k)}>{n}</button>)}</div></div>
-      <div className="field"><label>Документи-підтвердження</label>
+      <div className="field"><label>Документи-підтвердження{needDoc && <span className="req"> (обовʼязково)</span>}</label>
         {it.files.length > 0 && <div className="fd-list">{it.files.map(f => <div key={f.id} className="fd-row"><Ic n="file" /><a className="link grow" href="#checklist" onClick={e => { e.preventDefault(); apiDownload(camp, qid, f.id, f.filename); }}>{f.filename}</a><span className="lbl">уже додано</span></div>)}</div>}
         <FileDrop files={files} onChange={setFiles} exts={E.allowed_extensions} maxBytes={E.max_bytes} maxFiles={E.max_files_per_item} already={it.files.length} hint={`Наказ, протокол, скан, фото; до ${Math.round(E.max_bytes / 1048576)} МБ.`} />
-        <span className="lbl">Новий документ знімає підтвердження пункту: його перевірять ще раз.</span></div>
+        {needDoc && !it.files.length && !files.length ? <span className="lbl fd-err">Без документа зберегти можна, але аудит такий пункт не підтвердить.</span>
+          : <span className="lbl">Новий документ знімає підтвердження пункту: його перевірять ще раз.</span>}</div>
       <div className="field"><label htmlFor="e-ev">Опис доказу</label><textarea className="inp" id="e-ev" rows="2" placeholder="Наприклад, наказ № 45 від 03.11.2026, с. 2" value={ev} onChange={e => setEv(e.target.value)} /></div>
       <div className="field"><label htmlFor="e-cm">Коментар</label><input className="inp" id="e-cm" value={cm} onChange={e => setCm(e.target.value)} /></div>
       <span className="lbl" id="e-err" style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))" }}>{err}</span>

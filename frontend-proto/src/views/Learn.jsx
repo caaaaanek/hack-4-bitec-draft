@@ -13,7 +13,7 @@ import { Loading, Failed, NeedServer } from "../components/states.jsx";
 import { KpiRow, ModHead, ToneIc, More } from "../components/modkit.jsx";
 import { DEMO_LEARN } from "../lib/flashcards-demo.js";
 
-const STAT_ROLES = ["admin", "coordinator", "commissioner", "leader", "auditor", "observer"];
+const STAT_ROLES = ["admin", "leader", "auditor", "observer"]; // статистику навчання бачать RESULT_READERS
 const demoDone = {}; // демо-режим: пройдені колоди живуть до перезавантаження сторінки
 const today = () => new Date().toISOString().slice(0, 10);
 const TONE = { culture: "teal", system: "blue", accountability: "amber" };

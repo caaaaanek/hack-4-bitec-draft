@@ -58,11 +58,11 @@ export const apiFail = e => toast(apiErrText(e));
 /* --- Ролі: обліковий запис → роль інтерфейсу --- */
 function frontRole(u) {
   if (!u) return "respondent";
-  if (["admin", "commissioner", "leader", "auditor", "coordinator"].includes(u.role)) return u.role;
-  if (u.role === "department") return "observer"; // Департамент: огляд закладів по одному, лише перегляд
+  if (["admin", "leader", "auditor", "coordinator"].includes(u.role)) return u.role;
+  if (u.role === "department") return "observer"; // Департамент: огляд закладів по одному й анкети
   return u.category === "working_group" ? "checklist_editor" : "respondent";
 }
-const RESULT_ROLES = ["leader", "auditor", "admin", "commissioner"];
+const RESULT_ROLES = ["leader", "auditor", "admin"];
 export const allowed = r => NAV.some(n => n[0] === r && n[3].includes(S.role)) && (!API.anon || r === "survey");
 
 /* --- Старт --- */
@@ -78,19 +78,24 @@ export async function boot() {
   if (!cfg) { render(); return; }
   API.down = false;
   API.on = true; API.cfg = cfg; S.k = cfg.min_group_size;
-  // Розподіл прав як на бекенді: укладач підтверджує чек-лист, робоча група ще й проходить анкету.
-  NAV.find(n => n[0] === "checklist")[3].push("commissioner", "auditor");
-  // Бекенд дає результати й уповноваженому, і укладачу (RESULT_READERS): лише перегляд, без рішень і заходів.
-  for (const r of ["overview", "explain", "trends", "compare"]) NAV.find(n => n[0] === r)[3].push("admin", "commissioner");
+  // Розподіл прав як на бекенді: чек-лист підтверджують ролі з policies.checklist_confirmers (типово аудит),
+  // робоча група ще й проходить анкету.
+  const conf = ((cfg.policies && cfg.policies.checklist_confirmers) || ["auditor"]).filter(r => ["auditor", "admin"].includes(r));
+  NAV.find(n => n[0] === "checklist")[3].push(...(conf.length ? conf : ["auditor"]));
+  // Бекенд дає результати й уповноваженому (RESULT_READERS): лише перегляд агрегатів, без рішень і заходів.
+  for (const r of ["overview", "explain", "trends", "compare"]) NAV.find(n => n[0] === r)[3].push("admin");
   for (const r of ["survey", "me"]) NAV.find(n => n[0] === r)[3].push("checklist_editor");
   NAV.find(n => n[0] === "survey")[1] = "Пройти анкету";
   // Назва організації з налаштувань (ORG_KIND): «заклад», «організація», «частина»
   if (cfg.org_terms) { NAV.find(n => n[0] === "institutions")[1] = orgCap("plural"); TITLES.overview = "Огляд " + orgT("genitive"); TITLES.institutions = orgCap("plural"); ROLE.leader[0] = "Керівник " + orgT("genitive"); }
-  // Екрани лише з сервером: люди й підрозділи веде технічний адміністратор (SEPARATE_TECH_ADMIN забирає їх в уповноваженого)
+  // Екрани лише з сервером. Людей і підрозділи веде технічний адміністратор; уповноважений їх лише обирає для хвилі.
   const nr = (r, roles) => { const n = NAV.find(x => x[0] === r); n[3].length = 0; n[3].push(...roles); };
-  nr("people", ["coordinator"]); // людьми керує лише технічний адміністратор, не уповноважений
-  nr("dicts", ["admin", "coordinator", "commissioner"]);
-  nr("risks", ["leader", "admin", "commissioner", "auditor", "observer"]);
+  nr("people", ["coordinator"]);
+  nr("units", ["coordinator"]);
+  nr("summary", ["coordinator"]);
+  // Довідники: категорії й посади веде техадмін, категорії ще й Департамент (для анкет), факти лише уповноважений
+  nr("dicts", ["admin", "coordinator", "observer"]);
+  nr("risks", ["leader", "admin", "auditor", "observer"]);
   const tm = location.pathname.match(/^\/s\/([^/?#]+)/);
   if (tm) return bootToken(decodeURIComponent(tm[1]));
   const qm = location.pathname.match(/^\/q\/([^/?#]+)/);
@@ -129,7 +134,7 @@ export function showLogin(msg) {
 }
 export async function login(loginName, password) {
   const s = await api("/auth/session", { method: "POST", auth: false, body: { login: loginName, password } });
-  apiSetToken(s.access_token); await afterLogin(s.user);
+  apiSetToken(s.access_token); history.replaceState(null, "", "/"); await afterLogin(s.user); // вхід з форми: на стартовий екран ролі
 }
 export async function loginProxy() {
   try { const s = await api("/auth/proxy", { method: "POST", auth: false }); apiSetToken(s.access_token); await afterLogin(s.user); } catch (err) { toast(apiErrText(err)); }
@@ -406,7 +411,12 @@ export const RESULT_VIEWS = ["overview", "explain", "trends", "compare", "whatif
 /* --- Керування циклом (уповноважений) --- */
 export const dn = t => String(t || "").replace(/\s*\(демо\)/gi, "");
 export async function apiLoadAdm(sel) {
-  const [campaigns, units, qs] = await Promise.all([api("/campaigns"), api("/admin/units"), api("/questionnaires?status=published")]);
+  // Підрозділи лише зони уповноваженого (/units); запити на відкриття, що чекають аудиту, — з /admin/approvals
+  const [campaigns, units, qs, aps] = await Promise.all([api("/campaigns"), api("/units"), api("/questionnaires?status=published"),
+    fourEyesOn() ? api("/admin/approvals?status=pending").catch(() => []) : []]);
+  const waiting = {};
+  for (const a of aps) if (a.kind === "open_campaign" && a.target_id) waiting[a.target_id] = a.id;
+  for (const c of campaigns) c.waitingOpen = c.status === "draft" ? waiting[c.id] || null : null;
   const cur = sel || (API.adm && API.adm.sel) || (campaigns.find(c => c.status !== "closed") || campaigns[0] || {}).id;
   const c = campaigns.find(x => x.id === cur);
   const [progress, qr] = cur ? await Promise.all([
@@ -416,10 +426,6 @@ export async function apiLoadAdm(sel) {
   return { campaigns, units, qs, sel: cur, progress, qr };
 }
 export function apiAdmReload(sel) { API.adm = null; API.loading.adm = true; render(true); apiLoadAdm(sel).then(v => { API.adm = v; }, e => { API.adm = { error: apiErrText(e) }; }).finally(() => { API.loading.adm = false; render(true); }); }
-export async function apiCreateUnit(name, parentId) {
-  const u = await api("/admin/units", { method: "POST", body: { name, parent_id: parentId || null } });
-  API.adm.units.push(u); toast(`Підрозділ «${u.name}» створено`); return u;
-}
 export async function apiCreateCampaign(body) {
   const c = await api("/campaigns", { method: "POST", body });
   closeDrawer(); toast(`Хвилю «${c.title}» створено як чернетку`); apiAdmReload(c.id);
@@ -431,7 +437,7 @@ export async function apiCampaignAct(id, act) {
     const c = await api(`/campaigns/${id}/${act}`, { method: "POST" });
     // Принцип двох осіб: перший виклик лише створює запит на відкриття
     const pending = act === "open" && c && c.pending_approval_id && c.status !== "open";
-    toast(pending ? "Запит на відкриття надіслано: хвилю відкриє підтвердження другої людини" : act === "open" ? "Хвилю відкрито: респонденти бачать анкети" : "Хвилю закрито: знімок результатів збережено");
+    toast(pending ? "Запит на відкриття надіслано. Хвиля відкриється, коли його підтвердить внутрішній аудит" : act === "open" ? "Хвилю відкрито: респонденти бачать анкети" : "Хвилю закрито: знімок результатів збережено");
     // Після закриття оновлюємо результати, трекер, лічильники меню й модулі без перезавантаження сторінки
     if (act === "close") { API.mod = {}; API.ck = API.log = null; if (RESULT_ROLES.includes(S.role)) await apiReloadResults(); }
   } catch (e) { apiFail(e); }
@@ -457,7 +463,7 @@ export async function apiQrTick() {
   } catch (e) { /* наступна спроба за кілька секунд */ }
 }
 
-/* --- Анкети (укладач) --- */
+/* --- Анкети (Департамент) --- */
 export const QST = { draft: ["Чернетка", "p-warn"], published: ["Опубліковано", "p-good"], archived: ["В архіві", "p-mute"] };
 export const QCAT = { working_group: "Робоча група", staff: "Особовий склад", expert: "Зовнішні експерти" };
 export function apiSurveysReload() { API.qs = null; render(true); }
@@ -477,7 +483,7 @@ export async function bldOpen(id) {
   try { const q = await api(`/questionnaires/${id}`); ui.bld = { q, n: Date.now() }; render(true); } catch (e) { apiFail(e); }
 }
 
-/* --- Чек-лист: вносить робоча група, підтверджує укладач --- */
+/* --- Чек-лист: вносить робоча група, підтверджує внутрішній аудит --- */
 export const CKS = { full: ["Впроваджено повністю", "p-good"], partial: ["Частково", "p-warn"], none: ["Не впроваджено", "p-bad"] };
 export async function apiLoadCk(sel) {
   let camps;
@@ -490,13 +496,15 @@ export async function apiLoadCk(sel) {
   return { camps, sel: cur, data, err };
 }
 export function apiCkReload(sel) { API.ck = null; API.loading.ck = true; render(true); apiLoadCk(sel).then(v => { API.ck = v; }, e => { API.ck = { error: apiErrText(e) }; }).finally(() => { API.loading.ck = false; render(true); }); }
-// Зберегти пункт і завантажити документи по одному (сервер приймає один файл за запит)
+// Внести пункт разом із документами одним запитом (multipart). Атомарно: якщо файл не пройшов, не змінюється нічого.
 export async function apiSaveItem(camp, qid, body, files = []) {
-  await api(`/campaigns/${camp}/checklist/${qid}`, { method: "PUT", body });
-  const out = [];
-  for (const file of files) { const fd = new FormData(); fd.append("file", file); out.push(await api(`/campaigns/${camp}/checklist/${qid}/files`, { method: "POST", body: fd })); }
-  return out;
+  const fd = new FormData();
+  fd.append("status", body.status); fd.append("evidence", body.evidence || ""); fd.append("comment", body.comment || "");
+  for (const f of files) fd.append("files", f);
+  return api(`/campaigns/${camp}/checklist/${qid}/submit`, { method: "POST", body: fd });
 }
+export const fourEyesOn = () => !!(API.cfg && API.cfg.policies && API.cfg.policies.four_eyes);
+export const requireFile = () => !!(API.cfg && API.cfg.policies && API.cfg.policies.checklist_require_file);
 export async function apiConfirm(qid, yes) {
   const camp = API.ck.sel;
   try { await api(`/campaigns/${camp}/checklist/${qid}/confirm`, { method: yes ? "POST" : "DELETE" }); toast(yes ? "Пункт підтверджено" : "Підтвердження відкликано"); apiCkReload(camp); }
@@ -540,8 +548,8 @@ export const AUDIT_ACT = {
 export function apiLoadLog() {
   return Promise.all([
     api("/admin/audit-log?limit=500"),
-    S.role === "admin" ? api("/admin/units").catch(() => []) : [], // лише для адміністратора; аудитору покажемо скорочений код
-    S.role === "admin" ? api("/admin/users").catch(() => []) : [],
+    api("/units").catch(() => []), // підрозділи зони; людей уповноважений не бачить, тож логіни з журналу як є
+    [],
   ]).then(([rows, units, users]) => ({ rows, units, users }));
 }
 // Читабельний рядок із деталей запису: назви підрозділів замість UUID, без службових полів
@@ -591,9 +599,8 @@ export function apiAnalyze(file, text, title) {
   if (title) fd.append("title", title);
   return api("/normative/analyze", { method: "POST", body: fd });
 }
-// Хвилі для автопілота: адміністратор і аудитор бачать список хвиль, координатор лише зведення (GET /campaigns йому закрито)
+// Хвилі для автопілота: уповноважений і аудит бачать хвилі своєї зони
 export async function apiAutopilotCampaigns() {
-  if (S.role === "coordinator") return (await api("/admin/overview")).campaigns.map(c => ({ id: c.id, title: c.title, status: c.status }));
   return (await api("/campaigns")).map(c => ({ id: c.id, title: c.title, status: c.status }));
 }
 export const apiAutopilot = id => api(`/campaigns/${id}/autopilot`);

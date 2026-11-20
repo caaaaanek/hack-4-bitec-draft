@@ -1,4 +1,4 @@
-/* Конструктор анкети (укладач, режим API): розділи, питання, варіанти й бали. Повноекранне вікно #bld. */
+/* Конструктор анкети (Департамент, режим API): розділи, питання, варіанти й бали. Повноекранне вікно #bld. */
 import { useEffect, useReducer, useRef, useState } from "react";
 import { Ic } from "../lib/icons.jsx";
 import { api, apiFail, apiErrText, apiSurveysReload, QCAT } from "../lib/api.js";

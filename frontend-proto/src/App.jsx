@@ -26,9 +26,9 @@ import { Approvals, fourEyes, useApprovals } from "./views/Transparency.jsx";
 import { UrnScreen } from "./views/Urn.jsx";
 // Адміністрування рідко потрібне: окремий чанк
 const lazyAdm = k => { const C = lazy(() => import("./views/Admin.jsx").then(m => ({ default: m[k] }))); return () => <Suspense fallback={null}><C /></Suspense>; };
-const People = lazyAdm("People"), Dicts = lazyAdm("Dicts"), Risks = lazyAdm("Risks"), InvitePage = lazyAdm("InvitePage");
+const People = lazyAdm("People"), Units = lazyAdm("Units"), Summary = lazyAdm("Summary"), Dicts = lazyAdm("Dicts"), Risks = lazyAdm("Risks"), InvitePage = lazyAdm("InvitePage");
 
-const V = { people: People, dicts: Dicts, risks: Risks, urn: UrnScreen, approvals: Approvals, views: ResultViews, learn: Learn, watch: Watch, advocate: Advocate, autopilot: Autopilot, normative: Normative, checks: Checks, overview: Overview, explain: Explain, trends: Trends, compare: Compare, whatif: WhatIf, recs: Recs, tracker: Tracker, sources: Sources, report: Report, manage: Manage, surveys: Surveys, checklist: Checklist, audit: Audit, survey: Survey, me: Me, institutions: Institutions };
+const V = { people: People, units: Units, summary: Summary, dicts: Dicts, risks: Risks, urn: UrnScreen, approvals: Approvals, views: ResultViews, learn: Learn, watch: Watch, advocate: Advocate, autopilot: Autopilot, normative: Normative, checks: Checks, overview: Overview, explain: Explain, trends: Trends, compare: Compare, whatif: WhatIf, recs: Recs, tracker: Tracker, sources: Sources, report: Report, manage: Manage, surveys: Surveys, checklist: Checklist, audit: Audit, survey: Survey, me: Me, institutions: Institutions };
 const html = document.documentElement;
 
 /* ---------- Маршрут: що зробити при переході ---------- */
@@ -126,16 +126,15 @@ function SearchPop({ q, hits, sel, pick }) {
 }
 
 /* ---------- Вхід (режим API) ---------- */
-// Демо-облікові записи за моделлю з 7 ролей. Логіни ті, що створює backend/app/seed/seed.py;
-// поки ролі на сервері не перейменовано, «Департамент» розкладено на два входи: зведення (department) і анкети (commissioner).
+// Демо-облікові записи за моделлю з 7 ролей (логіни створює backend/app/seed/seed.py)
 const DEMO_ROLES = [
   ["Респондент", "Проходить анкету: особовий склад або зовнішній експерт", ["staff01", "expert1"]],
-  ["Член робочої групи", "Анкета 1 і внесення даних чек-листа, без підтвердження", ["wg1"]],
-  ["Уповноважений", "Хвилі, мінімальна група, QR-коди, автопілот", ["admin"]],
+  ["Член робочої групи", "Анкета 1 і внесення чек-листа з документами", ["wg1"]],
+  ["Уповноважений", "Хвилі, учасники, підтвердження нових людей", ["admin"]],
   ["Керівник", "Результати, рекомендації, заходи, звіт", ["leader", "leader_a"]],
-  ["Внутрішній аудит", "Перегляд результатів, підтвердження чек-листа, журнал", ["auditor"]],
-  ["Департамент", "Анкети та їхні версії, зведення по закладах", ["department", "commissioner"]],
-  ["Технічний адміністратор", "Користувачі, підрозділи, ролі, без результатів", ["coordinator"]],
+  ["Внутрішній аудит", "Підтвердження чек-листа й відкриття хвилі, журнал", ["auditor"]],
+  ["Департамент", "Анкети, огляд закладів", ["department"]],
+  ["Технічний адміністратор", "Люди й підрозділи", ["coordinator"]],
 ];
 function Login() {
   const [u, setU] = useState(""), [p, setP] = useState(""), [err, setErr] = useState(""), [busy, setBusy] = useState(false), lu = useRef(null), lp = useRef(null), a = API.cfg.auth;
@@ -193,7 +192,7 @@ function View({ r, vk }) {
 function Badge({ r }) {
   const recs = pendingRecs(), ms = measures(), od = ms.filter(x => overdueDays(x) > 0).length, pend = Object.values(S.fpend).filter(p => !p.ret).length;
   const ap = r === "approvals" ? useApprovals() : null;
-  if (r === "approvals") { const k = ap && ap.data ? ap.data.filter(x => x.requested_by_id !== (API.user && API.user.id)).length : 0; return k ? <span className="badge" aria-label={`Чекають на вас: ${k}`}>{k}</span> : null; }
+  if (r === "approvals") { const k = ap && ap.data ? ap.data.filter(x => x.can_decide).length : 0; return k ? <span className="badge" aria-label={`Чекають на вас: ${k}`}>{k}</span> : null; }
   const n = r === "recs" ? recs : r === "tracker" ? (od ? `${ms.length} · ${od}!` : ms.length) : r === "checklist" && S.role === "checklist_approver" ? pend : 0;
   return n ? <span className={`badge ${r === "tracker" && !od ? "mute" : ""}`}>{n}</span> : null;
 }
@@ -204,7 +203,7 @@ export default function App() {
   const mini = html.classList.contains("side-mini"), u = API.user;
   const [q, setQ] = useState(""), [sel, setSel] = useState(0), qRef = useRef(null), box = useRef(null);
   const hits = searchHits(q), ns = notesState();
-  const navAll = NAV.filter(n => n[3].includes(S.role) && (n[0] !== "approvals" || fourEyes()) && (n[0] !== "urn" || ["auditor", "commissioner"].includes(S.role))), simple = simpleMode() && navAll.some(n => n[0] === "overview");
+  const navAll = NAV.filter(n => n[3].includes(S.role) && (n[0] !== "approvals" || fourEyes()) && (n[0] !== "urn" || S.role === "auditor")), simple = simpleMode() && navAll.some(n => n[0] === "overview");
   const navG = navGroups(simple ? navAll.filter(n => SIMPLE_ROUTES.includes(n[0])) : navAll);
   html.dataset.role = S.role;
   useEffect(() => {
