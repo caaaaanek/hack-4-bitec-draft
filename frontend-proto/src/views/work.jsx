@@ -30,12 +30,12 @@ export function Recs() {
     <div className="c12 recs">{list.length ? list.map((r, i) => <article key={r.id} className="rec card rise" style={{ animationDelay: `${i * 60}ms` }} id={r.id}>
       <span className="pri" style={{ background: PRI[r.pri][1], color: PRI[r.pri][2] }} data-tip={`Пріоритет: ${PRI[r.pri][0].toLowerCase()}`}><Ic n={r.pri === "high" ? "alert" : "flag"} /></span>
       <div style={{ minWidth: 0 }}>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}><Pill cls={"nodot " + (r.pri === "high" ? "p-bad" : "p-mute")}>Пріоритет: {PRI[r.pri][0].toLowerCase()}</Pill><Pill cls="p-mute nodot">{r.groupT || COMP[r.c].n}</Pill>{r.rank != null && <span className="lbl tnum" data-tip="Місце в списку за важливістю">№ {r.rank}</span>}<Pill cls={REC_ST[r.st][1]}>{REC_ST[r.st][0]}</Pill></div>
+        <div className="lbl rec-meta">{r.rank != null && <span className="tnum" data-tip="Місце в списку за важливістю">№ {r.rank} · </span>}{r.groupT || COMP[r.c].n} · <span className={r.pri === "high" ? "rec-hi" : ""}>пріоритет {PRI[r.pri][0].toLowerCase()}</span>{r.st !== "proposed" && <> · <Pill cls={REC_ST[r.st][1]}>{REC_ST[r.st][0]}</Pill></>}</div>
         <h3>{r.t}</h3>
         {r.covers && r.covers.length > 0 && <div className="lbl" style={{ marginTop: 4 }}>Обʼєднує ще {r.covers.length} {plural(r.covers.length, "схожу пропозицію", "схожі пропозиції", "схожих пропозицій")}</div>}
         <div className="lbl" style={{ margin: "10px 0 4px" }}>Чому система це пропонує</div><div>{r.why}</div>
-        <div className="lbl" style={{ margin: "12px 0 4px" }}>На підставі</div>
-        <div className="ev">{r.evidence.map((e, j) => <a key={j} href={`#explain/${e.id}`} className="ev-i" onClick={e.q ? ev => { ev.preventDefault(); openApiQ(e.q); } : undefined}><span>{!e.item && <span className="ev-flag"><Ic n="alert" /></span>}{e.t}: <b>{e.v}</b></span><span className="lbl">{e.q ? "Відкрити питання" : "Відкрити в розкладі"} <Ic n="arrowR" /></span></a>)}</div>
+        {r.evidence.length > 0 && <div className="lbl" style={{ margin: "12px 0 4px" }}>На підставі</div>}
+        {r.evidence.length > 0 && <div className="ev">{r.evidence.map((e, j) => <a key={j} href={`#explain/${e.id}`} className="ev-i" onClick={e.q ? ev => { ev.preventDefault(); openApiQ(e.q); } : undefined}><span>{!e.item && <span className="ev-flag"><Ic n="alert" /></span>}{e.t}: <b>{e.v}</b></span><span className="lbl">{e.q ? "Відкрити питання" : "Відкрити в розкладі"} <Ic n="arrowR" /></span></a>)}</div>}
         <details className="acts"><summary>Запропоновані дії ({r.acts.length})</summary><ol>{r.acts.map(a => <li key={a}>{a}</li>)}</ol></details>
         {r.note.reason && <div className="note-box" style={{ marginTop: 10 }}><b>Причина відхилення</b><span>{r.note.reason}</span></div>}
         {r.note.comment && <div className="note-box" style={{ marginTop: 10 }}><b>Коментар до уточнення</b><span>{r.note.comment}</span></div>}
@@ -147,11 +147,11 @@ export function Tracker() {
       <span className="lbl tnum">Показано {list.length} з {all.length}</span></section>
     {!list.length ? <section className="card c12"><div className="empty"><b>За цими фільтрами заходів немає</b><br />Змініть статус або посаду. Нові заходи зʼявляються, коли керівник приймає рекомендацію.<br /><br />{can("recs") && <a className="btn btn-soft" href="#recs">Перейти до рекомендацій</a>}</div></section>
       : S.trackView === "board" ? board
-      : <section className="card c12 rise"><div className="tbl-wrap"><table><thead><tr><th>Захід</th><th>Відповідальна посада</th><th>Строк</th><th>Статус</th><th>Верифікація</th><th>Змінити статус</th></tr></thead><tbody>
+      : <section className="card c12 rise"><div className="tbl-wrap"><table className="tbl-stack"><thead><tr><th>Захід</th><th>Відповідальна посада</th><th>Строк</th><th>Статус</th><th>Верифікація</th><th>Змінити статус</th></tr></thead><tbody>
         {list.map(x => { const dd = overdueDays(x); return <tr key={x.id} className="tr-click" tabIndex={0} onClick={e => open(e, x.id)} onKeyDown={e => { if (e.key === "Enter" && !e.target.closest("button")) openMeasure(x.id); }}>
-          <td style={{ minWidth: 220 }}><b style={{ fontWeight: 600 }}>{x.t}</b><div className="lbl">З рекомендації: {x.rec}</div>{x.ext && <div className="lbl">{x.ext.t}{x.ext.docs.length ? ` · документів: ${x.ext.docs.length}` : ""}</div>}</td><td style={{ minWidth: 160 }}>{x.who}</td>
-          <td className="tnum" style={{ whiteSpace: "nowrap" }}>{dd ? <><span style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))", fontWeight: 600 }}>{ua(x.due)}</span><div className="lbl" style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))" }}>прострочено на {dd} {daysWord(dd)}</div></> : ua(x.due)}</td>
-          <td><Pill cls={M_ST[x.st][1]}>{M_ST[x.st][0]}</Pill></td><td><Pill cls={verif(x)[1] + " nodot"}>{verif(x)[0]}</Pill></td><td>{actCell(x)}</td></tr>; })}
+          <td style={{ minWidth: 220 }}><b style={{ fontWeight: 600 }}>{x.t}</b><div className="lbl">З рекомендації: {x.rec}</div>{x.ext && <div className="lbl">{x.ext.t}{x.ext.docs.length ? ` · документів: ${x.ext.docs.length}` : ""}</div>}</td><td style={{ minWidth: 160 }} data-l="Відповідальна посада">{x.who}</td>
+          <td className="tnum" style={{ whiteSpace: "nowrap" }} data-l="Строк">{dd ? <><span style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))", fontWeight: 600 }}>{ua(x.due)}</span><div className="lbl" style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))" }}>прострочено на {dd} {daysWord(dd)}</div></> : ua(x.due)}</td>
+          <td data-l="Статус"><Pill cls={M_ST[x.st][1]}>{M_ST[x.st][0]}</Pill></td><td data-l="Верифікація"><Pill cls={verif(x)[1] + " nodot"}>{verif(x)[0]}</Pill></td><td data-l="Змінити статус">{actCell(x)}</td></tr>; })}
       </tbody></table></div></section>}
     <section className="card c12 rise vf">
       <h2>Верифікація наступним оцінюванням</h2><button type="button" className="kt-info" aria-label="Як працює верифікація" data-tip="Чи спрацював виконаний захід, видно після наступного циклу: якщо повʼязаний показник зріс, захід підтверджено."><Ic n="info" /></button>
@@ -175,8 +175,8 @@ const INTEG = () => [
 export function Sources() {
   return <>
     <section className="card c12 rise"><div className="card-h"><h2>Джерела даних за метриками</h2></div>
-      <div className="tbl-wrap"><table><thead><tr><th>Метрика</th><th>Джерело</th><th>Режим</th><th>Вік даних</th><th>Пояснення</th></tr></thead><tbody>
-        {srcRows().map(([a, b, mo, age, ex], i) => <tr key={a} className="tr-click" tabIndex={0} onClick={() => openSource(i)} onKeyDown={enter(() => openSource(i))}><td><b style={{ fontWeight: 600 }}>{a}</b></td><td>{b}</td><td><Pill cls={MODE[mo][1]}>{MODE[mo][0]}</Pill></td><td className="lbl" style={{ minWidth: 150 }}>{age}</td><td className="lbl" style={{ minWidth: 260 }}>{ex}</td></tr>)}
+      <div className="tbl-wrap"><table className="tbl-stack"><thead><tr><th>Метрика</th><th>Джерело</th><th>Режим</th><th>Вік даних</th><th>Пояснення</th></tr></thead><tbody>
+        {srcRows().map(([a, b, mo, age, ex], i) => <tr key={a} className="tr-click" tabIndex={0} onClick={() => openSource(i)} onKeyDown={enter(() => openSource(i))}><td><b style={{ fontWeight: 600 }}>{a}</b></td><td data-l="Джерело">{b}</td><td data-l="Режим"><Pill cls={MODE[mo][1]}>{MODE[mo][0]}</Pill></td><td className="lbl" style={{ minWidth: 150 }} data-l="Вік даних">{age}</td><td className="lbl blk" style={{ minWidth: 260 }}>{ex}</td></tr>)}
       </tbody></table></div></section>
     <section className="c12 rise"><div className="card-h" style={{ margin: "6px 0 0" }}><h2>Карта інтеграцій</h2></div></section>
     {INTEG().map(([n, mo, why, how, ic, src]) => { const go = () => openSource(src); return <section key={n} className={`card c4 rise integ ${mo}`} role="button" tabIndex={0} onClick={go} onKeyDown={enter(go)}><div className="comp-top"><span className="comp-ic" style={{ background: "var(--soft)" }}><Ic n={ic} /></span><b>{n}</b><div className="sp" style={{ flex: 1 }} /><Pill cls={MODE[mo][1]}>{MODE[mo][0]}</Pill></div>

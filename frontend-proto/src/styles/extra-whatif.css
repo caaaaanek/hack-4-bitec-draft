@@ -50,7 +50,9 @@
   .wi-hide-s { display: none; }
   .wi-comps { grid-template-columns: 1fr; }
   .wi-fact { grid-template-columns: 1fr; gap: 8px; }
-  .wi-d { margin-left: 0; }
+  .wi-sum { display: grid; grid-template-columns: 1fr auto 1fr; gap: 10px 12px; }
+  .wi-idx { min-width: 0; }
+  .wi-d { margin-left: 0; grid-column: 1 / -1; justify-self: start; }
   .wi-idx b { font-size: 32px; }
   .wi-ck { flex-wrap: wrap; }
   .wi-ck select { width: 100%; }

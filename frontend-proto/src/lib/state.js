@@ -52,7 +52,6 @@ export const NAV = [
   ["advocate", "Питання перевірки", "scale", ["leader", "observer", "auditor", "admin"]],
   ["report", "Звіт", "file", ["leader", "observer"]],
   ["manage", "Керування циклом", "sliders", ["admin"]],
-  ["autopilot", "Автопілот хвилі", "bolt", ["auditor"]],
   ["checks", "Перевірки", "shield", ["admin"]],
   ["surveys", "Анкети", "survey", ["observer"]],
   ["checklist", "Чек-лист", "check", ["checklist_editor", "checklist_approver"]],

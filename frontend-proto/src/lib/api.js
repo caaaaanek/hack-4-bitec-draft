@@ -145,7 +145,7 @@ export async function logout() {
 }
 
 async function afterLogin(user) {
-  API.user = user; S.role = frontRole(user); API.my = API.assignments = API.adm = API.qs = API.ck = API.log = API.logF = API.chain = API.dept = null; API.survey = null; API.formError = null; API.loginMsg = null;
+  API.user = user; S.role = frontRole(user); API.my = API.assignments = API.adm = API.qs = API.ck = API.log = API.logF = API.chain = API.dept = null; API.deptAuto = false; API.deptUnit = null; API.logLim = 0; API.survey = null; API.formError = null; API.loginMsg = null;
   API.resErr = null; API.mod = {};
   API.deptUnit = null;
   if (RESULT_ROLES.includes(S.role)) { try { await apiLoadResults(); } catch (e) { API.resErr = apiErrText(e); } }
@@ -234,7 +234,7 @@ function apiModel(r, h) {
   for (const g of r.groups) for (const code of g.flags || []) { const d = MF[code], o = GROUP_FLAG[code]; if (d || o) flags.push({ id: `${code}:${g.category}`, w: d ? sev(d.severity) : o[0], sevT: d && d.severity_title, t: `${g.title}: ${d ? d.title : o[1]}`, ex: d ? d.explain : o[2], raised: true }); }
   // Кількість відповідей — готові submitted із груп сервера; група, менша за поріг, має null і не додається
   const responses = r.groups.reduce((a, g) => a + (g.submitted ?? 0), 0);
-  const m = finish({ id: ALPHA, name: r.unit_name, components: comps, pItems, fItems, series, events, flags, responses });
+  const m = finish({ id: ALPHA, name: dn(r.unit_name), components: comps, pItems, fItems, series, events, flags, responses });
   m.trust = GRADE[r.index.reliability] || "insufficient";
   // null від сервера — «недостатньо даних»: показуємо «—», а не число з історії чи демо
   m.index = r.index.score ?? null; m.level = m.index == null ? null : (r.index.level && r.index.level.level) || m.level;
@@ -258,18 +258,23 @@ function apiModel(r, h) {
 const CK_ST = { full: "впроваджено повністю", partial: "частково", none: "не впроваджено" };
 const DEC_ST = { accepted: "accepted", clarify: "clarified", rejected: "rejected" };
 const BASIS = { self_score: "Самооцінка", facts_score: "Факти", score: "Зараховано", percent: "Відсоток", confirmed: "Підтверджено пунктів", total: "Усього", found: "Знайдено", pending: "Не розглянуто", change: "Зміна", level: "Рівень" };
+// Значення факту для «На підставі»: сам факт (96 з 168, 57,1 %) і бал методики, а не лише бал (0 читається як «нічого не розібрано»)
+const factV = f => f.kind === "pct" ? `${f.val[0]} з ${f.val[1]} (${fb(f.val[0] / f.val[1] * 100)} %), бал ${fb(f.v)}` : `рівень ${f.val}, бал ${fb(f.v)}`;
+// Правило, що лише переказує опис тими самими числами й словами, не повторюємо
+const words = t => String(t || "").toLowerCase().match(/[\p{L}]+|\d+/gu) || [];
+const sameText = (rule, desc) => { const r = words(rule), d = new Set(words(desc)); return r.length > 0 && r.filter(w => d.has(w)).length / r.length >= 0.6; };
 function apiRec(x, m, res) {
   const c = COMPS.includes(x.component) ? x.component : "system", st = x.decision ? DEC_ST[x.decision.decision] || "proposed" : "proposed", cm = x.decision && x.decision.comment || "";
   // Звʼязок рекомендації з питанням чи показником, з якого вона виникла (код правила: fact:<показник>, question:<питання>)
   const [kind, ref] = x.code.split(":"), links = [];
-  if (kind === "fact" && m) { const f = m.fItems.find(i => i.id.endsWith("-f-" + ref)); if (f) links.push({ id: f.id, t: f.t, v: fb(f.v), item: true }); }
+  if (kind === "fact" && m) { const f = m.fItems.find(i => i.id.endsWith("-f-" + ref)); if (f) links.push({ id: f.id, t: f.t, v: factV(f), item: true }); }
   const qLink = q => ({ id: COMPS.includes(q.component) ? q.component : c, q: q.code, t: `Питання «${q.text}»`, v: q.score != null ? fb(q.score) : "–", item: true });
   if (kind === "checklist" && res && res.checklist) { const i = (res.checklist.items || []).find(i => i.number === ref); if (i) links.push({ id: COMPS.includes(i.component) ? i.component : c, ck: i.number, t: `Пункт чек-листа ${i.number}${i.text ? ` «${i.text.replace(/^[\d.]+\s*/, "")}»` : ""}`, v: CK_ST[i.status] || "не заповнено", item: true }); }
   if (kind === "question" && res) { const q = (res.questions || []).find(i => i.code === ref); if (q) links.push(qLink(q)); }
-  if (kind === "cut" && m) m.fItems.filter(i => i.c === x.component && i.v < 62.5).slice(0, 2).forEach(f => links.push({ id: f.id, t: f.t, v: fb(f.v), item: true }));
+  if (kind === "cut" && m) m.fItems.filter(i => i.c === x.component && i.v < 62.5).slice(0, 2).forEach(f => links.push({ id: f.id, t: f.t, v: factV(f), item: true }));
   if (kind === "weakest" && res) (res.questions || []).filter(q => q.component === x.component && q.score != null).sort((a, b) => a.score - b.score).slice(0, 2).forEach(q => links.push(qLink(q)));
   return { id: x.code, t: x.title, c, pri: ["high", "medium", "low"].includes(x.priority) ? x.priority : "medium", items: links.filter(l => !l.q).map(l => l.id), links,
-    why: `${x.description} Правило: ${x.rule}`, acts: (x.suggested_measures || []).slice(0, 4).map(s => s.catalog_number ? `${s.catalog_number}. ${s.title}` : s.title),
+    why: sameText(x.rule, x.description) ? x.description : `${x.description} Правило: ${x.rule}`, acts: (x.suggested_measures || []).slice(0, 4).map(s => s.catalog_number ? `${s.catalog_number}. ${s.title}` : s.title),
     evidence: [...links, ...Object.entries(x.basis || {}).filter(([k, v]) => typeof v === "number" && BASIS[k] && !(links.length && k === "score")).slice(0, 4 - links.length).map(([k, v]) => ({ id: COMPS.includes(x.component) ? x.component : "", t: BASIS[k], v: fb(v), item: true }))],
     st, note: st === "rejected" ? { reason: cm } : st === "clarified" ? { comment: cm } : {},
     // Список без повторів: місце, група (компонент або «Загальне»), згорнута після перших N, які коди вона покриває
@@ -325,10 +330,10 @@ async function apiLoadResults() {
   S.trend = { from: 0, to: n - 1, lines: [] }; S.cmp = { a: Math.max(0, n - 2), b: n - 1 };
 }
 // Департамент: обрати заклад і завантажити його результати (кожен заклад окремо, без рейтингу)
-export async function apiSelectInst(id) {
+export async function apiSelectInst(id, stay) {
   API.deptUnit = id; API.mod = {}; API.resErr = null; API.model = null; render(true);
   try { await apiLoadResults(); } catch (e) { API.resErr = apiErrText(e); }
-  location.hash = "overview"; render();
+  if (!stay) location.hash = "overview"; render();
 }
 export async function apiReloadResults() { try { await apiLoadResults(); } catch (e) { apiFail(e); } render(true); }
 // Повтор після збою завантаження результатів (екран «Не вдалося завантажити»)
@@ -511,7 +516,12 @@ export async function bldOpen(id) {
 export const CKS = { full: ["Впроваджено повністю", "p-good"], partial: ["Частково", "p-warn"], none: ["Не впроваджено", "p-bad"] };
 export async function apiLoadCk(sel) {
   let camps;
-  if (S.role === "checklist_editor") camps = (await api("/me/assignments")).filter(a => a.kind === "checklist").map(a => ({ id: a.campaign_id, title: a.campaign_title, status: "open" }));
+  // Член РГ: відкриті хвилі з призначень і закриті з «Моїх результатів» (переглянути, що внесли минулого разу)
+  if (S.role === "checklist_editor") {
+    const [as, rs] = await Promise.all([api("/me/assignments"), api("/me/results").catch(() => [])]);
+    camps = as.filter(a => a.kind === "checklist").map(a => ({ id: a.campaign_id, title: a.campaign_title, status: "open" }));
+    (Array.isArray(rs) ? rs : []).forEach(r => { if (!camps.some(c => c.id === r.campaign_id)) camps.push({ id: r.campaign_id, title: r.campaign_title, status: "closed" }); });
+  }
   // Лише хвилі з чек-листом (has_checklist від сервера; старий сервер без поля — показуємо всі)
   else camps = (await api("/campaigns")).filter(c => c.status !== "draft" && c.has_checklist !== false).map(c => ({ id: c.id, title: c.title, status: c.status }));
   const cur = sel || (camps.find(c => c.status === "open") || camps[0] || {}).id;
@@ -572,9 +582,10 @@ export const AUDIT_ACT = {
 export function apiLoadLog() {
   return Promise.all([
     api("/admin/audit-log?limit=500"),
-    api("/units").catch(() => []), // підрозділи зони; людей уповноважений не бачить, тож логіни з журналу як є
-    [],
-  ]).then(([rows, units, users]) => ({ rows, units, users }));
+    api("/units").catch(() => []),
+    // Повного довідника людей уповноважений не має: імена беремо зі складу хвиль (/campaigns/{id}/people), аудит бачить лише себе
+    API.user && API.user.role === "admin" ? api("/campaigns").then(cs => Promise.all((Array.isArray(cs) ? cs : cs.items || []).slice(0, 6).map(c => api(`/campaigns/${c.id}/people`).catch(() => [])))).then(ls => ls.flat()).catch(() => []) : [],
+  ]).then(([rows, units, users]) => ({ rows, units, users: [...(API.user ? [{ id: API.user.id, display_name: API.user.display_name || API.user.login }] : []), ...users] }));
 }
 // Читабельний рядок із деталей запису: назви підрозділів замість UUID, без службових полів
 export function auditDetails(x, units) {

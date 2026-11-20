@@ -46,10 +46,10 @@ export function People() {
       <label className="search inst-search"><span><Ic n="search" /></span><input id="ppQ" placeholder="Логін, імʼя або підрозділ" value={q} onChange={e => setQ(e.target.value)} /></label>
       <select className="inp" aria-label="Роль" value={role} onChange={e => setRole(e.target.value)}><option value="all">Усі ролі</option>{roles.map(x => <option key={x} value={x}>{SROLE[x] || x}</option>)}</select>
       <span className="lbl tnum">{rows.length} з {r.data.length}</span><div className="sp" />
-      <label className={`btn btn-soft ${busy ? "dis" : ""}`} id="ppImp"><Ic n="file" />{busy ? "Імпортуємо…" : "Імпорт CSV"}<input type="file" accept=".csv,text/csv" hidden onChange={upload} disabled={busy} /></label>
+      <label className={`btn btn-soft ${busy ? "dis" : ""}`} id="ppImp" data-tip="CSV у UTF-8: login, category, unit і за бажанням display_name. Кожен отримає запрошення й сам поставить пароль."><Ic n="file" />{busy ? "Імпортуємо…" : "Імпорт CSV"}<input type="file" accept=".csv,text/csv" hidden onChange={upload} disabled={busy} /></label>
       <button type="button" className="btn btn-primary" id="ppNew" onClick={() => userForm(null, units)}><Ic n="plus" />Новий обліковий запис</button>
     </section>
-    <section className="c12 rise"><div className="lbl">Імпорт CSV у UTF-8: <code>login,category,unit[,display_name]</code>. Кожен отримає одноразове запрошення й сам поставить пароль. Нові записи активує уповноважений.</div>{err && <div style={{ marginTop: 6 }}><Err t={err} /></div>}</section>
+    {err && <section className="c12 rise"><Err t={err} /></section>}
     <section className="card c12 rise"><div className="tbl-wrap"><table className="adm-tbl"><thead><tr><th>Логін</th><th>Імʼя</th><th>Роль</th><th>Підрозділ</th><th>Стан</th><th></th></tr></thead><tbody>
       {rows.map(u => { const self = u.id === meId; return <tr key={u.id}>
         <td className="tnum"><b style={{ fontWeight: 600 }}>{u.login}</b>{self && <span className="lbl"> (ви)</span>}</td><td>{dn(u.display_name)}</td>
@@ -77,7 +77,7 @@ function InviteBtn({ u }) {
     setBusy(false);
   };
   return <button type="button" className={`btn btn-s ${ask ? "btn-soft" : "btn-ghost"}`} disabled={busy} onClick={go}
-    data-tip={ask ? "Старий пароль і сесії людини перестануть діяти" : "Створити нове посилання й скопіювати його"}><Ic n="send" />{busy ? "Створюємо…" : ask ? "Точно? Натисніть ще раз" : "Запрошення"}</button>;
+    data-tip={ask ? "Старий пароль і сесії людини перестануть діяти" : u.is_active ? "Якщо людина забула пароль: нове посилання, за яким вона поставить новий" : "Створити посилання для входу й скопіювати його"}><Ic n={u.is_active ? "reset" : "send"} />{busy ? "Створюємо…" : ask ? "Точно? Натисніть ще раз" : u.is_active ? "Скинути пароль" : "Запрошення"}</button>;
 }
 // Результат масового імпорту: логін і посилання кожному, показуються один раз; CSV формується в браузері й ніде не зберігається
 function showImported(x) {
@@ -364,9 +364,9 @@ export function Risks() {
     <section className="c12 rise toolbar">
       {units.length > 1 && <select className="inp" aria-label="Підрозділ" value={id} onChange={e => setUid(e.target.value)}>{unitOpts(units).map(([k, n]) => <option key={k} value={k}>{n}</option>)}</select>}
       <div className="sp" />
-      {imp && <label className={`btn btn-soft ${busy ? "dis" : ""}`} id="rkImp"><Ic n="file" />{busy ? "Імпортуємо…" : "Імпорт CSV"}<input type="file" accept=".csv,text/csv" hidden onChange={upload} disabled={busy} /></label>}
+      {imp && <label className={`btn btn-soft ${busy ? "dis" : ""}`} id="rkImp" data-tip="CSV у UTF-8: назва ризику, компонент, за бажанням ймовірність, вплив, захід, відповідальний, стан. Повторний імпорт оновлює ризики з тим самим кодом."><Ic n="file" />{busy ? "Імпортуємо…" : "Імпорт CSV"}<input type="file" accept=".csv,text/csv" hidden onChange={upload} disabled={busy} /></label>}
     </section>
-    {imp && <section className="c12 rise"><div className="lbl">CSV у UTF-8: <code>code,title,component</code> і за потреби <code>likelihood,impact,measure,owner,status</code>. Компонент: culture, system, accountability. Повторний імпорт оновлює ризики за кодом.</div>{err && <div style={{ marginTop: 6 }}><Err t={err} /></div>}</section>}
+    {err && <section className="c12 rise"><Err t={err} /></section>}
     {!r ? <Loading t="Реєстр ризиків" /> : r.error ? (r.status === 403 ? <NoAccess /> : <Failed e={r.error} onRetry={() => apiModReset(key)} />) : !d.items.length
       ? <Empty t="Реєстр порожній">{imp ? `Імпортуйте таблицю ризиків (${orgT("genitive")}) у CSV.` : "Ризики ще не імпортували."}</Empty>
       : <section className="card c12 rise">

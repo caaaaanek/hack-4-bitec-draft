@@ -72,7 +72,7 @@ export function Overview() {
     </div>
     <section className="card c8 rise" id="attn">
       <div className="card-h" style={{ flexWrap: "wrap" }}><h2>Що потребує уваги</h2><div className="sp" />{canBriefing() && <div className="attn-docs"><LeaderDocs /></div>}</div>
-      {m.attention.length ? <div className="rows">{attn.map((a, i) => <a key={i} className="row click" href={`#explain/${a.c}`} onClick={a.q ? e => { e.preventDefault(); openApiQ(a.q); } : undefined} data-tip={a.hint}><span className="dot" style={{ background: SCOL[status(a.v)] }} /><div className="grow"><div className="t">{a.t}</div></div><Pill cls="p-mute nodot">{COMP[a.c].n}</Pill><b className="tnum">{fb(a.v)}</b></a>)}</div> : dg.length ? null : <div className="lbl">Зауважень немає: нічого не потребує уваги.</div>}
+      {m.attention.length ? <div className="rows">{attn.map((a, i) => <a key={i} className="row click" href={`#explain/${a.c}`} onClick={a.q ? e => { e.preventDefault(); openApiQ(a.q); } : undefined} data-tip={a.hint}><span className="dot" style={{ background: SCOL[status(a.v)] }} /><div className="grow"><div className="t">{a.t}</div></div>{!String(a.t).startsWith(COMP[a.c].n) && <Pill cls="p-mute nodot">{COMP[a.c].n}</Pill>}<b className="tnum">{fb(a.v)}</b></a>)}</div> : dg.length ? null : <div className="lbl">Зауважень немає: нічого не потребує уваги.</div>}
       <DigestRows items={dg} />
       {m.attention.length > LIST_MAX && <button className="link-btn" style={{ marginTop: 8 }} onClick={() => { S.attnAll = !S.attnAll; render(true); }}>{S.attnAll ? "Згорнути" : `Показати всі (${m.attention.length})`}</button>}
     </section>

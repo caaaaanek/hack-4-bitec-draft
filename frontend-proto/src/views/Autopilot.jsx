@@ -62,21 +62,21 @@ export function AutopilotSection({ id }) {
   const nextT = a.next_tick_at ? `Наступний крок о ${at(a.next_tick_at)}` : manual ? "Автопілот кроків не робить: запускайте вручну" : null;
   const closeT = a.planned_close_on ? ua(a.planned_close_on) + (a.close_at_percent ? ` або участь ${a.close_at_percent} %` : "") : a.close_at_percent ? `участь ${a.close_at_percent} %` : "не задано";
   return <section className="card c12 rise" id="ap-sec" ref={ref}>
-    <ModHead ic="bolt" tone={a.enabled ? "teal" : "mute"} title={`Автопілот: ${dn(a.campaign_title)}`}>{a.waiting_approval_id ? <Pill cls="p-warn">Чекає на підтвердження відкриття аудитом</Pill> : <Pill cls={st[1]}>{st[0]}</Pill>}<Pill cls={a.enabled ? "p-good" : "p-mute"}>{a.enabled ? "Увімкнено" : "Вимкнено"}</Pill></ModHead>
-    <div className="ap-sum">
+    <ModHead ic="bolt" tone={a.enabled ? "teal" : "mute"} title={`Автопілот: ${dn(a.campaign_title)}`}>{a.waiting_approval_id ? <Pill cls="p-warn">Чекає на підтвердження відкриття аудитом</Pill> : <Pill cls={st[1]}>{st[0]}</Pill>}{a.status !== "closed" && <Pill cls={a.enabled ? "p-good" : "p-mute"}>{a.enabled ? "Увімкнено" : "Вимкнено"}</Pill>}</ModHead>
+    {a.status !== "closed" && <div className="ap-sum">
       {a.status === "draft" && <span><span className="lbl">Відкриття</span> {a.planned_open_on ? ua(a.planned_open_on) : "не задано"}</span>}
-      <span><span className="lbl">Закриття</span> {closeT}</span>
+      {a.status === "closed" ? (a.closed_on && <span><span className="lbl">Закрито</span> {ua(a.closed_on)}</span>) : <span><span className="lbl">Закриття</span> {closeT}</span>}
       {a.enabled && a.status !== "closed" && nextT && <span><span className="lbl">Крок</span> {nextT}</span>}
-      <span><span className="lbl">Нагадування</span> {a.remind_every_days ? `кожні ${a.remind_every_days} дн.` : "немає"}{a.last_reminder_on ? `, останнє ${ua(a.last_reminder_on)}` : ""}</span>
-    </div>
+      {a.status !== "closed" && <span><span className="lbl">Нагадування</span> {a.remind_every_days ? `кожні ${a.remind_every_days} дн.` : "немає"}{a.last_reminder_on ? `, останнє ${ua(a.last_reminder_on)}` : ""}</span>}
+    </div>}
     {a.status === "draft" && a.enabled && a.planned_open_on && <div className="note-box" style={{ marginTop: 12 }}>{a.waiting_approval_id
       ? <><b>Чекає на підтвердження</b><span className="lbl">Автопілот попросив відкрити хвилю. Вона відкриється, щойно внутрішній аудит підтвердить запит у «Запитах другій людині».</span></>
       : a.planned_open_on <= TODAY
       ? <><b>Чому досі чернетка</b><span className="lbl">Дата відкриття настала, але хвилю відкриває не календар, а крок автопілота. {a.next_tick_at ? `Наступний крок о ${at(a.next_tick_at)}.` : manual ? "Автоматичних кроків на сервері немає." : ""}{admin ? " Щоб не чекати, натисніть «Виконати крок зараз»." : ""}</span></>
       : <><b>Коли відкриється</b><span className="lbl">До {ua(a.planned_open_on)} хвиля лишається чернеткою. Цього дня її відкриє {manual ? "крок, запущений вручну" : "перший крок автопілота після 00:00"}{fourEyesOn() ? ", а потім відкриття має підтвердити внутрішній аудит" : ""}.</span></>}</div>}
-    <div className="rows">{a.plan.map((t, i) => <div key={i} className="row"><span className="dot" style={{ background: "var(--teal)" }} /><div className="grow txt">{dsh(t)}</div></div>)}</div>
+    <div className="rows">{a.plan.map((t, i) => <div key={i} className="row"><span className="dot" style={{ background: a.enabled && a.status !== "closed" ? "var(--teal)" : "var(--muted)" }} /><div className="grow txt">{dsh(t)}</div></div>)}</div>
     <div className="ap-acts">
-      {admin && <button type="button" className="btn btn-soft" onClick={tick}><Ic n="bolt" />Виконати крок зараз</button>}
+      {admin && a.enabled && a.status !== "closed" && <button type="button" className="btn btn-soft" onClick={tick}><Ic n="bolt" />Виконати крок зараз</button>}
       {a.report_ready && <button type="button" className="btn btn-soft" onClick={report}><Ic n="download" />Звіт за Додатком Г (Word)</button>}
       {!admin && <span className="lbl">Змінювати налаштування може лише уповноважений.</span>}
     </div>

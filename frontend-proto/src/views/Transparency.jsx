@@ -58,7 +58,7 @@ const CK = { full: ["Впроваджено повністю", "p-good"], partia
 function LtText({ t }) {
   if (t.length <= 180) return <div className="grow lt-t">{t}</div>;
   const cut = t.lastIndexOf(" ", 170);
-  return <div className="grow lt-t">{t.slice(0, cut)}… <details className="lt-more"><summary>Повністю</summary>{t}</details></div>;
+  return <div className="grow lt-t">{t.slice(0, cut)}… <details className="lt-more"><summary>Показати текст повністю</summary>{t}</details></div>;
 }
 export function LotteryCard({ campaignId, status }) {
   const r = campaignId && status === "closed" ? apiMod("lottery:" + campaignId, () => api(`/campaigns/${campaignId}/audit-lottery`)) : null;
