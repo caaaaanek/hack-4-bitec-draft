@@ -1,5 +1,5 @@
 /* Оболонка застосунку: бічне меню, шапка, екран, оверлеї. */
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, lazy, Suspense } from "react";
 import { Ic } from "./lib/icons.jsx";
 import { S, ROLE, NAV, NAV_GROUP, NAV_GROUP_T, HOME, AI_ROLES, persist, resetDemo, addLog, simpleMode, setSimpleMode, SIMPLE_ROUTES } from "./lib/state.js";
 import { API, login, loginProxy, logout, apiErrText, retryBoot, startDemo, apiModReset, dn } from "./lib/api.js";
@@ -24,14 +24,17 @@ import { Checks } from "./views/Checks.jsx";
 import { ResultViews } from "./views/Oversight.jsx";
 import { Approvals, fourEyes, useApprovals } from "./views/Transparency.jsx";
 import { UrnScreen } from "./views/Urn.jsx";
+// Адміністрування рідко потрібне: окремий чанк
+const lazyAdm = k => { const C = lazy(() => import("./views/Admin.jsx").then(m => ({ default: m[k] }))); return () => <Suspense fallback={null}><C /></Suspense>; };
+const People = lazyAdm("People"), Dicts = lazyAdm("Dicts"), Risks = lazyAdm("Risks"), InvitePage = lazyAdm("InvitePage");
 
-const V = { urn: UrnScreen, approvals: Approvals, views: ResultViews, learn: Learn, watch: Watch, advocate: Advocate, autopilot: Autopilot, normative: Normative, checks: Checks, overview: Overview, explain: Explain, trends: Trends, compare: Compare, whatif: WhatIf, recs: Recs, tracker: Tracker, sources: Sources, report: Report, manage: Manage, surveys: Surveys, checklist: Checklist, audit: Audit, survey: Survey, me: Me, institutions: Institutions };
+const V = { people: People, dicts: Dicts, risks: Risks, urn: UrnScreen, approvals: Approvals, views: ResultViews, learn: Learn, watch: Watch, advocate: Advocate, autopilot: Autopilot, normative: Normative, checks: Checks, overview: Overview, explain: Explain, trends: Trends, compare: Compare, whatif: WhatIf, recs: Recs, tracker: Tracker, sources: Sources, report: Report, manage: Manage, surveys: Surveys, checklist: Checklist, audit: Audit, survey: Survey, me: Me, institutions: Institutions };
 const html = document.documentElement;
 
 /* ---------- Маршрут: що зробити при переході ---------- */
 let lastRoute = null;
 export function applyRoute() {
-  if (isLogin()) return;
+  if (isLogin() || /^#invite\//.test(location.hash)) return; // запрошення читає boot()
   const { r, p } = route();
   if (r === "explain" && p) {
     S.focus = p; const m = cur(), it = allItems(m).find(x => x.id === p);
@@ -171,7 +174,7 @@ function View({ r, vk }) {
   let body;
   if (API.booting) body = null;
   else if (API.down) body = <ServerDown />;
-  else if (isLogin()) body = <Login />;
+  else if (isLogin()) body = API.invite ? <InvitePage /> : <Login />;
   else { const av = apiView(r); const C = V[r]; body = av ?? (C ? <C /> : null); }
   return <main className="view" id="view" ref={ref} key={`${r}:${vk}`}>{body}</main>;
 }
@@ -238,7 +241,7 @@ export default function App() {
       <div className="main">
         <header className="top">
           <button className="icon-btn menu-btn" id="menuBtn" aria-label="Меню" onClick={() => { ui.side = true; render(true); }}><Ic n="menu" /></button>
-          <h1 id="title">{API.down ? "Сервер недоступний" : login ? "Вхід" : r ? TITLES[r] : ""}</h1>
+          <h1 id="title">{API.down ? "Сервер недоступний" : login ? (API.invite ? "Запрошення" : "Вхід") : r ? TITLES[r] : ""}</h1>
           <div className="sp" />
           <span className="synthetic hide-m">Синтетичні дані</span>
           <button className="pill-btn hide-m" id="cycleBtn" data-tip="Цикл оцінювання: один повний раунд опитування й збору фактів. Індекс порівнюється з попереднім циклом."><Ic n="cal" />Цикл {CYCLE}</button>

@@ -4,7 +4,8 @@
  * чек-лист із файлами-доказами, хвилі й посилання, журнал. Без API (відкрито з файлу, Vercel) — демо-дані
  * в браузері. Решта коду бере дані через гачки: inst(), buildRecs(), measures(), SV()/SQ() і екрани в views/Api*.
  */
-import { S, NAV, HOME, freshSurvey, loadDraft, clearDraft } from "./state.js";
+import { S, NAV, HOME, ROLE, freshSurvey, loadDraft, clearDraft } from "./state.js";
+import { TITLES } from "./nav.js";
 import { COMPS, COMP, ALPHA, r1, finish, setClock } from "./model.js";
 import { fb, esc, quarters } from "./format.js";
 import { render, toast, closeDrawer, ui } from "./store.js";
@@ -14,7 +15,7 @@ export const API = {
   model: null, empty: false, recs: [], ms: [], campaignId: null, unitId: null, res: null,
   survey: null, surveyUsed: false, surveyMsg: null, surveyTarget: null, formError: null,
   my: null, assignments: null, adm: null, qs: null, ck: null, log: null, logF: null, chain: null, loading: {},
-  down: false, resErr: null, mod: {}, deptUnit: null,
+  down: false, resErr: null, mod: {}, deptUnit: null, invite: null, positions: null,
 };
 const SESSION_KEY = "ii-session";
 
@@ -83,10 +84,20 @@ export async function boot() {
   for (const r of ["overview", "explain", "trends", "compare"]) NAV.find(n => n[0] === r)[3].push("admin", "commissioner");
   for (const r of ["survey", "me"]) NAV.find(n => n[0] === r)[3].push("checklist_editor");
   NAV.find(n => n[0] === "survey")[1] = "Пройти анкету";
+  // Назва організації з налаштувань (ORG_KIND): «заклад», «організація», «частина»
+  if (cfg.org_terms) { NAV.find(n => n[0] === "institutions")[1] = orgCap("plural"); TITLES.overview = "Огляд " + orgT("genitive"); TITLES.institutions = orgCap("plural"); ROLE.leader[0] = "Керівник " + orgT("genitive"); }
+  // Екрани лише з сервером: люди й підрозділи веде технічний адміністратор (SEPARATE_TECH_ADMIN забирає їх в уповноваженого)
+  const nr = (r, roles) => { const n = NAV.find(x => x[0] === r); n[3].length = 0; n[3].push(...roles); };
+  nr("people", cfg.policies && cfg.policies.separate_tech_admin ? ["coordinator"] : ["admin", "coordinator"]);
+  nr("dicts", ["admin", "coordinator", "commissioner"]);
+  nr("risks", ["leader", "admin", "commissioner", "auditor", "observer"]);
   const tm = location.pathname.match(/^\/s\/([^/?#]+)/);
   if (tm) return bootToken(decodeURIComponent(tm[1]));
   const qm = location.pathname.match(/^\/q\/([^/?#]+)/);
   if (qm) return bootQr(decodeURIComponent(qm[1]));
+  // Запрошення /#invite/<токен> (або /invite/<токен>): людина сама ставить пароль (POST /auth/invite), без входу
+  const im = location.pathname.match(/^\/invite\/([^/?#]+)/) || location.hash.match(/^#invite\/([^/?#]+)/);
+  if (im) { API.invite = decodeURIComponent(im[1]); render(); return; }
   if (apiToken()) {
     try { const me = await api("/auth/session"); return afterLogin(me); } catch (e) { apiSetToken(null); }
   }
@@ -100,6 +111,19 @@ export async function boot() {
 export function retryBoot() { API.down = false; API.booting = true; render(); boot(); }
 export function startDemo() { API.down = false; render(); }
 
+// Пароль за запрошенням встановлено: прибрати токен з адреси й показати вхід
+export function apiInviteDone(msg) { API.invite = null; history.replaceState(null, "", "/"); showLogin(msg); }
+// Посади для форми прийняття рекомендації: з довідника сервера (GET /dictionaries/positions)
+export function apiPositions() {
+  if (API.positions || API.loading.pos) return API.positions;
+  API.loading.pos = true;
+  api("/dictionaries/positions").then(p => { API.positions = p.filter(x => x.active).map(x => x.title); }, () => { API.positions = []; }).finally(() => { API.loading.pos = false; render(true); });
+  return null;
+}
+// Назва організації з GET /config → org_terms (заклад / організація / частина)
+const ORG_DEF = { nominative: "заклад", genitive: "закладу", plural: "заклади", full: "заклад вищої освіти" };
+export const orgT = k => (API.cfg && API.cfg.org_terms && API.cfg.org_terms[k]) || ORG_DEF[k];
+export const orgCap = k => { const t = orgT(k); return t.charAt(0).toUpperCase() + t.slice(1); };
 export function showLogin(msg) {
   API.loginMsg = msg || null; ui.drawer = null; ui.ai = false; render();
 }
@@ -112,7 +136,7 @@ export async function loginProxy() {
 }
 export async function logout() {
   try { await api("/auth/session", { method: "DELETE" }); } catch (e) { /* сесія вже закрита */ }
-  apiSetToken(null); API.user = null; API.model = null; API.mod = {}; clearDraft(true); S.survey = freshSurvey(); history.replaceState(null, "", "/"); showLogin();
+  apiSetToken(null); API.user = null; API.model = null; API.mod = {}; API.positions = null; clearDraft(true); S.survey = freshSurvey(); history.replaceState(null, "", "/"); showLogin();
 }
 
 async function afterLogin(user) {

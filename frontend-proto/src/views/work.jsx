@@ -2,7 +2,7 @@
 import { useRef, useState } from "react";
 import { Ic } from "../lib/icons.jsx";
 import { S, persist, addLog, me } from "../lib/state.js";
-import { API, apiDecide, apiSendMSt, apiErrText, apiFail } from "../lib/api.js";
+import { API, apiDecide, apiSendMSt, apiErrText, apiFail, apiPositions } from "../lib/api.js";
 import { COMPS, COMP, PRI, REC_ST, REC_NEXT, POSITIONS, BASE_MEASURES, M_ST, M_NEXT, REGISTRY, INSTITUTIONS, buildRecs, measures, overdueDays, dispSt, daysWord, verif, TODAY } from "../lib/model.js";
 import { ua } from "../lib/format.js";
 import { render, toast, openDrawer, closeDrawer } from "../lib/store.js";
@@ -45,10 +45,10 @@ export function Recs() {
 function acceptRec(id) {
   const r = buildRecs().find(x => x.id === id); if (!r) return;
   openDrawer("Прийняти рекомендацію", () => {
-    const [who, setWho] = useState(POSITIONS[0]), [due, setDue] = useState("2027-02-28"), [err, setErr] = useState(""), [busy, setBusy] = useState(false);
+    const ap = API.on ? apiPositions() : null, POS = ap && ap.length ? ap : POSITIONS, [who, setWho] = useState(POS[0]), [due, setDue] = useState("2027-02-28"), [err, setErr] = useState(""), [busy, setBusy] = useState(false);
     const ok = () => {
       if (!due || due < TODAY) return setErr("Оберіть строк не раніше за сьогодні.");
-      if (API.on) { setBusy(true); apiDecide(id, "accepted", "", { owner: who, due_date: due }).then(() => { closeDrawer(); toast(`Рекомендацію прийнято. Захід «${r.t}» додано до трекера.`); }, e => { setErr(apiErrText(e)); setBusy(false); }); return; }
+      if (API.on) { setBusy(true); apiDecide(id, "accepted", "", { owner: POS.includes(who) ? who : POS[0], due_date: due }).then(() => { closeDrawer(); toast(`Рекомендацію прийнято. Захід «${r.t}» додано до трекера.`); }, e => { setErr(apiErrText(e)); setBusy(false); }); return; }
       const mid = "m-" + (BASE_MEASURES.length + S.dec.added.length + 1);
       S.dec.rec[id] = { status: "accepted" };
       S.dec.added.push({ id: mid, recId: id, rec: r.t, t: r.t, who, due, st: "accepted", ind: r.items[0] });
@@ -57,7 +57,7 @@ function acceptRec(id) {
     };
     return <>
       <div><div className="lbl">{COMP[r.c].n}</div><div style={{ fontSize: 16, fontWeight: 600, marginTop: 4 }}>{r.t}</div></div>
-      <div className="field"><label htmlFor="f-who">Відповідальна посада</label><select id="f-who" className="inp" value={who} onChange={e => setWho(e.target.value)}>{POSITIONS.map(w => <option key={w}>{w}</option>)}</select></div>
+      <div className="field"><label htmlFor="f-who">Відповідальна посада</label><select id="f-who" className="inp" value={POS.includes(who) ? who : POS[0]} onChange={e => setWho(e.target.value)}>{POS.map(w => <option key={w}>{w}</option>)}</select></div>
       <div className="field"><label htmlFor="f-due">Строк виконання</label><DatePicker id="f-due" value={due} min={TODAY} onChange={setDue} /><span className="err lbl" id="f-err">{err}</span></div>
       <div className="note-box"><span className="lbl">Після прийняття в трекері зʼявиться захід із цією посадою й строком. Посада і строк зберігаються в заході разом із рішенням.</span></div>
       <div style={{ display: "flex", gap: 8 }}><button className="btn btn-ghost" style={{ flex: 1, justifyContent: "center" }} onClick={closeDrawer}>Скасувати</button><button className="btn btn-primary" id="f-ok" style={{ flex: 2, justifyContent: "center" }} disabled={busy} onClick={ok}><Ic n="ok" />Прийняти й створити захід</button></div>
