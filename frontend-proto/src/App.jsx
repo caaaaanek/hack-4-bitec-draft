@@ -21,8 +21,9 @@ import { Watch, Advocate } from "./views/Insights.jsx";
 import { Autopilot } from "./views/Autopilot.jsx";
 import { Normative } from "./views/Normative.jsx";
 import { Checks } from "./views/Checks.jsx";
+import { ResultViews } from "./views/Oversight.jsx";
 
-const V = { learn: Learn, watch: Watch, advocate: Advocate, autopilot: Autopilot, normative: Normative, checks: Checks, overview: Overview, explain: Explain, trends: Trends, compare: Compare, whatif: WhatIf, recs: Recs, tracker: Tracker, sources: Sources, report: Report, manage: Manage, surveys: Surveys, checklist: Checklist, audit: Audit, survey: Survey, me: Me, institutions: Institutions };
+const V = { views: ResultViews, learn: Learn, watch: Watch, advocate: Advocate, autopilot: Autopilot, normative: Normative, checks: Checks, overview: Overview, explain: Explain, trends: Trends, compare: Compare, whatif: WhatIf, recs: Recs, tracker: Tracker, sources: Sources, report: Report, manage: Manage, surveys: Surveys, checklist: Checklist, audit: Audit, survey: Survey, me: Me, institutions: Institutions };
 const html = document.documentElement;
 
 /* ---------- Маршрут: що зробити при переході ---------- */

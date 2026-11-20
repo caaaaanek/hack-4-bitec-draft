@@ -60,6 +60,7 @@ export const NAV = [
   ["checklist", "Чек-лист", "check", ["checklist_editor", "checklist_approver"]],
   ["normative", "Нормативка", "layers", ["leader", "observer", "auditor", "admin", "commissioner", "coordinator"]],
   ["audit", "Журнал", "history", ["admin", "auditor"]],
+  ["views", "Перегляди підрозділів", "eye", ["admin", "auditor"]],
   ["survey", "Пройти опитування", "survey", ["respondent"]],
   ["me", "Мої результати", "user", ["respondent"]],
   ["learn", "Навчання", "book", ["respondent", "checklist_editor", "checklist_approver", "leader", "observer", "auditor", "admin", "commissioner", "coordinator"]],
