@@ -1,7 +1,7 @@
 /* Пояснювальні бічні панелі: індекс, достовірність, методика, відповіді, питання, джерела, захід. */
 import { Ic } from "../lib/icons.jsx";
 import { S, AI_ROLES, SURVEY_Q, FACT_META, logItems } from "../lib/state.js";
-import { API, CATEGORY_SRC, dn } from "../lib/api.js";
+import { API, CATEGORY_SRC, dn, apiMeasureHist, apiModReset } from "../lib/api.js";
 import { FLAGS, COMPS, COMP, LEVELS, LSHORT, LDESC, BOUNDS, CAP, TRUST, TRUST_HINT, SRC, SRC_HINT, GROUPS, ALPHA, M_ST, level, allItems, measures, overdueDays, daysWord, verif, CYCLE } from "../lib/model.js";
 import { fb, f2, ua } from "../lib/format.js";
 import { openDrawer, closeDrawer, toast } from "../lib/store.js";
@@ -212,6 +212,16 @@ export function openSource(i) {
   });
 }
 
+// Історія заходу: у демо з локального журналу, з сервером із журналу дій (читають лише уповноважений і аудит)
+function MeasureHist({ hist, id }) {
+  const r = API.on ? apiMeasureHist(id) : { data: hist };
+  const list = r && r.data, head = <div className="lbl" style={{ marginBottom: 6 }}>Історія в журналі</div>;
+  if (r && r.status === 403) return <div>{head}<div className="lbl">Історію змін бачать уповноважений і внутрішній аудит на екрані «Журнал».</div></div>;
+  if (!r) return <div>{head}<div className="lbl" role="status">Завантажуємо…</div></div>;
+  if (r.error) return <div role="alert">{head}<div className="lbl">Не вдалося завантажити історію: {r.error}</div><button type="button" className="btn btn-soft" style={{ marginTop: 8 }} onClick={() => apiModReset("mhist")}>Спробувати ще раз</button></div>;
+  return <div>{head}{list.length ? <div className="rows">{list.map((l, i) => <div key={i} className="row"><div className="grow"><div className="t" style={{ fontSize: 13 }}>{l.a}</div><div className="s">{l.who} · {l.t}</div></div></div>)}</div> : <div className="lbl">Змін статусу в цьому циклі ще не було.</div>}</div>;
+}
+
 // Захід: подробиці й перехід у Mitra
 const MEASURES_APP = { name: "Mitra", url: "" };
 export function openMeasure(id) {
@@ -223,7 +233,8 @@ export function openMeasure(id) {
       <div><div className="lbl">З рекомендації: {x.rec}</div><div style={{ fontSize: 16, fontWeight: 600, marginTop: 4 }}>{x.t}</div></div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}><Pill cls={M_ST[x.st][1]}>{M_ST[x.st][0]}</Pill>{d > 0 && <Pill cls="p-bad">Прострочено на {d} {daysWord(d)}</Pill>}<Pill cls={verif(x)[1] + " nodot"}>{verif(x)[0]}</Pill></div>
       <dl className="inst-kv" style={{ gridTemplateColumns: "auto 1fr" }}><dt>Відповідальна посада</dt><dd>{x.who}</dd><dt>Строк</dt><dd className="tnum">{ua(x.due)}</dd>{it && <><dt>Повʼязаний показник</dt><dd><Link href={`#explain/${it.id}`}>{it.t}: {fb(it.v)}</Link></dd></>}</dl>
-      <div><div className="lbl" style={{ marginBottom: 6 }}>Історія в журналі</div>{hist.length ? <div className="rows">{hist.map((l, i) => <div key={i} className="row"><div className="grow"><div className="t" style={{ fontSize: 13 }}>{l.a}</div><div className="s">{l.who} · {l.t}</div></div></div>)}</div> : <div className="lbl">Змін статусу в цьому циклі ще не було.</div>}</div>
+      {API.on && (x.ev || x.doneOn) && <div className="note-box"><b>Доказ виконання</b>{x.ev && <span style={{ overflowWrap: "anywhere", whiteSpace: "pre-line" }}>{x.ev}</span>}{x.doneOn && <span className="lbl">Виконано {ua(x.doneOn)}</span>}</div>}
+      <MeasureHist hist={hist} id={x.id} />
       {x.ext ? <div className="note-box" style={{ minWidth: 0 }}><b>Звіт виконавця в {x.ext.system}</b><span className="lbl">{x.ext.t}</span>
         {x.ext.note && <span className="lbl" style={{ overflowWrap: "anywhere", whiteSpace: "pre-line" }}>Коментар координатора: {x.ext.note}</span>}
         {x.ext.summary && <span style={{ overflowWrap: "anywhere", whiteSpace: "pre-line" }}>{x.ext.summary}</span>}

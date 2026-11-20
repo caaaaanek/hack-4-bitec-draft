@@ -6,7 +6,7 @@
  */
 import { S, NAV, HOME, ROLE, freshSurvey, loadDraft, clearDraft } from "./state.js";
 import { TITLES } from "./nav.js";
-import { COMPS, COMP, ALPHA, r1, finish, setClock, TRUST } from "./model.js";
+import { COMPS, COMP, ALPHA, r1, finish, setClock, TRUST, factText, M_ST } from "./model.js";
 import { fb, esc, quarters } from "./format.js";
 import { render, toast, closeDrawer, ui } from "./store.js";
 
@@ -48,12 +48,20 @@ const FIELD_UA = { planned_open_on: "Відкрити", planned_close_on: "За�
   title: "Назва", unit_id: "Підрозділ", questionnaire_ids: "Анкети", access_mode: "Як проходять", due_date: "Строк", owner: "Відповідальний", password: "Пароль", username: "Логін" };
 const FIELD_RE = new RegExp(`\\b(${Object.keys(FIELD_UA).join("|")})\\b`, "g");
 export const uaFields = t => String(t || "").replace(FIELD_RE, k => `«${FIELD_UA[k]}»`);
-const errReasons = e => [...new Set(e.errors.map(i => uaFields(String((i && i.message) || "").replace(/^Value error,\s*/i, "").trim())).filter(Boolean))].slice(0, 3).join("; ");
+// Шлях поля з 422 (sections.0.questions.1.text) → назва поля в інтерфейсі; англійське повідомлення pydantic не показуємо
+export const fieldName = path => {
+  const p = String(path || ""), m = p.match(/^sections\.(\d+)(?:\.questions\.(\d+))?\.(\w+)$/);
+  if (m) return m[2] != null ? `${m[3] === "text" ? "текст питання" : "питання"} ${+m[2] + 1} у розділі ${+m[1] + 1}` : `${m[3] === "title" ? "назву розділу" : "розділ"} ${+m[1] + 1}`;
+  const k = p.split(".").pop(); return FIELD_UA[k] ? `«${FIELD_UA[k]}»` : "";
+};
+const EN_RE = /[A-Za-z]{4,}.*[A-Za-z]{4,}/;
+export const fieldErrText = errs => { const n = [...new Set((errs || []).map(i => fieldName(i && i.path)).filter(Boolean))]; return n.length ? `Заповніть або виправте: ${n.slice(0, 4).join(", ")}${n.length > 4 ? ` і ще ${n.length - 4}` : ""}` : ""; };
+const errReasons = e => { const f = fieldErrText(e.errors); if (f) return f; return [...new Set(e.errors.map(i => uaFields(String((i && i.message) || "").replace(/^Value error,\s*/i, "").trim())).filter(t => t && !EN_RE.test(t)))].slice(0, 3).join("; "); };
 // Політика STAFF_TOKEN_ONLY: сервер пояснює технічно (access_mode), показуємо людською мовою
 const STAFF_TOKEN_TXT = "Анкети особового складу проходять лише анонімно: за QR або одноразовими посиланнями. Створіть для особового складу окрему хвилю з режимом «QR або посилання», а за логіном лишіть робочу групу й експертів.";
 export const staffTokenOnly = () => !!(API.cfg && API.cfg.policies && API.cfg.policies.staff_token_only) && API.user && API.user.category === "staff";
 // Нові коди помилок сервера (20.11): короткий людський текст замість технічного пояснення
-const CODE_TXT = { null_value: "Заповніть обов'язкові поля", unit_required: "Оберіть заклад", weight_from_methodology: "Вагу цієї категорії задає методика", not_assigned: "Підтвердження цього пункту призначено іншій людині" };
+const CODE_TXT = { urn_pending: "Закриття чекає двох частин ключа. Власники вводять їх на екрані «Урна».", null_value: "Заповніть обов'язкові поля", unit_required: "Оберіть заклад", weight_from_methodology: "Вагу цієї категорії задає методика", not_assigned: "Підтвердження цього пункту призначено іншій людині" };
 export const apiErrText = e => e instanceof ApiErr && CODE_TXT[e.code] ? CODE_TXT[e.code] : e instanceof ApiErr && e.code === "staff_token_only" ? STAFF_TOKEN_TXT : e instanceof ApiErr && e.code === "bad_transition" ? "Такий перехід статусу недоступний. Оновіть сторінку: статус могли змінити." : e instanceof ApiErr ? `${uaFields(e.message)}${errReasons(e) ? ": " + errReasons(e) : ""}${e.hint ? ". " + uaFields(e.hint) : ""}${e.status >= 500 && e.requestId ? ` Код запиту: ${e.requestId}` : ""}` : "Не вдалося виконати дію";
 export const apiFail = e => toast(apiErrText(e));
 
@@ -214,6 +222,8 @@ function apiModel(r, h) {
       from: (f.sources || []).map(s => SRC[s] || s).join(", ") || "Дані обліку", rule: f.rule, per: quarters(f.periods) }));
   });
   const pts = (h && h.points) || [], labels = cycleLabels(pts);
+  // Назви хвиль для фільтра трекера
+  API.waveT = Object.fromEntries(pts.filter(p => p.campaign_id).map(p => [p.campaign_id, p.campaign_title || ""])); if (r.campaign_id) API.waveT[r.campaign_id] = r.campaign_title || API.waveT[r.campaign_id] || "";
   let series = pts.map((p, i) => ({ cycle: labels[i], index: p.index ?? null, cr: Object.fromEntries(COMPS.map(c => [c, (p.components || {})[c] ?? null])) }));
   const at = pts.findIndex(p => p.campaign_id === r.campaign_id);
   if (at >= 0) series = series.slice(0, at + 1);
@@ -264,7 +274,7 @@ const CK_ST = { full: "впроваджено повністю", partial: "ча�
 const DEC_ST = { accepted: "accepted", clarify: "clarified", rejected: "rejected" };
 const BASIS = { self_score: "Самооцінка", facts_score: "Факти", score: "Зараховано", percent: "Відсоток", confirmed: "Підтверджено пунктів", total: "Усього", found: "Знайдено", pending: "Не розглянуто", change: "Зміна", level: "Рівень" };
 // Значення факту для «На підставі»: сам факт (96 з 168, 57,1 %) і бал методики, а не лише бал (0 читається як «нічого не розібрано»)
-const factV = f => f.kind === "pct" ? `${f.val[0]} з ${f.val[1]} (${fb(f.val[0] / f.val[1] * 100)} %), бал ${fb(f.v)}` : `рівень ${f.val}, бал ${fb(f.v)}`;
+const factV = factText;
 // Правило, що лише переказує опис тими самими числами й словами, не повторюємо
 const words = t => String(t || "").toLowerCase().match(/[\p{L}]+|\d+/gu) || [];
 const sameText = (rule, desc) => { const r = words(rule), d = new Set(words(desc)); return r.length > 0 && r.filter(w => d.has(w)).length / r.length >= 0.6; };
@@ -293,11 +303,23 @@ function applyMethodology() {
 const MEAS_ST = { planned: "accepted", in_progress: "inprogress", done: "done", cancelled: "cancelled" };
 // Перевірка наступною хвилею (бекенд, services/measures.verify): зріс компонент заходу — підтверджено; не зріс — потрібен перегляд
 const VERIFY_ST = { improved: "confirmed", worsened: "notconfirmed", within_error: "notconfirmed" };
+// Історія заходу з журналу дій: журнал читають лише уповноважений і аудит; фільтра за id у сервера немає, тож беремо записи заходів і відбираємо свій
+export function apiMeasureHist(id) {
+  if (!["admin", "auditor"].includes(S.role)) return { status: 403 };
+  const r = apiMod("mhist", () => api("/admin/audit-log?entity=measure&limit=1000"));
+  if (!r || !r.data) return r;
+  return { data: r.data.filter(l => l.entity_id === String(id)).reverse().map(l => {
+    const d = l.details || {}, st = s => (M_ST[MEAS_ST[s]] || [s])[0];
+    const a = l.action === "create" ? "Захід створено" : d.from_status && d.status ? `Статус: ${st(d.from_status)} → ${st(d.status)}` : l.action === "external_status" ? "Оновлено стан у Mitra" : Object.keys(d).some(k => FIELD_T[k]) ? "Змінено: " + Object.keys(d).filter(k => FIELD_T[k]).map(k => FIELD_T[k]).join(", ") : "Захід змінено";
+    return { a: a + (d.reason ? `. Причина: ${d.reason}` : ""), who: l.actor_display || (l.actor_id ? `Користувач …${String(l.actor_id).slice(-4)}` : "Система"), t: new Date(l.at).toLocaleString("uk-UA", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" }) };
+  }) };
+}
+const FIELD_T = { title: "назва", owner: "відповідальна посада", due_date: "строк", status: "статус", done_on: "дата виконання", evidence: "доказ" };
 function apiMeasure(x, titles) {
   const v = x.verification || {}, st = x.status === "done" && VERIFY_ST[v.status] ? VERIFY_ST[v.status] : MEAS_ST[x.status] || "accepted";
   const d = v.delta != null ? ` (${v.delta > 0 ? "+" : ""}${fb(v.delta)})` : "";
   const vf = x.status === "done" ? (st === "confirmed" ? [`Підтверджено: компонент зріс${d}`, "p-good"] : st === "notconfirmed" ? [`Не підтверджено: ${v.title || "без змін"}${d}`, "p-bad"] : v.status === "check_data" ? ["Перевірити дані: достовірність C", "p-warn"] : ["Очікує наступного оцінювання", "p-info"]) : null;
-  return { id: x.id, rec: titles[x.recommendation_code] || (x.recommendation_code ? "попередньої хвилі" : "окремий захід"), t: x.title, who: x.owner, due: x.due_date, st, ind: x.component, vf, vrule: v.rule, ext: apiExternal(x.external) };
+  return { id: x.id, rec: titles[x.recommendation_code] || (x.recommendation_code ? "попередньої хвилі" : "окремий захід"), t: x.title, who: x.owner, due: x.due_date, st, ind: x.component, vf, vrule: v.rule, ext: apiExternal(x.external), ev: x.evidence || "", doneOn: x.done_on || null, wave: x.campaign_id || null };
 }
 // Стан заходу в Mitra (тема 2): бекенд приймає лише посилання на адресу Mitra з налаштувань (THEME2_PUBLIC_URL)
 function apiExternal(e) {
@@ -330,7 +352,9 @@ async function apiLoadResults() {
   API.ms = ms.map(x => apiMeasure(x, titles));
   // Локальна дата, а не UTC: інакше з 00:00 до 02:00 за Києвом «сьогодні» було б учорашнім, і прострочення рахувалося б на день менше.
   const now = new Date(), localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  setClock(localToday, API.model.series[API.model.series.length - 1].cycle);
+  // Суфікс «(2)» розрізняє хвилі одного місяця лише на графіках; у шапку, асистента й імена файлів він не йде
+  setClock(localToday, String(API.model.series[API.model.series.length - 1].cycle).replace(/ \(\d+\)$/, ""));
+  API.waveTitle = r.campaign_title || "";
   const n = API.model.series.length;
   S.trend = { from: 0, to: n - 1, lines: [] }; S.cmp = { a: Math.max(0, n - 2), b: n - 1 };
 }
@@ -345,8 +369,9 @@ export async function apiReloadResults() { try { await apiLoadResults(); } catch
 export async function apiRetryResults() { API.resErr = null; render(true); try { await apiLoadResults(); } catch (e) { API.resErr = apiErrText(e); } render(true); }
 
 export async function apiDecide(code, decision, comment, measure) {
-  await api(`/campaigns/${API.campaignId}/recommendations/${encodeURIComponent(code)}/decision`, { method: "POST", body: { unit_id: API.unitId, decision, comment, ...(measure ? { measure: { ...measure, description: "" } } : {}) } });
+  const r = await api(`/campaigns/${API.campaignId}/recommendations/${encodeURIComponent(code)}/decision`, { method: "POST", body: { unit_id: API.unitId, decision, comment, ...(measure ? { measure: { ...measure, description: "" } } : {}) } });
   await apiReloadResults();
+  return r;
 }
 // Зміна статусу заходу на сервері; для «Виконано» потрібен доказ
 export async function apiSendMSt(id, st, evidence, reason) {
@@ -355,6 +380,7 @@ export async function apiSendMSt(id, st, evidence, reason) {
   // Невідомий статус не підміняємо на in_progress: краще помилка, ніж тихо не той перехід.
   if (!MEAS_BACK[st]) throw new Error(`Невідомий статус заходу: ${st}`);
   await api(`/measures/${id}`, { method: "PATCH", body: { status: MEAS_BACK[st], ...(st === "done" ? { evidence } : {}), ...(reason ? { reason } : {}) } });
+  delete API.mod.mhist;
   await apiReloadResults();
 }
 
@@ -459,7 +485,9 @@ export async function apiLoadAdm(sel) {
   ]) : [null, []];
   return { campaigns, units, qs, sel: cur, progress, qr };
 }
-export function apiAdmReload(sel) { API.adm = null; API.loading.adm = true; render(true); apiLoadAdm(sel).then(v => { API.adm = v; }, e => { API.adm = { error: apiErrText(e) }; }).finally(() => { API.loading.adm = false; render(true); }); }
+// Розділи «Урна» й «Автопілот» кешуються окремо: після дій із хвилею скидаємо й їх, інакше вони показують старий статус
+export const dropWaveMods = () => { for (const k of Object.keys(API.mod)) if (/^(urn:|ap:|urncamp:|apc$|urnCamps$)/.test(k)) delete API.mod[k]; };
+export function apiAdmReload(sel) { dropWaveMods(); API.adm = null; API.loading.adm = true; render(true); apiLoadAdm(sel).then(v => { API.adm = v; }, e => { API.adm = { error: apiErrText(e) }; }).finally(() => { API.loading.adm = false; render(true); }); }
 export async function apiCreateCampaign(body) {
   const c = await api("/campaigns", { method: "POST", body });
   closeDrawer(); toast(`Хвилю «${c.title}» створено як чернетку`); apiAdmReload(c.id);
@@ -536,7 +564,16 @@ export async function apiLoadCk(sel) {
 }
 export function apiCkReload(sel) { API.ck = null; API.loading.ck = true; render(true); apiLoadCk(sel).then(v => { API.ck = v; }, e => { API.ck = { error: apiErrText(e) }; }).finally(() => { API.loading.ck = false; render(true); }); }
 // Внести пункт разом із документами одним запитом (multipart). Атомарно: якщо файл не пройшов, не змінюється нічого.
+// Той самий документ (той самий sha256) вдруге не додаємо: сервер приймає дублікат мовчки
+const sha256 = async f => { const h = await crypto.subtle.digest("SHA-256", await f.arrayBuffer()); return [...new Uint8Array(h)].map(b => b.toString(16).padStart(2, "0")).join(""); };
+async function dupFile(qid, files) {
+  if (!files.length || !(window.crypto && crypto.subtle)) return false;
+  const it = API.ck && API.ck.data && (API.ck.data.items || []).find(i => i.question_id === qid), seen = new Set(((it && it.files) || []).map(f => f.sha256).filter(Boolean));
+  for (const f of files) { const h = await sha256(f); if (seen.has(h)) return true; seen.add(h); }
+  return false;
+}
 export async function apiSaveItem(camp, qid, body, files = []) {
+  if (await dupFile(qid, files)) throw new ApiErr(409, { message: "Цей документ уже додано", code: "dup_file" });
   const fd = new FormData();
   fd.append("status", body.status); fd.append("evidence", body.evidence || ""); fd.append("comment", body.comment || "");
   for (const f of files) fd.append("files", f);

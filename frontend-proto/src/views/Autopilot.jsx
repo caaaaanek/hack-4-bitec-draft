@@ -6,12 +6,13 @@ import { Ic } from "../lib/icons.jsx";
 import { API, apiMod, apiModReset, apiAutopilotCampaigns, apiAutopilot, apiAutopilotSet, apiAutopilotTick, apiAutopilotReport, apiFail, apiAdmReload, dn , fourEyesOn } from "../lib/api.js";
 import { S } from "../lib/state.js";
 import { render, toast, ui } from "../lib/store.js";
-import { dsh, ua } from "../lib/format.js";
+import { dsh, ua, plural } from "../lib/format.js";
 import { Pill } from "../components/ui.jsx";
 import { DatePicker } from "../components/DatePicker.jsx";
 import { Loading, Failed, Empty, NeedServer } from "../components/states.jsx";
 import { ModHead } from "../components/modkit.jsx";
 import { TODAY } from "../lib/model.js";
+const everyDays = n => +n === 1 ? "щодня" : `кожні ${n} ${plural(+n, "день", "дні", "днів")}`;
 
 const CST = { draft: ["Чернетка", "p-mute"], open: ["Триває", "p-good"], closed: ["Завершено", "p-info"] };
 const STEP = { open: "Відкриття", close: "Закриття", reminder: "Нагадування", report: "Звіт", recommendations: "Рекомендації", theme2: "Черга заходів", daily: "Щоденний крок", tick: "Крок" };
@@ -67,7 +68,7 @@ export function AutopilotSection({ id }) {
       {a.status === "draft" && <span><span className="lbl">Відкриття</span> {a.planned_open_on ? ua(a.planned_open_on) : "не задано"}</span>}
       {a.status === "closed" ? (a.closed_on && <span><span className="lbl">Закрито</span> {ua(a.closed_on)}</span>) : <span><span className="lbl">Закриття</span> {closeT}</span>}
       {a.enabled && a.status !== "closed" && nextT && <span><span className="lbl">Крок</span> {nextT}</span>}
-      {a.status !== "closed" && <span><span className="lbl">Нагадування</span> {a.remind_every_days ? `кожні ${a.remind_every_days} дн.` : "немає"}{a.last_reminder_on ? `, останнє ${ua(a.last_reminder_on)}` : ""}</span>}
+      {a.status !== "closed" && <span><span className="lbl">Нагадування</span> {a.remind_every_days ? everyDays(a.remind_every_days) : "немає"}{a.last_reminder_on ? `, останнє ${ua(a.last_reminder_on)}` : ""}</span>}
     </div>}
     {a.status === "draft" && a.enabled && a.planned_open_on && <div className="note-box" style={{ marginTop: 12 }}>{a.waiting_approval_id
       ? <><b>Чекає на підтвердження</b><span className="lbl">Автопілот попросив відкрити хвилю. Вона відкриється, щойно внутрішній аудит підтвердить запит у «Запитах другій людині».</span></>

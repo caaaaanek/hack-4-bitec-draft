@@ -2,7 +2,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, lazy, Suspense } from "react";
 import { Ic } from "./lib/icons.jsx";
 import { S, ROLE, NAV, NAV_GROUP, NAV_GROUP_T, HOME, AI_ROLES, persist, resetDemo, addLog, simpleMode, setSimpleMode, simpleRoute } from "./lib/state.js";
-import { API, login, loginProxy, logout, apiErrText, retryBoot, startDemo, apiModReset, dn } from "./lib/api.js";
+import { API, login, loginProxy, logout, apiErrText, retryBoot, startDemo, apiModReset, dn, RESULT_VIEWS } from "./lib/api.js";
 import { NotesPop, notesState, markNotesSeen } from "./components/NotesPop.jsx";
 import { COMPS, COMP, INSTITUTIONS, allItems, pendingRecs, measures, overdueDays, clamp, CYCLE } from "./lib/model.js";
 import { useStore, getViewKey, render, toast, ui, openPop, closePop, closeDrawer } from "./lib/store.js";
@@ -19,13 +19,14 @@ import { Builder } from "./views/Builder.jsx";
 import { Learn } from "./views/Learn.jsx";
 import { Advocate } from "./views/Insights.jsx";
 import { Autopilot } from "./views/Autopilot.jsx";
-import { Normative } from "./views/Normative.jsx";
 import { Checks } from "./views/Checks.jsx";
 import { ResultViews } from "./views/Oversight.jsx";
 import { Approvals, fourEyes, useApprovals } from "./views/Transparency.jsx";
 import { UrnScreen } from "./views/Urn.jsx";
 // Адміністрування рідко потрібне: окремий чанк
 const lazyAdm = k => { const C = lazy(() => import("./views/Admin.jsx").then(m => ({ default: m[k] }))); return () => <Suspense fallback={null}><C /></Suspense>; };
+// «Що змінилось» (нормативка) рідкісний екран: окремий чанк, щоб основний не перевищував 500 кБ
+const NormLazy = lazy(() => import("./views/Normative.jsx").then(m => ({ default: m.Normative }))), Normative = () => <Suspense fallback={null}><NormLazy /></Suspense>;
 const People = lazyAdm("People"), Units = lazyAdm("Units"), Summary = lazyAdm("Summary"), Dicts = lazyAdm("Dicts"), Risks = lazyAdm("Risks"), InvitePage = lazyAdm("InvitePage");
 
 const V = { people: People, units: Units, summary: Summary, dicts: Dicts, risks: Risks, urn: UrnScreen, approvals: Approvals, views: ResultViews, learn: Learn, advocate: Advocate, autopilot: Autopilot, normative: Normative, checks: Checks, overview: Overview, explain: Explain, trends: Trends, compare: Compare, whatif: WhatIf, recs: Recs, tracker: Tracker, sources: Sources, report: Report, manage: Manage, surveys: Surveys, checklist: Checklist, audit: Audit, survey: Survey, me: Me, institutions: Institutions };
@@ -195,6 +196,8 @@ function Badge({ r }) {
   return n ? <span className={`badge ${r === "tracker" && !od ? "mute" : ""}`}>{n}</span> : null;
 }
 
+// Департамент із кількома закладами: екрани результатів недоступні, доки заклад не обрано (з одним закладом він відкривається сам)
+const needInst = nr => S.role === "observer" && API.on && !API.deptUnit && (RESULT_VIEWS.includes(nr) || nr === "advocate") && Array.isArray(API.dept) && API.dept.filter(x => x.closed_waves).length > 1;
 export default function App() {
   useStore();
   const login = isLogin(), anon = API.on && API.anon, { r } = API.booting || login ? { r: null } : route(), vk = getViewKey();
@@ -235,8 +238,8 @@ export default function App() {
           <span className="kbd" id="kbd" data-tip={`Швидкий пошук: ${isMac ? "⌘K" : "Ctrl+K"} або «/»`}>{isMac ? "⌘K" : "Ctrl K"}</span></label>
         {!(navG.length > 1) && <div className="nav-label">Меню</div>}
         <nav className="nav" id="nav" aria-label="Меню">{!login && navG.map(([g, items]) => {
-          const links = items.map(([nr, n, ic]) => <a key={nr} href={`#${nr}`} data-r={nr} className={nr === r ? "on" : ""} aria-current={nr === r ? "page" : undefined} aria-label={n} data-tip={mini ? n : undefined}
-            onClick={e => { if ("#" + nr === location.hash.split("/")[0]) { e.preventDefault(); ui.side = false; render(); } }}><Ic n={ic} /><span>{n}</span><Badge r={nr} /></a>);
+          const links = items.map(([nr, n, ic]) => { const off = needInst(nr); return <a key={nr} href={`#${nr}`} data-r={nr} className={nr === r ? "on" : off ? "nav-off" : ""} aria-current={nr === r ? "page" : undefined} aria-label={n} aria-disabled={off || undefined} data-tip={off ? "Спершу оберіть заклад" : mini ? n : undefined}
+            onClick={e => { if (off) { e.preventDefault(); return; } if ("#" + nr === location.hash.split("/")[0]) { e.preventDefault(); ui.side = false; render(); } }}><Ic n={ic} /><span>{n}</span><Badge r={nr} /></a>; });
           return g ? <div key={g} className="nav-grp" role="group" aria-labelledby={`ng-${g}`}><div className="nav-g" id={`ng-${g}`}>{NAV_GROUP_T[g]}</div>{links}</div> : links;
         })}{!login && simple && <button type="button" className="link-btn nav-all" onClick={() => setSimpleMode(false)}>Простий режим: показати все меню</button>}</nav>
         {/* Хто увійшов і «Вийти» з бекендом показує лише меню аватара вгорі; тут лишився вибір ролі для демо */}
@@ -252,7 +255,7 @@ export default function App() {
           <h1 id="title">{API.down ? "Сервер недоступний" : login ? (API.invite ? "Запрошення" : "Вхід") : r ? TITLES[r] : ""}</h1>
           <div className="sp" />
           <span className="synthetic hide-m">Синтетичні дані</span>
-          <button className="pill-btn hide-m" id="cycleBtn" data-tip="Цикл оцінювання: один повний раунд опитування й збору фактів. Індекс порівнюється з попереднім циклом."><Ic n="cal" />Цикл {CYCLE}</button>
+          <span className="hide-m" id="cycleBtn" data-tip="Хвиля оцінювання, результати якої зараз на екрані."><Ic n="cal" />{API.on && API.waveTitle ? dn(API.waveTitle) : `Цикл ${CYCLE}`}</span>
           <button className={`pill-btn ai-btn ${S.aiOn ? "" : "off"}`} id="aiBtn" hidden={!AI_ROLES.includes(S.role)} aria-label="Асистент" onClick={() => aiOpen()}><Ic n="spark" /><span className="hide-m">Асистент</span></button>
           {ns && <button type="button" className="icon-btn" id="notesBtn" aria-label={ns.fresh ? `Сповіщення: нових ${ns.fresh}` : "Сповіщення"} aria-haspopup="dialog" data-tip="Сповіщення" style={{ position: "relative" }} onClick={e => { hideTip(); apiModReset("notes"); markNotesSeen(); openPop("notes", e.currentTarget); }}><Ic n="bell" />{ns.fresh > 0 && <span className="badge" style={{ position: "absolute", top: -4, right: -4 }}>{ns.fresh}</span>}</button>}
           <span className="sr-only" role="status" aria-live="polite">{ns && ns.fresh ? `Нових сповіщень: ${ns.fresh}` : ""}</span>

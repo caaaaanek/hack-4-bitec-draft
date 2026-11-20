@@ -237,7 +237,7 @@ export function Survey() {
 export function Me() {
   const r = resolveUnit(S.unit), cr = UNIT_CR[r.unit.id] || Object.fromEntries(inst(ALPHA).components.map(c => [c.id, c.cr.v])), idx = indexOf(cr), lv = level(idx);
   return <>
-    <section className="c12 rise toolbar"><span className="lbl">Дякуємо, ось що ви допомогли побачити.</span><div className="sp" />
+    <section className="c12 rise toolbar"><div className="sp" />
       <label className="lbl">Мій підрозділ <select className="inp" value={S.unit} onChange={e => { S.unit = e.target.value; persist(); render(true); }}>{UNITS.filter(u => u.parent && u.id !== "unit-v").map(u => <option key={u.id} value={u.id}>{u.n}</option>)}</select></label></section>
     <LearnCard />
     {r.hidden && <section className="card c12 rise"><div className="lock"><Ic n="lock" /><div><b>{r.req.n}: результати приховано</b><div className="lbl">Недостатньо відповідей, щоб показати результати цієї групи ({UNIT_RESP[r.req.id]} з потрібних {S.k}). Нижче дані підрозділу «{r.unit.n}». Це рівень вище, а не ваш підрозділ. Так захищено анонімність учасників.</div></div></div></section>}

@@ -2,7 +2,7 @@
 import { useRef, useState } from "react";
 import { Ic } from "../lib/icons.jsx";
 import { S, persist, addLog, me } from "../lib/state.js";
-import { API, apiDecide, apiSendMSt, apiErrText, apiFail, apiPositions } from "../lib/api.js";
+import { API, apiDecide, apiSendMSt, apiErrText, apiFail, apiPositions, dn } from "../lib/api.js";
 import { COMPS, COMP, PRI, REC_ST, REC_NEXT, POSITIONS, BASE_MEASURES, M_ST, M_NEXT, REGISTRY, INSTITUTIONS, buildRecs, measures, overdueDays, dispSt, daysWord, verif, TODAY } from "../lib/model.js";
 import { ua, plural } from "../lib/format.js";
 import { render, toast, openDrawer, closeDrawer } from "../lib/store.js";
@@ -11,6 +11,9 @@ import { Pill, LvPill, TrustPill } from "../components/ui.jsx";
 import { DatePicker } from "../components/DatePicker.jsx";
 import { openApiQ, openMeasure, openSource, srcRows, MODE } from "./panels.jsx";
 import { ReadGuide } from "./results.jsx";
+// Тост прийняття: назва створеного заходу (сервер бере її з каталогу Додатку Д), внутрішні лапки „“, щоб не було ««
+const newest = ms => Array.isArray(ms) && ms.length ? [...ms].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))).pop().title : "";
+const acceptToast = t => `Рекомендацію прийнято. Захід «${String(t).replace(/^«(.*)»$/, "$1").replace(/«/g, "„").replace(/»/g, "“")}» додано до трекера.`;
 
 const enter = f => e => { if (e.key === "Enter") f(e); };
 const Err = ({ t, hint, red }) => <span className="lbl" id="f-err" style={red || t ? { color: "color-mix(in srgb, var(--red) 60%, var(--fg))" } : undefined}>{t || hint}</span>;
@@ -35,7 +38,7 @@ export function Recs() {
         {r.covers && r.covers.length > 0 && <div className="lbl" style={{ marginTop: 4 }}>Обʼєднує ще {r.covers.length} {plural(r.covers.length, "схожу пропозицію", "схожі пропозиції", "схожих пропозицій")}</div>}
         <div className="lbl" style={{ margin: "10px 0 4px" }}>Чому система це пропонує</div><div>{r.why}</div>
         {r.evidence.length > 0 && <div className="lbl" style={{ margin: "12px 0 4px" }}>На підставі</div>}
-        {r.evidence.length > 0 && <div className="ev">{r.evidence.map((e, j) => <a key={j} href={`#explain/${e.id}`} className="ev-i" onClick={e.q ? ev => { ev.preventDefault(); openApiQ(e.q); } : undefined}><span>{!e.item && <span className="ev-flag"><Ic n="alert" /></span>}{e.t}: <b>{e.v}</b></span><span className="lbl">{e.q ? "Відкрити питання" : "Відкрити в розкладі"} <Ic n="arrowR" /></span></a>)}</div>}
+        {r.evidence.length > 0 && <div className="ev">{r.evidence.map((e, j) => <a key={j} href={`#explain/${e.id}`} className="ev-i" title={e.q ? "Відкрити питання" : "Відкрити в розкладі"} onClick={e.q ? ev => { ev.preventDefault(); openApiQ(e.q); } : undefined}><span>{!e.item && <span className="ev-flag"><Ic n="alert" /></span>}{e.t}: <b>{e.v}</b></span><span className="lbl" aria-hidden="true"><Ic n="arrowR" /></span></a>)}</div>}
         <details className="acts"><summary>Запропоновані дії ({r.acts.length})</summary><ol>{r.acts.map(a => <li key={a}>{a}</li>)}</ol></details>
         {r.note.reason && <div className="note-box" style={{ marginTop: 10 }}><b>Причина відхилення</b><span>{r.note.reason}</span></div>}
         {r.note.comment && <div className="note-box" style={{ marginTop: 10 }}><b>Коментар до уточнення</b><span>{r.note.comment}</span></div>}
@@ -54,12 +57,12 @@ function acceptRec(id) {
     const ap = API.on ? apiPositions() : null, POS = ap && ap.length ? ap : POSITIONS, [who, setWho] = useState(POS[0]), [due, setDue] = useState("2027-02-28"), [err, setErr] = useState(""), [busy, setBusy] = useState(false);
     const ok = () => {
       if (!due || due < TODAY) return setErr("Оберіть строк не раніше за сьогодні.");
-      if (API.on) { setBusy(true); apiDecide(id, "accepted", "", { owner: POS.includes(who) ? who : POS[0], due_date: due }).then(() => { closeDrawer(); toast(`Рекомендацію прийнято. Захід «${r.t}» додано до трекера.`); }, e => { setErr(apiErrText(e)); setBusy(false); }); return; }
+      if (API.on) { setBusy(true); apiDecide(id, "accepted", "", { owner: POS.includes(who) ? who : POS[0], due_date: due }).then(x => { closeDrawer(); toast(acceptToast(newest(x && x.measures) || r.t)); }, e => { setErr(apiErrText(e)); setBusy(false); }); return; }
       const mid = "m-" + (BASE_MEASURES.length + S.dec.added.length + 1);
       S.dec.rec[id] = { status: "accepted" };
       S.dec.added.push({ id: mid, recId: id, rec: r.t, t: r.t, who, due, st: "accepted", ind: r.items[0] });
       addLog(me(), `Рекомендацію «${r.t}» прийнято, створено захід ${mid}`); persist(); closeDrawer(); render(true);
-      toast(`Рекомендацію прийнято. Захід «${r.t}» додано до трекера.`);
+      toast(acceptToast(r.t));
     };
     return <>
       <div><div className="lbl">{COMP[r.c].n}</div><div style={{ fontSize: 16, fontWeight: 600, marginTop: 4 }}>{r.t}</div></div>
@@ -118,7 +121,9 @@ function setMSt(id, st) {
   S.dec.mst[id] = st; addLog(me(), `Захід «${x.t}»: статус «${M_ST[st][0]}»`); persist(); render(true); toast(`Статус заходу змінено на «${M_ST[st][0]}».`);
 }
 export function Tracker() {
-  const all = measures(), f = S.trF, edit = S.role === "leader";
+  // Хвиля: з сервером заходи всіх хвиль, за замовчуванням показуємо поточну
+  const f = S.trF, waves = API.on ? [...new Set(measures().map(x => x.wave).filter(Boolean))] : [], wv = f.wave && (f.wave === "all" || waves.includes(f.wave)) ? f.wave : waves.includes(API.campaignId) ? API.campaignId : "all";
+  const all = measures().filter(x => wv === "all" || x.wave === wv), edit = S.role === "leader";
   const list = all.filter(x => (f.st === "all" || dispSt(x) === f.st || (f.st === "overdue" && overdueDays(x) > 0)) && (f.who === "all" || x.who === f.who));
   const [drag, setDrag] = useState(null), [over, setOver] = useState(null);
   const conf = all.filter(x => x.st === "confirmed").length, chk = all.filter(x => x.st === "done" && x.vf && x.vf[1] === "p-warn").length, wait = all.filter(x => x.st === "done").length - chk, rev = all.filter(x => x.st === "notconfirmed").length;
@@ -142,6 +147,7 @@ export function Tracker() {
   return <>
     <section className="c12 rise toolbar"><div className="sp" />
       <div className="seg" role="group" aria-label="Вигляд">{[["table", "Таблиця"], ["board", "Дошка"]].map(([k, n]) => <button key={k} className={S.trackView === k ? "on" : ""} onClick={() => { S.trackView = k; persist(); render(true); }}>{n}</button>)}</div>
+      {waves.length > 1 && <select className="inp" aria-label="Хвиля" value={wv} onChange={e => { S.trF.wave = e.target.value; persist(); render(true); }}><option value="all">Усі хвилі</option>{waves.map(w => <option key={w} value={w}>{dn(API.waveT && API.waveT[w] || "Попередня хвиля")}</option>)}</select>}
       <select className="inp" aria-label="Статус" value={f.st} onChange={e => { S.trF.st = e.target.value; persist(); render(true); }}><option value="all">Усі статуси</option>{Object.entries(M_ST).map(([k, [n]]) => <option key={k} value={k}>{n}</option>)}</select>
       <select className="inp" aria-label="Відповідальна посада" value={f.who} onChange={e => { S.trF.who = e.target.value; persist(); render(true); }}><option value="all">Усі посади</option>{[...new Set(all.map(x => x.who))].sort().map(w => <option key={w}>{w}</option>)}</select>
       <span className="lbl tnum">Показано {list.length} з {all.length}</span></section>
@@ -206,7 +212,7 @@ export function Institutions() {
         <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}><span className="link">Відкрити огляд <Ic n="arrowR" /></span></div>
       </a>)
       : <section className="card c12"><div className="empty"><b>{q ? "Нічого не знайдено" : S.instArch ? "В архіві порожньо" : "Закладів немає"}</b><br />{q ? "Змініть запит або додайте заклад за кодом ЄДРПОУ." : ""}</div></section>}
-    <section className="card c12 rise"><div className="lock"><Ic n="shield" /><div><b>Заклади не порівнюються між собою</b><div className="lbl">На картках немає індексу й рейтингу, список упорядковано за кодом ЄДРПОУ. Індекс і його зміну видно лише на огляді конкретного закладу, і порівнюється заклад тільки сам із собою. Так результати не стають підставою для колективного покарання.</div></div></div></section>
+    <section className="card c12 rise"><div className="lock"><Ic n="shield" /><div><b>Заклади не порівнюються між собою</b><div className="lbl">На картках немає індексу й рейтингу, список упорядковано за кодом ЄДРПОУ. Індекс і його зміну видно лише на огляді конкретного закладу, і порівнюється заклад тільки сам із собою.</div></div></div></section>
     <ReadGuide title="Як читати картки" />
   </>;
 }

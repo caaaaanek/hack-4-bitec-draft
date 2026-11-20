@@ -60,7 +60,7 @@ function NextBody() {
   const r = useNext();
   const intro = <div className="lbl">Чернетка Плану заходів за Додатком Д: найменший набір кроків, щоб перейти на наступний рівень зрілості, з відповідальними посадами й строками. Це чернетка: перед затвердженням її переглядає робоча група.</div>;
   if (!API.on) return <>{intro}<div className="note-box"><span className="lbl">План рахується на сервері з фактів і чек-листа закритої хвилі. Доступно в режимі з сервером.</span></div></>;
-  if (!r || !r.data) return <>{intro}<PanelState r={r} k="next" wait="Рахуємо план: перебираємо факти й пункти чек-листа. Це може тривати до 10 секунд…" /></>;
+  if (!r || !r.data) return <>{intro}<PanelState r={r} k="next" wait="Готуємо план: перебираємо факти й пункти чек-листа. Це може тривати до 30 секунд…" /></>;
   const d = r.data, steps = d.steps || [], top = d.status === "top" || !d.target_level;
   return <>
     {intro}
@@ -72,6 +72,8 @@ function NextBody() {
   </>;
 }
 export const openNextLevel = () => openDrawer("Шлях до наступного рівня", NextBody);
+// План рахується до 30 с: поки запит іде, кнопка показує прогрес і не приймає повторних кліків
+const nextBusy = () => !!(API.on && API.loading["m:next"]);
 
 // Кнопки на «Огляді» і в «Звіті»: для ролей, яким бекенд віддає брифінг (керівник, Департамент, аудит)
 export const canBriefing = () => ["leader", "observer", "auditor"].includes(S.role);
@@ -79,6 +81,6 @@ export function LeaderDocs() {
   if (!canBriefing()) return null;
   return <>
     <button type="button" className="btn btn-soft" onClick={openBriefing}><Ic n="file" />Брифінг за 30 секунд</button>
-    <button type="button" className="btn btn-soft" onClick={openNextLevel}><Ic n="trend" />Шлях до наступного рівня</button>
+    <button type="button" className="btn btn-soft" onClick={openNextLevel} disabled={nextBusy()} aria-busy={nextBusy() || undefined}><Ic n="trend" />{nextBusy() ? "Готуємо план… (до 30 с)" : "Шлях до наступного рівня"}</button>
   </>;
 }
