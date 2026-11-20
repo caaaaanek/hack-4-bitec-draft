@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { Ic } from "../lib/icons.jsx";
 import { S } from "../lib/state.js";
-import { API, api, apiMod, apiModReset, apiErrText, dn } from "../lib/api.js";
+import { API, api, apiMod, apiModReset, apiErrText, apiAdmReload, dn } from "../lib/api.js";
 import { toast, render } from "../lib/store.js";
 import { route } from "../lib/nav.js";
 import { copyText } from "../lib/util.js";
@@ -36,22 +36,22 @@ export function UrnSection({ c }) {
   if (!r) return <section className="card c12 rise">{head}<div className="lbl" role="status">Завантажуємо…</div></section>;
   if (r.status === 403) return null;
   if (r.error) return <section className="card c12 rise" role="alert">{head}<div className="lbl">Не вдалося завантажити: {r.error}</div><button type="button" className="btn btn-soft" style={{ marginTop: 8 }} onClick={() => apiModReset(key)}>Спробувати ще раз</button></section>;
-  const u = r.data, mine = u.holders.find(h => h.holder_id === me);
+  const u = r.data, mine = u.holders.find(h => h.holder_id === me), closed = c.status === "closed" || (res && res.status === "closed");
   if (!u.enabled && c.status !== "draft") return null; // вимкнену урну ввімкнути вже не можна: картка нічого не дає
   return <section className="card c12 rise urn" aria-label="Урна з трьома ключами">
     {head}
     <div className="lbl">{URN_WHY}</div>
     {u.enabled && <>
       <div className="rows" style={{ marginTop: 10 }}>{u.holders.map((h, i) => <div key={h.holder_id} className="row"><span className="comp-ic" style={{ width: 28, height: 28 }}><Ic n={h.submitted ? "ok" : "lock"} /></span><div className="grow"><div className="t">{dn(h.display_name || HOLDER_T[i] || "Власник")}{h.holder_id === me ? " (ви)" : ""}</div></div><Pill cls={h.submitted ? "p-good" : h.taken ? "p-info" : "p-warn"}>{h.submitted ? "Частину введено" : h.taken ? "Частину забрано" : "Ще не забрав"}</Pill></div>)}</div>
-      <div className="lbl" style={{ marginTop: 8 }}>{!u.ready ? "Хвилю можна відкрити, коли всі троє заберуть свої частини: тоді на сервері їх не лишиться." : u.close_requested ? `Церемонія відкриття: потрібно ${u.threshold} частини з 3, введено ${u.holders.filter(h => h.submitted).length}.` : "Усі частини роздано. Після збору відповідей урну відкриють двоє з трьох власників. Автопілот сам хвилю не закриє, лише покличе власників."}{u.fingerprint ? ` Відбиток ключа: ${u.fingerprint}.` : ""}</div>
+      <div className="lbl" style={{ marginTop: 8 }}>{!u.ready ? "Хвилю можна відкрити, коли всі троє заберуть свої частини: тоді на сервері їх не лишиться." : closed ? "Урну відкрито: хвилю закрито й результати пораховано." : u.close_requested ? `Церемонія відкриття: потрібно ${u.threshold} частини з 3, введено ${u.holders.filter(h => h.submitted).length}.` : "Усі частини роздано. Після збору відповідей урну відкриють двоє з трьох власників. Автопілот сам хвилю не закриє, лише покличе власників."}{u.fingerprint ? ` Відбиток ключа: ${u.fingerprint}.` : ""}</div>
     </>}
     {share && <ShareOnce s={share} onDone={() => setShare(null)} />}
     {mine && !mine.taken && !share && <button type="button" className="btn btn-primary" style={{ marginTop: 10 }} disabled={!!busy} onClick={() => run("take", async () => setShare(await api(`/campaigns/${c.id}/urn/my-share`)))}><Ic n="lock" />{busy === "take" ? "Отримуємо…" : "Забрати свою частину ключа"}</button>}
-    {mine && u.close_requested && !mine.submitted && <form className="urn-in" onSubmit={e => { e.preventDefault(); const v = input.trim(); if (v.length < 10) { toast("Вставте свою частину ключа повністю"); return; } run("submit", async () => { const x = await api(`/campaigns/${c.id}/urn/shares`, { method: "POST", body: { share: v } }); setRes(x); setInput(""); }); }}>
+    {mine && u.close_requested && !mine.submitted && !closed && <form className="urn-in" onSubmit={e => { e.preventDefault(); const v = input.trim(); if (v.length < 10) { toast("Вставте свою частину ключа повністю"); return; } run("submit", async () => { const x = await api(`/campaigns/${c.id}/urn/shares`, { method: "POST", body: { share: v } }); setRes(x); setInput(""); if (x && x.status === "closed") { delete API.mod["urncamp:" + c.id]; if (isAdmin) apiAdmReload(c.id); } }); }}>
       <div className="field"><label htmlFor="urnIn">Ваша частина ключа (текст або вміст QR)</label><textarea id="urnIn" className="inp" rows={3} spellCheck={false} autoComplete="off" value={input} onChange={e => setInput(e.target.value)} /></div>
       <button type="submit" className="btn btn-primary" disabled={!!busy}><Ic n="ok" />{busy === "submit" ? "Перевіряємо…" : "Ввести частину"}</button>
     </form>}
-    {res && <div className="note-box" role="status" style={{ marginTop: 10 }}><b>{res.status === "closed" ? "Урну відкрито: хвилю закрито й результати пораховано" : `Частину прийнято: ${res.submitted} з ${res.needed}`}</b>{res.status !== "closed" && <span className="lbl">Потрібна ще одна частина від іншого власника.</span>}</div>}
+    {res && res.status !== "closed" && <div className="note-box" role="status" style={{ marginTop: 10 }}><b>{`Частину прийнято: ${res.submitted} з ${res.needed}`}</b><span className="lbl">Потрібна ще одна частина від іншого власника.</span></div>}
     {isAdmin && !u.enabled && c.status === "draft" && <UrnSetup c={c} users={users} pick={pick} setPick={setPick} busy={busy} run={run} />}
     {isAdmin && u.enabled && c.status === "draft" && <div className="cd-links" style={{ marginTop: 10 }}><button type="button" className="btn btn-ghost" disabled={!!busy} onClick={() => run("off", () => api(`/campaigns/${c.id}/urn`, { method: "DELETE" }))}>{busy === "off" ? "Вимикаємо…" : "Вимкнути урну"}</button>
       <button type="button" className="btn btn-soft" onClick={() => copyText(`${location.origin}/#urn/${c.id}`, () => toast("Посилання для власників скопійовано"))}><Ic n="copy" />Посилання для власників</button></div>}

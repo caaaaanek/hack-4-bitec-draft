@@ -53,7 +53,7 @@ const errReasons = e => [...new Set(e.errors.map(i => uaFields(String((i && i.me
 const STAFF_TOKEN_TXT = "Анкети особового складу проходять лише анонімно: за QR або одноразовими посиланнями. Створіть для особового складу окрему хвилю з режимом «QR або посилання», а за логіном лишіть робочу групу й експертів.";
 export const staffTokenOnly = () => !!(API.cfg && API.cfg.policies && API.cfg.policies.staff_token_only) && API.user && API.user.category === "staff";
 // Нові коди помилок сервера (20.11): короткий людський текст замість технічного пояснення
-const CODE_TXT = { null_value: "Заповніть обов'язкові поля", unit_required: "Оберіть заклад", weight_from_methodology: "Вагу цієї категорії задає методика", not_assigned: "Підтвердження цього пункту призначено іншій людині" };
+const CODE_TXT = { urn_pending: "Закриття чекає двох частин ключа. Власники вводять їх на екрані «Урна».", null_value: "Заповніть обов'язкові поля", unit_required: "Оберіть заклад", weight_from_methodology: "Вагу цієї категорії задає методика", not_assigned: "Підтвердження цього пункту призначено іншій людині" };
 export const apiErrText = e => e instanceof ApiErr && CODE_TXT[e.code] ? CODE_TXT[e.code] : e instanceof ApiErr && e.code === "staff_token_only" ? STAFF_TOKEN_TXT : e instanceof ApiErr && e.code === "bad_transition" ? "Такий перехід статусу недоступний. Оновіть сторінку: статус могли змінити." : e instanceof ApiErr ? `${uaFields(e.message)}${errReasons(e) ? ": " + errReasons(e) : ""}${e.hint ? ". " + uaFields(e.hint) : ""}${e.status >= 500 && e.requestId ? ` Код запиту: ${e.requestId}` : ""}` : "Не вдалося виконати дію";
 export const apiFail = e => toast(apiErrText(e));
 
@@ -472,7 +472,9 @@ export async function apiLoadAdm(sel) {
   ]) : [null, []];
   return { campaigns, units, qs, sel: cur, progress, qr };
 }
-export function apiAdmReload(sel) { API.adm = null; API.loading.adm = true; render(true); apiLoadAdm(sel).then(v => { API.adm = v; }, e => { API.adm = { error: apiErrText(e) }; }).finally(() => { API.loading.adm = false; render(true); }); }
+// Розділи «Урна» й «Автопілот» кешуються окремо: після дій із хвилею скидаємо й їх, інакше вони показують старий статус
+export const dropWaveMods = () => { for (const k of Object.keys(API.mod)) if (/^(urn:|ap:|urncamp:|apc$|urnCamps$)/.test(k)) delete API.mod[k]; };
+export function apiAdmReload(sel) { dropWaveMods(); API.adm = null; API.loading.adm = true; render(true); apiLoadAdm(sel).then(v => { API.adm = v; }, e => { API.adm = { error: apiErrText(e) }; }).finally(() => { API.loading.adm = false; render(true); }); }
 export async function apiCreateCampaign(body) {
   const c = await api("/campaigns", { method: "POST", body });
   closeDrawer(); toast(`Хвилю «${c.title}» створено як чернетку`); apiAdmReload(c.id);

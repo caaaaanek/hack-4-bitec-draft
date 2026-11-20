@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Ic } from "../lib/icons.jsx";
 import { FileDrop } from "../components/FileDrop.jsx";
 import { S } from "../lib/state.js";
-import { API, api, staffTokenOnly, apiEnsure, apiRetry, apiRetryResults, apiLoadForm, apiFail, apiErrText, RESULT_VIEWS, dn, apiLoadAdm, apiAdmReload, apiCreateCampaign, apiCampaignAct, apiQrCreate, apiQrRevoke, apiQrTick,
+import { API, api, staffTokenOnly, apiEnsure, apiRetry, apiRetryResults, apiLoadForm, apiFail, apiErrText, RESULT_VIEWS, dn, apiLoadAdm, apiAdmReload, dropWaveMods, apiCreateCampaign, apiCampaignAct, apiQrCreate, apiQrRevoke, apiQrTick,
   QST, QCAT, apiQAct, orgCap, bldOpen, CKS, apiLoadCk, apiCkReload, apiSaveItem, requireFile, fourEyesOn, apiConfirm, apiDelFile, apiDownload, AUDIT_ENT, AUDIT_ACT, apiLoadLog, auditDetails, apiVerify } from "../lib/api.js";
 import { COMPS, COMP, level } from "../lib/model.js";
 import { fb, ua, plural } from "../lib/format.js";
@@ -106,12 +106,14 @@ function ApiMe() {
 }
 
 /* --- Керування циклом (уповноважений) --- */
+// Закриття з урною чекає частин ключа: скільки введено, знаємо з розділу «Урна», якщо він уже завантажений
+const urnWait = id => { const u = API.mod["urn:" + id] && API.mod["urn:" + id].data; return u && u.holders ? `Чекає частин ключа: ${u.holders.filter(h => h.submitted).length} з ${u.threshold || 2}` : "Чекає частин ключа"; };
 const CST = { draft: ["Чернетка", "p-mute"], open: ["Триває", "p-good"], closed: ["Завершено", "p-info"] };
 function ApiManage() {
   const [ask, setAsk] = useState(null), [tq, setTq] = useState(null), [tu, setTu] = useState(null), [tn, setTn] = useState(30), [show, setShow] = useState(null);
   useEffect(() => { const t = setInterval(apiQrTick, 4000); return () => clearInterval(t); }, []);
   // Поки хвиля чекає підтвердження аудиту, тихо перевіряємо, чи її вже відкрили (в іншому вікні)
-  useEffect(() => { const t = setInterval(() => { const A = API.adm; if (A && !A.error && A.campaigns.some(x => x.waitingOpen) && !API.loading.adm) apiLoadAdm(A.sel).then(v => { API.adm = v; render(true); }, () => {}); }, 8000); return () => clearInterval(t); }, []);
+  useEffect(() => { const t = setInterval(() => { const A = API.adm; if (A && !A.error && A.campaigns.some(x => x.waitingOpen) && !API.loading.adm) apiLoadAdm(A.sel).then(v => { const st = x => (x.campaigns || []).map(c => c.status + c.waitingOpen).join(); if (st(v) !== st(A)) dropWaveMods(); API.adm = v; render(true); }, () => {}); }, 8000); return () => clearInterval(t); }, []);
   const hideQr = useCallback(() => setShow(null), []);
   if (!apiEnsure("adm", () => apiLoadAdm())) return <Loading t="Керування циклом" />;
   const A = API.adm; if (A.error) return <Failed e={A.error} />;
@@ -126,7 +128,7 @@ function ApiManage() {
   return <>
     <section className="card c8 rise">
       {c ? <>
-        <div className="card-h"><h2>{dn(c.title)}</h2>{c.waitingOpen ? <Pill cls="p-warn">Чекає на підтвердження аудиту</Pill> : <Pill cls={CST[c.status][1]}>{CST[c.status][0]}</Pill>}<div className="sp" />{c.opened_on && <span className="lbl tnum">{c.closed_on ? `${ua(c.opened_on)} – ${ua(c.closed_on)}` : `з ${ua(c.opened_on)}`}</span>}</div>
+        <div className="card-h"><h2>{dn(c.title)}</h2>{c.waitingOpen ? <Pill cls="p-warn">Чекає на підтвердження аудиту</Pill> : c.status === "open" && c.urn_close_requested ? <Pill cls="p-warn">{urnWait(c.id)}</Pill> : <Pill cls={CST[c.status][1]}>{CST[c.status][0]}</Pill>}<div className="sp" />{c.opened_on && <span className="lbl tnum">{c.closed_on ? `${ua(c.opened_on)} – ${ua(c.closed_on)}` : `з ${ua(c.opened_on)}`}</span>}</div>
         <div className="rows">{(A.progress ? A.progress.items : []).length ? A.progress.items.map((i, k) => { const n = i.too_few_people ? 30 : Math.max(1, Math.min(30, i.eligible || 30)), on = i.too_few_people || !i.eligible ? 0 : Math.round((i.submitted || 0) / i.eligible * n); return <div key={k} className="row prog-row"><div className="grow"><div className="prog-h"><span className="t">{i.questionnaire_title}</span>{i.too_few_people && <span className="prog-lock" data-tip={`Менше ${c.min_group_size} осіб: кількості приховано`}><Ic n="lock" /></span>}<b className="tnum prog-n">{i.too_few_people ? "приховано" : `${i.submitted} з ${i.eligible}`}</b></div>
           <div className="ticks" style={{ height: 14, marginTop: 8 }}>{Array.from({ length: n }, (_, j) => <span key={j} style={j < on ? { background: "var(--teal)" } : undefined} />)}</div>
           {i.over_expected && <QrOver />}</div></div>; }) : <div className="lbl">Анкет у хвилі немає.</div>}</div>
