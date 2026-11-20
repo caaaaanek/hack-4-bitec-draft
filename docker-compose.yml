@@ -56,6 +56,23 @@ services:
       LLM_ALLOW_EXTERNAL: ${LLM_ALLOW_EXTERNAL:-false}
       LLM_MAX_CONCURRENT: ${LLM_MAX_CONCURRENT:-4}
       POOL_ENCRYPTION_KEY: ${POOL_ENCRYPTION_KEY:-}
+      # Ключ буфера з файлу (Docker secret під іншою людиною): має пріоритет над POOL_ENCRYPTION_KEY
+      POOL_ENCRYPTION_KEY_FILE: ${POOL_ENCRYPTION_KEY_FILE:-}
+      # Закритий контур = без обов'язкової залежності від зовнішніх сервісів, а не «без інтернету»:
+      # живі Prozorro й реєстр декларацій НАЗК — необов'язкові джерела модуля «Перевірки».
+      EXTERNAL_FETCH_ENABLED: ${EXTERNAL_FETCH_ENABLED:-true}
+      COUNTERPARTY_API_URL: ${COUNTERPARTY_API_URL:-}
+      COUNTERPARTY_API_KEY: ${COUNTERPARTY_API_KEY:-}
+      # Ролі й безпека (docs/role-workflows.md): див. .env.example
+      CHECKLIST_CONFIRMERS: ${CHECKLIST_CONFIRMERS:-commissioner,auditor}
+      SEPARATE_TECH_ADMIN: ${SEPARATE_TECH_ADMIN:-false}
+      ORG_KIND: ${ORG_KIND:-institution}
+      LEADER_CHILD_DETAILS: ${LEADER_CHILD_DETAILS:-false}
+      ADMIN_SETS_PASSWORDS: ${ADMIN_SETS_PASSWORDS:-true}
+      INVITE_TTL_HOURS: ${INVITE_TTL_HOURS:-72}
+      FOUR_EYES_ENABLED: ${FOUR_EYES_ENABLED:-false}
+      STAFF_TOKEN_ONLY: ${STAFF_TOKEN_ONLY:-false}
+      CANDOR_MIN_PER_VARIANT: ${CANDOR_MIN_PER_VARIANT:-30}
       # Автопілот хвиль: крок кожні N секунд (0 — лише вручну, POST /api/v1/autopilot/tick)
       AUTOPILOT_INTERVAL_SECONDS: ${AUTOPILOT_INTERVAL_SECONDS:-300}
     volumes:

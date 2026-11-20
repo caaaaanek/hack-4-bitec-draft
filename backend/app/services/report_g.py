@@ -32,6 +32,7 @@ def level_title(level: int) -> str:
 def question_order(db: Session, questions: list[dict]) -> dict[str, tuple[int, int]]:
     """Порядок питань як в анкеті: (позиція розділу, позиція питання). Беремо анкету з найбільшою кількістю питань."""
     ids = {b["questionnaire_id"] for q in questions for b in q["by_category"]}
+    wanted = {q["code"] for q in questions}  # без розділу «Відвертість»: його в індексі й звіті немає
     best: dict[str, tuple[int, int]] = {}
     for qid in ids:
         rows = db.execute(
@@ -39,7 +40,7 @@ def question_order(db: Session, questions: list[dict]) -> dict[str, tuple[int, i
             .join(Section, Question.section_id == Section.id)
             .where(Section.questionnaire_id == uuid.UUID(str(qid)))
         ).all()
-        order = {code: (sp, qp) for code, sp, qp in rows if code}
+        order = {code: (sp, qp) for code, sp, qp in rows if code in wanted}
         if len(order) > len(best):
             best = order
     return best

@@ -1,7 +1,11 @@
 """Контрольний чек-лист (додаток Б): інституційна оцінка.
 
-Член робочої групи вносить статус пункту і доказ, commissioner підтверджує.
-Так вносить і підтверджує завжди різні люди: commissioner не є членом робочої групи.
+Член робочої групи вносить статус пункту і доказ, підтверджує уповноважений (commissioner) або
+внутрішній аудит (CHECKLIST_CONFIRMERS). Вносить і підтверджує завжди різні люди.
+
+Відповідальні за пункт (ChecklistAssignment): адміністратор чи уповноважений призначає, хто з робочої
+групи вносить конкретний пункт і хто його підтверджує. Тоді вносить лише призначений, а підтверджує
+лише призначений підтверджувач, і це не та сама людина.
 Це не анонімна анкета: оцінюється заклад, а не люди, тому видно, хто вніс і хто підтвердив.
 
 Докази: текстовий опис (evidence) і/або файли (Evidence Repository, services/evidence.py).
@@ -26,6 +30,7 @@ from app.errors import ApiError
 from app.models import (
     Campaign,
     CampaignStatus,
+    ChecklistAssignment,
     ChecklistEntry,
     ChecklistStatus,
     EvidenceFile,
@@ -77,6 +82,9 @@ class ChecklistItemOut(BaseModel):
     confirmed_at: datetime | None
     score: float | None
     files: list[EvidenceFileOut] = []
+    # Призначені відповідальні (якщо є): хто вносить і хто підтверджує саме цей пункт.
+    enterer_id: uuid.UUID | None = None
+    confirmer_id: uuid.UUID | None = None
 
 
 class ChecklistOut(BaseModel):
@@ -112,7 +120,8 @@ def item_score(entry: ChecklistEntry | None) -> float | None:
     return m.CHECKLIST_STATUS_SCORES[entry.status.value]
 
 
-def to_item(question, entry: ChecklistEntry | None, files: list[EvidenceFile] | None = None) -> ChecklistItemOut:
+def to_item(question, entry: ChecklistEntry | None, files: list[EvidenceFile] | None = None,
+            assignment: ChecklistAssignment | None = None) -> ChecklistItemOut:
     number = m.checklist_item_number(question.code) or question.code
     return ChecklistItemOut(
         question_id=question.id,
@@ -129,6 +138,8 @@ def to_item(question, entry: ChecklistEntry | None, files: list[EvidenceFile] | 
         confirmed_at=entry.confirmed_at if entry else None,
         score=item_score(entry),
         files=[EvidenceFileOut.model_validate(f) for f in files or []],
+        enterer_id=assignment.enterer_id if assignment else None,
+        confirmer_id=assignment.confirmer_id if assignment else None,
     )
 
 
@@ -173,7 +184,8 @@ def get_checklist(campaign_id: uuid.UUID, db: Session = Depends(get_db), user: U
     files: dict[uuid.UUID, list[EvidenceFile]] = {}
     for f in files_of(db, campaign.id):
         files.setdefault(f.question_id, []).append(f)
-    items = [to_item(q, entries.get(q.id), files.get(q.id))
+    assigned = assignments_of(db, campaign.id)
+    items = [to_item(q, entries.get(q.id), files.get(q.id), assigned.get(q.id))
              for section in questionnaire.sections for q in section.questions]
     return ChecklistOut(
         campaign_id=campaign.id,
@@ -183,6 +195,144 @@ def get_checklist(campaign_id: uuid.UUID, db: Session = Depends(get_db), user: U
         confirmed=sum(1 for i in items if i.confirmed),
         items=items,
     )
+
+
+def assignments_of(db: Session, campaign_id) -> dict[uuid.UUID, ChecklistAssignment]:
+    return {a.question_id: a for a in db.scalars(
+        select(ChecklistAssignment).where(ChecklistAssignment.campaign_id == campaign_id))}
+
+
+def confirmer_roles() -> tuple[Role, ...]:
+    """Хто може підтверджувати пункти: CHECKLIST_CONFIRMERS (за замовчуванням уповноважений і внутрішній аудит)."""
+    roles = []
+    for name in get_settings().checklist_confirmers.split(","):
+        try:
+            roles.append(Role(name.strip()))
+        except ValueError:
+            continue
+    return tuple(r for r in roles if r in (Role.COMMISSIONER, Role.AUDITOR, Role.ADMIN)) or (Role.COMMISSIONER,)
+
+
+def require_confirmer(user: User = Depends(get_current_user)) -> User:
+    if user.role not in confirmer_roles():
+        raise HTTPException(status_code=403, detail="Недостатньо прав")
+    return user
+
+
+class AssignmentItemIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    question_id: uuid.UUID
+    enterer_id: uuid.UUID | None = Field(default=None, description="Член робочої групи хвилі, який вносить пункт")
+    confirmer_id: uuid.UUID | None = Field(default=None, description="Хто підтверджує (CHECKLIST_CONFIRMERS)")
+
+
+class AssignmentsIn(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    items: list[AssignmentItemIn] = Field(max_length=500)
+
+
+class AssignmentOut(BaseModel):
+    question_id: uuid.UUID
+    code: str
+    number: str
+    enterer_id: uuid.UUID | None
+    enterer: str | None
+    confirmer_id: uuid.UUID | None
+    confirmer: str | None
+
+
+def assignments_response(db: Session, campaign: Campaign, questionnaire: Questionnaire) -> list[AssignmentOut]:
+    assigned = assignments_of(db, campaign.id)
+    names = {u.id: u.display_name for u in db.scalars(select(User).where(User.id.in_(
+        {x for a in assigned.values() for x in (a.enterer_id, a.confirmer_id) if x})))} if assigned else {}
+    out = []
+    for section in questionnaire.sections:
+        for q in section.questions:
+            a = assigned.get(q.id)
+            out.append(AssignmentOut(
+                question_id=q.id, code=q.code, number=m.checklist_item_number(q.code) or q.code,
+                enterer_id=a.enterer_id if a else None, enterer=names.get(a.enterer_id) if a else None,
+                confirmer_id=a.confirmer_id if a else None, confirmer=names.get(a.confirmer_id) if a else None))
+    return out
+
+
+@router.get("/assignments", response_model=list[AssignmentOut])
+def get_assignments(campaign_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(get_current_user)):
+    """Хто вносить і хто підтверджує кожен пункт. Пункт без призначення: вносить будь-хто з робочої групи
+    хвилі, підтверджує будь-хто з CHECKLIST_CONFIRMERS (але не той, хто вніс)."""
+    campaign, questionnaire = checklist_of(db, campaign_id)
+    ensure_view(db, user, campaign)
+    return assignments_response(db, campaign, questionnaire)
+
+
+@router.put("/assignments", response_model=list[AssignmentOut])
+def set_assignments(campaign_id: uuid.UUID, data: AssignmentsIn, db: Session = Depends(get_db),
+                    user: User = Depends(require_roles(Role.ADMIN, Role.COMMISSIONER))):
+    """Розподілити пункти чек-листа між членами робочої групи і підтверджувачами (чернетка або відкрита хвиля).
+
+    Передані пункти замінюються; enterer_id і confirmer_id null — зняти призначення. Вносить і підтверджує
+    завжди різні люди.
+    """
+    campaign, questionnaire = checklist_of(db, campaign_id)
+    if campaign.status == CampaignStatus.CLOSED:
+        raise ApiError(409, "Хвилю закрито", code="not_editable")
+    questions = {q.id: q for s in questionnaire.sections for q in s.questions}
+    allowed_confirmers = confirmer_roles()
+    issues = []
+    users = {u.id: u for u in db.scalars(select(User).where(User.id.in_(
+        {x for i in data.items for x in (i.enterer_id, i.confirmer_id) if x})))}
+    for n, item in enumerate(data.items):
+        path = f"items[{n}]"
+        if item.question_id not in questions:
+            issues.append({"path": path, "message": "Пункт не належить до чек-листа хвилі"})
+            continue
+        if item.enterer_id is not None:
+            enterer = users.get(item.enterer_id)
+            if enterer is None or not wg_of_campaign(db, enterer, campaign):
+                issues.append({"path": path, "message": "Вносить лише активний член робочої групи цієї хвилі"})
+        if item.confirmer_id is not None:
+            confirmer = users.get(item.confirmer_id)
+            if confirmer is None or not confirmer.is_active or confirmer.role not in allowed_confirmers:
+                issues.append({"path": path, "message": "Підтверджувач має мати роль: "
+                               + ", ".join(r.value for r in allowed_confirmers)})
+        if item.enterer_id is not None and item.enterer_id == item.confirmer_id:
+            issues.append({"path": path, "message": "Вносить і підтверджує не та сама людина"})
+    if issues:
+        raise ApiError(422, issues, code="invalid", hint="Нічого не змінено.")
+    assigned = assignments_of(db, campaign.id)
+    for item in data.items:
+        row = assigned.get(item.question_id)
+        if item.enterer_id is None and item.confirmer_id is None:
+            if row is not None:
+                db.delete(row)
+            continue
+        if row is None:
+            row = ChecklistAssignment(campaign_id=campaign.id, question_id=item.question_id)
+            db.add(row)
+        row.enterer_id, row.confirmer_id, row.assigned_by_id = item.enterer_id, item.confirmer_id, user.id
+        row.assigned_at = datetime.now(timezone.utc)
+    log_action(db, user, "assign", "checklist", campaign.id,
+               {"items": [{"code": questions[i.question_id].code,
+                           "enterer_id": str(i.enterer_id) if i.enterer_id else None,
+                           "confirmer_id": str(i.confirmer_id) if i.confirmer_id else None} for i in data.items]})
+    db.commit()
+    return assignments_response(db, campaign, questionnaire)
+
+
+def check_assigned_enterer(db: Session, campaign_id, question_id, user: User) -> None:
+    a = db.get(ChecklistAssignment, (campaign_id, question_id))
+    if a is not None and a.enterer_id is not None and a.enterer_id != user.id:
+        raise ApiError(403, "Цей пункт призначено іншому члену робочої групи", code="not_assigned",
+                       hint="Відповідальних за пункти видно в GET /campaigns/{id}/checklist/assignments.")
+
+
+def check_assigned_confirmer(db: Session, campaign_id, question_id, user: User) -> None:
+    a = db.get(ChecklistAssignment, (campaign_id, question_id))
+    if a is not None and a.confirmer_id is not None and a.confirmer_id != user.id:
+        raise ApiError(403, "Підтвердження цього пункту призначено іншій людині", code="not_assigned",
+                       hint="Відповідальних за пункти видно в GET /campaigns/{id}/checklist/assignments.")
 
 
 @router.put("/{question_id}", response_model=ChecklistItemOut)
@@ -200,6 +350,7 @@ def set_entry(
     if campaign.status != CampaignStatus.OPEN:
         raise HTTPException(status_code=409, detail="Хвиля не відкрита")
     question = find_question(questionnaire, question_id)
+    check_assigned_enterer(db, campaign.id, question.id, user)
 
     entry = entry_of(db, campaign.id, question.id)
     if entry is None:
@@ -215,7 +366,8 @@ def set_entry(
     db.flush()
     log_action(db, user, "set", "checklist_entry", entry.id, {"item": question.code, "status": data.status.value})
     db.commit()
-    return to_item(question, entry, files_of(db, campaign.id, question.id))
+    return to_item(question, entry, files_of(db, campaign.id, question.id),
+                   db.get(ChecklistAssignment, (campaign.id, question.id)))
 
 
 @router.post("/{question_id}/confirm", response_model=ChecklistItemOut)
@@ -223,13 +375,14 @@ def confirm_entry(
     campaign_id: uuid.UUID,
     question_id: uuid.UUID,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(Role.COMMISSIONER)),
+    user: User = Depends(require_confirmer),
 ):
-    """Підтвердити пункт можна лише за наявності доказу."""
+    """Підтвердити пункт можна лише за наявності доказу. Підтверджує не той, хто вніс."""
     campaign, questionnaire = checklist_of(db, campaign_id)
     if campaign.status != CampaignStatus.OPEN:
         raise HTTPException(status_code=409, detail="Хвиля не відкрита")
     question = find_question(questionnaire, question_id)
+    check_assigned_confirmer(db, campaign.id, question.id, user)
     entry = entry_of(db, campaign.id, question.id)
     if entry is None:
         raise HTTPException(status_code=409, detail="Пункт ще не заповнено")
@@ -244,7 +397,7 @@ def confirm_entry(
     log_action(db, user, "confirm", "checklist_entry", entry.id,
                {"item": question.code, "files": [f.sha256 for f in files]})
     db.commit()
-    return to_item(question, entry, files)
+    return to_item(question, entry, files, db.get(ChecklistAssignment, (campaign.id, question.id)))
 
 
 @router.delete("/{question_id}/confirm", response_model=ChecklistItemOut)
@@ -252,7 +405,7 @@ def revoke_confirmation(
     campaign_id: uuid.UUID,
     question_id: uuid.UUID,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(Role.COMMISSIONER)),
+    user: User = Depends(require_confirmer),
 ):
     campaign, questionnaire = checklist_of(db, campaign_id)
     if campaign.status != CampaignStatus.OPEN:
@@ -285,7 +438,9 @@ def editable_item(db: Session, campaign_id: uuid.UUID, question_id: uuid.UUID, u
         raise HTTPException(status_code=403, detail="Додавати докази може лише член робочої групи цієї хвилі")
     if campaign.status != CampaignStatus.OPEN:
         raise HTTPException(status_code=409, detail="Хвиля не відкрита: докази закритої хвилі не змінюються")
-    return campaign, find_question(questionnaire, question_id)
+    question = find_question(questionnaire, question_id)
+    check_assigned_enterer(db, campaign.id, question.id, user)
+    return campaign, question
 
 
 @router.get("/{question_id}/files", response_model=list[EvidenceFileOut])

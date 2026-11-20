@@ -136,6 +136,15 @@ def tick_campaign(db: Session, campaign: Campaign) -> list[dict]:
     if due or reached:
         reason = (f"настав строк ({campaign.planned_close_on:%d.%m.%Y})" if due
                   else f"участь досягла {campaign.close_at_percent:g}% у кожній анкеті ({text})")
+        if campaign.urn_enabled:
+            # «Урна»: автопілот хвилю сам не закриє — ключа немає ні в кого, крім власників частин.
+            if not campaign.urn_close_requested:
+                from app.services import urn
+
+                urn.request_close(db, campaign, None)
+                out.append(event(db, campaign, "close", "skipped",
+                                 f"Час закривати ({reason}): чекаємо частин ключа урни від двох власників"))
+            return out
         details = lifecycle.close_wave(db, campaign, None, via="autopilot")
         out.append(event(db, campaign, "close", "ok", f"Хвилю закрито: {reason}", **details))
         after_close(db, campaign, out)

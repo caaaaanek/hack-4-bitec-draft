@@ -148,16 +148,17 @@ def test_import_csv_rejects_personal_data_columns(client):
 
 def test_import_csv_in_token_mode_returns_links_and_stores_no_pseudonyms(client):
     campaign_id, q, admin = draft(client, codes=(STAFF, WG), access_mode="token")
-    text = "pseudonym,category,unit\nk-1,staff,Підрозділ А\nk-2,staff,Підрозділ А\nwg-x,working_group,Організація (демо)\n"
+    text = ("pseudonym,category,unit\n" + "".join(f"k-{i},staff,Підрозділ А\n" for i in range(1, 6))
+            + "".join(f"wg-{i},working_group,Організація (демо)\n" for i in "xyzvw"))
     r = upload_csv(client, campaign_id, text, admin, fmt="csv")
     assert r.status_code == 200, r.text
     assert r.headers["content-type"].startswith("text/csv")
     rows = list(csv.DictReader(io.StringIO(r.text.lstrip("﻿"))))
-    assert [row["login"] for row in rows] == ["k-1", "k-2", "wg-x"]
+    assert [row["login"] for row in rows][:2] == ["k-1", "k-2"] and len(rows) == 10
     assert all("/s/" in row["link"] for row in rows)
     logins = user_ids(client, admin)
     assert "k-1" not in logins and "wg-x" not in logins
-    client.post(f"{API}/campaigns/{campaign_id}/open", headers=admin)
+    assert client.post(f"{API}/campaigns/{campaign_id}/open", headers=admin).status_code == 200
     token = rows[0]["link"].rsplit("/", 1)[1]
     form = client.get(f"{API}/respond/form", headers={"X-Response-Token": token})
     assert form.status_code == 200 and form.json()["questionnaire_id"] == q[STAFF]

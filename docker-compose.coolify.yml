@@ -51,7 +51,7 @@ services:
       PROXY_AUTH_ENABLED: "false"
       # Мережа стеку Coolify: IP клієнта для лімітів спроб беремо з X-Forwarded-For лише від nginx фронтенду.
       FORWARDED_PROXIES: 172.16.0.0/12,192.168.0.0/16,10.0.0.0/8
-      EXTERNAL_FETCH_ENABLED: "false"
+      EXTERNAL_FETCH_ENABLED: "true"
     volumes:
       - evidence:/data/evidence
     depends_on:

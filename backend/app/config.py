@@ -4,6 +4,13 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 # Абсолютний мінімум розміру групи для показу агрегатів. Менше задати не можна навіть адміну.
 MIN_GROUP_SIZE_FLOOR = 5
+# Як у текстах називати кореневу одиницю (ORG_KIND): не лише ВВНЗ, а й військова частина чи підприємство.
+ORG_TERMS: dict[str, dict[str, str]] = {
+    "institution": {"nominative": "заклад", "genitive": "закладу", "plural": "заклади", "full": "заклад вищої освіти"},
+    "organization": {"nominative": "організація", "genitive": "організації", "plural": "організації",
+                     "full": "організація"},
+    "unit": {"nominative": "частина", "genitive": "частини", "plural": "частини", "full": "військова частина"},
+}
 # Мінімальна довжина секрету JWT (байтів) для HS256.
 JWT_SECRET_MIN_LENGTH = 32
 
@@ -76,11 +83,48 @@ class Settings(BaseSettings):
     # інструментів; без обмеження черга до моделі забирає потоки в решти API. Понад ліміт — 429.
     llm_max_concurrent: int = 4
 
-    # Живі запити модуля «Перевірки» до відкритих API (Prozorro, НАЗК). Закритий контур: false.
+    # Живі запити модуля «Перевірки» до відкритих API (Prozorro, НАЗК). Закритий контур означає «без обов'язкової
+    # залежності від зовнішніх сервісів», а не «без інтернету»: true вмикає необов'язкові живі джерела.
     external_fetch_enabled: bool = False
+    # Перевірка контрагентів (пункт 4.5.1 чек-листа) через комерційний API на кшталт Youcontrol.
+    # Без адреси й ключа (або з EXTERNAL_FETCH_ENABLED=false) — синтетичний мок.
+    counterparty_api_url: str = ""
+    counterparty_api_key: str = ""
     # Ключ шифрування буфера відповідей (до закриття хвилі). Порожньо: похідний від JWT_SECRET.
     # Окремий ключ дозволяє міняти JWT_SECRET, не втрачаючи відповідей відкритих хвиль.
     pool_encryption_key: str = ""
+    # Файл із ключем буфера (Docker secret, сховище секретів під іншою людиною). Має пріоритет над
+    # POOL_ENCRYPTION_KEY: ключа немає ні в .env, ні в змінних оточення контейнера.
+    pool_encryption_key_file: str = ""
+
+    # ---------- Ролі й розподіл обов'язків ----------
+    # Хто підтверджує пункти чек-листа (через кому): уповноважений і/або внутрішній аудит.
+    checklist_confirmers: str = "commissioner,auditor"
+    # true: адміністратор (уповноважений, хвилі) не керує людьми й підрозділами — лише технічний
+    # адміністратор (coordinator), який, своєю чергою, не бачить результатів.
+    separate_tech_admin: bool = False
+    # Як називати кореневу одиницю в текстах: institution (заклад), organization (організація), unit (частина).
+    org_kind: str = "institution"
+
+    # ---------- Захист від колективного покарання ----------
+    # false (рекомендовано): керівник бачить деталі лише свого підрозділу, а про дочірні — розподіл
+    # «скільки підрозділів на якому рівні» без назв. true: як раніше, усе піддерево.
+    leader_child_details: bool = False
+
+    # ---------- Облікові записи ----------
+    # false (рекомендовано): адміністратор не задає паролів — людина ставить пароль сама за запрошенням.
+    admin_sets_passwords: bool = True
+    invite_ttl_hours: int = 72
+    # Принцип двох осіб: привілейовані ролі, зміна категорії, нові облікові записи й відкриття хвилі
+    # підтверджує друга людина (POST /admin/approvals/{id}/approve).
+    four_eyes_enabled: bool = False
+
+    # ---------- Анонімність ----------
+    # true: особовий склад проходить анкети лише за QR чи одноразовими посиланнями (логін — для робочої
+    # групи й керівників). Хвиля за логінами з анкетою особового складу не створюється.
+    staff_token_only: bool = False
+    # Детектор відвертості: мінімум відповідей на кожен варіант непрямого питання (і не менше k).
+    candor_min_per_variant: int = 30
 
     # Автопілот хвиль (services/autopilot.py): як часто робити крок, у секундах. 0 — лише вручну (POST /autopilot/tick).
     autopilot_interval_seconds: float = 0
@@ -144,6 +188,20 @@ class Settings(BaseSettings):
         return [p.strip() for p in self.forwarded_proxies.split(",") if p.strip()]
 
     @property
+    def pool_key_material(self) -> str:
+        """Матеріал ключа буфера: файл (секрет) → POOL_ENCRYPTION_KEY → похідний від JWT_SECRET."""
+        if self.pool_encryption_key_file:
+            try:
+                with open(self.pool_encryption_key_file, encoding="utf-8") as f:
+                    value = f.read().strip()
+                if value:
+                    return value
+            except OSError:
+                pass
+            raise RuntimeError(f"POOL_ENCRYPTION_KEY_FILE={self.pool_encryption_key_file}: файл не прочитано або порожній")
+        return self.pool_encryption_key or ("pool:" + self.jwt_secret)
+
+    @property
     def min_group_size(self) -> int:
         return max(self.default_min_group_size, MIN_GROUP_SIZE_FLOOR)
 
@@ -159,6 +217,10 @@ def check_settings(settings: "Settings") -> None:
         raise RuntimeError("CORS_ORIGINS не може містити «*»: перелічіть адреси фронтенду явно.")
     if settings.root_path and (not settings.root_path.startswith("/") or settings.root_path.endswith("/")):
         raise RuntimeError("ROOT_PATH має починатися з «/» і не закінчуватися нею, наприклад /imd.")
+    if settings.org_kind not in ORG_TERMS:
+        raise RuntimeError(f"ORG_KIND: один із {', '.join(ORG_TERMS)}")
+    if settings.pool_encryption_key_file:
+        settings.pool_key_material  # noqa: B018 — перевірка, що файл ключа читається, уже на старті
     if settings.proxy_auth_enabled and not settings.trusted_proxy_list:
         raise RuntimeError("PROXY_AUTH_ENABLED=true потребує TRUSTED_PROXIES: інакше заголовок підробить будь-хто.")
 

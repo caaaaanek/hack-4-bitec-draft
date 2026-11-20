@@ -50,6 +50,13 @@ def validate_submission(questionnaire: Questionnaire, answers_in: list[AnswerIn]
         elif q.type == QuestionType.SCALE:
             if a.value is None or not (q.scale_min <= a.value <= q.scale_max):
                 issues.append(ValidationIssue(path=str(q_id), message=f"Значення має бути від {q.scale_min} до {q.scale_max}"))
+        elif q.type == QuestionType.LIST_COUNT:
+            # Кількість правдивих тверджень: у варіанті A чутливого твердження немає, тож максимум на 1 менший.
+            top = len(q.options) - (1 if a.variant == "A" else 0)
+            if a.variant not in ("A", "B"):
+                issues.append(ValidationIssue(path=str(q_id), message="Для непрямого питання потрібен variant з форми"))
+            elif a.option_ids or a.value is None or a.value != int(a.value) or not 0 <= a.value <= top:
+                issues.append(ValidationIssue(path=str(q_id), message=f"Вкажіть кількість від 0 до {top}"))
     return issues
 
 
@@ -70,14 +77,18 @@ def pool_answers(
         if a.option_ids:
             answers.extend({"question_id": str(a.question_id), "option_id": str(o), "value": None} for o in a.option_ids)
         elif a.value is not None:
-            answers.append({"question_id": str(a.question_id), "option_id": None, "value": a.value})
+            item = {"question_id": str(a.question_id), "option_id": None, "value": a.value}
+            if a.variant:
+                item["variant"] = a.variant  # варіант непрямого питання: лише у відповіді, не в людини
+            answers.append(item)
     db.add(
         ResponsePool(
             campaign_id=campaign.id,
             questionnaire_id=questionnaire.id,
             category=questionnaire.target_category,
             unit_id=None,
-            answers=seal({"unit_id": str(unit_id) if unit_id else None, "answers": answers}),
+            answers=seal({"unit_id": str(unit_id) if unit_id else None, "answers": answers},
+                         campaign.urn_public_key if campaign.urn_enabled else None),
         )
     )
 

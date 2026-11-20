@@ -48,10 +48,14 @@ class Role(StrEnum):
     RESPONDENT = "respondent"      # проходить анкети
     LEADER = "leader"              # керівник: результати, рішення щодо рекомендацій, заходи
     AUDITOR = "auditor"            # аудитор: лише читання результатів, заходів і журналу дій
-    COORDINATOR = "coordinator"    # координатор: користувачі, ролі, підрозділи, журнал і зведення по всіх групах
+    COORDINATOR = "coordinator"    # технічний адміністратор: люди, ролі, підрозділи, журнал; без доступу до результатів
+    DEPARTMENT = "department"      # Департамент МОУ: лише перегляд закладів свого піддерева, кожен окремо, без рейтингу
 
 
 class RespondentCategory(StrEnum):
+    """Вбудовані категорії. Решту (курсанти, працівники тощо) адміністратор додає в довідник
+    respondent_categories (services/categories.py); у стовпцях БД категорія — звичайний рядок."""
+
     WORKING_GROUP = "working_group"  # члени робочої групи (Анкета 1)
     STAFF = "staff"                  # особовий склад (Анкета 2)
     EXPERT = "expert"                # експертне оцінювання
@@ -72,6 +76,8 @@ class QuestionType(StrEnum):
     SINGLE_CHOICE = "single_choice"
     MULTIPLE_CHOICE = "multiple_choice"
     SCALE = "scale"
+    # Непряме питання «скільки з переліку» (list experiment, services/candor.py): відповідь — кількість 0..N.
+    LIST_COUNT = "list_count"
 
 
 class CampaignStatus(StrEnum):
@@ -104,7 +110,7 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(String(100))
     password_hash: Mapped[str] = mapped_column(String(100))
     role: Mapped[Role] = mapped_column(str_enum(Role), index=True)
-    category: Mapped[RespondentCategory | None] = mapped_column(str_enum(RespondentCategory))
+    category: Mapped[str | None] = mapped_column(String(32))
     unit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("units.id"), index=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -123,7 +129,7 @@ class Questionnaire(Base):
     title: Mapped[str] = mapped_column(String(300))
     description: Mapped[str] = mapped_column(Text, default="")
     kind: Mapped[QuestionnaireKind] = mapped_column(str_enum(QuestionnaireKind))
-    target_category: Mapped[RespondentCategory] = mapped_column(str_enum(RespondentCategory))
+    target_category: Mapped[str] = mapped_column(String(32))
     status: Mapped[QuestionnaireStatus] = mapped_column(
         str_enum(QuestionnaireStatus), default=QuestionnaireStatus.DRAFT
     )
@@ -175,6 +181,9 @@ class Question(Base):
     weight: Mapped[float] = mapped_column(Float, default=1.0)
     scale_min: Mapped[int | None] = mapped_column(Integer)
     scale_max: Mapped[int | None] = mapped_column(Integer)
+    # Додаткові параметри типу питання: {"direct_code": ...} для list_count (пряме питання про те саме),
+    # {"mirror_of": код} для «дзеркала» (як відповіли б колеги). Порожньо для звичайних питань.
+    params: Mapped[dict] = mapped_column(JSON, default=dict, server_default="{}")
 
     section: Mapped[Section] = relationship(back_populates="questions")
     options: Mapped[list["Option"]] = relationship(
@@ -228,6 +237,12 @@ class Campaign(Base):
     remind_every_days: Mapped[int | None] = mapped_column(Integer)
     last_reminder_on: Mapped[date | None] = mapped_column(Date)
 
+    # «Урна з трьома ключами» (services/urn.py): відповіді шифруються відкритим ключем хвилі,
+    # закритий ключ поділено на 3 частини (схема Шаміра 2 з 3), сервер його не зберігає.
+    urn_enabled: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+    urn_public_key: Mapped[str | None] = mapped_column(String(64))
+    urn_close_requested: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false")
+
     questionnaire_links: Mapped[list["CampaignQuestionnaire"]] = relationship(cascade="all, delete-orphan")
 
 
@@ -264,7 +279,7 @@ class CampaignEligible(Base):
     questionnaire_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("questionnaires.id"), primary_key=True)
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     unit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("units.id"))
-    category: Mapped[RespondentCategory] = mapped_column(str_enum(RespondentCategory))
+    category: Mapped[str] = mapped_column(String(32))
 
 
 class AccessToken(Base):
@@ -332,7 +347,7 @@ class ResponsePool(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     campaign_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), index=True)
     questionnaire_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("questionnaires.id"))
-    category: Mapped[RespondentCategory] = mapped_column(str_enum(RespondentCategory))
+    category: Mapped[str] = mapped_column(String(32))
     unit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("units.id"))
     # Зашифрований конверт; старі рядки — [{"question_id", "option_id", "value"}, ...]
     answers: Mapped[dict | list] = mapped_column(JSON)
@@ -349,7 +364,7 @@ class Response(Base):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     campaign_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("campaigns.id"), index=True)
     questionnaire_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("questionnaires.id"))
-    category: Mapped[RespondentCategory] = mapped_column(str_enum(RespondentCategory))
+    category: Mapped[str] = mapped_column(String(32))
     unit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("units.id"))
 
     answers: Mapped[list["Answer"]] = relationship(cascade="all, delete-orphan")
@@ -362,7 +377,9 @@ class Answer(Base):
     response_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("responses.id", ondelete="CASCADE"), index=True)
     question_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("questions.id"))
     option_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("options.id"))
-    value: Mapped[float | None] = mapped_column(Float)  # для питань-шкал
+    value: Mapped[float | None] = mapped_column(Float)  # для питань-шкал і list_count
+    # Варіант непрямого питання: "A" (без чутливого твердження) або "B" (з ним). Лише у відповіді, не в людини.
+    variant: Mapped[str | None] = mapped_column(String(1))
 
 
 class ChecklistStatus(StrEnum):
@@ -690,3 +707,218 @@ class TrainingCompletion(Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
     deck: Mapped[str] = mapped_column(String(32))
     completed_on: Mapped[date] = mapped_column(Date)
+
+
+# ---------- Довідники (замість зашитих у код списків) ----------
+
+class RespondentCategoryDef(Base):
+    """Категорія респондентів. Вбудовані (working_group, staff, expert) створює seed, решту — адміністратор.
+
+    weight None: категорія лише для порівняння (у розкладі й «Порівнянні»), в індекс не входить.
+    Вага задана: категорія стає джерелом самооцінки, як ОС чи РГ (вага ділиться пропорційно з рештою).
+    """
+
+    __tablename__ = "respondent_categories"
+
+    code: Mapped[str] = mapped_column(String(32), primary_key=True)
+    title: Mapped[str] = mapped_column(String(100))
+    weight: Mapped[float | None] = mapped_column(Float)
+    builtin: Mapped[bool] = mapped_column(Boolean, default=False)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Position(Base):
+    """Посада для поля «відповідальний» у заходах (посада, а не людина)."""
+
+    __tablename__ = "positions"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    title: Mapped[str] = mapped_column(String(200), unique=True)
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+class FactDefinition(Base):
+    """Факт (показник з іншої системи), доданий адміністратором до вбудованих у методиці.
+
+    Пороги — межі частки у відсотках для рівнів 2, 3, 4, 5. Знімки хвиль зберігають опис факту,
+    за яким рахували, тож зміна довідника не переписує минулі хвилі.
+    """
+
+    __tablename__ = "fact_definitions"
+
+    code: Mapped[str] = mapped_column(String(64), primary_key=True)
+    title: Mapped[str] = mapped_column(String(200))
+    component: Mapped[str] = mapped_column(String(32))
+    thresholds: Mapped[list] = mapped_column(JSON)
+    numerator: Mapped[str] = mapped_column(String(100), default="так")
+    denominator: Mapped[str] = mapped_column(String(100), default="всього")
+    rest: Mapped[str] = mapped_column(String(100), default="решта")
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+
+
+# ---------- Чек-лист: відповідальні за пункти ----------
+
+class ChecklistAssignment(Base):
+    """Хто вносить і хто підтверджує конкретний пункт чек-листа в межах хвилі.
+
+    Якщо для пункту є призначення, вносить лише призначений член робочої групи, а підтверджує лише
+    призначений підтверджувач (не та сама людина). Без призначення діє загальне правило.
+    """
+
+    __tablename__ = "checklist_assignments"
+
+    campaign_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), primary_key=True)
+    question_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("questions.id"), primary_key=True)
+    enterer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    confirmer_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    assigned_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    assigned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+# ---------- Безпека облікових записів ----------
+
+class UserInvite(Base):
+    """Одноразове запрошення: людина сама ставить пароль, адміністратор його не знає.
+
+    Зберігається лише sha256 токена. Використане чи прострочене запрошення не діє.
+    """
+
+    __tablename__ = "user_invites"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class ApprovalRequest(Base):
+    """Дія, яку підтверджує друга людина (FOUR_EYES_ENABLED): привілейована роль, зміна категорії,
+    нові облікові записи, відкриття хвилі. Підтверджує не той, хто просив."""
+
+    __tablename__ = "approval_requests"
+    __table_args__ = (Index("ix_approval_requests_status", "status"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    kind: Mapped[str] = mapped_column(String(32))  # user_role | user_category | activate_users | open_campaign
+    target_id: Mapped[str | None] = mapped_column(String(64))
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    summary: Mapped[str] = mapped_column(Text, default="")
+    status: Mapped[str] = mapped_column(String(16), default="pending")  # pending | approved | rejected
+    requested_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    requested_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    decided_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    comment: Mapped[str] = mapped_column(Text, default="")
+
+
+class AuditAnchor(Base):
+    """Голова ланцюжка журналу, прийнята аудитом. Аудитор зберігає seq і hash у себе (друк, окремий носій):
+    якщо журнал переписано, звірка з його копією це покаже, навіть коли переписано й цю таблицю."""
+
+    __tablename__ = "audit_anchors"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    seq: Mapped[int] = mapped_column(Integer)
+    hash: Mapped[str] = mapped_column(String(64))
+    accepted_by_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    accepted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    note: Mapped[str] = mapped_column(Text, default="")
+
+
+class ResultView(Base):
+    """Перегляд результатів дочірнього підрозділу (не кореня хвилі). Для звіту аудитору «хто дивився
+    дочірні підрозділи». Окремо від журналу дій: без блокування голови ланцюжка на кожне читання."""
+
+    __tablename__ = "result_views"
+    __table_args__ = (Index("ix_result_views_at", "at"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    actor_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id"))
+    unit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("units.id"))
+    campaign_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"))
+    endpoint: Mapped[str] = mapped_column(String(64))
+
+
+# ---------- Урна з трьома ключами ----------
+
+class UrnShare(Base):
+    """Частина закритого ключа хвилі для одного власника.
+
+    До відкриття хвилі частина лежить тут, доки власник її не забере (після цього share = NULL).
+    Відкрити хвилю можна, лише коли всі три частини забрано: сервер ключа більше не має.
+    При закритті власник повертає частину (submitted); з двох частин ключ відновлюється в пам'яті
+    на час переносу буфера, після чого всі частини стираються.
+    """
+
+    __tablename__ = "urn_shares"
+
+    campaign_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), primary_key=True)
+    holder_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    x: Mapped[int] = mapped_column(Integer)
+    share: Mapped[str | None] = mapped_column(Text)  # видається власнику один раз
+    taken_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    submitted: Mapped[str | None] = mapped_column(Text)  # повернуто для закриття
+    submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+# ---------- Квитанції: анонімність, яку можна перевірити ----------
+
+class BlindKey(Base):
+    """Ключ сліпого підпису (RSA) для групи «анкета хвилі + підрозділ». Закритий ключ шифрується ключем буфера.
+
+    Підрозділ потрібен для агрегатів (як у одноразових посиланнях): анонімний бюлетень несе лише ключ групи.
+    """
+
+    __tablename__ = "blind_keys"
+    __table_args__ = (UniqueConstraint("campaign_id", "questionnaire_id", "unit_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    campaign_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), index=True)
+    questionnaire_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("questionnaires.id"))
+    unit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("units.id"))
+    n: Mapped[str] = mapped_column(Text)  # модуль, hex
+    e: Mapped[int] = mapped_column(Integer)
+    sealed_d: Mapped[dict] = mapped_column(JSON)
+
+
+class SpentBallot(Base):
+    """Використаний анонімний жетон: sha256 повідомлення (квитанція). Без користувача й часу.
+
+    Після закриття хвилі учасник за своєю квитанцією перевіряє, що його відповідь урахована.
+    """
+
+    __tablename__ = "spent_ballots"
+    __table_args__ = (UniqueConstraint("campaign_id", "questionnaire_id", "receipt"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    campaign_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("campaigns.id", ondelete="CASCADE"), index=True)
+    questionnaire_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("questionnaires.id"))
+    receipt: Mapped[str] = mapped_column(String(64))
+    unit_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("units.id"))
+
+
+# ---------- Реєстр корупційних ризиків ----------
+
+class RiskRegisterItem(Base):
+    """Ризик із реєстру корупційних ризиків закладу (імпорт таблиці), прив'язаний до компонента і заходу."""
+
+    __tablename__ = "risk_register"
+    __table_args__ = (Index("ix_risk_register_unit", "unit_id"),)
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    unit_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("units.id"))
+    code: Mapped[str] = mapped_column(String(64))
+    title: Mapped[str] = mapped_column(Text)
+    component: Mapped[str | None] = mapped_column(String(32))
+    likelihood: Mapped[int | None] = mapped_column(Integer)  # 1-5
+    impact: Mapped[int | None] = mapped_column(Integer)      # 1-5
+    measure_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("measures.id", ondelete="SET NULL"))
+    measure_title: Mapped[str] = mapped_column(Text, default="")
+    owner: Mapped[str] = mapped_column(String(200), default="")
+    status: Mapped[str] = mapped_column(String(16), default="open")  # open | mitigated | accepted
+    imported_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

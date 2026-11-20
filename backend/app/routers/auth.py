@@ -8,6 +8,8 @@
 JWT без стану: `DELETE /auth/session` лише підтверджує вихід, фронтенд видаляє токен у себе.
 """
 
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
 from pydantic import BaseModel, Field
@@ -19,17 +21,21 @@ from app.config import get_settings
 from app.db import get_db
 from app.errors import ApiError
 from app.models import User
-from app.schemas import MeOut, SessionOut, TokenOut
+from app.schemas import InviteAcceptIn, MeOut, SessionOut, TokenOut
 from app.security import (
+    hash_password,
+    revoke_all_tokens,
     get_token_payload,
     revoke_token,
     client_ip,
     create_access_token,
     get_current_user,
+    LoginThrottle,
     login_throttle,
     verify_password,
     verify_password_dummy,
 )
+from app.services import invites
 from app.services.proxy_auth import proxy_login
 
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -122,3 +128,33 @@ def login_via_proxy(request: Request, db: Session = Depends(get_db)):
 @router.get("/me", response_model=MeOut)
 def me(user: User = Depends(get_current_user)):
     return user
+
+
+# ---------- Запрошення: пароль ставить сама людина ----------
+
+invite_throttle = LoginThrottle("invite")
+
+
+@router.post("/invite", status_code=status.HTTP_204_NO_CONTENT)
+def accept_invite(data: InviteAcceptIn, request: Request, db: Session = Depends(get_db)):
+    """Поставити свій пароль за одноразовим запрошенням. Адміністратор пароля не бачить і не знає.
+
+    Запрошення діє один раз і до строку (INVITE_TTL_HOURS). Усі попередні сесії облікового запису закриваються.
+    """
+    key = ("invite", client_ip(request))
+    retry_after = invite_throttle.blocked_for(key)
+    if retry_after:
+        raise ApiError(429, "Забагато спроб", hint=f"Спробуйте через {retry_after} с.",
+                       headers={"Retry-After": str(retry_after)})
+    row = invites.find_valid(db, data.token)
+    user = db.get(User, row.user_id) if row else None
+    if row is None or user is None:
+        invite_throttle.fail(key)
+        raise ApiError(404, "Запрошення недійсне або прострочене", code="invite_invalid",
+                       hint="Попросіть адміністратора надіслати нове запрошення.")
+    user.password_hash = hash_password(data.password)
+    revoke_all_tokens(user)
+    row.used_at = datetime.now(timezone.utc)
+    log_action(db, user, "accept_invite", "user", user.id, {})
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

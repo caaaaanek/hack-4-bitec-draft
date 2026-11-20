@@ -47,8 +47,9 @@ def test_coordinator_cannot_create_campaign(client):
 
 
 def test_overview_hides_small_groups(client):
-    open_campaign(client, (STAFF,), min_group_size=1000)
+    # Відкрити хвилю з групою, меншою за k, не можна; зведення ховає кількості вже в чернетці.
+    open_campaign(client, (STAFF,), min_group_size=1000, open_it=False)
     camp = client.get(f"{API}/admin/overview", headers=auth(client, "coordinator")).json()["campaigns"][0]
-    assert camp["status"] == "open"
+    assert camp["status"] == "draft"
     assert camp["progress"] == [{"questionnaire_title": camp["progress"][0]["questionnaire_title"],
                                  "submitted": None, "eligible": None, "hidden": True}]

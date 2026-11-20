@@ -32,6 +32,9 @@ RULES: dict[str, str] = {
     "rejected_recommendation": "Рекомендацію відхилено.",
     "accepted_without_measure": "Рекомендацію прийнято, але заходу в трекері немає.",
     "risk_signal_growth": "Кількість знайдених ризиків зросла до попереднього періоду.",
+    "candor_concealment": "Непряма оцінка («скільки з переліку») суттєво вища за пряму відповідь.",
+    "candor_pluralistic": "Про себе кажуть «повідомив би», про колег — «змовчали б».",
+    "goodhart": "Детектор Гудхарта знайшов ознаки підгонки показників.",
 }
 
 CATEGORY_TITLES = {"staff": "особовий склад", "working_group": "робоча група", "expert": "експерти"}
@@ -307,8 +310,45 @@ def r_signals(signals: list[dict]) -> list[dict]:
             for s in signals if s.get("status") == "ok" and (s.get("change") or 0) > 0]
 
 
+def r_candor(data: dict) -> list[dict]:
+    candor = data.get("candor") or {}
+    out = []
+    for i in candor.get("list_experiments", []):
+        if not i.get("concealment"):
+            continue
+        ratio = i.get("ratio")
+        times = f"у {num(ratio)} раза рідше" if ratio else "значно рідше"
+        out.append(_q("candor_concealment", i["code"], 80, "Відвертість",
+                      f"Чому прямо визнають {times}, ніж показує непряма оцінка ({num(i['direct_share'])}% проти "
+                      f"{num(i['estimate'])}%)? Чого люди бояться?",
+                      RULES["candor_concealment"],
+                      [ev("Прямо", i["direct_share"], "%", f"candor.{i['code']}.direct_share"),
+                       ev("Непряма оцінка", i["estimate"], "%", f"candor.{i['code']}.estimate")],
+                      "Як захищено анонімність каналів повідомлень і що відбувається із заявником після повідомлення.",
+                      "results"))
+    for i in candor.get("mirrors", []):
+        if i.get("pluralistic_ignorance"):
+            out.append(_q("candor_pluralistic", i["code"], 60, "Відвертість",
+                          f"{num(i['self_share'])}% кажуть, що повідомили б самі, але лише {num(i['others_share'])}% "
+                          "вірять у це щодо колег. Як показати людям реальну норму?",
+                          RULES["candor_pluralistic"],
+                          [ev("Я — так", i["self_share"], "%", f"candor.{i['code']}.self_share"),
+                           ev("Колеги — так", i["others_share"], "%", f"candor.{i['code']}.others_share")],
+                          "План комунікацій: реальні дані про готовність повідомляти й приклади розгляду.", "results"))
+    return out
+
+
+def r_goodhart(data: dict) -> list[dict]:
+    return [_q("goodhart", sg["code"], 70, "Підгонка показників",
+               f"{sg['title']}: {sg['description']} Чим це пояснюється?", RULES["goodhart"],
+               [ev(k, v, path=f"goodhart.{sg['code']}.{k}") for k, v in sg.get("values", {}).items()],
+               "Первинні документи й дати змін, які пояснюють збіг.", "results")
+            for sg in (data.get("goodhart") or {}).get("signals", [])]
+
+
 DATA_RULES: list[Callable[[dict], list[dict]]] = [
     r_reliability, r_cut, r_low_facts, r_category_gap, r_groups, r_checklist, r_questions, r_dynamics, r_no_facts,
+    r_candor, r_goodhart,
 ]
 
 

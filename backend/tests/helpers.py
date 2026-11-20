@@ -17,7 +17,7 @@ def questionnaire_ids(client, admin) -> dict[str, str]:
     return {q["code"]: q["id"] for q in client.get(f"{API}/questionnaires", headers=admin).json()}
 
 
-def open_campaign(client, codes, title="Хвиля 1", min_group_size=None):
+def open_campaign(client, codes, title="Хвиля 1", min_group_size=None, open_it=True):
     admin = auth(client, "admin")
     q = questionnaire_ids(client, admin)
     body = {"title": title, "unit_id": units(client, admin)[ROOT], "questionnaire_ids": [q[c] for c in codes]}
@@ -26,8 +26,16 @@ def open_campaign(client, codes, title="Хвиля 1", min_group_size=None):
     r = client.post(f"{API}/campaigns", json=body, headers=admin)
     assert r.status_code == 201, r.text
     campaign_id = r.json()["id"]
-    assert client.post(f"{API}/campaigns/{campaign_id}/open", headers=admin).status_code == 200
+    if open_it:
+        r = client.post(f"{API}/campaigns/{campaign_id}/open", headers=admin)
+        assert r.status_code == 200, r.text
     return campaign_id, q, admin
+
+
+def clamp(q, position: int) -> int:
+    """Позиція варіанта в межах питання: у розділі «Відвертість» варіантів менше (так/ні), ніж рівнів 1-5."""
+    n = len(q["options"])
+    return max(-n, min(position, n - 1))
 
 
 def answer(client, campaign_id, questionnaire_id, login, pick):
@@ -35,7 +43,7 @@ def answer(client, campaign_id, questionnaire_id, login, pick):
     headers = auth(client, login)
     url = f"{API}/campaigns/{campaign_id}/questionnaires/{questionnaire_id}"
     form = client.get(f"{url}/form", headers=headers).json()
-    answers = [{"question_id": q["id"], "option_ids": [q["options"][pick(q)]["id"]]}
+    answers = [{"question_id": q["id"], "option_ids": [q["options"][clamp(q, pick(q))]["id"]]}
                for s in form["sections"] for q in s["questions"]]
     r = client.post(f"{url}/responses", json={"answers": answers}, headers=headers)
     assert r.status_code == 201, r.text

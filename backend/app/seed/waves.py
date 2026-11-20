@@ -85,6 +85,26 @@ def _profiles(wave: int):
     }
 
 
+def _candor_answer(question: dict, person: int) -> dict:
+    """Синтетичні відповіді розділу «Відвертість» (детерміновано від номера людини):
+    непряма оцінка ~17 % проти ~3 % прямо (страх відповідати чесно) і «дзеркало» ~83 % «я б повідомив»
+    проти ~40 % «колеги повідомили б» (плюралістичне незнання)."""
+    options = question["options"]
+    if question.get("type") == "list_count":
+        neutral = 2  # 2 нейтральні «так»: «усі» й «жодного» не трапляються, тож відповідь людину не розкриває
+        sensitive = question.get("variant") == "B" and (person // 2) % 6 == 0  # ~1/6 серед варіанта B
+        count = min(neutral + sensitive, len(options) - 1)
+        return {"question_id": question["id"], "option_ids": [options[count]["id"]]}
+    text = question.get("text", "")
+    if "натякали" in text:  # пряме питання: «так» лише ~3 %
+        yes = person % 33 == 7
+    elif "більшість колег" in text:  # «дзеркало»
+        yes = person % 5 in (0, 1)
+    else:  # про себе
+        yes = person % 6 != 0
+    return {"question_id": question["id"], "option_ids": [options[0 if yes else 1]["id"]]}
+
+
 class _Demo:
     def __init__(self, db):
         self.client = None
@@ -109,12 +129,27 @@ class _Demo:
         r = self.client.request(method, f"{API}{path}", headers=self.headers[login], json=body)
         return _check(r, f"{method} {path}")
 
-    def answer(self, campaign_id: str, questionnaire_id: str, login: str, level: Callable[[int], int]) -> None:
+    def answer(self, campaign_id: str, questionnaire_id: str, login: str, level: Callable[[int], int],
+               person: int | None = None) -> None:
+        """person — наскрізний номер людини особового складу: від нього детерміновано залежать відповіді
+        розділу «Відвертість» і варіант непрямого питання (A для парних, B для непарних)."""
         url = f"/campaigns/{campaign_id}/questionnaires/{questionnaire_id}"
         form = self.get(login, f"{url}/form")
-        questions = [q for s in form["sections"] for q in s["questions"]]
-        answers = [{"question_id": q["id"], "option_ids": [q["options"][_level_pick(level(j))(q)]["id"]]}
-                   for j, q in enumerate(questions)]
+        if person is not None:
+            want = "AB"[person % 2]
+            for _ in range(40):  # варіант видається випадково; для відтворюваного демо беремо потрібний
+                if all(q.get("variant") in (None, want) for s in form["sections"] for q in s["questions"]):
+                    break
+                form = self.get(login, f"{url}/form")
+        answers = []
+        j = 0
+        for section in form["sections"]:
+            for q in section["questions"]:
+                if section["component"] == "candor":
+                    answers.append(_candor_answer(q, person or 0))
+                    continue
+                answers.append({"question_id": q["id"], "option_ids": [q["options"][_level_pick(level(j))(q)]["id"]]})
+                j += 1
         self.send("POST", login, f"{url}/responses", {"answers": answers})
 
     def wave(self, wave: int, title: str, opened: date, closed: date) -> tuple[str, list[str]]:
@@ -131,7 +166,8 @@ class _Demo:
             for unit_name, logins in sorted(self.staff_by_unit.items()):
                 rate = STAFF_TURNOUT.get(unit_name, (0.7, 0.85))[wave - 1]
                 for p, login in enumerate(logins[: math.ceil(rate * len(logins))]):
-                    self.answer(cid, questionnaires["nazk-maturity-staff"], login, lambda q, p=p: profile["staff"](p, q))
+                    self.answer(cid, questionnaires["nazk-maturity-staff"], login, lambda q, p=p: profile["staff"](p, q),
+                                person=staff_total)
                     staff_total += 1
             wg = self.working_group if wave == 2 else self.working_group[:-1]
             for p, login in enumerate(wg):

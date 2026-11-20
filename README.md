@@ -72,11 +72,16 @@ flowchart LR
 | Reporting Module | `GET /campaigns/{id}/report?format=json\|csv` | `/reports` |
 | Кабінет учасника — узагальнені результати свого підрозділу | `GET /me/results`, за посиланням `GET /respond/results` | `#me`, `/s/<токен>` після закриття |
 | Інтеграція з іншими системами | `POST /indicators` (ключ на джерело), тема 2: `/integrations/theme2/*`, вхід через проксі організації (`POST /auth/proxy`), `ROOT_PATH` | `/integrations` карта інтеграції |
-| «Адвокат диявола» — питання аудитора до хвилі за правилами | `GET /campaigns/{id}/devils-advocate` | — (API готове) |
-| Агент-черговий — що впало, чому, як виправити | `GET /agent/digest` | — (API готове) |
-| Аналіз нормативки — які пункти зачіпає новий наказ | `POST /normative/analyze` (локальний пошук, без моделей) | — (API готове) |
-| Автопілот хвилі — відкриття, нагадування всім, закриття, звіт | `PUT /campaigns/{id}/autopilot`, `POST /autopilot/tick`, `GET /me/notifications` | — (API готове) |
-| Флешкартки доброчесності — джерело охоплення навчанням | `/learning/*` | — (API готове) |
+| «Адвокат диявола» — питання аудитора до хвилі за правилами | `GET /campaigns/{id}/devils-advocate` | `#advocate` «Питання перевірки» |
+| Агент-черговий — що впало, чому, як виправити | `GET /agent/digest` | `#watch` «Черговий» |
+| Аналіз нормативки — які пункти зачіпає новий наказ | `POST /normative/analyze` (локальний пошук, без моделей) | `#normative` «Нормативка» |
+| Автопілот хвилі — відкриття, нагадування всім, закриття, звіт | `PUT /campaigns/{id}/autopilot`, `POST /autopilot/tick`, `GET /me/notifications` | `#autopilot` «Автопілот хвилі», дзвіночок |
+| Флешкартки доброчесності — джерело охоплення навчанням | `/learning/*` | `#learn` «Навчання» |
+| Детектор відвертості — непрямі питання й «дзеркало», картка «Що люди бояться сказати прямо» | `services/candor.py`, `GET /campaigns/{id}/candor`, `candor_card` у `GET /dashboard` | — (API готове; форма анкети працює й без змін: непряме питання приходить як вибір «0…N») |
+| Урна з трьома ключами — відповіді розшифрують лише двоє з трьох власників | `services/urn.py`, `routers/urn.py` | — (API готове) |
+| Квитанції — жетон зі сліпим підписом, перевірка «моя відповідь урахована» | `services/ballots.py`, `/campaigns/{id}/questionnaires/{qid}/ballot`, `/respond/ballot`, `/respond/receipts/{квитанція}` | — (API готове) |
+| Детектор Гудхарта, лотерея перевірок, шлях до наступного рівня, брифінг, стійкість ваг | `services/goodhart.py`, `services/planning.py`, `routers/insights_plus.py` | — (API готове) |
+| Довідники (категорії, посади, факти), Департамент, реєстр ризиків, принцип двох осіб, запрошення | `routers/dictionaries.py`, `routers/department.py`, `routers/risks.py`, `services/approvals.py`, `services/invites.py` | — (API готове) |
 | Асистент (опційно, вимкнено) | `POST /assistant/ask`, `/api/assistant` (OpenAI-сумісний, `LLM_*`) | кнопка «Асистент» |
 
 Методика індексу — [`docs/integrity-index.md`](docs/integrity-index.md), ролі й API — [`docs/backend.md`](docs/backend.md).

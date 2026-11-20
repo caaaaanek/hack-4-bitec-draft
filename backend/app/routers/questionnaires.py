@@ -11,12 +11,12 @@ from sqlalchemy.orm import Session
 
 from app.audit import log_action
 from app.db import get_db
+from app.errors import ApiError
 from app.models import (
     CampaignQuestionnaire,
     Questionnaire,
     QuestionnaireKind,
     QuestionnaireStatus,
-    RespondentCategory,
     Role,
     User,
 )
@@ -29,6 +29,7 @@ from app.schemas import (
     ValidationIssue,
 )
 from app.security import require_roles
+from app.services import categories
 from app.services import questionnaires as service
 
 router = APIRouter(prefix="/questionnaires", tags=["questionnaires"])
@@ -52,11 +53,17 @@ def require_draft(questionnaire: Questionnaire) -> None:
         )
 
 
+def require_category(db: Session, code: str | None) -> None:
+    if code is None or not categories.exists(db, code):
+        raise ApiError(422, f"Категорії «{code}» немає в довіднику", code="unknown_category",
+                       hint="Додайте її: POST /dictionaries/categories.")
+
+
 @router.get("", response_model=list[QuestionnaireSummary])
 def list_questionnaires(
     status_filter: QuestionnaireStatus | None = Query(default=None, alias="status"),
     kind: QuestionnaireKind | None = None,
-    target_category: RespondentCategory | None = None,
+    target_category: str | None = None,
     db: Session = Depends(get_db),
     user: User = Depends(can_read),
 ):
@@ -76,6 +83,7 @@ def list_questionnaires(
 def create_questionnaire(data: QuestionnaireCreate, db: Session = Depends(get_db), user: User = Depends(commissioner_only)):
     if db.scalar(select(Questionnaire.id).where(Questionnaire.code == data.code)):
         raise HTTPException(status_code=409, detail="Анкета з таким кодом уже існує. Створіть нову версію.")
+    require_category(db, data.target_category)
     questionnaire = Questionnaire(
         code=data.code,
         version=1,
@@ -111,6 +119,8 @@ def update_meta(
     questionnaire = get_or_404(db, questionnaire_id)
     require_draft(questionnaire)
     changes = data.model_dump(exclude_unset=True)
+    if "target_category" in changes:
+        require_category(db, changes["target_category"])
     for field, value in changes.items():
         setattr(questionnaire, field, value)
     log_action(db, user, "update_meta", "questionnaire", questionnaire.id, {"fields": sorted(changes)})

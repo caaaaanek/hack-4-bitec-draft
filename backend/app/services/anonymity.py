@@ -47,26 +47,39 @@ POOL_FORMAT = 1
 # ---------- 1. Шифрування буфера ----------
 
 def _key() -> bytes:
-    settings = get_settings()
-    raw = settings.pool_encryption_key or ("pool:" + settings.jwt_secret)
-    return hashlib.sha256(raw.encode()).digest()
+    return hashlib.sha256(get_settings().pool_key_material.encode()).digest()
 
 
-def seal(payload: dict) -> dict:
-    """Шифрує вміст рядка буфера. Повертає JSON-сумісний конверт."""
+def seal(payload: dict, urn_public_key: str | None = None) -> dict:
+    """Шифрує вміст рядка буфера. Повертає JSON-сумісний конверт.
+
+    urn_public_key: хвиля з «урною» (services/urn.py) — шифрування відкритим ключем хвилі, розшифрувати
+    можна лише закритим ключем, відновленим із двох частин власників.
+    """
+    if urn_public_key:
+        from app.services import urn
+
+        return urn.seal(payload, urn_public_key)
     nonce = os.urandom(12)
     data = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode()
     ct = AESGCM(_key()).encrypt(nonce, data, b"response_pool")
     return {"v": POOL_FORMAT, "n": base64.b64encode(nonce).decode(), "c": base64.b64encode(ct).decode()}
 
 
-def unseal(row: ResponsePool) -> tuple[list, uuid.UUID | None]:
+def unseal(row: ResponsePool, urn_key: bytes | None = None) -> tuple[list, uuid.UUID | None]:
     """(відповіді, підрозділ). Підтримує й старі незашифровані рядки (список відповідей)."""
     box = row.answers
     if isinstance(box, list):  # рядки до міграції 0007
         return box, row.unit_id
-    data = AESGCM(_key()).decrypt(base64.b64decode(box["n"]), base64.b64decode(box["c"]), b"response_pool")
-    payload = json.loads(data)
+    if box.get("v") == 2:
+        from app.services import urn
+
+        if urn_key is None:
+            raise ValueError("Відповідь в урні: потрібен ключ, відновлений із частин власників")
+        payload = urn.unseal(box, urn_key)
+    else:
+        payload = json.loads(AESGCM(_key()).decrypt(base64.b64decode(box["n"]), base64.b64decode(box["c"]),
+                                                    b"response_pool"))
     unit = payload.get("unit_id")
     return payload["answers"], uuid.UUID(unit) if unit else None
 
@@ -129,7 +142,7 @@ def generalize(
 
 # ---------- 3. Перенос буфера ----------
 
-def flush_all(db: Session, campaign: Campaign) -> int:
+def flush_all(db: Session, campaign: Campaign, urn_key: bytes | None = None) -> int:
     """Переносить увесь буфер хвилі в Response однією транзакцією. Викликається при закритті.
 
     Для кожної анкети: розшифрувати, узагальнити підрозділи за фактичною кількістю відповідей,
@@ -140,7 +153,7 @@ def flush_all(db: Session, campaign: Campaign) -> int:
     campaign_units = subtree_from(children, campaign.unit_id)
     by_questionnaire: dict[uuid.UUID, list[tuple[ResponsePool, list, uuid.UUID | None]]] = {}
     for row in rows:
-        answers, unit = unseal(row)
+        answers, unit = unseal(row, urn_key)
         if unit is not None and unit not in campaign_units:
             unit = campaign.unit_id  # підрозділ видалили чи перенесли: лише в корінь хвилі
         by_questionnaire.setdefault(row.questionnaire_id, []).append((row, answers, unit))
@@ -162,6 +175,7 @@ def flush_all(db: Session, campaign: Campaign) -> int:
                     question_id=uuid.UUID(a["question_id"]),
                     option_id=uuid.UUID(a["option_id"]) if a.get("option_id") else None,
                     value=a.get("value"),
+                    variant=a.get("variant"),
                 ))
             db.add(response)
             moved += 1

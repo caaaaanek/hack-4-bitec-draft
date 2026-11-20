@@ -65,6 +65,21 @@ GENERIC_MEASURES: dict[str, dict] = {
         "responsible": "Антикорупційний уповноважений",
         "indicator": "Самооцінка наблизилась до рівня фактів у наступній хвилі",
     },
+    "whistleblower_protection": {
+        "title": "Посилити захист викривачів: анонімний канал, гарантії нерозголошення, публічні приклади розгляду без наслідків для заявника",
+        "responsible": "Антикорупційний уповноважений, керівник",
+        "indicator": "Розрив між прямою і непрямою оцінкою в наступній хвилі зменшився",
+    },
+    "social_norms": {
+        "title": "Кампанія соціальних норм: показати особовому складу реальну частку тих, хто готовий повідомити про порушення",
+        "responsible": "Антикорупційний уповноважений, робоча група",
+        "indicator": "Розрив «я — колеги» у «дзеркалі» наступної хвилі зменшився",
+    },
+    "check_gaming": {
+        "title": "Перевірити сигнали підгонки показників: первинні документи, дати змін, вибіркова перевірка аудитом",
+        "responsible": "Внутрішній аудит",
+        "indicator": "Сигнали детектора Гудхарта пояснено або усунено",
+    },
     "review_risks": {
         "title": "Розібрати накопичені ризик-сигнали та налагодити розгляд у встановлені строки",
         "responsible": "Антикорупційний уповноважений",
@@ -219,6 +234,40 @@ def recommend(result: dict, risk_signals: list[dict] | None = None) -> list[dict
             f"Участь менша за {m.PARTICIPATION_MIN_PERCENT:g}% у групах: {', '.join(g['category'] for g in low)}.",
             {"categories": [g["category"] for g in low]},
             [generic_measure("raise_participation")],
+        ))
+
+    # 4а. Детектор відвертості (services/candor.py).
+    candor = result.get("candor") or {}
+    concealed = [i for i in candor.get("list_experiments", []) if i.get("concealment")]
+    if concealed:
+        top = max(concealed, key=lambda i: i["gap"])
+        recs.append(_rec(
+            "candor:concealment", "high", "accountability", "Люди бояться відповідати чесно: посилити захист викривачів",
+            f"Прямо визнали {fmt(top['direct_share'])}%, непряма оцінка {fmt(top['estimate'])}% "
+            f"(інтервал {fmt(top['ci'][0])}–{fmt(top['ci'][1])}%).",
+            "Непряма оцінка («скільки з переліку») перевищує пряму відповідь щонайменше на 10 п. п., і нижня межа "
+            "інтервалу 95 % вища за пряму частку.",
+            {"estimate": top["estimate"], "direct_share": top["direct_share"], "gap": top["gap"]},
+            [generic_measure("whistleblower_protection"), catalog_measure("2.7")],
+        ))
+    ignorant = [i for i in candor.get("mirrors", []) if i.get("pluralistic_ignorance")]
+    if ignorant:
+        top = max(ignorant, key=lambda i: i["gap"])
+        recs.append(_rec(
+            "candor:pluralistic", "medium", "culture", "Кожен вважає себе винятком: показати людям реальну норму",
+            f"{fmt(top['self_share'])}% кажуть, що вчинили б так самі; про колег так думають {fmt(top['others_share'])}%.",
+            "«Дзеркало»: частка «я — так» перевищує «колеги — так» щонайменше на 20 п. п. (плюралістичне незнання).",
+            {"self_share": top["self_share"], "others_share": top["others_share"]},
+            [generic_measure("social_norms"), catalog_measure("5.1")],
+        ))
+    gaming = (result.get("goodhart") or {}).get("signals") or []
+    if gaming:
+        recs.append(_rec(
+            "goodhart", "medium", None, "Перевірити ознаки підгонки показників",
+            "; ".join(sg["title"] for sg in gaming) + ".",
+            "Детектор Гудхарта: коли показник стає ціллю, його починають «малювати». Сигнал — привід для перевірки.",
+            {"signals": [sg["code"] for sg in gaming]},
+            [generic_measure("check_gaming")],
         ))
 
     # 5. Чек-лист.

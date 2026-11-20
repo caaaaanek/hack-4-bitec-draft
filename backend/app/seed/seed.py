@@ -96,7 +96,8 @@ def seed_users(db: Session, units: dict[str, Unit], password: str, staff_sizes: 
         ("leader", "Керівник (демо)", Role.LEADER, None, None),
         ("leader_a", "Керівник підрозділу А (демо)", Role.LEADER, None, units["Підрозділ А"]),
         ("auditor", "Аудитор (демо)", Role.AUDITOR, None, None),
-        ("coordinator", "Координатор (демо)", Role.COORDINATOR, None, None),
+        ("coordinator", "Технічний адміністратор (демо)", Role.COORDINATOR, None, None),
+        ("department", "Департамент МОУ (демо)", Role.DEPARTMENT, None, None),
     ]
     people += [(f"wg{i}", f"Член робочої групи {i}", Role.RESPONDENT, RespondentCategory.WORKING_GROUP, root) for i in range(1, 7)]
     people += [
@@ -131,7 +132,17 @@ def seed_users(db: Session, units: dict[str, Unit], password: str, staff_sizes: 
     return created
 
 
+def seed_dictionaries(db: Session) -> None:
+    """Довідники: вбудовані категорії респондентів і посади за замовчуванням."""
+    from app.routers.dictionaries import ensure_positions
+    from app.services.categories import ensure_builtin
+
+    ensure_builtin(db)
+    ensure_positions(db)
+
+
 def seed_questionnaires(db: Session) -> int:
+    seed_dictionaries(db)
     created = 0
     for file_name in QUESTIONNAIRE_FILES:
         data = QuestionnaireCreate.model_validate(json.loads((DATA_DIR / file_name).read_text(encoding="utf-8")))

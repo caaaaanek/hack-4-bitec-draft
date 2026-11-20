@@ -30,6 +30,7 @@ from app.routers import (
     what_if,
 )
 from app.routers import autopilot as autopilot_router
+from app.routers import department, dictionaries, insights_plus, risks, urn
 from app.routers import config as config_router
 from app.services import autopilot as autopilot_service
 from app.services import measures as measures_service
@@ -38,6 +39,8 @@ from app.routers import llm as llm_router
 API_PREFIX = "/api/v1"
 
 _TOKEN_PATH = re.compile(r"(/s/|/q/|/respond/qr/)[^/?#\s]+")
+# Анкети й подання: рядок журналу доступу (IP і час поруч із поданням) не пишемо зовсім.
+_ANON_PATH = re.compile(r"/api/v1/(respond/|campaigns/[^/]+/questionnaires/[^/]+/(form|responses|ballot|ballot-key)\b)")
 
 
 class RedactTokenPaths(logging.Filter):
@@ -51,8 +54,11 @@ class RedactTokenPaths(logging.Filter):
     def filter(self, record: logging.LogRecord) -> bool:
         if isinstance(record.args, tuple) and len(record.args) >= 3 and isinstance(record.args[2], str):
             args = list(record.args)
+            anonymous = bool(_ANON_PATH.search(args[2]))
             args[2] = _TOKEN_PATH.sub(r"\1***", args[2])
             record.args = tuple(args)
+            if anonymous:
+                return False  # адреси анкет і подань: рядок журналу доступу не пишемо зовсім
         elif isinstance(record.msg, str) and _TOKEN_PATH.search(record.msg):
             record.msg = _TOKEN_PATH.sub(r"\1***", record.msg)
         return True
@@ -66,11 +72,24 @@ API_VERSION = "0.3.0"
 async def lifespan(_: FastAPI):
     # Без надійного секрету JWT застосунок не стартує.
     check_settings(get_settings())
+    _load_registries()
     autopilot_service.start()
     measures_service.start_sync()
     yield
     measures_service.stop_sync()
     autopilot_service.stop()
+
+
+def _load_registries() -> None:
+    """Факти довідника — у methodology.FACTS (див. services/fact_registry.py)."""
+    from app.db import SessionLocal
+    from app.services import fact_registry
+
+    try:
+        with SessionLocal() as db:
+            fact_registry.refresh(db)
+    except Exception:  # noqa: BLE001 — БД ще недоступна: факти довідника підвантажаться з першим запитом
+        logging.getLogger(__name__).warning("Довідник фактів не завантажено на старті")
 
 
 settings = get_settings()
@@ -102,7 +121,7 @@ app.add_middleware(
 
 for module in (config_router, auth, admin, questionnaires, campaigns, respond, checklist, checks, indicators, results,
                dashboard, recommendations, measures, reports, integrations, assistant, what_if, insights, normative,
-               learning, autopilot_router):
+               learning, autopilot_router, dictionaries, department, insights_plus, urn, risks):
     app.include_router(module.router, prefix=API_PREFIX, responses=ERROR_RESPONSES)
 
 # /api/assistant — асистент frontend-proto (шлях без /api/v1, як очікує фронтенд).

@@ -50,7 +50,7 @@ def test_full_wave_with_facts(client):
 
     data = results(client, campaign_id, admin)
     assert data["source"] == "snapshot"
-    assert data["methodology_version"] == "2.2"
+    assert data["methodology_version"] == "2.3"
     c = {x["code"]: x for x in data["components"]}
 
     assert c["culture"]["self_score"] == 72.5 and c["culture"]["score"] == 72.5
@@ -145,7 +145,7 @@ def test_snapshots_history_compare_and_significance(client):
     assert [p["index"] for p in points] == [25.0, 75.0, 75.0]
     assert points[1]["significance"]["code"] == "improved"
     assert points[2]["significance"]["code"] == "within_error"
-    assert all(p["methodology_version"] == "2.2" for p in points)
+    assert all(p["methodology_version"] == "2.3" for p in points)
 
     compare = client.get(f"{API}/units/{root}/compare", params={"from_campaign": c1, "to_campaign": c3}, headers=admin).json()
     assert compare["index_delta"] == 50.0
@@ -176,15 +176,19 @@ def test_same_input_gives_same_snapshot(client):
 
 
 def test_progress_hides_small_groups(client):
-    campaign_id, _, admin = open_campaign(client, ("nazk-maturity-wg", "nazk-maturity-staff"), min_group_size=7)
+    campaign_id, _, admin = open_campaign(client, ("nazk-maturity-wg", "nazk-maturity-staff"), min_group_size=7,
+                                          open_it=False)
     items = {i["target_category"]: i for i in client.get(f"{API}/campaigns/{campaign_id}/progress", headers=admin).json()["items"]}
     assert items["working_group"]["eligible"] is None and items["working_group"]["too_few_people"] is True  # 6 < 7
     assert items["staff"]["eligible"] == 24 and items["staff"]["too_few_people"] is False
+    # Анкету, яку загалом може пройти менше k людей, не відкриваємо.
+    r = client.post(f"{API}/campaigns/{campaign_id}/open", headers=admin)
+    assert r.status_code == 409 and r.json()["code"] == "group_too_small"
 
 
 def test_methodology_endpoint(client):
     data = client.get(f"{API}/methodology", headers=auth(client, "staff01")).json()
-    assert data["version"] == "2.2"
+    assert data["version"] == "2.3"
     assert sum(data["source_weights"].values()) == pytest.approx(1.0)
     assert sum(c["weight"] for c in data["components"].values()) == pytest.approx(1.0)
 
