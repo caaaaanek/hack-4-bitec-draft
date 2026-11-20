@@ -126,8 +126,8 @@ function ApiManage() {
           <div className="ticks" style={{ height: 14, marginTop: 8 }}>{Array.from({ length: n }, (_, j) => <span key={j} style={j < on ? { background: "var(--teal)" } : undefined} />)}</div>
           {i.over_expected && <QrOver />}</div></div>; }) : <div className="lbl">Анкет у хвилі немає.</div>}</div>
         <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }} id="cActs">
-          {ask === c.id ? <><div className="lbl" style={{ width: "100%" }}>Прийом відповідей зупиниться, система порахує індекс і збереже незмінний знімок. Відкриті, але не подані форми стануть недійсними. Скасувати не можна.</div><button className="btn btn-ghost" onClick={() => setAsk(null)}>Скасувати</button><button className="btn btn-danger" onClick={() => { setAsk(null); apiCampaignAct(c.id, "close"); }}>Завершити</button></> : <>
-            {c.status === "draft" && <button className="btn btn-primary" onClick={() => apiCampaignAct(c.id, "open")}><Ic n="ok" />Відкрити хвилю</button>}
+          {ask === c.id ? <><div className="lbl" style={{ width: "100%" }}>Прийом відповідей зупиниться, система порахує індекс і збереже незмінний знімок. Відкриті, але не подані форми стануть недійсними. Скасувати не можна.</div><button className="btn btn-ghost" onClick={() => setAsk(null)}>Скасувати</button><button className="btn btn-danger" disabled={!!API.campBusy} onClick={() => { setAsk(null); apiCampaignAct(c.id, "close"); }}>Завершити</button></> : <>
+            {c.status === "draft" && <button className="btn btn-primary" disabled={!!API.campBusy} onClick={() => apiCampaignAct(c.id, "open")}><Ic n="ok" />Відкрити хвилю</button>}
             {c.status === "open" && <button className="btn btn-soft" onClick={() => setAsk(c.id)}><Ic n="lock" />Завершити й порахувати індекс</button>}</>}
         </div></> : <div className="empty"><b>Хвиль ще немає</b><br />Створіть першу хвилю оцінювання.</div>}
     </section>

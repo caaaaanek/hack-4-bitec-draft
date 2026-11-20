@@ -401,8 +401,17 @@ export async function apiCreateCampaign(body) {
   closeDrawer(); toast(`Хвилю «${c.title}» створено як чернетку`); apiAdmReload(c.id);
 }
 export async function apiCampaignAct(id, act) {
-  try { await api(`/campaigns/${id}/${act}`, { method: "POST" }); toast(act === "open" ? "Хвилю відкрито: респонденти бачать анкети" : "Хвилю закрито: знімок результатів збережено"); if (act === "close") API.model = null; apiAdmReload(id); }
-  catch (e) { apiFail(e); apiAdmReload(id); } // статус хвилі міг змінитися: показуємо актуальний
+  if (API.campBusy) return;
+  API.campBusy = id + act; render(true);
+  try {
+    const c = await api(`/campaigns/${id}/${act}`, { method: "POST" });
+    // Принцип двох осіб: перший виклик лише створює запит на відкриття
+    const pending = act === "open" && c && c.pending_approval_id && c.status !== "open";
+    toast(pending ? "Запит на відкриття надіслано: хвилю відкриє підтвердження другої людини" : act === "open" ? "Хвилю відкрито: респонденти бачать анкети" : "Хвилю закрито: знімок результатів збережено");
+    // Після закриття оновлюємо результати, трекер, лічильники меню й модулі без перезавантаження сторінки
+    if (act === "close") { API.mod = {}; API.ck = API.log = null; if (RESULT_ROLES.includes(S.role)) await apiReloadResults(); }
+  } catch (e) { apiFail(e); }
+  finally { API.campBusy = null; apiAdmReload(id); } // статус хвилі міг змінитися: показуємо актуальний
 }
 // QR для зали: одне посилання на групу (анкета + підрозділ), expected — скільки людей у групі
 export async function apiQrCreate(id, questionnaireId, unitId, expected) {
