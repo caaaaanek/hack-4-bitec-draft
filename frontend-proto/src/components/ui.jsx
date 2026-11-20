@@ -12,6 +12,10 @@ export const SrcDot = ({ s }) => <span className={`src-dot ${SRC[s][2]}`} style=
 const split = (v, d) => { const s = d ? f1(v) : fb(v); const [a, b] = s.split(","); return [a, b ? "," + b : ""]; };
 // Число з плавним «набіганням» під час появи (як countUp у першій версії)
 export function Num({ v, d = 1 }) {
+  if (v == null) return <span className="lbl nodata">немає даних</span>;
+  return <NumA v={v} d={d} />;
+}
+function NumA({ v, d }) {
   const [shown, setShown] = useState(() => matchMedia("(prefers-reduced-motion: reduce)").matches ? v : 0);
   const first = useRef(true);
   useEffect(() => {

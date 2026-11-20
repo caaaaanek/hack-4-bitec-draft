@@ -143,13 +143,13 @@ function ReportDynamics({ m }) {
   if (m.noHistory) return <>{head}<p>Попередні цикли зараз недоступні: сервер не віддав історію оцінювань. Оновіть сторінку пізніше.</p><Foot /></>;
   if (!prev || prev === last) return <>{head}<p>Попереднього циклу немає: динаміку буде видно після наступного оцінювання.</p><Foot /></>;
   const rows = COMPS.map(id => ({ id, a: prev.cr && prev.cr[id], b: last.cr && last.cr[id] })).filter(x => x.a != null && x.b != null);
-  const up = rows.filter(x => x.b - x.a >= 5), down = rows.filter(x => x.a - x.b >= 5), d = r1(last.index - prev.index);
+  const ok = x => x.a != null && x.b != null, up = rows.filter(x => ok(x) && x.b - x.a >= 5), down = rows.filter(x => ok(x) && x.a - x.b >= 5), d = last.index == null || prev.index == null ? null : r1(last.index - prev.index);
   return <>
     {head}
     <h3>1. Індекс за циклами</h3>
     <p className="doc-cap">Таблиця 1. Індекс доброчесності</p>
     <table className="doc-t"><thead><tr><th>Цикл</th><th>Індекс</th><th>Рівень</th><th>Зміна</th></tr></thead><tbody>
-      {s.map((x, i) => <tr key={i}><td>{x.cycle}</td><td className="tnum">{f1(x.index)}</td><td>{lvT(x.index)}</td><td className="tnum">{i ? dl(r1(x.index - s[i - 1].index)) : "–"}</td></tr>)}</tbody></table>
+      {s.map((x, i) => <tr key={i}><td>{x.cycle}</td><td className="tnum">{f1(x.index)}</td><td>{lvT(x.index)}</td><td className="tnum">{i && x.index != null && s[i - 1].index != null ? dl(r1(x.index - s[i - 1].index)) : "–"}</td></tr>)}</tbody></table>
     <h3>2. Компоненти: {prev.cycle} → {last.cycle}</h3>
     <p className="doc-cap">Таблиця 2. Зараховані бали компонентів</p>
     <table className="doc-t"><thead><tr><th>Компонент</th><th>{prev.cycle}</th><th>{last.cycle}</th><th>Зміна</th></tr></thead><tbody>

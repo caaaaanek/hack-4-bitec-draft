@@ -165,8 +165,9 @@ function cycleLabels(points) { const used = {}; return points.map(p => { const b
 function apiModel(r, h) {
   const comps = COMPS.map(id => {
     const c = r.components.find(x => x.code === id) || {};
-    const v = c.score ?? c.self_score ?? 0, P = c.self_score ?? v, F = c.facts_score ?? P;
-    return { id, P, F, cr: { v, lim: !!c.cut_by_facts, reason: c.cut_by_facts ? c.rule : undefined } };
+    // Компонент без даних лишається без числа (null): не підміняємо нулем, щоб не занизити рівень і слабку ланку
+    const v = c.score ?? c.self_score ?? null, P = c.self_score ?? v, F = c.facts_score ?? P;
+    return { id, P, F, nodata: v == null, cr: { v, lim: !!c.cut_by_facts, reason: c.cut_by_facts ? c.rule : undefined } };
   });
   const pItems = r.components.filter(c => COMPS.includes(c.code)).flatMap(c => {
     const src = (c.sources || []).filter(s => s.score != null && s.effective_weight > 0), tot = src.reduce((a, s) => a + s.effective_weight, 0) || 1;
@@ -182,10 +183,10 @@ function apiModel(r, h) {
       from: (f.sources || []).map(s => SRC[s] || s).join(", ") || "Дані обліку", rule: f.rule, per: quarters(f.periods) }));
   });
   const pts = (h && h.points) || [], labels = cycleLabels(pts);
-  let series = pts.map((p, i) => ({ cycle: labels[i], index: p.index ?? 0, cr: Object.fromEntries(COMPS.map(c => [c, (p.components || {})[c] ?? 0])) }));
+  let series = pts.map((p, i) => ({ cycle: labels[i], index: p.index ?? null, cr: Object.fromEntries(COMPS.map(c => [c, (p.components || {})[c] ?? null])) }));
   const at = pts.findIndex(p => p.campaign_id === r.campaign_id);
   if (at >= 0) series = series.slice(0, at + 1);
-  else series.push({ cycle: r.closed_on ? r.closed_on.slice(0, 7) : r.campaign_title, index: r.index.score ?? 0, cr: Object.fromEntries(comps.map(c => [c.id, c.cr.v])) });
+  else series.push({ cycle: r.closed_on ? r.closed_on.slice(0, 7) : r.campaign_title, index: r.index.score ?? null, cr: Object.fromEntries(comps.map(c => [c.id, c.cr.v])) });
   if (series.length === 1) series = [series[0], series[0]];
   const events = pts.flatMap((p, i) => i > 0 && p.measures_done > 0 ? [{ after: labels[i - 1], n: p.measures_done, t: `Виконано заходів між циклами: ${p.measures_done}` }] : []);
   const flags = [];
@@ -194,7 +195,7 @@ function apiModel(r, h) {
   const responses = r.groups.reduce((a, g) => a + (g.submitted || 0), 0);
   const m = finish({ id: ALPHA, name: r.unit_name, components: comps, pItems, fItems, series, events, flags, responses });
   m.trust = GRADE[r.index.reliability] || "insufficient";
-  m.index = r.index.score ?? m.index; m.level = (r.index.level && r.index.level.level) || m.level; m.delta = r1(m.index - m.prevIndex);
+  m.index = r.index.score ?? m.index; m.level = (r.index.level && r.index.level.level) || m.level; m.delta = m.index == null || m.prevIndex == null ? null : r1(m.index - m.prevIndex);
   if (!h) { m.noHistory = true; m.delta = null; m.prevIndex = null; } // попередніх циклів не отримано: зміна невідома
   if (r.index.reliability_reasons && r.index.reliability_reasons[0]) m.summary = r.index.reliability_reasons[0];
   m.groups = r.groups; m.rule = r.index.rule;
@@ -207,7 +208,7 @@ function apiModel(r, h) {
   ];
   m.strengths = (r.strengths || []).filter(s => byCode[s.code]).map(s => ({ t: `Сильний компонент: ${COMP[s.code].n}`, c: s.code, v: s.score ?? byCode[s.code].cr.v, hint: `Зараховане значення компонента ${COMP[s.code].n}, 0-100.` }));
   if (!m.strengths.length && !m.attention.some(a => a.c === top.id && !a.q)) m.strengths = [{ t: `Найвищий результат у компоненті ${COMP[top.id].n}`, c: top.id, v: top.cr.v, hint: `Зараховане значення компонента ${COMP[top.id].n}, 0-100.` }];
-  if (m.index > series[0].index) m.strengths.push({ t: "Зростання індексу з першого циклу", v: r1(m.index - series[0].index), hint: "Сумарна зміна індексу з першого закритого циклу, у пунктах.", unit: "пт" });
+  if (m.index != null && series[0].index != null && m.index > series[0].index) m.strengths.push({ t: "Зростання індексу з першого циклу", v: r1(m.index - series[0].index), hint: "Сумарна зміна індексу з першого закритого циклу, у пунктах.", unit: "пт" });
   return m;
 }
 

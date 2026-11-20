@@ -53,7 +53,7 @@ function Tile({ ic, title, big, sub, act, info, tip = "Як рахується �
 
 /* Компактна динаміка індексу на «Огляді»: лише лінія індексу, повний екран на #trends */
 function DynCard({ m }) {
-  const sr = m.series, a = sr[0], b = sr[sr.length - 1], d = r1(b.index - a.index);
+  const sr = m.series.filter(r => r.index != null), a = sr[0] || m.series[0], b = sr[sr.length - 1] || a, d = r1((b.index ?? 0) - (a.index ?? 0));
   const txt = m.noHistory ? "Зміна невідома" : d > 0 ? `Зріс на ${pts(d)}` : d < 0 ? `Знизився на ${pts(d)}` : "Не змінився";
   const alt = `Індекс за цикли від ${a.cycle} до ${b.cycle}: з ${f1(a.index)} до ${f1(b.index)}. ${txt} за період.`;
   return <>
@@ -96,9 +96,9 @@ export function Overview() {
       </section>
     </div>
     <div className="c12 comp-row">{m.components.map((c, ci) => {
-      const C = COMP[c.id], d = m.noHistory ? null : r1(c.cr.v - prev.cr[c.id]), lv = level(c.cr.v);
+      const C = COMP[c.id], d = m.noHistory || c.cr.v == null || prev.cr[c.id] == null ? null : r1(c.cr.v - prev.cr[c.id]), lv = c.cr.v == null ? null : level(c.cr.v);
       return <a key={c.id} className="card rise comp-card" href={`#explain/${c.id}`}>
-        <div className="comp-top"><span className="comp-ic" style={{ background: C.s, color: C.c }}><Ic n={C.ic} /></span><b>{C.n}</b><div className="sp" style={{ flex: 1 }} /><LvPill l={lv} /></div>
+        <div className="comp-top"><span className="comp-ic" style={{ background: C.s, color: C.c }}><Ic n={C.ic} /></span><b>{C.n}</b><div className="sp" style={{ flex: 1 }} />{lv ? <LvPill l={lv} /> : <span className="lbl">немає даних</span>}</div>
         {c.cr.lim && <div className="comp-lim"><Pill cls="p-warn">Знижено: факти не підтверджують</Pill></div>}
         <div className="comp-val">
           <div><div className="mid tnum"><Num v={c.cr.v} /></div><div style={{ marginTop: 6 }}><Delta d={d} /></div></div>
@@ -133,7 +133,7 @@ function toggleLine(c) {
   persist(); render(true);
 }
 function TrendCard({ m }) {
-  const t = S.trend, [from, to] = trendRange(m), rows = m.series.slice(from, to + 1), d = r1(rows[rows.length - 1].index - rows[0].index);
+  const t = S.trend, [from, to] = trendRange(m), rows = m.series.slice(from, to + 1), ri = rows.filter(r => r.index != null), d = ri.length > 1 ? r1(ri[ri.length - 1].index - ri[0].index) : 0;
   const evs = m.events.filter(e => rows.slice(0, -1).some(r => r.cycle === e.after));
   const chip = (k, n, c, on) => <button key={k} className={`chip ${on ? "on" : ""}`} style={{ "--c": c }} aria-pressed={on} onClick={() => toggleLine(k)}><i className={k === "index" ? "solid" : undefined} />{n}</button>;
   return <>
@@ -260,7 +260,7 @@ export function Trends() {
   const a = sr[Math.min(S.cmp.a, sr.length - 1)], b = sr[Math.min(S.cmp.b, sr.length - 1)];
   const cmpRows = [["Індекс доброчесності", a.index, b.index], ...COMPS.map(c => [COMP[c].n, a.cr[c], b.cr[c]])];
   const opt = sr.map((r, i) => <option key={i} value={i}>{r.cycle}</option>);
-  const f = sr[0], l = sr[sr.length - 1], p = COMPS.filter(c => l.cr[c] > f.cr[c]), n = COMPS.filter(c => l.cr[c] < f.cr[c]);
+  const f = sr[0], l = sr[sr.length - 1], has = c => l.cr[c] != null && f.cr[c] != null, p = COMPS.filter(c => has(c) && l.cr[c] > f.cr[c]), n = COMPS.filter(c => has(c) && l.cr[c] < f.cr[c]);
   return <>
     <BackToInst />
     <ResultTabs at="trends" />
@@ -270,7 +270,7 @@ export function Trends() {
       <div className="card-h" style={{ flexWrap: "wrap" }}><h2>Порівняти два цикли</h2><div className="sp" />
         <label className="lbl">Було <select className="inp" value={S.cmp.a} onChange={e => { S.cmp.a = +e.target.value; persist(); render(true); }}>{opt}</select></label>
         <label className="lbl">Стало <select className="inp" value={S.cmp.b} onChange={e => { S.cmp.b = +e.target.value; persist(); render(true); }}>{opt}</select></label></div>
-      {a === b ? <div className="empty">Оберіть два різні цикли, щоб побачити, що змінилося.</div> : <div className="tbl-wrap"><table><thead><tr><th>Показник</th><th>Було</th><th>Стало</th><th>Зміна</th></tr></thead><tbody>{cmpRows.map(([nm, x, y]) => <tr key={nm}><td><b>{nm}</b></td><td className="tnum">{fb(x)}</td><td className="tnum">{fb(y)}</td><td><Delta d={r1(y - x)} /></td></tr>)}</tbody></table></div>}
+      {a === b ? <div className="empty">Оберіть два різні цикли, щоб побачити, що змінилося.</div> : <div className="tbl-wrap"><table><thead><tr><th>Показник</th><th>Було</th><th>Стало</th><th>Зміна</th></tr></thead><tbody>{cmpRows.map(([nm, x, y]) => <tr key={nm}><td><b>{nm}</b></td><td className="tnum">{fb(x)}</td><td className="tnum">{fb(y)}</td><td>{x == null || y == null ? <span className="lbl">Зміна невідома</span> : <Delta d={r1(y - x)} />}</td></tr>)}</tbody></table></div>}
     </section>
     <section className="card c5 rise">
       <div className="card-h"><h2>Висновок за весь період</h2></div>
