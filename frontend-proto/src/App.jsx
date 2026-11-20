@@ -252,7 +252,7 @@ export default function App() {
           <h1 id="title">{API.down ? "Сервер недоступний" : login ? (API.invite ? "Запрошення" : "Вхід") : r ? TITLES[r] : ""}</h1>
           <div className="sp" />
           <span className="synthetic hide-m">Синтетичні дані</span>
-          <button className="pill-btn hide-m" id="cycleBtn" data-tip="Цикл оцінювання: один повний раунд опитування й збору фактів. Індекс порівнюється з попереднім циклом."><Ic n="cal" />Цикл {CYCLE}</button>
+          <span className="hide-m" id="cycleBtn" data-tip="Хвиля оцінювання, результати якої зараз на екрані."><Ic n="cal" />{API.on && API.waveTitle ? dn(API.waveTitle) : `Цикл ${CYCLE}`}</span>
           <button className={`pill-btn ai-btn ${S.aiOn ? "" : "off"}`} id="aiBtn" hidden={!AI_ROLES.includes(S.role)} aria-label="Асистент" onClick={() => aiOpen()}><Ic n="spark" /><span className="hide-m">Асистент</span></button>
           {ns && <button type="button" className="icon-btn" id="notesBtn" aria-label={ns.fresh ? `Сповіщення: нових ${ns.fresh}` : "Сповіщення"} aria-haspopup="dialog" data-tip="Сповіщення" style={{ position: "relative" }} onClick={e => { hideTip(); apiModReset("notes"); markNotesSeen(); openPop("notes", e.currentTarget); }}><Ic n="bell" />{ns.fresh > 0 && <span className="badge" style={{ position: "absolute", top: -4, right: -4 }}>{ns.fresh}</span>}</button>}
           <span className="sr-only" role="status" aria-live="polite">{ns && ns.fresh ? `Нових сповіщень: ${ns.fresh}` : ""}</span>

@@ -468,3 +468,6 @@ html[data-role="respondent"] .top .synthetic, html[data-role="checklist_editor"]
 .un-tog svg { width: 16px; height: 16px; transition: transform .15s; }
 .un-tog.shut svg { transform: rotate(-90deg); }
 .un-gap { display: inline-block; width: 30px; }
+/* Назва хвилі в шапці: плоский текст, не кнопка */
+#cycleBtn { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); max-width: 280px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#cycleBtn svg { flex: none; width: 16px; height: 16px; }

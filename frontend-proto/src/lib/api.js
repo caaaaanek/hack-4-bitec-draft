@@ -352,7 +352,9 @@ async function apiLoadResults() {
   API.ms = ms.map(x => apiMeasure(x, titles));
   // Локальна дата, а не UTC: інакше з 00:00 до 02:00 за Києвом «сьогодні» було б учорашнім, і прострочення рахувалося б на день менше.
   const now = new Date(), localToday = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  setClock(localToday, API.model.series[API.model.series.length - 1].cycle);
+  // Суфікс «(2)» розрізняє хвилі одного місяця лише на графіках; у шапку, асистента й імена файлів він не йде
+  setClock(localToday, String(API.model.series[API.model.series.length - 1].cycle).replace(/ \(\d+\)$/, ""));
+  API.waveTitle = r.campaign_title || "";
   const n = API.model.series.length;
   S.trend = { from: 0, to: n - 1, lines: [] }; S.cmp = { a: Math.max(0, n - 2), b: n - 1 };
 }
