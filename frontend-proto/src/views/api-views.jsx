@@ -16,6 +16,7 @@ import { AutopilotSection } from "./Autopilot.jsx";
 import { DeptInstitutions, ChooseInst } from "./Department.jsx";
 import { AnchorCard, LotteryCard } from "./Transparency.jsx";
 import { UrnSection } from "./Urn.jsx";
+import { ReceiptsCard } from "./Receipts.jsx";
 import { LearnCard } from "./Learn.jsx";
 
 export function apiView(r) {
@@ -84,7 +85,7 @@ function ApiMe() {
   if (API.my.error) return <Failed e={API.my.error} />;
   const todo = Array.isArray(API.assignments) ? API.assignments.filter(a => a.kind !== "checklist") : [];
   const latest = Array.isArray(API.my) ? API.my[0] : API.my;
-  return <>
+  return <><ReceiptsCard />
     <section className="c12 rise toolbar"><span className="lbl">Відповіді анонімні: вони не повʼязані з вашим обліковим записом.</span></section>
     <section className="card c12 rise"><div className="card-h"><h2>Анкети відкритих хвиль</h2></div>
       <div className="rows">{todo.length ? todo.map((a, i) => <div key={i} className="row"><div className="grow"><div className="t">{a.questionnaire_title}</div><div className="s">{a.campaign_title}</div></div>{a.submitted ? <Pill cls="p-good">Пройдено</Pill> : <a className="btn btn-primary" href="#survey">Пройти анкету <Ic n="arrowR" /></a>}</div>) : <div className="lbl">{staffTokenOnly() ? "Зараз немає відкритих анкет. Особовий склад проходить анкету анонімно: за персональним посиланням або QR від уповноваженого." : "Зараз немає відкритих анкет для вас."}</div>}</div>

@@ -7,6 +7,7 @@ import { API, apiSubmitSurvey } from "../lib/api.js";
 import { COMPS, COMP, FACTS, GROUPS, UNITS, UNIT_RESP, UNIT_CR, ALPHA, factValue, inst, level, indexOf, resolveUnit, CYCLE, TODAY_UA } from "../lib/model.js";
 import { fb, f1, dsh } from "../lib/format.js";
 import { PrivacyNote } from "./Privacy.jsx";
+import { ReceiptBox } from "./Receipts.jsx";
 import { UrnDemo } from "./Urn.jsx";
 import { render, toast, openDrawer, closeDrawer } from "../lib/store.js";
 import { Pill, LvPill, Num, LevelBar, Ticks } from "../components/ui.jsx";
@@ -205,6 +206,7 @@ export function Survey() {
   if (sv.phase === "done") return <div className="survey c12"><section className="card rise" style={{ padding: 36, textAlign: "center" }}><div className="done-ic"><Ic n="ok" /></div>
     <h2 style={{ margin: "18px 0 6px", fontSize: 24, fontWeight: 600 }}>Дякуємо. Ваші відповіді збережено анонімно.</h2>
     <p className="lbl" style={{ maxWidth: 520, margin: "0 auto 20px" }}>Що далі: коли відповість достатньо людей (не менше {S.k}), {API.anon ? "узагальнені результати підрозділу стануть доступні керівництву й учасникам" : "ви зможете побачити узагальнені результати свого підрозділу"}. Окремих відповідей і імен там не буде.</p>
+    {sv.receipt && <ReceiptBox r={sv.receipt} />}
     {!API.anon && <a className="btn btn-primary" href="#me">Переглянути результати підрозділу <Ic n="arrowR" /></a>}</section></div>;
   const sec = SV().sections[sv.sec], SC = COMP[sec.id] || { s: "var(--soft)", c: "var(--muted)", ic: "survey" }, last = sv.sec === SV().sections.length - 1, miss = SQ().filter(q => sv.a[q.id] == null);
   const goMiss = q => { S.survey.sec = q.si; S.survey.miss = false; render(true); setTimeout(() => { const el = document.getElementById("q-" + q.id); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }); }, 60); };

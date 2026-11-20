@@ -12,3 +12,4 @@ fieldset.qf.card > legend + * { clear: both; }
 .q-help ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; overflow-wrap: anywhere; }
 .note-box.pv { margin-top: 16px; }
 .note-box.pv ul { margin: 2px 0 6px; padding-left: 20px; display: flex; flex-direction: column; gap: 3px; font-size: 13.5px; }
+.rc-box { text-align: left; max-width: 560px; margin: 0 auto 16px; }

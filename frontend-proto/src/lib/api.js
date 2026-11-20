@@ -316,21 +316,47 @@ function apiSurveyModel(form, kind, category) {
 }
 export async function apiSubmitSurvey() {
   const sv = API.survey, answers = Object.entries(S.survey.a).filter(([qid]) => sv.opt[qid]).map(([qid, i]) => { const o = sv.opt[qid][i]; return o.id ? { question_id: qid, option_ids: [o.id] } : { question_id: qid, option_ids: [], value: o.value }; });
+  let receipt = null;
   try {
     if (sv.kind === "token") await api("/respond/responses", { method: "POST", auth: false, headers: { "X-Response-Token": API.token }, body: { answers } });
-    else await api(`/campaigns/${sv.campaignId}/questionnaires/${sv.questionnaireId}/responses`, { method: "POST", body: { answers } });
+    else receipt = await submitBallot(sv, answers); // за обліковим записом: анонімний жетон зі сліпим підписом і квитанція
   } catch (e) {
     // «Вже пройдено» лише коли сервер так і каже; інші 409 (хвиля не відкрита тощо) ідуть тостом
-    if (e.code === "already_submitted" || e.code === "token_used") { API.surveyUsed = true; API.surveyMsg = "used"; render(); return; }
+    if (e.code === "ballot_used") clearBallot(sv);
+    if (e.code === "already_submitted" || e.code === "token_used" || e.code === "ballot_used") { API.surveyUsed = true; API.surveyMsg = "used"; render(); return; }
     if (e.code === "campaign_not_open") { API.survey = null; API.surveyMsg = "closed"; render(); return; }
     if (e.missing && e.missing.length) S.survey.miss = true;
     toast(apiErrText(e)); render(true); return;
   }
-  S.survey = { phase: "done", sec: 0, a: {}, miss: false }; API.surveyUsed = sv.kind === "token";
+  S.survey = { phase: "done", sec: 0, a: {}, miss: false, receipt }; API.surveyUsed = sv.kind === "token";
   try { localStorage.removeItem("ii-survey-draft"); } catch (e) { /* немає */ }
   if (sv.kind !== "token") { sv.submitted = true; API.assignments = null; API.my = null; }
   render();
 }
+/* --- Жетон зі сліпим підписом (lib/ballot.js) --- */
+// Жетон тримаємо в sessionStorage до успішного надсилання: якщо мережа впаде після підпису, повтор не потребує нового жетона
+const ballotKey = sv => `ii-ballot:${sv.campaignId}:${sv.questionnaireId}`;
+const clearBallot = sv => { try { sessionStorage.removeItem(ballotKey(sv)); } catch (e) { /* немає */ } };
+async function submitBallot(sv, answers) {
+  const B = await import("./ballot.js"), base = `/campaigns/${sv.campaignId}/questionnaires/${sv.questionnaireId}`;
+  let t = null; try { t = JSON.parse(sessionStorage.getItem(ballotKey(sv)) || "null"); } catch (e) { /* немає */ }
+  if (!t) {
+    const key = await api(`${base}/ballot-key`), b = await B.blind(key.n, key.e);
+    const s = await api(`${base}/ballot`, { method: "POST", body: { blinded: b.blinded } });
+    const sig = B.unblind(key.n, s.blinded_signature, b.r);
+    if (!await B.verifySig(key.n, key.e, b.nonce, sig)) throw new ApiErr(0, { message: "Жетон не пройшов перевірку в браузері", hint: "Оновіть сторінку й спробуйте ще раз." });
+    t = { key_id: s.key_id, nonce: b.nonce, signature: sig };
+    try { sessionStorage.setItem(ballotKey(sv), JSON.stringify(t)); } catch (e) { /* без збереження: повтор попросить новий жетон */ }
+  }
+  const r = await api("/respond/ballot", { method: "POST", auth: false, body: { answers, ...t } });
+  clearBallot(sv);
+  saveReceipt({ receipt: r.receipt, campaignId: sv.campaignId, title: sv.title });
+  return r.receipt;
+}
+// Квитанції лише на цьому пристрої: з них не видно відповідей, тільки «чи врахована відповідь»
+export const myReceipts = () => { try { return JSON.parse(localStorage.getItem("ii-receipts") || "[]"); } catch (e) { return []; } };
+function saveReceipt(x) { try { localStorage.setItem("ii-receipts", JSON.stringify([...myReceipts().filter(r => r.receipt !== x.receipt), x].slice(-20))); } catch (e) { /* немає */ } }
+export const apiCheckReceipt = r => api(`/respond/receipts/${r}`, { auth: false });
 export function apiLoadForm(next) {
   if (API.loading.form || API.formError) return;
   API.loading.form = true;
