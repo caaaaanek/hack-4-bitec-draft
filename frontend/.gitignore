@@ -1,8 +1,0 @@
-node_modules/
-dist/
-artifacts/
-*.tsbuildinfo
-scripts/measure.ts
-
-# Скріншоти й проби еталона
-.ref/

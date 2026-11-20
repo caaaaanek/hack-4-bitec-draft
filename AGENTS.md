@@ -41,7 +41,6 @@ git switch dev && git merge --no-ff feature/questionnaire-json && git push
   методики чи seed — `python scripts/gen_docs.py` (оновлює `docs/recommendations.md` і `docs/cross-check.md`).
 - `frontend-proto/` — основний UI (React + Vite, JSX), саме він іде в `docker compose`. Перед комітом: `cd frontend-proto && npm run build`
   і перевірка екранів за `frontend-proto/CLAUDE.md`. Правила гілок і комітів звідси діють і там.
-- `frontend/` — попередній UI (TypeScript), у compose не використовується. Якщо змінюєте: `cd frontend && npm run check`; локальні правила — `frontend/CLAUDE.md`.
 - `docs/` — джерела хакатону (`raw/` — оригінали, `md/` — оброблене) і документація проєкту. Як додавати й конвертувати джерела — `docs/README.md` і скіл `.claude/skills/ingest-docs/SKILL.md`.
 
 Документацію оновлюємо в тому ж коміті, що й код, який вона описує.
