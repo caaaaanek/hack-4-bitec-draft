@@ -328,6 +328,20 @@ def failed_messages(db: Session, limit: int = 20) -> list[OutboxMessage]:
                            .order_by(OutboxMessage.created_at.desc()).limit(limit)))
 
 
+def enqueue_unsynced(db: Session) -> int:
+    """Поставити в чергу заходи, яких Mitra ще не бачила: створені до того, як задали THEME2_URL, чи без відповіді з id.
+    Повтор безпечний: Mitra приймає upsert за нашим id."""
+    queued = {str(m.payload.get("id")) for m in db.scalars(
+        select(OutboxMessage).where(OutboxMessage.target == THEME2, OutboxMessage.sent_at.is_(None)))}
+    items = [m for m in db.scalars(select(Measure).where(Measure.external_id.is_(None),
+                                                         Measure.status != MeasureStatus.CANCELLED))
+             if str(m.id) not in queued]
+    for measure in items:
+        enqueue_measure(db, measure)
+    db.flush()
+    return len(items)
+
+
 def retry_failed(db: Session) -> int:
     """Повернути відхилені повідомлення в чергу (після виправлення на боці Mitra)."""
     items = failed_messages(db, limit=1000)

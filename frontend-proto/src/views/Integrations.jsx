@@ -13,7 +13,7 @@ export function MitraCard() {
   const head = <div className="card-h" style={{ flexWrap: "wrap" }}><h2>Інтеграція з Mitra</h2><div className="sp" />{r.data && (r.data.theme2_enabled ? (r.data.theme2_failed.length ? <Pill cls="p-bad">Є збої</Pill> : <Pill cls="p-good">Працює</Pill>) : <Pill cls="p-mute">Не налаштовано</Pill>)}</div>;
   if (!r.data) return <section className="card c12 rise">{head}{r.error ? <div role="alert"><div className="lbl">Не вдалося завантажити стан: {r.error}</div><button type="button" className="btn btn-soft" style={{ marginTop: 8 }} onClick={() => apiModReset("integr")}>Спробувати ще раз</button></div> : <div className="lbl" role="status">Завантажуємо…</div>}</section>;
   const d = r.data, failed = d.theme2_failed || [];
-  const sync = async () => { setBusy(true); try { const x = await api("/integrations/theme2/sync?retry_failed=true", { method: "POST" }); toast(`Надіслано: ${x.sent}. Не вдалося: ${x.failed}. У черзі: ${x.pending}.`); } catch (e) { toast(apiErrText(e)); } finally { setBusy(false); apiModReset("integr"); } };
+  const sync = async () => { setBusy(true); try { const x = await api("/integrations/theme2/sync?retry_failed=true&resend_all=true", { method: "POST" }); toast(`Надіслано: ${x.sent}. Не вдалося: ${x.failed}. У черзі: ${x.pending}.`); } catch (e) { toast(apiErrText(e)); } finally { setBusy(false); apiModReset("integr"); } };
   if (!d.theme2_enabled) return null; // не налаштовано: картці нічого показати
   return <section className="card c12 rise" aria-label="Інтеграція з Mitra">{head}
     <div className="lbl">Прийняті заходи надсилаються в Mitra, а звідти повертаються стан виконання й звіт виконавця.</div>

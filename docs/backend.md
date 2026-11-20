@@ -296,7 +296,7 @@ stateDiagram-v2
 | `GET /report-templates` | admin, leader, auditor, department | Шаблони звіту: `appendix_g`, `brief`, `measures`, `dynamics` (назва, опис, для кого) |
 | `GET /campaigns/{id}/report?unit_id=&format=json\|csv\|xlsx\|docx&template=` | admin, leader, auditor, department | Звіт хвилі за Додатком Г (розділ `appendix_g`). `template` змінює структуру Word; JSON (поле `template`), CSV і Excel — повні дані. CSV з BOM; PDF друкує фронтенд |
 | `GET /integrations/status` | admin | Які джерела фактів, тема 2, асистент налаштовані (без ключів) |
-| `POST /integrations/theme2/sync?retry_failed=` | admin | Надіслати заходи з черги `outbox` у Mitra (тема 2); `retry_failed=true` — повторити й відхилені |
+| `POST /integrations/theme2/sync?retry_failed=&resend_all=` | admin | Надіслати заходи з черги `outbox` у Mitra (тема 2); `retry_failed=true` — повторити й відхилені; `resend_all=true` — дослати нескасовані заходи без id Mitra (створені до налаштування `THEME2_URL`) |
 | `POST /integrations/theme2/measures/status` | Mitra (`X-Integration-Key` = `THEME2_API_KEY`) | Вебхук: стан заходу в Mitra і доказ виконання (документи з sha256 і посиланням на перевірку) за `measure_id` або `external_id` |
 | `POST /assistant/ask` | admin, leader, auditor, department | Опційний асистент. Вимкнено (`ASSISTANT_ENABLED=false`) → 404 |
 | `POST /api/assistant/edit` (без `/api/v1`) | admin, leader, auditor, department | Редактор звіту: запит до моделі щодо виділеного фрагмента → `replace` (пропозиція заміни) або `answer`. 503 без моделі |

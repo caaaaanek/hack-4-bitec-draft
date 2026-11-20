@@ -224,3 +224,18 @@ def test_live_http_roundtrip_with_mock(client, mitra, monkeypatch):
             assert "sha256 збігається" in r.read().decode()
     finally:
         server.shutdown()
+
+
+def test_resend_all_sends_measures_created_before_setup(client, mitra, monkeypatch):
+    monkeypatch.setattr(mitra, "theme2_url", "")
+    m = new_measure(client, title="Захід до налаштування")  # THEME2_URL порожній: у чергу не потрапив
+    monkeypatch.setattr(mitra, "theme2_url", "http://mitra.local/api/integrations/integra")
+    sent = []
+    monkeypatch.setattr(service, "http_sender", lambda topic, payload: sent.append(payload["id"]) or {"id": "M-" + payload["id"]})
+    admin = auth(client, "admin")
+    assert client.post(f"{API}/integrations/theme2/sync", headers=admin).json()["sent"] == 0
+    assert client.post(f"{API}/integrations/theme2/sync", params={"resend_all": True}, headers=admin).json()["sent"] >= 1
+    assert m["id"] in sent and get(client, m["id"])["external_id"] == "M-" + m["id"]
+    sent.clear()  # уже має id Mitra: повторно не шлеться
+    client.post(f"{API}/integrations/theme2/sync", params={"resend_all": True}, headers=admin)
+    assert m["id"] not in sent

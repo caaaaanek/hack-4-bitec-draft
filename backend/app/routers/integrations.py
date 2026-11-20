@@ -110,14 +110,17 @@ def status(db: Session = Depends(get_db), _: User = Depends(admin_only)):
 
 
 @router.post("/theme2/sync", response_model=SyncResult)
-def sync_theme2(retry_failed: bool = False, db: Session = Depends(get_db), admin: User = Depends(admin_only)):
+def sync_theme2(retry_failed: bool = False, resend_all: bool = False, db: Session = Depends(get_db),
+                admin: User = Depends(admin_only)):
     """Надіслати заходи з черги в Mitra. Невдалі повторяться при наступному запуску.
-    `retry_failed=true` повертає в чергу й ті, що Mitra відхилила або що вичерпали спроби."""
+    `retry_failed=true` повертає в чергу й ті, що Mitra відхилила або що вичерпали спроби.
+    `resend_all=true` додає нескасовані заходи без id Mitra (зокрема створені до налаштування THEME2_URL)."""
     if not get_settings().theme2_url:
         raise HTTPException(status_code=409, detail="Інтеграцію з темою 2 не налаштовано (THEME2_URL)")
     requeued = service.retry_failed(db) if retry_failed else 0
+    backfilled = service.enqueue_unsynced(db) if resend_all else 0
     result = service.send_pending(db)
-    log_action(db, admin, "sync", "theme2", None, {**result, "requeued": requeued})
+    log_action(db, admin, "sync", "theme2", None, {**result, "requeued": requeued, "backfilled": backfilled})
     db.commit()
     return result
 
