@@ -51,7 +51,7 @@ function ListExp({ x }) {
       <div><span className="lbl">Прямо визнали</span><b className="tnum">{pc(x.direct_share)}</b><Bar v={x.direct_share} max={max} cls="cd-direct" label={`Прямо визнали ${pc(x.direct_share)}`} /></div>
       <div><span className="lbl">Непряма оцінка</span><b className="tnum">{pc(x.estimate)}</b><Bar v={x.estimate} ci={x.ci} max={max} cls="cd-indirect" label={`Непряма оцінка ${pc(x.estimate)}, з імовірністю 95 % від ${pc(x.ci[0])} до ${pc(x.ci[1])}`} /><span className="lbl">з імовірністю 95 % від {pc(x.ci[0])} до {pc(x.ci[1])}</span></div>
     </div>
-    {x.concealment && <p className="cd-say">Насправді з цим стикалися частіше, ніж люди визнають прямо{x.ratio ? `: непряма оцінка в ${fb(x.ratio)} ${Number.isInteger(x.ratio) ? plural(x.ratio, "раз", "рази", "разів") : "раза"} вища` : ""}. Схоже, відповідати чесно бояться.</p>}
+    {x.concealment && <p className="cd-say">{x.ratio ? `Непряма оцінка в ${fb(x.ratio)} ${Number.isInteger(x.ratio) ? plural(x.ratio, "раз", "рази", "разів") : "раза"} вища за пряму` : "Непряма оцінка вища за пряму"}: прямо визнають не всі.</p>}
   </div>;
 }
 
@@ -79,7 +79,7 @@ function openCandorHow() {
 
 const FLAG_TXT = {
   concealment: ["Приховування", "Люди відповідають обережніше, ніж є насправді. Через це достовірність знижено."],
-  pluralistic_ignorance: ["Плюралістичне незнання", "Люди готові діяти, але думають, що інші не готові. Допоможе розповідь про реальну норму."],
+  pluralistic_ignorance: ["Недовіра до колег", "Люди готові діяти, але думають, що інші не готові. Допоможе розповідь про реальну норму."],
 };
 function Links() {
   return <div className="cd-links">
