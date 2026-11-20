@@ -11,7 +11,7 @@ import { toast, render } from "../lib/store.js";
 import { copyText } from "../lib/util.js";
 import { Pill } from "../components/ui.jsx";
 import { Loading, Failed, Empty, NoAccess } from "../components/states.jsx";
-import { showInvite } from "./invite.jsx";
+import { copyInvite } from "./invite.jsx";
 
 const when = t => new Date(t).toLocaleString("uk-UA", { dateStyle: "short", timeStyle: "short" });
 const copy = (t, what) => copyText(t, () => toast(`${what} скопійовано`));
@@ -104,12 +104,12 @@ export function Approvals() {
     try {
       const y = await api(`/admin/approvals/${x.id}/${how}`, { method: "POST", body: { comment: note[x.id] || "" } });
       apiModReset("approvals"); API.adm = null;
-      if (y && y.invite_link) showInvite(String((/«([^»]+)»/.exec(x.summary || "") || [, "людини"])[1]), y.invite_link, y.invite_expires_at);
+      if (y && y.invite_link) copyInvite(String((/«([^»]+)»/.exec(x.summary || "") || [, "людини"])[1]), y.invite_link, y.invite_expires_at);
       else toast(how === "approve" ? (x.kind === "open_campaign" ? "Підтверджено: хвилю відкрито" : "Запит підтверджено") : "Запит відхилено");
     }
     catch (e) { toast(decideErr(e)); } finally { setBusy(""); render(true); }
   };
-  const intro = <section className="c12 rise"><div className="lbl">Привілейовані дії одна людина лише просить, а виконує інша: так ніхто сам не видасть собі права, не додасть підставних респондентів і не відкриє хвилю з підкрученим складом.</div></section>;
+  const intro = null;
   if (!r.data.length) return <>{intro}<Empty t="Запитів немає">Нових запитів, що чекають підтвердження, немає.</Empty></>;
   return <>{intro}{r.data.map(x => { const own = x.requested_by_id && x.requested_by_id === me, p = x.payload || {};
     return <section key={x.id} className="card c12 rise">

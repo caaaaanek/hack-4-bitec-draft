@@ -75,7 +75,7 @@ function ReportG({ m }) {
     <p>Достовірність {m.trust === "insufficient" ? "не оцінюється" : m.trust}: {TRUST[m.trust][1].toLowerCase()}. {m.raised.length ? `Спрацювало автоматичних перевірок: ${m.raised.length}.` : "Жодна автоматична перевірка не спрацювала."}</p>
     {m.raised.length > 0 && <ol>{m.raised.map(f => <li key={f.id}>{f.t} ({f.w === "major" ? "серйозна" : "незначна"}). {f.ex}</li>)}</ol>}
     <h3>Висновок</h3>
-    <p>На основі аналізу відповідей респондентів за критеріями розділів «Культура», «Система» та «Підзвітність» Моделі зрілості НАЗК <b>загальний рівень зрілості доброчесності у {m.name} можна оцінити як «{LEVELS[m.level - 1]}»</b> (рівень {m.level} з 5; індекс доброчесності {f1(m.index)} з 100; {m.delta == null ? "дані про попередній цикл недоступні" : `${m.delta > 0 ? `на ${pts(m.delta)} вище` : m.delta < 0 ? `на ${pts(m.delta)} нижче` : "без змін"} порівняно з попереднім циклом`}).</p>
+    <p>На основі аналізу відповідей респондентів за критеріями розділів «Культура», «Система» та «Підзвітність» Моделі зрілості НАЗК <b>загальний рівень зрілості доброчесності у {m.name} {m.level ? <>можна оцінити як «{LEVELS[m.level - 1]}»</> : "не вдалося оцінити: замало даних"}</b> ({m.level ? `рівень ${m.level} з 5; ` : ""}індекс доброчесності {m.index == null ? "не пораховано" : `${f1(m.index)} з 100`}; {m.delta == null ? "дані про попередній цикл недоступні" : `${m.delta > 0 ? `на ${pts(m.delta)} вище` : m.delta < 0 ? `на ${pts(m.delta)} нижче` : "без змін"} порівняно з попереднім циклом`}).</p>
     <p><i>Довідково:</i> {m.fItems.filter(x => x.kind === "pct").map(x => `${x.t.toLowerCase()}: ${x.val[0]} з ${x.val[1]}`).join("; ")}.</p>
     <p><b>Найбільш ефективні напрями:</b></p>
     <ol>{best.slice(0, 2).map(c => <li key={c.id}>{COMP[c.id].n}: зараховано {fb(c.cr.v)}, рівень {lvT(c.cr.v)}.</li>)}</ol>
@@ -99,7 +99,7 @@ function ReportBrief({ m }) {
   return <>
     <Head m={m} title="ДОВІДКА" sub="про поточний рівень зрілості доброчесності (для керівника закладу)" />
     <h3>1. Головне</h3>
-    <p>Індекс доброчесності <b>{f1(m.index)} з 100</b>, рівень зрілості {m.level} «{LEVELS[m.level - 1]}». {deltaPhrase(m)} Достовірність {m.trust === "insufficient" ? "не оцінюється" : m.trust}: {TRUST[m.trust][1].toLowerCase()}.</p>
+    <p>{m.index == null ? "Індекс доброчесності за цей цикл не пораховано: замало даних." : <>Індекс доброчесності <b>{f1(m.index)} з 100</b>, рівень зрілості {m.level} «{LEVELS[m.level - 1]}».</>} {deltaPhrase(m)} Достовірність {m.trust === "insufficient" ? "не оцінюється" : m.trust}: {TRUST[m.trust][1].toLowerCase()}.</p>
     <p className="doc-cap">Таблиця 1. Компоненти індексу</p>
     <table className="doc-t"><thead><tr><th>Компонент</th><th>Самооцінка</th><th>Підтверджено фактами</th><th>Зараховано в індекс</th><th>Рівень</th></tr></thead><tbody>
       {m.components.map(c => <tr key={c.id}><td>{COMP[c.id].n}</td><td className="tnum">{fb(c.P)}</td><td className="tnum">{fb(c.F)}</td><td className="tnum">{fb(c.cr.v)}</td><td>{lvT(c.cr.v)}</td></tr>)}</tbody></table>

@@ -1,6 +1,6 @@
 /* Інсайти: «Питання перевірки» (питання аудитора до результатів) і «Сигнали» (колишній «Черговий»: що змінилось і як виправити).
  * Питання перевірки: повний екран #advocate і бічна панель «Підготуватися до перевірки» з «Огляду» та «Звіту».
- * Сигнали: повний екран #watch (і #signals) і пункти в блоці «Що потребує уваги» на «Огляді». */
+ * Сигнали: у дзвіночку в шапці (NotesPop) і в блоці «Що потребує уваги» на «Огляді»; окремої вкладки немає. */
 import { Ic } from "../lib/icons.jsx";
 import { API, apiMod, apiModReset, apiAdvocate, apiDigest } from "../lib/api.js";
 import { S, persist } from "../lib/state.js";
@@ -25,7 +25,7 @@ const DEMO_D = { status: "attention", summary: "Приклад із докуме
   what: "Компонент змінився більше ніж на 5 балів.", why: "чек-лист: −15,6 бала; робоча група: −15,6 бала. Найбільше впало питання «Яку цінність відіграє доброчесність…» (−6,2).", fix: [], link: { view: "explain", ref: "culture" } }] };
 
 const SEV = { critical: ["Критично", "p-bad", "red"], warning: ["Потрібна увага", "p-warn", "amber"], info: ["До відома", "p-info", "blue"] };
-const STATUS = { ok: ["Усе гаразд", "p-good"], attention: ["Потрібна увага", "p-warn"], critical: ["Критично", "p-bad"] };
+
 const CAT = { drop: ["Падіння", "down"], rise: ["Зростання", "up"], process: ["Процес", "target"], technical: ["Технічне", "plug"] };
 const HIGH = 80; // вага питання, з якої воно вважається гострим (шкала правил 0-100)
 
@@ -80,17 +80,34 @@ function QItem({ q, compact }) {
   </article>;
 }
 
+// Список як чек-лист підготовки: позначка, питання, тема; що підготувати й до яких чисел — у розгорнутому рядку
+function QRow({ q }) {
+  const done = !!S.advDone[q.id], first = q.evidence.map(e => numTarget(e.path)).find(Boolean) || linkTarget(q.link);
+  return <details className={`adv-row ${done ? "done" : ""}`}>
+    <summary>
+      <input type="checkbox" checked={done} onChange={() => mark(q.id)} onClick={e => e.stopPropagation()} aria-label={`Відповідь на питання ${q.n} підготовлено`} />
+      <span className="adv-n tnum">{q.n}</span>
+      <span className="adv-q"><span className="txt">{dsh(q.question)}</span><span className="lbl">{q.severity >= HIGH && <b className="adv-hot">гостре · </b>}{dsh(q.category)}</span></span>
+      <span className="chev"><Ic n="chev" /></span>
+    </summary>
+    <div className="adv-body">
+      <div><div className="lbl" style={{ marginBottom: 4 }}>Що підготувати</div><div className="txt">{dsh(q.prepare)}</div></div>
+      {q.evidence.length > 0 && <div className="tags">{q.evidence.map((e, i) => { const t = numTarget(e.path), body = <>{dsh(e.label)}: <b className="tnum">{dsh(e.text)}</b></>;
+        return t ? <button key={i} type="button" className="pill p-mute nodot ev-btn" onClick={() => goTo(t)} aria-label={`До числа: ${dsh(e.label)} ${dsh(e.text)}`}>{body}<Ic n="arrowR" /></button> : <span key={i} className="pill p-mute nodot">{body}</span>; })}</div>}
+      <div className="lbl txt">Чому питання: {dsh(q.why)}</div>
+      {first && <div><button type="button" className="btn btn-soft btn-s" onClick={() => goTo(first)}><Ic n="arrowR" />До числа</button></div>}
+    </div>
+  </details>;
+}
+
 export function Advocate() {
   const r = useAdv(), st = advState(r); if (st) return st;
-  const d = r.data, n = d.questions.length, high = d.questions.filter(q => q.severity >= HIGH).length, ready = d.questions.filter(q => S.advDone[q.id]).length;
+  const d = r.data, n = d.questions.length, ready = d.questions.filter(q => S.advDone[q.id]).length;
   return <>
-    <KpiRow items={[{ ic: "scale", t: "Питань", v: n, sub: d.total_found > n ? `знайдено ${d.total_found}` : null },
-      { ic: "alert", t: "Високої ваги", v: high, tone: high ? "red" : undefined, sub: `вага ${HIGH} і вище` },
-      { ic: "check", t: "Підготовлено", v: `${ready} з ${n}`, tone: n && ready === n ? "teal" : undefined }]} />
-    <section className="card c12 rise"><ModHead ic="scale" tone="amber" title="Питання до результатів"><span className="lbl" aria-live="polite">Без відповіді: {n - ready}</span></ModHead>
-      <div className="lbl" style={{ marginBottom: 12 }}>Що спитає зовнішній аудитор. Питання про систему доброчесності, не про людей.</div>
-      {n ? <div className="qa-list">{d.questions.map(q => <QItem key={q.id} q={q} />)}</div> : <div className="lbl">Правила не знайшли слабких місць у цій хвилі.</div>}
-      <div style={{ marginTop: 12 }}><More><div className="lbl txt">{dsh(d.note)} Позначка «Відповідь підготовлено» зберігається лише у вашому браузері, сервер її не отримує. Кожен перегляд питань записується в журнал дій{can("audit") ? <> (<a className="link" href="#audit">Журнал</a>)</> : ""}.</div></More></div>
+    <section className="card c12 rise">
+      <div className="card-h" style={{ flexWrap: "wrap" }}><h2>Що спитає аудитор</h2><div className="sp" />
+        {n > 0 && <div className="adv-prog" aria-live="polite"><span className="tnum"><b>{ready}</b> з {n} підготовлено</span><div className="dist-bar"><i style={{ width: `${ready / n * 100}%`, background: "var(--teal)" }} /></div></div>}</div>
+      {n ? <div className="adv-list">{d.questions.map(q => <QRow key={q.id} q={q} />)}</div> : <div className="lbl">Правила не знайшли слабких місць у цій хвилі.</div>}
     </section>
     {d.rules && d.rules.length > 0 && <details className="card c12 rise guide"><summary className="card-h mod-h"><h2>Правила, за якими формуються питання</h2><div className="sp" /><span className="chev"><Ic n="chev" /></span></summary>
       <div className="rows">{d.rules.map(x => <div key={x.id} className="row"><div className="grow txt">{dsh(x.description)}</div></div>)}</div></details>}
@@ -114,33 +131,19 @@ const useDigest = () => API.on ? apiMod("digest", apiDigest) : { data: DEMO_D };
 const sevPill = s => { const x = SEV[s] || SEV.info; return <Pill cls={x[1]}>{x[0]}</Pill>; };
 const FixList = ({ fix }) => fix && fix.length ? <ol className="fix-l">{fix.slice(0, 3).map((t, i) => <li key={i} className="txt">{dsh(t)}</li>)}</ol> : null;
 
-export function Watch() {
-  const r = useDigest();
-  if (!r) return <Loading t="Сигнали" />;
-  if (r.error) return <Failed e={r.error} onRetry={() => apiModReset("digest")} />;
-  const d = r.data, cat = S.digestCat || "all", items = d.items.filter(x => cat === "all" || x.category === cat), st = STATUS[d.status] || STATUS.attention, c = d.counts || {};
-  const setCat = v => { S.digestCat = v; render(true); };
-  return <>
-    <KpiRow items={[{ ic: "alert", t: "Критичних", v: c.critical || 0, tone: c.critical ? "red" : undefined }, { ic: "flag", t: "Попереджень", v: c.warning || 0, tone: c.warning ? "amber" : undefined }, { ic: "info", t: "До відома", v: c.info || 0, tone: "blue" }]} />
-    <section className="card c12 rise"><ModHead ic="eye" tone="teal" title="Стан"><Pill cls={st[1]}>{st[0]}</Pill></ModHead>
-      <div className="txt" aria-live="polite">{dsh(d.summary)}</div>
-      <div className="tags" role="group" aria-label="Фільтр за видом" style={{ marginTop: 12 }}>{[["all", "Усе"], ...Object.entries(CAT).map(([k, v]) => [k, v[0]])].map(([k, n]) => <button key={k} type="button" className={`pill-btn ${cat === k ? "lime" : ""}`} aria-pressed={cat === k} onClick={() => setCat(k)}>{n}</button>)}</div>
-      <div style={{ marginTop: 10 }}><More><div className="lbl">Правила перевіряють стан без ШІ: що впало, чому і як виправити. Показано лише те, що належить вашій ролі.</div></More></div></section>
-    {items.length ? items.map(x => { const s = SEV[x.severity] || SEV.info, k = CAT[x.category] || ["", "info"]; return <section key={x.id} className="card c12 rise">
-      <ModHead ic={k[1]} tone={s[2]} title={dsh(x.title)}>{k[0] && <Pill cls="p-mute nodot">{k[0]}</Pill>}{sevPill(x.severity)}</ModHead>
-      <div className="txt">{dsh(x.what)}</div>
-      {x.fix && x.fix.length > 0 && <div className="note-box" style={{ marginTop: 10 }}><b>Як виправити</b><FixList fix={x.fix} /></div>}
-      <div className="chk-row" style={{ marginTop: 10, flexWrap: "wrap", alignItems: "flex-start" }}><GoBtn link={x.link} /><More t="Чому"><div className="lbl txt">{dsh(x.why)}</div></More></div></section>; })
-      : <Empty t={d.items.length ? "У цій групі нічого немає" : "Відхилень не знайдено"}>{d.items.length ? "Оберіть іншу групу." : "За правилами сигналів усе гаразд."}</Empty>}
-  </>;
-}
-
 /* Пункти чергового в блоці «Що потребує уваги» на «Огляді»: лише критичні й попередження, до трьох */
-export function digestTop() {
-  if (!can("watch")) return [];
+// Сигнали, що потребують дії (критичні й попередження). «До відома» не показуємо ніде.
+// Окремої вкладки немає: сигнали видно в дзвіночку в шапці й у «Що потребує уваги» на «Огляді».
+export const SIG_ROLES = ["leader", "observer", "auditor", "admin"];
+export function signals() {
+  if (!SIG_ROLES.includes(S.role)) return null;
   const r = useDigest();
-  return r && r.data ? r.data.items.filter(x => x.severity !== "info").slice(0, 3) : [];
+  // Лише те, що ця роль може виправити: сигнал з посиланням на недоступний їй екран не показуємо
+  return r && r.data ? r.data.items.filter(x => x.severity !== "info" && (!x.link || !x.link.view || linkTarget(x.link))) : null;
 }
+export function sigGo(x) { const t = linkTarget(x.link); if (t) goTo(t); }
+export const sigTarget = x => linkTarget(x.link);
+export function digestTop() { return (signals() || []).slice(0, 3); }
 export function DigestRows({ items }) {
   if (!items.length) return null;
   return <div className="dg">
@@ -148,6 +151,5 @@ export function DigestRows({ items }) {
       <summary><span className="dot" style={{ background: x.severity === "critical" ? "var(--red)" : "var(--amber)" }} /><span className="grow txt">{dsh(x.title)}</span>{sevPill(x.severity)}<Ic n="chev" /></summary>
       <div className="dg-b">{x.fix && x.fix.length ? <><b>Як виправити</b><FixList fix={x.fix} /></> : <span className="lbl txt">{dsh(x.why)}</span>}<div><GoBtn link={x.link} /></div></div>
     </details>)}
-    {can("watch") && <a className="link-btn" href="#watch" style={{ marginTop: 6, display: "inline-block" }}>Усі сигнали</a>}
   </div>;
 }

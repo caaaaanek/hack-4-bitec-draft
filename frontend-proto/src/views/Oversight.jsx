@@ -31,7 +31,7 @@ function ChildBars({ d }) {
   const lv = [1, 2, 3, 4, 5].map(l => +(d.levels[l] ?? d.levels[String(l)] ?? 0)), max = Math.max(1, ...lv);
   const alt = lv.map((n, i) => `рівень ${i + 1}: ${n}`).join(", ");
   return <>
-    <div className="ch-bars" role="img" aria-label={`Підрозділів за рівнями: ${alt}`}>{lv.map((n, i) => <div key={i} className="ch-b"><span className="tnum">{n}</span><i className={`lv-b${i + 1}`} style={{ height: `${Math.max(4, n / max * 90)}px` }} /><small>{i + 1}</small></div>)}</div>
+    <div className="ch-bars" role="img" aria-label={`Підрозділів за рівнями: ${alt}`}>{lv.map((n, i) => <div key={i} className="ch-b"><span className="tnum">{n}</span><i className={`lv-b${i + 1}`} style={{ height: `${Math.max(4, n / max * 120)}px` }} /><small>{i + 1}</small></div>)}</div>
     <div className="lbl" style={{ marginTop: 6 }}>Усього {d.children_total}, з даними {d.with_data}{d.insufficient ? `, замало відповідей у ${d.insufficient}` : ""}. Найчастіше: рівень {lv.indexOf(Math.max(...lv)) + 1} «{LSHORT[lv.indexOf(Math.max(...lv))]}».</div>
   </>;
 }

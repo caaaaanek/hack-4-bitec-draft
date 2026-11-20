@@ -17,7 +17,7 @@ import { Manage, Surveys, Checklist, Audit, Survey, Me } from "./views/demo.jsx"
 import { apiView } from "./views/api-views.jsx";
 import { Builder } from "./views/Builder.jsx";
 import { Learn } from "./views/Learn.jsx";
-import { Watch, Advocate } from "./views/Insights.jsx";
+import { Advocate } from "./views/Insights.jsx";
 import { Autopilot } from "./views/Autopilot.jsx";
 import { Normative } from "./views/Normative.jsx";
 import { Checks } from "./views/Checks.jsx";
@@ -28,7 +28,7 @@ import { UrnScreen } from "./views/Urn.jsx";
 const lazyAdm = k => { const C = lazy(() => import("./views/Admin.jsx").then(m => ({ default: m[k] }))); return () => <Suspense fallback={null}><C /></Suspense>; };
 const People = lazyAdm("People"), Units = lazyAdm("Units"), Summary = lazyAdm("Summary"), Dicts = lazyAdm("Dicts"), Risks = lazyAdm("Risks"), InvitePage = lazyAdm("InvitePage");
 
-const V = { people: People, units: Units, summary: Summary, dicts: Dicts, risks: Risks, urn: UrnScreen, approvals: Approvals, views: ResultViews, learn: Learn, watch: Watch, advocate: Advocate, autopilot: Autopilot, normative: Normative, checks: Checks, overview: Overview, explain: Explain, trends: Trends, compare: Compare, whatif: WhatIf, recs: Recs, tracker: Tracker, sources: Sources, report: Report, manage: Manage, surveys: Surveys, checklist: Checklist, audit: Audit, survey: Survey, me: Me, institutions: Institutions };
+const V = { people: People, units: Units, summary: Summary, dicts: Dicts, risks: Risks, urn: UrnScreen, approvals: Approvals, views: ResultViews, learn: Learn, advocate: Advocate, autopilot: Autopilot, normative: Normative, checks: Checks, overview: Overview, explain: Explain, trends: Trends, compare: Compare, whatif: WhatIf, recs: Recs, tracker: Tracker, sources: Sources, report: Report, manage: Manage, surveys: Surveys, checklist: Checklist, audit: Audit, survey: Survey, me: Me, institutions: Institutions };
 const html = document.documentElement;
 
 /* ---------- Маршрут: що зробити при переході ---------- */
@@ -152,11 +152,9 @@ function Login() {
         <button className="btn btn-primary" type="submit" style={{ justifyContent: "center" }} disabled={busy}>Увійти <Ic n="arrowR" /></button>
       </form>}
       {a.proxy && <button className="btn btn-soft" id="lproxy" style={{ justifyContent: "center", marginTop: 10 }} onClick={loginProxy}>Увійти через систему організації</button>}
-      <div className="lbl" style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center" }}><span style={{ display: "inline-flex", width: 16 }}><Ic n="shield" /></span>Анонімна анкета за одноразовим посиланням відкривається без входу.</div>
     </section>
     {a.password && <section className="card rise login-card">
       <h2 style={{ margin: "0 0 4px", fontSize: 16 }}>Демо-облікові записи</h2>
-      <div className="lbl" style={{ marginBottom: 10 }}>Пароль у всіх однаковий: DEMO_PASSWORD з файлу .env. Дані синтетичні.</div>
       <div className="rows">{DEMO_ROLES.map(([r, t, ls]) => <div key={r} className="row demo-role"><div className="grow"><b>{r}</b><div className="lbl">{t}</div></div>
         <div className="demo-logins">{ls.map(l => <a key={l} href="#" data-tip="Підставити логін" onClick={e => { e.preventDefault(); setU(l); lp.current && lp.current.focus(); }}>{l}</a>)}</div></div>)}</div>
     </section>}

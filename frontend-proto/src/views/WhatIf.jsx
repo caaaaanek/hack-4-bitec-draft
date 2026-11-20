@@ -119,18 +119,20 @@ export function WhatIf() {
         <button type="button" className={`btn ${on ? "btn-ghost" : "btn-soft"}`} disabled={on} onClick={() => addLever(l)}>{on ? <><Ic n="ok" />У сценарії</> : <><Ic n="plus" />Додати</>}</button></div>; })}</div>
     </section>}
 
-    <section className={`card rise ${API.on && (ck.length || ms.length) ? "c7" : "c12"}`}>
+    {/* Ліворуч факти й заходи, праворуч довгий чек-лист: колонки однієї висоти без порожнечі */}
+    <div className={`${API.on && (ck.length > 0 || res.options.checklist_note) ? "c7" : "c12"} wi-side`}>
+      <section className="card rise">
       <div className="card-h"><h2>Факти</h2><div className="sp" /><span className="lbl">потягніть, щоб задати ціль</span></div>
       <div className="wi-facts">{facts.map(f => <FactRow key={f.indicator} f={f} />)}</div>
     </section>
-
-    {API.on && (ck.length > 0 || ms.length > 0 || res.options.checklist_note) && <div className="c5 wi-side">
       {ms.length > 0 && <section className="card rise">
         <div className="card-h"><h2>Заходи</h2><div className="sp" /><span className="lbl">якщо виконати</span></div>
         <div className="rows">{ms.map(x => { const a = (res.applied || []).find(z => z.kind === "measure" && z.id === x.id); return <label key={x.id} className="row wi-ms">
           <input type="checkbox" checked={WI.measures.includes(x.id)} onChange={() => toggleMs(x.id)} />
           <div className="grow"><span>{x.t}</span><div className="lbl">{M_ST[dispSt(x)][0]}{a ? ` · ${a.note}` : ""}</div></div></label>; })}</div>
       </section>}
+    </div>
+    {API.on && (ck.length > 0 || res.options.checklist_note) && <div className="c5 wi-side">
       {(ck.length > 0 || res.options.checklist_note) && <section className="card rise">
         <div className="card-h"><h2>Чек-лист</h2><div className="sp" /><span className="lbl">{ck.length - ckOpen.length} з {ck.length} уже закрито</span></div>
         {res.options.checklist_note ? <div className="lbl">{res.options.checklist_note}</div> : <div className="rows">{ckShown.map(i => <div key={i.number} className="row wi-ck">

@@ -37,6 +37,7 @@ export function UrnSection({ c }) {
   if (r.status === 403) return null;
   if (r.error) return <section className="card c12 rise" role="alert">{head}<div className="lbl">Не вдалося завантажити: {r.error}</div><button type="button" className="btn btn-soft" style={{ marginTop: 8 }} onClick={() => apiModReset(key)}>Спробувати ще раз</button></section>;
   const u = r.data, mine = u.holders.find(h => h.holder_id === me);
+  if (!u.enabled && c.status !== "draft") return null; // вимкнену урну ввімкнути вже не можна: картка нічого не дає
   return <section className="card c12 rise urn" aria-label="Урна з трьома ключами">
     {head}
     <div className="lbl">{URN_WHY}</div>

@@ -6,7 +6,7 @@
  */
 import { S, NAV, HOME, ROLE, freshSurvey, loadDraft, clearDraft } from "./state.js";
 import { TITLES } from "./nav.js";
-import { COMPS, COMP, ALPHA, r1, finish, setClock } from "./model.js";
+import { COMPS, COMP, ALPHA, r1, finish, setClock, TRUST } from "./model.js";
 import { fb, esc, quarters } from "./format.js";
 import { render, toast, closeDrawer, ui } from "./store.js";
 
@@ -95,7 +95,7 @@ export async function boot() {
   nr("summary", ["coordinator"]);
   // Довідники: категорії й посади веде техадмін, категорії ще й Департамент (для анкет), факти лише уповноважений
   nr("dicts", ["admin", "coordinator", "observer"]);
-  nr("risks", ["leader", "admin", "auditor", "observer"]);
+  nr("risks", ["leader", "admin", "auditor"]); // Департаменту реєстр закладів недоступний (сервер відповідає 403)
   const tm = location.pathname.match(/^\/s\/([^/?#]+)/);
   if (tm) return bootToken(decodeURIComponent(tm[1]));
   const qm = location.pathname.match(/^\/q\/([^/?#]+)/);
@@ -219,12 +219,26 @@ function apiModel(r, h) {
   if (series.length === 1) series = [series[0], series[0]];
   const events = pts.flatMap((p, i) => i > 0 && p.measures_done > 0 ? [{ after: labels[i - 1], n: p.measures_done, t: `Виконано заходів між циклами: ${p.measures_done}` }] : []);
   const flags = [];
-  for (const c of r.components) for (const f of c.flags || []) flags.push({ id: `${f.code}:${c.code}`, w: f.severity === "serious" ? "major" : "minor", t: `${c.title}: ${f.title}`, ex: c.rule || f.title, raised: true });
-  for (const g of r.groups) for (const code of g.flags || []) if (GROUP_FLAG[code]) flags.push({ id: `${code}:${g.category}`, w: GROUP_FLAG[code][0], t: `${g.title}: ${GROUP_FLAG[code][1]}`, ex: GROUP_FLAG[code][2], raised: true });
-  const responses = r.groups.reduce((a, g) => a + (g.submitted || 0), 0);
+  // Назви й пояснення прапорців — лише з GET /methodology (reliability.flags), власних текстів фронтенд не тримає
+  const MF = (API.meth && API.meth.reliability && API.meth.reliability.flags) || {};
+  const sev = x => x === "serious" ? "major" : x === "info" ? "info" : "minor";
+  // Однаковий прапорець сервер дає окремо для кожного компонента: показуємо один раз зі списком компонентів
+  const flagBy = {};
+  for (const c of r.components) for (const f of c.flags || []) {
+    const d = MF[f.code] || {}, ex = f.code === "self_not_confirmed" && c.rule ? c.rule : d.explain || c.rule || f.title;
+    if (flagBy[f.code] && f.code !== "self_not_confirmed") { flagBy[f.code].comps.push(c.title); continue; }
+    const x = { id: f.code === "self_not_confirmed" ? `${f.code}:${c.code}` : f.code, w: sev(d.severity || f.severity), sevT: d.severity_title, title: d.title || f.title, comps: [c.title], ex, raised: true };
+    if (f.code !== "self_not_confirmed") flagBy[f.code] = x; flags.push(x);
+  }
+  for (const x of flags) x.t = x.comps.length >= COMPS.length ? x.title : `${x.comps.join(", ")}: ${x.title}`;
+  for (const g of r.groups) for (const code of g.flags || []) { const d = MF[code], o = GROUP_FLAG[code]; if (d || o) flags.push({ id: `${code}:${g.category}`, w: d ? sev(d.severity) : o[0], sevT: d && d.severity_title, t: `${g.title}: ${d ? d.title : o[1]}`, ex: d ? d.explain : o[2], raised: true }); }
+  // Кількість відповідей — готові submitted із груп сервера; група, менша за поріг, має null і не додається
+  const responses = r.groups.reduce((a, g) => a + (g.submitted ?? 0), 0);
   const m = finish({ id: ALPHA, name: r.unit_name, components: comps, pItems, fItems, series, events, flags, responses });
   m.trust = GRADE[r.index.reliability] || "insufficient";
-  m.index = r.index.score ?? m.index; m.level = (r.index.level && r.index.level.level) || m.level; m.delta = m.index == null || m.prevIndex == null ? null : r1(m.index - m.prevIndex);
+  // null від сервера — «недостатньо даних»: показуємо «—», а не число з історії чи демо
+  m.index = r.index.score ?? null; m.level = m.index == null ? null : (r.index.level && r.index.level.level) || m.level;
+  m.delta = m.index == null || m.prevIndex == null ? null : r1(m.index - m.prevIndex);
   if (!h) { m.noHistory = true; m.delta = null; m.prevIndex = null; } // попередніх циклів не отримано: зміна невідома
   if (r.index.reliability_reasons && r.index.reliability_reasons[0]) m.summary = r.index.reliability_reasons[0];
   m.groups = r.groups; m.rule = r.index.rule;
@@ -257,7 +271,14 @@ function apiRec(x, m, res) {
   return { id: x.code, t: x.title, c, pri: ["high", "medium", "low"].includes(x.priority) ? x.priority : "medium", items: links.filter(l => !l.q).map(l => l.id), links,
     why: `${x.description} Правило: ${x.rule}`, acts: (x.suggested_measures || []).slice(0, 4).map(s => s.catalog_number ? `${s.catalog_number}. ${s.title}` : s.title),
     evidence: [...links, ...Object.entries(x.basis || {}).filter(([k, v]) => typeof v === "number" && BASIS[k] && !(links.length && k === "score")).slice(0, 4 - links.length).map(([k, v]) => ({ id: COMPS.includes(x.component) ? x.component : "", t: BASIS[k], v: fb(v), item: true }))],
-    st, note: st === "rejected" ? { reason: cm } : st === "clarified" ? { comment: cm } : {} };
+    st, note: st === "rejected" ? { reason: cm } : st === "clarified" ? { comment: cm } : {},
+    // Список без повторів: місце, група (компонент або «Загальне»), згорнута після перших N, які коди вона покриває
+    rank: x.rank ?? null, group: x.group || null, groupT: x.group_title || null, collapsed: !!x.collapsed, covers: x.covers || [] };
+}
+// Тексти літер достовірності з методики сервера (reliability.grades)
+function applyMethodology() {
+  const g = API.meth && API.meth.reliability && API.meth.reliability.grades;
+  if (g) for (const k of ["A", "B", "C"]) if (g[k]) TRUST[k][2] = g[k];
 }
 const MEAS_ST = { planned: "accepted", in_progress: "inprogress", done: "done", cancelled: "cancelled" };
 // Перевірка наступною хвилею (бекенд, services/measures.verify): зріс компонент заходу — підтверджено; не зріс — потрібен перегляд
@@ -281,17 +302,20 @@ async function apiLoadResults() {
   API.model = null; API.empty = false; API.recs = []; API.ms = [];
   let d;
   // Департамент дивиться обраний заклад: без unit_id сервер відповідає 422 «Оберіть заклад»
+  API.emptyCode = null;
+  if (!API.meth) API.meth = await api("/methodology").catch(() => null);
+  applyMethodology();
   try { d = await api("/dashboard" + (API.deptUnit ? `?unit_id=${API.deptUnit}` : "")); }
-  catch (e) { if (e.status === 404 || e.status === 409) { API.empty = true; return; } throw e; }
+  catch (e) { if (e.status === 404 || e.status === 409) { API.empty = true; API.emptyCode = e.code || null; return; } throw e; }
   API.campaignId = d.campaign_id; API.unitId = d.unit_id;
   const q = d.unit_id ? `?unit_id=${d.unit_id}` : "";
   const [r, h, recs, ms] = await Promise.all([
     api(`/campaigns/${d.campaign_id}/results${q}`), api(`/units/${d.unit_id}/history`).catch(() => api(`/units/${d.unit_id}/history`)).catch(() => null), // один повтор на випадок короткого збою мережі чи сервера (код запиту збою — у журналі сервера)
     // 404 і 409 (хвиля ще не закрита) дають порожній список; інші збої не ховаємо
-    api(`/campaigns/${d.campaign_id}/recommendations${q}`).catch(e => { if (e.status !== 404 && e.status !== 409) apiFail(e); return { items: [] }; }), api(`/measures${q}`).catch(() => []),
+    api(`/campaigns/${d.campaign_id}/recommendations${q ? q + "&" : "?"}top=5`).catch(e => { if (e.status !== 404 && e.status !== 409) apiFail(e); return { items: [] }; }), api(`/measures${q}`).catch(() => []),
   ]);
   API.model = apiModel(r, h);
-  API.res = r; API.recs = recs.items.map(x => apiRec(x, API.model, r));
+  API.res = r; API.recs = recs.items.map(x => apiRec(x, API.model, r)); API.recGroups = recs.groups || null;
   const titles = Object.fromEntries(recs.items.map(x => [x.code, x.title]));
   API.ms = ms.map(x => apiMeasure(x, titles));
   // Локальна дата, а не UTC: інакше з 00:00 до 02:00 за Києвом «сьогодні» було б учорашнім, і прострочення рахувалося б на день менше.
@@ -517,7 +541,7 @@ export async function apiDownload(camp, qid, fid, name) {
 }
 
 /* --- Журнал --- */
-export const AUDIT_ENT = { campaign: "Хвиля", questionnaire: "Анкета", user: "Користувач", unit: "Підрозділ", checklist_entry: "Чек-лист", evidence_file: "Файл-доказ", measure: "Захід", recommendation: "Рекомендація", results: "Результати", indicator: "Факт", report: "Звіт", assistant: "Асистент", audit_log: "Журнал", autopilot: "Автопілот", normative: "Нормативка", learning_deck: "Навчання", check_run: "Перевірка", check_finding: "Знахідка перевірки", approval: "Запит другій людині", category: "Категорія респондентів", checklist: "Чек-лист", fact_definition: "Показник фактів", position: "Посада" };
+export const AUDIT_ENT = { campaign: "Хвиля", questionnaire: "Анкета", user: "Користувач", unit: "Підрозділ", checklist_entry: "Чек-лист", evidence_file: "Файл-доказ", measure: "Захід", recommendation: "Рекомендація", results: "Результати", indicator: "Факт", report: "Звіт", assistant: "Асистент", audit_log: "Журнал", autopilot: "Автопілот", normative: "Що змінилось", learning_deck: "Навчання", check_run: "Перевірка", check_finding: "Знахідка перевірки", approval: "Запит другій людині", category: "Категорія респондентів", checklist: "Чек-лист", fact_definition: "Показник фактів", position: "Посада" };
 // Людські назви дій бекенду: «сутність:дія» → текст
 export const AUDIT_ACT = {
   "assistant:ask": "Запит до асистента", "assistant:edit_report": "Звіт: запит до ШІ щодо фрагмента", "audit_log:verify": "Перевірено цілісність журналу",

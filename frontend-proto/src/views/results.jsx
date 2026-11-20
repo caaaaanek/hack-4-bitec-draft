@@ -63,14 +63,13 @@ export function Overview() {
     <BackToInst />
     <div className="c12 kpi-row">
       <Tile ic="gauge" title="Індекс доброчесності" big={<span className="mid tnum"><Num v={m.index} /></span>} act={openWhy} info={openHow}
-        sub={<><span>Рівень зрілості: <b className={`lv-txt lv-t${m.level}`}><i />{LSHORT[m.level - 1]}</b></span><br /><Delta d={m.delta} /></>} />
+        sub={<><span>Рівень зрілості: {m.level ? <b className={`lv-txt lv-t${m.level}`}><i />{LSHORT[m.level - 1]}</b> : <span className="lbl">немає даних</span>}</span><br /><Delta d={m.delta} /></>} />
       <Tile ic="shield" title="Достовірність" big={<span className={`mid tr-txt tr-${m.trust}`}>{m.trust === "insufficient" ? "?" : m.trust}</span>} act={openTrust} info={openTrustHow} tip="Як визначається достовірність"
         sub={<><b className={`tr-txt tr-${m.trust}`}><i />{TRUST[m.trust][1]}</b><br /><span className="lbl">Прапорці: {m.raised.length}</span></>} />
       {S.role === "observer" || !can("tracker")
         ? <Tile ic="users" title="Відповідей у циклі" big={<span className="mid tnum">{m.responses}</span>} sub={<span className="lbl">Мінімальна група: {S.k} {plural(S.k, "особа", "особи", "осіб")}</span>} act={openResp} info={openRespHow} tip="Що таке мінімальна група" />
         : <Tile ic="target" title="Заходи в трекері" big={<span className="mid tnum">{ms.length}</span>} sub={od ? <span style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))", fontWeight: 600 }}>З них {od} прострочено</span> : <span className="lbl">Прострочених немає</span>} act={() => go("tracker")} info={openTrackerHow} tip="Як працює трекер заходів" />}
     </div>
-    <CandorCard />
     <section className="card c8 rise" id="attn">
       <div className="card-h" style={{ flexWrap: "wrap" }}><h2>Що потребує уваги</h2><div className="sp" />{canBriefing() && <div className="attn-docs"><LeaderDocs /></div>}</div>
       {m.attention.length ? <div className="rows">{attn.map((a, i) => <a key={i} className="row click" href={`#explain/${a.c}`} onClick={a.q ? e => { e.preventDefault(); openApiQ(a.q); } : undefined} data-tip={a.hint}><span className="dot" style={{ background: SCOL[status(a.v)] }} /><div className="grow"><div className="t">{a.t}</div></div><Pill cls="p-mute nodot">{COMP[a.c].n}</Pill><b className="tnum">{fb(a.v)}</b></a>)}</div> : dg.length ? null : <div className="lbl">Зауважень немає: нічого не потребує уваги.</div>}
@@ -85,6 +84,7 @@ export function Overview() {
         {m.strengths.length > LIST_MAX && <button className="link-btn" style={{ marginTop: 8 }} onClick={() => { S.strAll = !S.strAll; render(true); }}>{S.strAll ? "Згорнути" : `Показати всі (${m.strengths.length})`}</button>}
       </section>
     </div>
+    <CandorCard />
     <div className="c12 comp-row">{m.components.map((c, ci) => {
       const C = COMP[c.id], d = m.noHistory || c.cr.v == null || prev.cr[c.id] == null ? null : r1(c.cr.v - prev.cr[c.id]), lv = c.cr.v == null ? null : level(c.cr.v);
       return <a key={c.id} className="card rise comp-card" href={`#explain/${c.id}`}>
@@ -165,7 +165,7 @@ const MODES = { perception: "Самооцінка", facts: "Підтвердже
 function tree(m, mode) {
   return m.components.map(c => {
     const val = mode === "perception" ? c.P : mode === "facts" ? c.F : c.cr.v, lim = mode === "credited" && c.cr.lim;
-    const k = mode === "credited" && c.P > 0 ? c.cr.v / c.P : 1;
+    const k = mode === "credited" && c.P > 0 && c.cr.v != null ? c.cr.v / c.P : 1;
     const items = (mode === "facts" ? m.fItems : m.pItems).filter(x => x.c === c.id).map(x => { const v = x.v * k; return { ...x, vv: v, contrib: v / 3 * x.w / 100, lim }; });
     return { ...c, val, lim, contrib: val / 3, items };
   });
@@ -204,7 +204,7 @@ function TreeGraph({ T, sum, hl, maxC, fallback }) {
       </g>)}
       <g className="tg-n"><title>{`Індекс доброчесності: ${fb(sum)}. Середнє трьох компонентів.`}</title>
         <circle cx={xR} cy={yR} r={rR} style={{ fill: "var(--lime-soft)", stroke: "var(--teal-deep)" }} />
-        <text x={xR} y={yR + 6} className="tg-v" style={{ fontSize: 17 }}>{fb(sum)}</text>
+        <text x={xR} y={yR + 6} className="tg-v" style={{ fontSize: sum == null ? 13 : 17 }}>{sum == null ? "—" : fb(sum)}</text>
         <text x={xR} y={yR - rR - 24} className="tg-t">Індекс</text><text x={xR} y={yR - rR - 9} className="tg-t">доброчесності</text></g>
       {G.map(c => <g key={c.id} className="tg-n tg-c" id={`n-${c.id}`} data-tip={`${COMP[c.id].n}: ${fb(c.val)}<small>Внесок в індекс: ${f2(c.contrib)}. ${c.items.length} ${plural(c.items.length, "показник", "показники", "показників")}, разом третина індексу.${c.lim ? `<br>${esc(c.cr.reason)}` : ""}</small>`}>
         {hl === c.id && <circle cx={xC} cy={c.y} r={rC + 6} className="tg-hl" />}
@@ -224,12 +224,12 @@ function TreeGraph({ T, sum, hl, maxC, fallback }) {
   </div>;
 }
 export function Explain() {
-  const m = cur(), mode = S.mode, T = tree(m, mode), sum = r1(T.reduce((a, c) => a + c.contrib, 0)), hl = S.focus;
+  const m = cur(), mode = S.mode, T = tree(m, mode), sum = T.some(c => c.val == null) ? null : r1(T.reduce((a, c) => a + c.contrib, 0)), hl = S.focus; // компонент без даних: індексу немає, нулем не підміняємо
   const maxC = Math.max(0, ...T.flatMap(c => c.items.map(x => x.contrib)));
   useEffect(() => { if (S.focus) { const el = document.getElementById("n-" + S.focus); if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 200); S.focus = null; } });
   const shut = S.tblShut || (S.tblShut = {}), tog = id => { shut[id] = !shut[id]; render(true); };
   const table = <div className="tbl-wrap"><table className="ex-tbl"><thead><tr><th>Вузол</th><th>Рівень</th><th>Вага, %</th><th>Значення</th><th>Внесок, пункти</th><th>Джерело</th></tr></thead><tbody>
-    <tr><td><b>Індекс доброчесності</b></td><td>1</td><td className="tnum">100</td><td className="tnum">{fb(sum)}</td><td className="tnum">{f2(T.reduce((a, c) => a + c.contrib, 0))}</td><td /></tr>
+    <tr><td><b>Індекс доброчесності</b></td><td>1</td><td className="tnum">100</td><td className="tnum">{sum == null ? "—" : fb(sum)}</td><td className="tnum">{sum == null ? "—" : f2(T.reduce((a, c) => a + c.contrib, 0))}</td><td /></tr>
     {T.map(c => [<tr key={c.id} id={S.exTable ? `n-${c.id}` : undefined} className={`ex-grp ${shut[c.id] ? "shut" : ""}`} onClick={() => tog(c.id)} data-tip={c.lim ? esc(c.cr.reason) : undefined}>
         <td><span className="ex-gt"><button type="button" className="ex-tog" aria-expanded={!shut[c.id]} aria-label={`${shut[c.id] ? "Розгорнути" : "Згорнути"}: ${COMP[c.id].n}`} onClick={e => { e.stopPropagation(); tog(c.id); }}><Ic n="chev" /></button><b>{COMP[c.id].n}</b>{c.lim && <> <Pill cls="p-warn nodot">Знижено фактами</Pill></>}{shut[c.id] && <span className="lbl">· {c.items.length}</span>}</span></td>
         <td>2</td><td className="tnum">33,3</td><td className="tnum">{fb(c.val)}</td><td className="tnum">{f2(c.contrib)}</td><td /></tr>,
@@ -317,11 +317,11 @@ export function Compare() {
     </section>
     <section className="card c12 rise cmp-trust">
       <div className="card-h"><h2>Достовірність</h2><div className="sp" /><TrustPill g={m.trust} /></div>
-      <div className="rows">{m.raised.length ? m.raised.map(f => <div key={f.id} className="row click" role="button" tabIndex={0} onClick={openTrust} onKeyDown={enter(openTrust)} style={{ alignItems: "flex-start" }}><span className={`flag-ic ${f.w}`}><Ic n={f.w === "major" ? "alert" : "flag"} /></span><div className="grow" style={{ fontSize: 13 }}><b style={{ fontWeight: 600 }}>{f.t}</b><div className="lbl">{f.ex}</div></div></div>) : <div className="lbl">Жоден прапорець не спрацював.</div>}</div>
+      <div className="rows">{m.raised.length ? m.raised.map(f => <div key={f.id} className="row click" role="button" tabIndex={0} onClick={openTrust} onKeyDown={enter(openTrust)} style={{ alignItems: "flex-start" }}><span className={`flag-ic ${f.w}`}><Ic n={f.w === "major" ? "alert" : "flag"} /></span><div className="grow" style={{ fontSize: 13.5, lineHeight: 1.5 }} data-tip={String(f.ex || "").replace(/&/g, "&amp;").replace(/</g, "&lt;")}><b style={{ fontWeight: 600 }}>{f.t}</b></div></div>) : <div className="lbl">Жоден прапорець не спрацював.</div>}</div>
     </section>
     <section className="card c12 rise">
       <div className="card-h" style={{ flexWrap: "wrap" }}><h2>Питання анкет за групами</h2><div className="sp" /><div className="legend"><span className="lbl">Бал:</span><span><i style={{ background: "var(--teal)" }} />65 і вище</span><span><i style={{ background: "var(--amber)" }} />40–65</span><span><i style={{ background: "var(--red)" }} />нижче 40</span><span className="lbl" style={{ marginLeft: 6 }}>Група:</span>{MARKS.map(([s, n]) => <span key={s}><Mk s={s} />{n}</span>)}</div></div>
-      <div className="lbl" style={{ margin: "-4px 0 12px" }}>Число над стовпчиком це середній бал питання від 0 до 100. {m.pItems.some(x => IB_GRP[x.id.split("-").pop()]) ? "Під стовпчиком компонент (К культура, С система, П підзвітність) і джерело: ОС особовий склад, РГ робоча група, ЕК експерти, ЧЛ чек-лист. Наведіть або клацніть, щоб побачити деталі." : "Під стовпчиком код питання: К культура, С система, П підзвітність. Наведіть або клацніть, щоб побачити питання."}</div>
+      <div className="lbl" style={{ margin: "-4px 0 12px" }}>Середній бал питання від 0 до 100. Під стовпчиком компонент і джерело; наведіть, щоб побачити питання.</div>
       <div className="ibars" style={{ gridTemplateColumns: `repeat(${m.pItems.length},minmax(0,1fr))` }}>{m.pItems.map((x, i) => { const col = SCOL[status(x.v)]; return <a key={x.id} className="ibar" href={`#explain/${x.id}`} style={{ textDecoration: "none", color: "inherit" }} data-tip={`${escT(x.t)}<small>${SRC[x.src][0]} · ${COMP[x.c].n}</small>`}><div className="v tnum">{fb(x.v)}</div><div className="b" style={{ height: Math.max(8, x.v * 1.5), background: col, opacity: 0.45 + x.v / 100 * 0.55, animationDelay: `${i * 50}ms` }} /><div className="n"><Mk s={x.src} /><span className="tnum">{{ culture: "К", system: "С", accountability: "П" }[x.c]}{IB_GRP[x.id.split("-").pop()] || x.id.slice(-1)}</span></div></a>; })}</div>
     </section>
   </>;

@@ -4,7 +4,7 @@ import { Ic } from "../lib/icons.jsx";
 import { S, persist, addLog, me } from "../lib/state.js";
 import { API, apiDecide, apiSendMSt, apiErrText, apiFail, apiPositions } from "../lib/api.js";
 import { COMPS, COMP, PRI, REC_ST, REC_NEXT, POSITIONS, BASE_MEASURES, M_ST, M_NEXT, REGISTRY, INSTITUTIONS, buildRecs, measures, overdueDays, dispSt, daysWord, verif, TODAY } from "../lib/model.js";
-import { ua } from "../lib/format.js";
+import { ua, plural } from "../lib/format.js";
 import { render, toast, openDrawer, closeDrawer } from "../lib/store.js";
 import { can } from "../lib/nav.js";
 import { Pill, LvPill, TrustPill } from "../components/ui.jsx";
@@ -17,7 +17,11 @@ const Err = ({ t, hint, red }) => <span className="lbl" id="f-err" style={red ||
 
 /* Рекомендації */
 export function Recs() {
-  const all = buildRecs(), f = S.recF, list = all.filter(r => (f.st === "all" || r.st === f.st) && (f.c === "all" || r.c === f.c));
+  const [more, setMore] = useState(false);
+  const all = buildRecs(), f = S.recF, list0 = all.filter(r => (f.st === "all" || r.st === f.st) && (f.c === "all" || r.c === f.c));
+  // З сервера: місце (rank) і група; рекомендації після перших п'яти згорнуті, доки не натиснути «Показати ще»
+  const ranked = list0.some(r => r.rank != null), sorted = ranked ? [...list0].sort((a, b) => (a.rank ?? 1e9) - (b.rank ?? 1e9)) : list0;
+  const hidden = ranked && !more ? sorted.filter(r => r.collapsed) : [], list = sorted.filter(r => !hidden.includes(r));
   return <>
     <section className="c12 rise toolbar"><span className="lbl">Рекомендація це пропозиція системи, рішення приймає керівник.</span><div className="sp" />
       <select className="inp" aria-label="Статус" value={f.st} onChange={e => { S.recF.st = e.target.value; persist(); render(true); }}><option value="all">Усі статуси</option>{Object.entries(REC_ST).map(([k, [n]]) => <option key={k} value={k}>{n}</option>)}</select>
@@ -26,8 +30,9 @@ export function Recs() {
     <div className="c12 recs">{list.length ? list.map((r, i) => <article key={r.id} className="rec card rise" style={{ animationDelay: `${i * 60}ms` }} id={r.id}>
       <span className="pri" style={{ background: PRI[r.pri][1], color: PRI[r.pri][2] }} data-tip={`Пріоритет: ${PRI[r.pri][0].toLowerCase()}`}><Ic n={r.pri === "high" ? "alert" : "flag"} /></span>
       <div style={{ minWidth: 0 }}>
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}><Pill cls={"nodot " + (r.pri === "high" ? "p-bad" : "p-mute")}>Пріоритет: {PRI[r.pri][0].toLowerCase()}</Pill><Pill cls="p-mute nodot">{COMP[r.c].n}</Pill><Pill cls={REC_ST[r.st][1]}>{REC_ST[r.st][0]}</Pill></div>
+        <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}><Pill cls={"nodot " + (r.pri === "high" ? "p-bad" : "p-mute")}>Пріоритет: {PRI[r.pri][0].toLowerCase()}</Pill><Pill cls="p-mute nodot">{r.groupT || COMP[r.c].n}</Pill>{r.rank != null && <span className="lbl tnum" data-tip="Місце в списку за важливістю">№ {r.rank}</span>}<Pill cls={REC_ST[r.st][1]}>{REC_ST[r.st][0]}</Pill></div>
         <h3>{r.t}</h3>
+        {r.covers && r.covers.length > 0 && <div className="lbl" style={{ marginTop: 4 }}>Обʼєднує ще {r.covers.length} {plural(r.covers.length, "схожу пропозицію", "схожі пропозиції", "схожих пропозицій")}</div>}
         <div className="lbl" style={{ margin: "10px 0 4px" }}>Чому система це пропонує</div><div>{r.why}</div>
         <div className="lbl" style={{ margin: "12px 0 4px" }}>На підставі</div>
         <div className="ev">{r.evidence.map((e, j) => <a key={j} href={`#explain/${e.id}`} className="ev-i" onClick={e.q ? ev => { ev.preventDefault(); openApiQ(e.q); } : undefined}><span>{!e.item && <span className="ev-flag"><Ic n="alert" /></span>}{e.t}: <b>{e.v}</b></span><span className="lbl">{e.q ? "Відкрити питання" : "Відкрити в розкладі"} <Ic n="arrowR" /></span></a>)}</div>
@@ -40,6 +45,7 @@ export function Recs() {
         : n === "clarified" ? <button key={n} className="btn btn-soft" onClick={() => noteRec(r.id, "clarified")}>Уточнити</button>
         : <button key={n} className="btn btn-ghost" onClick={() => noteRec(r.id, "rejected")}>Відхилити</button>)}</div>
     </article>) : <section className="card"><div className="empty"><b>За цими фільтрами рекомендацій немає</b><br />Змініть статус або компонент. Нові рекомендації зʼявляються після кожного циклу оцінювання.</div></section>}</div>
+    {hidden.length > 0 && <div className="c12" style={{ display: "flex", justifyContent: "center" }}><button type="button" className="btn btn-soft" onClick={() => setMore(true)}><Ic n="chev" />Показати ще {hidden.length} {plural(hidden.length, "рекомендацію", "рекомендації", "рекомендацій")}</button></div>}
   </>;
 }
 function acceptRec(id) {
@@ -156,22 +162,24 @@ export function Tracker() {
 }
 
 /* Джерела */
-const INTEG = [
-  ["Модуль опитувань", "auto", "Зібрати самооцінку працівників без ідентифікації", "Одноразові коди доступу, агрегація на сервері", "survey"],
-  ["Чек-лист закладу", "manual", "Підтвердити самооцінку фактами", "Ручний ввід і підтвердження другою особою", "check"],
-  ["Відкрита база декларацій", "planned", "Перевіряти вчасність подання декларацій", "Отримання відкритих даних за розкладом", "file"],
-  ["Рішення з попереднього хакатону", "approval", "Підказувати випадки конфліктів інтересів для перевірки", "Передача знеособлених результатів", "scale"],
-  ["Проєкт оцінки закупівель", "planned", "Додати факти про закупівлі до Підзвітності", "Обмін агрегованими показниками", "layers"],
-  ["Система суміжної команди", "approval", "Отримувати звіти про виконання заходів", "Обмін статусами заходів", "target"],
+// Лише те, що реально працює в системі. Mitra — інтеграція з темою 2; режим залежить від того, чи вона підключена
+const mitraOn = () => API.on && (API.ms || []).some(x => x.ext);
+const INTEG = () => [
+  ["Модуль опитувань", "auto", "Зібрати самооцінку працівників без ідентифікації", "Одноразові коди доступу й QR, агрегація на сервері", "survey", 0],
+  ["Чек-лист закладу", "manual", "Підтвердити самооцінку фактами", "Робоча група вносить, внутрішній аудит підтверджує з документом", "check", 1],
+  ["Модуль «Перевірки»", "auto", "Декларації, конфлікти інтересів і закупівлі", "Правила над відкритими даними НАЗК і Prozorro", "shield", 2],
+  ["Флешкартки доброчесності", "auto", "Рахувати охоплення навчанням", "Частка тих, хто пройшов обовʼязкові колоди, без імен", "book", 6],
+  ["Журнал звернень", "manual", "Скільки звернень розглянуто в строк", "Вносить уповноважений", "file", 5],
+  ["Mitra", mitraOn() ? "auto" : "manual", "Звіти про виконання заходів", "Прийняті заходи йдуть у Mitra, звідти повертаються стан і звіт виконавця", "target", 7],
 ];
 export function Sources() {
   return <>
-    <section className="card c12 rise"><div className="card-h"><h2>Джерела даних за метриками</h2><div className="sp" /><span className="lbl">Клацніть на рядок, щоб переглянути дані</span></div>
+    <section className="card c12 rise"><div className="card-h"><h2>Джерела даних за метриками</h2></div>
       <div className="tbl-wrap"><table><thead><tr><th>Метрика</th><th>Джерело</th><th>Режим</th><th>Вік даних</th><th>Пояснення</th></tr></thead><tbody>
         {srcRows().map(([a, b, mo, age, ex], i) => <tr key={a} className="tr-click" tabIndex={0} onClick={() => openSource(i)} onKeyDown={enter(() => openSource(i))}><td><b style={{ fontWeight: 600 }}>{a}</b></td><td>{b}</td><td><Pill cls={MODE[mo][1]}>{MODE[mo][0]}</Pill></td><td className="lbl" style={{ minWidth: 150 }}>{age}</td><td className="lbl" style={{ minWidth: 260 }}>{ex}</td></tr>)}
       </tbody></table></div></section>
     <section className="c12 rise"><div className="card-h" style={{ margin: "6px 0 0" }}><h2>Карта інтеграцій</h2></div></section>
-    {INTEG.map(([n, mo, why, how, ic], i) => { const go = () => openSource([0, 1, 2, 3, 4, 7][i]); return <section key={n} className={`card c4 rise integ ${mo}`} role="button" tabIndex={0} onClick={go} onKeyDown={enter(go)}><div className="comp-top"><span className="comp-ic" style={{ background: "var(--soft)" }}><Ic n={ic} /></span><b>{n}</b><div className="sp" style={{ flex: 1 }} /><Pill cls={MODE[mo][1]}>{MODE[mo][0]}</Pill></div>
+    {INTEG().map(([n, mo, why, how, ic, src]) => { const go = () => openSource(src); return <section key={n} className={`card c4 rise integ ${mo}`} role="button" tabIndex={0} onClick={go} onKeyDown={enter(go)}><div className="comp-top"><span className="comp-ic" style={{ background: "var(--soft)" }}><Ic n={ic} /></span><b>{n}</b><div className="sp" style={{ flex: 1 }} /><Pill cls={MODE[mo][1]}>{MODE[mo][0]}</Pill></div>
       <div style={{ marginTop: 12 }}><span className="lbl">Навіщо</span><div>{why}</div></div><div style={{ marginTop: 8 }}><span className="lbl">Метод</span><div>{how}</div></div></section>; })}
   </>;
 }

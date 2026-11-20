@@ -34,7 +34,7 @@ export function openTrust() {
       <div className="card-h"><h2>Достовірність: {TRUST[m.trust][1].toLowerCase()}</h2><div className="sp" /><TrustPill g={m.trust} /></div>
       <div><div className="lbl" style={{ marginBottom: 4 }}>Короткий висновок</div><div style={{ lineHeight: 1.55 }}>{trustBecause(m)}</div></div>
       <div className="lbl">{TRUST_HINT}</div>
-      <div className="rows">{m.flags.map(f => <div key={f.id} className="row" style={{ alignItems: "flex-start" }}><FlagIc f={f} ok={!f.raised} /><div className="grow"><div style={{ fontWeight: 600 }}>{flagTitle(f)} <Pill cls={`${f.raised ? "p-bad" : "p-good"} nodot`}>{f.raised ? "Спрацював" : "Не спрацював"}</Pill></div><div className="lbl">{checkText(f)} {f.w === "major" ? "Серйозний прапорець." : "Незначний прапорець."}</div></div></div>)}</div>
+      <div className="rows">{m.flags.map(f => <div key={f.id} className="row" style={{ alignItems: "flex-start" }}><FlagIc f={f} ok={!f.raised} /><div className="grow"><div style={{ fontWeight: 600 }}>{flagTitle(f)} <Pill cls={`${f.raised ? "p-bad" : "p-good"} nodot`}>{f.raised ? "Спрацював" : "Не спрацював"}</Pill></div><div className="lbl">{checkText(f)} {f.w === "major" ? "Серйозний прапорець." : f.w === "info" ? "До відома: на літеру не впливає." : "Незначний прапорець."}</div></div></div>)}</div>
       <div className="lbl">Прапорець означає напрям для додаткової перевірки даних, а не висновок про людей чи підрозділи.</div>
       <AskAi q="Чому така достовірність?" />
     </>;
@@ -66,7 +66,8 @@ export function openHow() {
 // і тут показувалися демо-числа «Альфи». Групи менше k позначені hidden, їхні кількості не показуємо.
 const GRP_T = { working_group: "Робоча група", expert: "Експерти", staff: "Особовий склад" };
 export function respGroups(m) {
-  if (API.on) return (m.groups || []).map(g => ({ n: GRP_T[g.category] || dn(g.title), inv: g.eligible ?? 0, resp: g.submitted ?? 0, hidden: !g.sufficient || !!g.suppressed }));
+  // Сервер дає готові submitted / eligible / participation_percent; у групи, меншої за поріг, вони null
+  if (API.on) return (m.groups || []).map(g => ({ n: GRP_T[g.category] || dn(g.title), inv: g.eligible ?? 0, resp: g.submitted ?? 0, pct: g.participation_percent, hidden: g.submitted == null || !g.sufficient || !!g.suppressed }));
   if (m.id === ALPHA) return GROUPS.map(g => ({ ...g }));
   const n = m.responses, wg = Math.round(n * .2), ex = 5, os = n - wg - ex;
   return [{ n: "Робоча група", inv: wg + 1, resp: wg }, { n: "Особовий склад", inv: os + 8, resp: os }, { n: "Експерти", inv: ex, resp: ex }];
@@ -74,15 +75,26 @@ export function respGroups(m) {
 // Іконка «i» на картці достовірності: правило літер і чотири перевірки
 export function openTrustHow() {
   openDrawer("Як визначається достовірність", () => <>
-    <div><div className="lbl" style={{ marginBottom: 6 }}>Правило</div><ol className="howto">
+    {API.meth && API.meth.reliability ? <MethTrust r={API.meth.reliability} /> : <><div><div className="lbl" style={{ marginBottom: 6 }}>Правило</div><ol className="howto">
       <li>Система автоматично перевіряє дані циклу чотирма прапорцями: двома серйозними й двома незначними.</li>
       <li><b>A</b> – жоден прапорець не спрацював.</li>
       <li><b>B</b> – спрацювали один або два незначні.</li>
       <li><b>C</b> – спрацював хоча б один серйозний або три й більше незначних.</li>
       <li>Якщо відповідей менше за мінімальну групу ({S.k} осіб), достовірність не оцінюється.</li></ol></div>
-    <div><div className="lbl" style={{ marginBottom: 4 }}>Перевірки</div><div className="rows">{FLAGS.map(f => <div key={f.id} className="row" style={{ alignItems: "flex-start" }}><FlagIc f={f} /><div className="grow"><div style={{ fontWeight: 600 }}>{f.t}</div><div className="lbl">{f.w === "major" ? "Серйозний" : "Незначний"}</div></div></div>)}</div></div>
+    <div><div className="lbl" style={{ marginBottom: 4 }}>Перевірки</div><div className="rows">{FLAGS.map(f => <div key={f.id} className="row" style={{ alignItems: "flex-start" }}><FlagIc f={f} /><div className="grow"><div style={{ fontWeight: 600 }}>{f.t}</div><div className="lbl">{f.w === "major" ? "Серйозний" : "Незначний"}</div></div></div>)}</div></div></>}
     <div className="lbl">Прапорець означає напрям для додаткової перевірки даних, а не висновок про людей чи підрозділи.</div>
   </>);
+}
+// Режим API: правило літер і всі прапорці з методики сервера (GET /methodology → reliability)
+const SEV_W = { serious: "major", minor: "minor", info: "info" };
+function MethTrust({ r }) {
+  const g = r.grades || {}, fl = Object.entries(r.flags || {});
+  return <>
+    <div><div className="lbl" style={{ marginBottom: 6 }}>Правило</div><ol className="howto">
+      {["A", "B", "C"].filter(k => g[k]).map(k => <li key={k}><b>{k}</b> – {g[k]}</li>)}
+      <li>Якщо відповідей менше за мінімальну групу ({S.k} осіб), достовірність не оцінюється.</li></ol></div>
+    <div><div className="lbl" style={{ marginBottom: 4 }}>Перевірки ({fl.length})</div><div className="rows">{fl.map(([code, f]) => <div key={code} className="row" style={{ alignItems: "flex-start" }}><FlagIc f={{ w: SEV_W[f.severity] || "minor" }} /><div className="grow"><div style={{ fontWeight: 600 }}>{f.title}</div><div className="lbl">{f.severity_title ? f.severity_title.charAt(0).toUpperCase() + f.severity_title.slice(1) + ". " : ""}{f.explain}</div></div></div>)}</div></div>
+  </>;
 }
 // Іконка «i» на картці заходів: стани, прострочення, перевірка результату
 export function openTrackerHow() {
@@ -109,7 +121,7 @@ export function openResp() {
     const m = cur(), gs = respGroups(m), inv = gs.reduce((a, g) => a + g.inv, 0), resp = gs.reduce((a, g) => a + g.resp, 0);
     return <>
       <div className="stat4 tnum" style={{ gridTemplateColumns: "repeat(3,1fr)" }}><div><small>Запрошено</small><b>{inv}</b></div><div><small>Відповіли</small><b>{resp}</b></div><div><small>Охоплення</small><b>{inv ? `${Math.round(resp / inv * 100)} %` : "немає даних"}</b></div></div>
-      <div><div className="lbl" style={{ marginBottom: 6 }}>За групами</div><div className="rows">{gs.map(g => { const hid = g.hidden || (g.resp < S.k && g.unit); return <div key={g.n} className="row"><div className="grow"><div className="t">{g.n}</div><div className="dist-bar" style={{ marginTop: 6 }}><i style={{ width: g.hidden || !g.inv ? 0 : `${g.resp / g.inv * 100}%`, background: hid ? "var(--faint)" : "var(--teal)" }} /></div></div>{g.hidden ? <span className="lbl">менше {S.k}</span> : <b className="tnum">{g.resp} з {g.inv}</b>}{hid && <Pill cls="p-mute nodot">Приховано</Pill>}</div>; })}</div></div>
+      <div><div className="lbl" style={{ marginBottom: 6 }}>За групами</div><div className="rows">{gs.map(g => { const hid = g.hidden || (g.resp < S.k && g.unit); return <div key={g.n} className="row"><div className="grow"><div className="t">{g.n}</div><div className="dist-bar" style={{ marginTop: 6 }}><i style={{ width: g.hidden || !g.inv ? 0 : `${g.resp / g.inv * 100}%`, background: hid ? "var(--faint)" : "var(--teal)" }} /></div></div>{g.hidden ? <span className="lbl">група менша за поріг анонімності</span> : <b className="tnum">{g.resp} з {g.inv}{g.pct != null ? <span className="lbl"> · {fb(g.pct)} %</span> : null}</b>}{hid && <Pill cls="p-mute nodot">Приховано</Pill>}</div>; })}</div></div>
       <div className="note-box"><b>Мінімальна група: {S.k} осіб</b><span className="lbl">Результати групи показуються, лише якщо відповіли щонайменше {S.k} людей. Менші групи додаються до вищого рівня, щоб нікого не можна було впізнати. Окремі відповіді не зберігаються разом з особою: жетон одноразовий і не повʼязаний з іменем.</span></div>
     </>;
   });
@@ -157,12 +169,12 @@ export function openApiQ(code) {
 export const SOURCES = [
   ["Результати анкет", "Модуль анонімних опитувань платформи", "auto", "Оновлюється після кожної відповіді", "Відповіді респондентів агрегуються автоматично. Окремі відповіді не показуються."],
   ["Чек-лист", "Чек-лист закладу", "manual", "Внесено 10.11.2026", "Один працівник вносить дані, інший підтверджує їх. Кожен пункт має джерело й дату."],
-  ["Декларації подані вчасно", "Відкрита база декларацій", "planned", "Немає даних: інтеграцію ще не підключено", "Поки значення вносять вручну в чек-лист. Автоматичне отримання планується."],
-  ["Конфлікти інтересів", "Рішення з попереднього хакатону", "approval", "Немає даних: потрібне погодження власника рішення", "Рішення може підказувати випадки для перевірки. Використання потребує погодження."],
-  ["Закупівлі", "Інший проєкт команди з оцінки закупівель", "planned", "Немає даних: інтеграцію ще не підключено", "Результати оцінки закупівель можуть стати фактами для компонента Підзвітність."],
+  ["Декларації подані вчасно", "Модуль «Перевірки»", "auto", "Рахує система за правилами", "Строк подання декларацій перевіряє модуль «Перевірки» за відкритими даними НАЗК."],
+  ["Конфлікти інтересів", "Модуль «Перевірки»", "auto", "Рахує система за правилами", "Правила конфлікту інтересів знаходять випадки, а уповноважений розглядає їх."],
+  ["Закупівлі", "Модуль «Перевірки»", "auto", "Рахує система за правилами", "Правила червоних прапорців перевіряють закупівлі за відкритими даними Prozorro."],
   ["Скарги й звернення", "Журнал звернень закладу", "manual", "Внесено 12.11.2026", "Кількість звернень і розглянутих у строк вносить уповноважений."],
   ["Охоплення навчанням", "Флешкартки доброчесності платформи", "auto", "Оновлюється щодня за історією проходження колод", "Скільки учасників пройшли всі обовʼязкові колоди за рік. Лише частка, без імен; групи, менші за мінімальну, приховані."],
-  ["Звітування за заходами", "Система суміжної команди", "approval", "Немає даних: інтеграцію ще не погоджено", "Автоматичне оновлення статусів заходів планується. Поки статуси змінюють вручну в трекері."],
+  ["Звітування за заходами", "Mitra", "manual", "Статуси змінюють у трекері", "Коли Mitra підключено, прийняті заходи надсилаються туди, а стан і звіт виконавця повертаються в трекер."],
 ];
 // З сервером показники декларацій, конфліктів інтересів і закупівель рахує модуль «Перевірки» (docs/features.md, розділ 6)
 const SERVER_SRC = {
@@ -170,7 +182,8 @@ const SERVER_SRC = {
   3: ["Модуль «Перевірки»", "auto", "Рахує система за правилами", "Правила конфлікту інтересів знаходять випадки, а уповноважений розглядає їх. Показник потрапляє в «Порівняння»."],
   4: ["Модуль «Перевірки»", "auto", "Рахує система за правилами", "Правила червоних прапорців перевіряють закупівлі. Показник потрапляє в «Порівняння»."],
 };
-export const srcRows = () => SOURCES.map((r, i) => API.on && SERVER_SRC[i] ? [r[0], ...SERVER_SRC[i]] : r);
+export const srcRows = () => SOURCES.map((r, i) => API.on && SERVER_SRC[i] ? [r[0], ...SERVER_SRC[i]]
+  : i === 7 && API.on && (API.ms || []).some(x => x.ext) ? [r[0], "Mitra", "auto", "Оновлюється з Mitra", "Прийняті заходи надсилаються в Mitra, стан і звіт виконавця повертаються в трекер."] : r);
 export const MODE = { auto: ["Автоматично", "p-good"], manual: ["Ручний ввід", "p-info"], planned: ["Планується", "p-mute"], approval: ["Потребує погодження", "p-warn"] };
 const SRC_DATA = {
   decl: { n: 100, ok: 45, rows: [["Керівний склад", 12, 10], ["Науково-педагогічні працівники", 38, 19], ["Посадові особи служб забезпечення", 30, 11], ["Інші зобовʼязані особи", 20, 5]] },
@@ -199,8 +212,8 @@ export function openSource(i) {
   });
 }
 
-// Захід: подробиці й перехід у систему звітування суміжної команди
-const MEASURES_APP = { name: "Система звітування за заходами (суміжна команда)", url: "" };
+// Захід: подробиці й перехід у Mitra
+const MEASURES_APP = { name: "Mitra", url: "" };
 export function openMeasure(id) {
   if (!measures().find(m => m.id === id)) return;
   openDrawer("Захід", () => {
@@ -216,8 +229,8 @@ export function openMeasure(id) {
         {x.ext.summary && <span style={{ overflowWrap: "anywhere", whiteSpace: "pre-line" }}>{x.ext.summary}</span>}
         {x.ext.docs.map(d => <span key={d.sha} className="lbl" style={{ overflowWrap: "anywhere" }}>{d.name} · sha256 <span className="tnum" title={d.sha}>{d.sha.slice(0, 12)}…</span>{d.url && <> · <a href={d.url} target="_blank" rel="noopener noreferrer">Перевірити справжність у {x.ext.system}</a></>}</span>)}
         {x.ext.url ? <a className="btn btn-soft" href={x.ext.url} target="_blank" rel="noopener noreferrer" style={{ justifyContent: "center" }}><Ic n="arrowR" />Відкрити в {x.ext.system}</a> : (!x.ext.state || x.ext.state === "inbox") && <span className="lbl" style={{ fontSize: 12 }}>Координатор {x.ext.system} ще не повʼязав захід із програмою.</span>}</div>
-      : <div className="note-box"><b>Звіт виконавця</b><span className="lbl">Документи й звіти про виконання ведуться в окремому застосунку суміжної команди.</span>
-        {MEASURES_APP.url ? <a className="btn btn-soft" href={MEASURES_APP.url} target="_blank" rel="noopener" style={{ justifyContent: "center" }}><Ic n="arrowR" />Відкрити в застосунку звітування</a> : <><button className="btn btn-soft" disabled style={{ justifyContent: "center", opacity: .6 }}><Ic n="arrowR" />Відкрити в застосунку звітування</button><span className="lbl" style={{ fontSize: 12 }}>Посилання зʼявиться після погодження інтеграції.</span></>}</div>}
+      : <div className="note-box"><b>Звіт виконавця</b><span className="lbl">Документи й звіти про виконання ведуться в Mitra.</span>
+        {MEASURES_APP.url ? <a className="btn btn-soft" href={MEASURES_APP.url} target="_blank" rel="noopener" style={{ justifyContent: "center" }}><Ic n="arrowR" />Відкрити в Mitra</a> : <><button className="btn btn-soft" disabled style={{ justifyContent: "center", opacity: .6 }}><Ic n="arrowR" />Відкрити в Mitra</button><span className="lbl" style={{ fontSize: 12 }}>Посилання зʼявиться, коли Mitra підключать.</span></>}</div>}
     </>;
   });
 }

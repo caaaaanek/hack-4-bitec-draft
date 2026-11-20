@@ -27,7 +27,9 @@ export function apiView(r) {
   if (S.role === "observer") { if (r === "institutions") return <DeptInstitutions />; if (RESULT_VIEWS.includes(r) && !API.deptUnit) return <ChooseInst />; }
   if (RESULT_VIEWS.includes(r) && r !== "sources" && !API.model && API.resErr) return <Failed e={API.resErr} onRetry={apiRetryResults} />;
   if (RESULT_VIEWS.includes(r) && r !== "sources" && !API.model)
-    return API.empty ? <Empty t="Ще немає закритої хвилі оцінювання">Результати зʼявляться, коли уповноважений закриє хвилю: система порахує індекс і збереже незмінний знімок.</Empty> : <Loading t="Результати" />;
+    return API.empty ? (API.emptyCode === "no_indexed_wave"
+      ? <Empty t="Індексу ще немає">Для цього підрозділу ще не було закритої хвилі з достатньою кількістю відповідей. Індекс зʼявиться, коли в групах набереться щонайменше {S.k} осіб.</Empty>
+      : <Empty t="Ще немає закритої хвилі оцінювання">Результати зʼявляться, коли уповноважений закриє хвилю: система порахує індекс і збереже незмінний знімок.</Empty>) : <Loading t="Результати" />;
   if (r === "survey") return apiSurveyView();
   if (r === "me") return <ApiMe />;
   if (r === "manage") return <ApiManage />;
@@ -125,8 +127,7 @@ function ApiManage() {
   return <>
     <section className="card c8 rise">
       {c ? <>
-        <div className="card-h"><h2>{dn(c.title)}</h2>{c.waitingOpen ? <Pill cls="p-warn">Чекає на підтвердження аудиту</Pill> : <Pill cls={CST[c.status][1]}>{CST[c.status][0]}</Pill>}<div className="sp" /><span className="lbl">{c.opened_on ? ua(c.opened_on) : "ще не відкрито"} – {c.closed_on ? ua(c.closed_on) : "триває"}</span></div>
-        {c.status === "open" && <div className="lbl" style={{ marginBottom: 8 }}>Склад учасників зафіксовано під час відкриття: нові облікові записи в хвилю не потрапляють, а переведення між підрозділами заблоковано до закриття.</div>}
+        <div className="card-h"><h2>{dn(c.title)}</h2>{c.waitingOpen ? <Pill cls="p-warn">Чекає на підтвердження аудиту</Pill> : <Pill cls={CST[c.status][1]}>{CST[c.status][0]}</Pill>}<div className="sp" />{c.opened_on && <span className="lbl tnum">{c.closed_on ? `${ua(c.opened_on)} – ${ua(c.closed_on)}` : `з ${ua(c.opened_on)}`}</span>}</div>
         <div className="rows">{(A.progress ? A.progress.items : []).length ? A.progress.items.map((i, k) => { const n = i.too_few_people ? 30 : Math.max(1, Math.min(30, i.eligible || 30)), on = i.too_few_people || !i.eligible ? 0 : Math.round((i.submitted || 0) / i.eligible * n); return <div key={k} className="row prog-row"><div className="grow"><div className="prog-h"><span className="t">{i.questionnaire_title}</span>{i.too_few_people && <span className="prog-lock" data-tip={`Менше ${c.min_group_size} осіб: кількості приховано`}><Ic n="lock" /></span>}<b className="tnum prog-n">{i.too_few_people ? "приховано" : `${i.submitted} з ${i.eligible}`}</b></div>
           <div className="ticks" style={{ height: 14, marginTop: 8 }}>{Array.from({ length: n }, (_, j) => <span key={j} style={j < on ? { background: "var(--teal)" } : undefined} />)}</div>
           {i.over_expected && <QrOver />}</div></div>; }) : <div className="lbl">Анкет у хвилі немає.</div>}</div>
