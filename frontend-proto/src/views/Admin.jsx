@@ -356,7 +356,8 @@ export function Risks() {
   const [uid, setUid] = useState(null), [err, setErr] = useState(""), [busy, setBusy] = useState(false);
   if (!un) return <Loading t="Реєстр ризиків" />;
   if (un.error) return <Failed e={un.error} onRetry={() => apiModReset("rUnits")} />;
-  const units = un.data, root = units.find(u => !u.parent_id) || units[0];
+  // Керівник бачить деталі лише свого підрозділу: чужі в списку дали б тільки відмову
+  const units = S.role === "leader" && API.unitId ? un.data.filter(u => u.id === API.unitId) : un.data, root = units.find(u => !u.parent_id) || units[0];
   const id = uid || API.deptUnit || API.unitId || (root && root.id);
   if (!id) return <Empty t="Немає підрозділів" />;
   const key = "risk:" + id, r = apiMod(key, () => api(`/units/${id}/risk-register`));
@@ -375,8 +376,8 @@ export function Risks() {
       {imp && <label className={`btn btn-soft ${busy ? "dis" : ""}`} id="rkImp" data-tip="CSV у UTF-8: назва ризику, компонент, за бажанням ймовірність, вплив, захід, відповідальний, стан. Повторний імпорт оновлює ризики з тим самим кодом."><Ic n="file" />{busy ? "Імпортуємо…" : "Імпорт CSV"}<input type="file" accept=".csv,text/csv" hidden onChange={upload} disabled={busy} /></label>}
     </section>
     {err && <section className="c12 rise"><Err t={err} /></section>}
-    {!r ? <Loading t="Реєстр ризиків" /> : r.error ? (r.status === 403 ? <NoAccess /> : <Failed e={r.error} onRetry={() => apiModReset(key)} />) : !d.items.length
-      ? <Empty t="Реєстр порожній">{imp ? `Імпортуйте таблицю ризиків (${orgT("genitive")}) у CSV.` : "Ризики ще не імпортували."}</Empty>
+    {!r ? <Loading t="Реєстр ризиків" /> : r.error ? (r.status === 403 || r.status === 404 ? <Empty t="Немає доступу до цього підрозділу">Ризики цього підрозділу бачить лише сам підрозділ.</Empty> : <Failed e={r.error} onRetry={() => apiModReset(key)} />) : !d.items.length
+      ? <Empty t="Реєстр порожній">{imp ? `Імпортуйте таблицю ризиків (${orgT("genitive")}) у CSV.` : "Ризики ще не імпортували. Реєстр імпортує уповноважений."}</Empty>
       : <section className="card c12 rise">
         <div className="rk-sum">{COMPS.map(c => { const b = d.by_component[c] || { total: 0, open: 0, without_measure: 0 }; return <span key={c}><b>{COMP[c].n}</b>: {b.total} {plural(b.total, "ризик", "ризики", "ризиків")}, відкритих {b.open}{b.without_measure ? <span className="rk-warn">, без заходу {b.without_measure}</span> : null}</span>; })}</div>
         <div className="tbl-wrap"><table className="adm-tbl"><thead><tr><th>Ризик</th><th>Компонент</th><th>Бал</th><th>Захід</th><th>Відповідальний</th><th>Стан</th></tr></thead><tbody>
