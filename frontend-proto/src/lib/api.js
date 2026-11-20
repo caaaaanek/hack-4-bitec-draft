@@ -44,7 +44,7 @@ export async function api(path, { method = "GET", body, headers = {}, auth = tru
 // Відмова переходу статусу містить службові назви статусів: показуємо зрозумілий текст
 // 422 з переліком полів: до трьох причин з errors (без шляхів полів), інакше видно лише «Дані не пройшли перевірку»
 // Назви полів сервера в повідомленнях перевірки → підписи з інтерфейсу
-const FIELD_UA = { planned_open_on: "Відкрити", planned_close_on: "Закрити не пізніше", close_at_percent: "Поріг участі", remind_every_days: "Нагадувати кожні", min_group_size: "Мінімальна група k",
+const FIELD_UA = { planned_open_on: "Відкрити", planned_close_on: "Закрити не пізніше", close_at_percent: "Поріг участі", remind_every_days: "Нагадувати кожні", min_group_size: "Мінімальна група",
   title: "Назва", unit_id: "Підрозділ", questionnaire_ids: "Анкети", access_mode: "Як проходять", due_date: "Строк", owner: "Відповідальний", password: "Пароль", username: "Логін" };
 const FIELD_RE = new RegExp(`\\b(${Object.keys(FIELD_UA).join("|")})\\b`, "g");
 export const uaFields = t => String(t || "").replace(FIELD_RE, k => `«${FIELD_UA[k]}»`);
@@ -88,7 +88,7 @@ export async function boot() {
   if (cfg.org_terms) { NAV.find(n => n[0] === "institutions")[1] = orgCap("plural"); TITLES.overview = "Огляд " + orgT("genitive"); TITLES.institutions = orgCap("plural"); ROLE.leader[0] = "Керівник " + orgT("genitive"); }
   // Екрани лише з сервером: люди й підрозділи веде технічний адміністратор (SEPARATE_TECH_ADMIN забирає їх в уповноваженого)
   const nr = (r, roles) => { const n = NAV.find(x => x[0] === r); n[3].length = 0; n[3].push(...roles); };
-  nr("people", cfg.policies && cfg.policies.separate_tech_admin ? ["coordinator"] : ["admin", "coordinator"]);
+  nr("people", ["coordinator"]); // людьми керує лише технічний адміністратор, не уповноважений
   nr("dicts", ["admin", "coordinator", "commissioner"]);
   nr("risks", ["leader", "admin", "commissioner", "auditor", "observer"]);
   const tm = location.pathname.match(/^\/s\/([^/?#]+)/);
@@ -611,9 +611,13 @@ export function apiCheckFindings(f) {
 }
 export const apiCheckReview = (id, status, comment) => api(`/checks/findings/${id}/review`, { method: "POST", body: { status, comment } });
 export const apiCheckPublish = (unit_id, period) => api("/checks/publish", { method: "POST", body: { unit_id, period } });
-// Запуск перевірки: синтетичний набір для підрозділу й періоду (GET /checks/mock/{kind}), далі POST у модуль «Перевірки»
-export async function apiCheckRun(kind, unit_id, period) {
-  const body = await api(`/checks/mock/${kind}?unit_id=${unit_id}&period=${period}`);
+// Запуск перевірки. live: живі реєстри (Prozorro чи НАЗК, якщо сервер дозволяє external_fetch);
+// інакше тестовий набір для підрозділу й періоду (GET /checks/mock/{kind}). Обидва шляхи дають запуск у модулі «Перевірки».
+export const liveChecks = () => !!(API.cfg && API.cfg.policies && API.cfg.policies.external_fetch);
+export async function apiCheckRun(kind, unit_id, period, live = false) {
+  if (live && kind === "procurement") return api("/checks/fetch/prozorro", { method: "POST", body: { unit_id, period, limit: 20 } });
+  const body = live ? await api("/checks/fetch/nazk", { method: "POST", body: { unit_id, period, limit: 20 } })
+    : await api(`/checks/mock/${kind}?unit_id=${unit_id}&period=${period}`);
   return api(`/checks/${kind}`, { method: "POST", body });
 }
 // Завантаження файлу з API (Word, Excel): назва з Content-Disposition або запасна

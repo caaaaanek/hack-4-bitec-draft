@@ -46,7 +46,7 @@ function apiSurveyView() {
         {r.my_unit && <ApiScope sc={r.my_unit} title={"Ваша група: " + r.my_unit.unit_name} />}
         <ApiScope sc={r.institution} title={orgCap("nominative") + ": " + r.institution.unit_name} />
         {r.summary && r.summary.length > 0 && <section className="card c12 rise"><div className="card-h"><h2>Коротко</h2></div><div className="rows">{r.summary.map(t => <div key={t} className="row"><span className="dot" style={{ background: "var(--teal)" }} /><div className="grow">{t}</div></div>)}</div></section>}
-        <section className="c12 rise"><div className="lbl" style={{ textAlign: "center" }}>Тут лише узагальнені дані груп не менше k осіб. Окремих відповідей, імен і порівнянь підрозділів немає.</div></section>
+        <section className="c12 rise"><div className="lbl" style={{ textAlign: "center" }}>Тут лише узагальнені дані груп не менше {S.k} осіб. Окремих відповідей, імен і порівнянь підрозділів немає.</div></section>
       </>;
     }
     if (API.surveyMsg && !API.survey) {
@@ -100,7 +100,7 @@ function ApiMe() {
       <ApiScope sc={latest.institution} title={orgCap("nominative") + ": " + latest.institution.unit_name} />
       {latest.summary && latest.summary.length > 0 && <section className="card c12 rise"><div className="card-h"><h2>Коротко</h2></div><div className="rows">{latest.summary.map(t => <div key={t} className="row"><span className="dot" style={{ background: "var(--teal)" }} /><div className="grow">{t}</div></div>)}</div></section>}
     </> : <Empty t="Результатів ще немає">Вони зʼявляться після закриття хвилі.</Empty>}
-    <section className="c12 rise"><div className="lbl" style={{ textAlign: "center" }}>Тут лише узагальнені дані груп не менше k осіб. Окремих відповідей, імен і порівнянь підрозділів немає.</div></section>
+    <section className="c12 rise"><div className="lbl" style={{ textAlign: "center" }}>Тут лише узагальнені дані груп не менше {S.k} осіб. Окремих відповідей, імен і порівнянь підрозділів немає.</div></section>
   </>;
 }
 
@@ -197,7 +197,7 @@ function apiNewCampaign() {
     const ok = async () => {
       if (!title.trim()) return setErr("Вкажіть назву.");
       if (!ids.length) return setErr("Оберіть хоча б одну анкету.");
-      if (!(+k >= 5)) return setErr("Мінімальна група k не менше 5.");
+      if (!(+k >= 5)) return setErr("Мінімальна група: не менше 5 осіб.");
       const u = A.units.find(x => x.id === unit) || A.units.find(x => !x.parent_id) || A.units[0];
       try { await apiCreateCampaign({ title: title.trim(), unit_id: u ? u.id : "", questionnaire_ids: ids, min_group_size: +k, access_mode: mode }); }
       catch (e) { setErr(apiErrText(e)); }
@@ -207,7 +207,7 @@ function apiNewCampaign() {
       <UnitPick id="n-u" units={A.units} value={unit} onChange={setUnit} />
       <div className="field"><label>Анкети</label>{A.qs.map(q => <label key={q.id} className="chk-row"><input type="checkbox" className="n-q" value={q.id} checked={ids.includes(q.id)} onChange={e => setIds(v => e.target.checked ? [...v, q.id] : v.filter(x => x !== q.id))} /><span>{q.title} <span className="lbl">v{q.version}</span></span></label>)}</div>
       <div className="field"><label>Як проходять</label><div className="seg seg-full" id="n-m">{[["token", "Анонімно за QR"], ["login", "За обліковими записами"]].map(([m, n]) => <button key={m} type="button" className={mode === m ? "on" : ""} onClick={() => setMode(m)}>{n}</button>)}</div><span className="lbl" id="n-mh">{MODE_HINT[mode]}</span></div>
-      <div className="field"><label htmlFor="n-k">Мінімальна група k</label><input className="inp tnum" id="n-k" type="number" min="5" value={k} onChange={e => setK(e.target.value)} /><span className="lbl">Менші групи не показуються. Не менше 5.</span></div>
+      <div className="field"><label htmlFor="n-k">Мінімальна група, осіб</label><input className="inp tnum" id="n-k" type="number" min="5" value={k} onChange={e => setK(e.target.value)} /><span className="lbl">Менші групи не показуються. Не менше 5.</span></div>
       <span className="lbl" id="n-err" style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))" }}>{err}</span>
       <button className="btn btn-primary" id="n-ok" style={{ justifyContent: "center" }} onClick={ok}><Ic n="plus" />Створити чернетку</button>
     </>;
@@ -304,6 +304,8 @@ function apiEditItem(qid) {
     const [st, setSt] = useState(it.status), [ev, setEv] = useState(it.evidence || ""), [cm, setCm] = useState(it.comment || ""), [files, setFiles] = useState([]), [err, setErr] = useState(""), [busy, setBusy] = useState(false), E = API.cfg.evidence;
     const ok = async () => {
       if (!st) return setErr("Оберіть статус.");
+      // Сервер (checklist_require_file) не підтвердить пункт без файлу, тож кажемо про це одразу
+      if (API.cfg.policies && API.cfg.policies.checklist_require_file && st !== "none" && !it.files.length && !files.length) return setErr("Додайте документ: без нього пункт не підтвердять.");
       setBusy(true);
       try {
         const r = await apiSaveItem(camp, qid, { status: st, evidence: ev.trim(), comment: cm.trim() }, files);
