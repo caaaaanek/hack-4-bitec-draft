@@ -177,3 +177,5 @@
 .urn-demo { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 10px; }
 .urn-demo-i { background: var(--soft); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
 @media print { .urn-share { break-inside: avoid; } }
+.mt-url a { overflow-wrap: anywhere; }
+.row .t.mt-t { white-space: normal; overflow-wrap: anywhere; }

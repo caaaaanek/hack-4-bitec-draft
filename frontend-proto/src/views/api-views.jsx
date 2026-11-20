@@ -16,6 +16,7 @@ import { AutopilotSection } from "./Autopilot.jsx";
 import { DeptInstitutions, ChooseInst } from "./Department.jsx";
 import { AnchorCard, LotteryCard } from "./Transparency.jsx";
 import { UrnSection } from "./Urn.jsx";
+import { MitraCard } from "./Integrations.jsx";
 import { ReceiptsCard } from "./Receipts.jsx";
 import { LearnCard } from "./Learn.jsx";
 
@@ -155,6 +156,7 @@ function ApiManage() {
     </section>}
     {c && <AutopilotSection key={c.id} id={c.id} />}
     {c && <UrnSection key={"urn" + c.id} c={c} />}
+    <MitraCard />
     {shown && <QrScreen l={shown} onClose={hideQr} />}
   </>;
 }
