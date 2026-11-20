@@ -11,6 +11,9 @@ import { Pill, LvPill, TrustPill } from "../components/ui.jsx";
 import { DatePicker } from "../components/DatePicker.jsx";
 import { openApiQ, openMeasure, openSource, srcRows, MODE } from "./panels.jsx";
 import { ReadGuide } from "./results.jsx";
+// Тост прийняття: назва створеного заходу (сервер бере її з каталогу Додатку Д), внутрішні лапки „“, щоб не було ««
+const newest = ms => Array.isArray(ms) && ms.length ? [...ms].sort((a, b) => String(a.created_at).localeCompare(String(b.created_at))).pop().title : "";
+const acceptToast = t => `Рекомендацію прийнято. Захід «${String(t).replace(/^«(.*)»$/, "$1").replace(/«/g, "„").replace(/»/g, "“")}» додано до трекера.`;
 
 const enter = f => e => { if (e.key === "Enter") f(e); };
 const Err = ({ t, hint, red }) => <span className="lbl" id="f-err" style={red || t ? { color: "color-mix(in srgb, var(--red) 60%, var(--fg))" } : undefined}>{t || hint}</span>;
@@ -54,12 +57,12 @@ function acceptRec(id) {
     const ap = API.on ? apiPositions() : null, POS = ap && ap.length ? ap : POSITIONS, [who, setWho] = useState(POS[0]), [due, setDue] = useState("2027-02-28"), [err, setErr] = useState(""), [busy, setBusy] = useState(false);
     const ok = () => {
       if (!due || due < TODAY) return setErr("Оберіть строк не раніше за сьогодні.");
-      if (API.on) { setBusy(true); apiDecide(id, "accepted", "", { owner: POS.includes(who) ? who : POS[0], due_date: due }).then(() => { closeDrawer(); toast(`Рекомендацію прийнято. Захід «${r.t}» додано до трекера.`); }, e => { setErr(apiErrText(e)); setBusy(false); }); return; }
+      if (API.on) { setBusy(true); apiDecide(id, "accepted", "", { owner: POS.includes(who) ? who : POS[0], due_date: due }).then(x => { closeDrawer(); toast(acceptToast(newest(x && x.measures) || r.t)); }, e => { setErr(apiErrText(e)); setBusy(false); }); return; }
       const mid = "m-" + (BASE_MEASURES.length + S.dec.added.length + 1);
       S.dec.rec[id] = { status: "accepted" };
       S.dec.added.push({ id: mid, recId: id, rec: r.t, t: r.t, who, due, st: "accepted", ind: r.items[0] });
       addLog(me(), `Рекомендацію «${r.t}» прийнято, створено захід ${mid}`); persist(); closeDrawer(); render(true);
-      toast(`Рекомендацію прийнято. Захід «${r.t}» додано до трекера.`);
+      toast(acceptToast(r.t));
     };
     return <>
       <div><div className="lbl">{COMP[r.c].n}</div><div style={{ fontSize: 16, fontWeight: 600, marginTop: 4 }}>{r.t}</div></div>

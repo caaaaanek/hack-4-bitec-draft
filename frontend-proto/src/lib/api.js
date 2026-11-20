@@ -357,8 +357,9 @@ export async function apiReloadResults() { try { await apiLoadResults(); } catch
 export async function apiRetryResults() { API.resErr = null; render(true); try { await apiLoadResults(); } catch (e) { API.resErr = apiErrText(e); } render(true); }
 
 export async function apiDecide(code, decision, comment, measure) {
-  await api(`/campaigns/${API.campaignId}/recommendations/${encodeURIComponent(code)}/decision`, { method: "POST", body: { unit_id: API.unitId, decision, comment, ...(measure ? { measure: { ...measure, description: "" } } : {}) } });
+  const r = await api(`/campaigns/${API.campaignId}/recommendations/${encodeURIComponent(code)}/decision`, { method: "POST", body: { unit_id: API.unitId, decision, comment, ...(measure ? { measure: { ...measure, description: "" } } : {}) } });
   await apiReloadResults();
+  return r;
 }
 // Зміна статусу заходу на сервері; для «Виконано» потрібен доказ
 export async function apiSendMSt(id, st, evidence, reason) {
