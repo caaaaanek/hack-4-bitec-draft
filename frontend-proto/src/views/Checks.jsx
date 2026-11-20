@@ -8,7 +8,9 @@ import { Pill } from "../components/ui.jsx";
 import { Loading, Failed, Empty, NeedServer, NoAccess } from "../components/states.jsx";
 import { KpiRow, ModHead, More } from "../components/modkit.jsx";
 
-const KIND = { procurement: "Закупівлі", declarations: "Декларації" };
+const KIND = { procurement: "Закупівлі", declarations: "Декларації", counterparty: "Контрагенти" };
+// Коди ЄДРПОУ з поля вводу: 8 цифр, через кому, пробіл чи з нового рядка
+const codes = t => [...new Set(String(t).split(/[^0-9]+/).filter(Boolean))];
 const RISK = { low: ["Низький", "p-good nodot"], medium: ["Середній", "p-warn nodot"], high: ["Високий", "p-bad nodot"] };
 const ST = { new: ["Нова", "p-info nodot"], reviewed: ["Розглянуто", "p-good nodot"], dismissed: ["Відхилено", "p-mute nodot"] };
 const month = () => new Date().toISOString().slice(0, 7);
@@ -29,7 +31,7 @@ function Finding({ f, onDone }) {
 }
 
 export function Checks() {
-  const [unit, setUnit] = useState(""), [period, setPeriod] = useState(month()), [kind, setKind] = useState("procurement"), [busy, setBusy] = useState(false), [fk, setFk] = useState(""), [fs, setFs] = useState(""), [fr, setFr] = useState("");
+  const [unit, setUnit] = useState(""), [period, setPeriod] = useState(month()), [kind, setKind] = useState("procurement"), [busy, setBusy] = useState(false), [cp, setCp] = useState(""), [fk, setFk] = useState(""), [fs, setFs] = useState(""), [fr, setFr] = useState("");
   if (!API.on) return <NeedServer t="Перевірки">Тут уповноважений запускає перевірку закупівель і декларацій, розглядає знахідки й записує показники.</NeedServer>;
   if (S.role !== "admin") return <NoAccess />;
   const units = apiMod("chk:units", () => api("/admin/units")), runs = apiMod("chk:runs", apiCheckRuns);
@@ -41,7 +43,11 @@ export function Checks() {
   const uid = unit || (units.data.find(u => !u.parent_id) || units.data[0] || {}).id, uname = id => { const u = units.data.find(x => x.id === id); return u ? dn(u.name) : "підрозділ"; };
   const okPeriod = /^\d{4}-(0[1-9]|1[0-2])$/.test(period);
   const refresh = () => { for (const k of Object.keys(API.mod)) if (k.startsWith("chk:f:") || k === "chk:runs") delete API.mod[k]; apiModReset("chk:runs"); };
-  const run = async () => { setBusy(true); try { const r = await apiCheckRun(kind, uid, period); toast(`Перевірено записів: ${r.total}, знахідок: ${r.flagged}`); refresh(); } catch (e) { apiFail(e); } finally { setBusy(false); } };
+  const cpCodes = codes(cp), cpBad = cpCodes.filter(c => c.length !== 8);
+  const run = async () => { setBusy(true); try {
+    // Контрагенти: адаптер до Youcontrol чи аналога; без договору сервер відповідає моком із припущеним форматом
+    const r = kind === "counterparty" ? await api("/checks/counterparty", { method: "POST", body: { unit_id: uid, period, edrpou: cpCodes } }) : await apiCheckRun(kind, uid, period);
+    toast(`Перевірено записів: ${r.total}, знахідок: ${r.flagged}${r.source === "mock" && kind === "counterparty" ? ". Дані тестові: формат відповіді припущено" : ""}`); refresh(); } catch (e) { apiFail(e); } finally { setBusy(false); } };
   const publish = async () => { setBusy(true); try { const r = await apiCheckPublish(uid, period); toast(`Записано показників: ${r.indicators.filter(i => i.written).length}`); } catch (e) { apiFail(e); } finally { setBusy(false); } };
   return <>
     <KpiRow items={[{ ic: "history", t: "Запусків", v: runs.data.length, sub: runs.data.length >= 50 ? "показано останні 50" : null },
@@ -53,7 +59,9 @@ export function Checks() {
         <div className="field"><label htmlFor="ck-kind">Що перевіряти</label><select className="inp" id="ck-kind" value={kind} onChange={e => setKind(e.target.value)}>{Object.entries(KIND).map(([k, v]) => <option key={k} value={k}>{v}</option>)}</select></div>
         <div className="field"><label htmlFor="ck-unit">Підрозділ</label><select className="inp" id="ck-unit" value={uid || ""} onChange={e => setUnit(e.target.value)}>{units.data.map(u => <option key={u.id} value={u.id}>{dn(u.name)}</option>)}</select></div>
         <div className="field"><label htmlFor="ck-per">Період (РРРР-ММ)</label><input className="inp" id="ck-per" value={period} onChange={e => setPeriod(e.target.value)} aria-invalid={!okPeriod} /></div></div>
-      <div className="chk-row" style={{ marginTop: 12 }}><button type="button" className="btn btn-primary" onClick={run} disabled={busy || !okPeriod || !uid}>Запустити перевірку</button>
+      {kind === "counterparty" && <div className="field" style={{ marginTop: 10 }}><label htmlFor="ck-cp">Коди ЄДРПОУ контрагентів (8 цифр, кожен з нового рядка або через кому)</label><textarea id="ck-cp" className="inp" rows={3} value={cp} onChange={e => setCp(e.target.value)} aria-invalid={cpBad.length > 0} />
+        <span className="lbl">{cpBad.length ? `Не 8 цифр: ${cpBad.slice(0, 5).join(", ")}` : `Кодів: ${cpCodes.length}. Перевіряються санкції, банкрутство, податковий борг, суди й «молода» компанія. Поки договору з постачальником немає, сервер відповідає тестовими даними з припущеним форматом.`}</span></div>}
+      <div className="chk-row" style={{ marginTop: 12 }}><button type="button" className="btn btn-primary" onClick={run} disabled={busy || !okPeriod || !uid || (kind === "counterparty" && (!cpCodes.length || cpBad.length > 0))}>{busy ? "Перевіряємо…" : "Запустити перевірку"}</button>
         <button type="button" className="btn btn-soft" onClick={publish} disabled={busy || !okPeriod || !uid} data-tip="Рахує частки з усіх знахідок підрозділу за період і записує їх як факти для індексу">Записати показники</button></div>
       <div style={{ marginTop: 10 }}><More><div className="lbl">Показники записуються за місяць, а факти індексу рахуються лише цілими завершеними кварталами: місяць увійде у факти після завершення свого кварталу.</div></More></div></section>
     <section className="card c12 rise"><ModHead ic="history" tone="blue" title="Останні запуски" />

@@ -41,12 +41,21 @@ export function Drawer() {
   useLayoutEffect(() => {
     if (!d || !body.current) return;
     [...body.current.children].forEach((c, i) => { c.style.animationDelay = (80 + i * 60) + "ms"; });
-    const t = setTimeout(() => { const f = body.current && body.current.querySelector("textarea, input, select"); if (f) f.focus(); }, 350);
+    const t = setTimeout(() => { const f = body.current && (body.current.querySelector("textarea, input, select") || document.getElementById("dTitle")); if (f) f.focus({ preventScroll: true }); }, 350);
     return () => clearTimeout(t);
   }, [d && d.n]); // eslint-disable-line react-hooks/exhaustive-deps
+  // Модальна панель: фон не прокручується (сам фон стає inert в App.jsx);
+  // після закриття фокус повертається туди, звідки панель відкрили
+  const opener = useRef(null), open = !!d;
+  useEffect(() => {
+    if (open) { opener.current = document.activeElement; document.documentElement.classList.add("dlg-open"); return; }
+    document.documentElement.classList.remove("dlg-open");
+    const o = opener.current; opener.current = null;
+    if (o && o.isConnected && typeof o.focus === "function") o.focus({ preventScroll: true });
+  }, [open]);
   const Body = shown && shown.body;
-  return <aside className={`drawer ${d ? "on" : ""}`} id="drawer" aria-hidden={!d}>
-    <div className="drawer-h"><h3 id="dTitle">{shown ? shown.title : ""}</h3><button className="icon-btn" id="dClose" aria-label="Закрити" onClick={closeDrawer}><Ic n="x" /></button></div>
+  return <aside className={`drawer ${d ? "on" : ""}`} id="drawer" role="dialog" aria-modal="true" aria-labelledby="dTitle" inert={d ? undefined : ""}>
+    <div className="drawer-h"><h3 id="dTitle" tabIndex={-1}>{shown ? shown.title : ""}</h3><button className="icon-btn" id="dClose" aria-label="Закрити" onClick={closeDrawer}><Ic n="x" /></button></div>
     <div className="drawer-b" id="dBody" ref={body}>{Body ? <Body key={shown.n} /> : null}</div>
   </aside>;
 }
@@ -83,5 +92,5 @@ export function Pop({ children, mode, cls = "", label = "Вибір" }) {
 export function Toast() {
   const t = ui.toast, last = useRef("");
   if (t) last.current = t.t;
-  return <div className={`toast ${t ? "on" : ""}`} id="toast">{t ? t.t : last.current}</div>;
+  return <div className={`toast ${t ? "on" : ""}`} id="toast" role="status" aria-live="polite" aria-atomic="true">{t ? t.t : last.current}</div>;
 }

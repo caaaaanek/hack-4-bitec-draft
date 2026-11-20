@@ -31,7 +31,7 @@ export function Normative() {
         <div className="drop"><input ref={inp} id="nm-file" type="file" accept=".txt,.md,.docx,.pdf" onChange={e => pick(e.target.files[0])} aria-label="Файл документа: txt, md, docx або pdf" />
           <div className="lbl" style={{ marginTop: 6 }}>{file ? `Обрано: ${file.name}` : "Файл .docx, .pdf, .txt або .md, до 10 МБ"}</div></div>
         <div className="field"><label htmlFor="nm-text">Або вставте текст документа</label><textarea className="inp" id="nm-text" rows={5} style={{ font: "inherit" }} value={text} onChange={e => setText(e.target.value)} disabled={!!file} /></div>
-        {err && <div className="lbl" role="alert" style={{ color: "var(--red)" }}>{err}</div>}
+        {err && <div className="lbl" role="alert" style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))" }}>{err}</div>}
         <div className="chk-row"><button type="submit" className="btn btn-primary" disabled={!ok || busy}>{busy ? "Аналізуємо…" : "Проаналізувати"}</button>{file && <button type="button" className="btn btn-ghost" onClick={() => { setFile(null); if (inp.current) inp.current.value = ""; }}>Прибрати файл</button>}</div>
         <More><div className="lbl">Документ не зберігається. У журнал дій потрапляють лише назва, розмір і контрольна сума. Система нічого не змінює сама: лише підказує, що переглянути.</div></More>
       </form></section>

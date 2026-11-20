@@ -43,7 +43,7 @@ function Form({ a, onSaved }) {
       <div className="field ap-num"><label htmlFor="ap-rem">Нагадувати, днів</label><input className="inp tnum" id="ap-rem" type="number" min="1" max="60" value={f.rem} onChange={e => set("rem", e.target.value)} /></div>
       <button type="button" className="btn btn-primary" onClick={save} disabled={busy || !!bad}>Зберегти</button>
     </div>
-    {bad && <div className="lbl" role="alert" style={{ color: "var(--red)", marginTop: 8 }}>{bad}</div>}
+    {bad && <div className="lbl" role="alert" style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))", marginTop: 8 }}>{bad}</div>}
   </div>;
 }
 

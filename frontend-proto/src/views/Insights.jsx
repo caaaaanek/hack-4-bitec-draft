@@ -1,6 +1,6 @@
-/* Інсайти: «Питання перевірки» (питання аудитора до результатів) і «Черговий» (що змінилось і як виправити).
+/* Інсайти: «Питання перевірки» (питання аудитора до результатів) і «Сигнали» (колишній «Черговий»: що змінилось і як виправити).
  * Питання перевірки: повний екран #advocate і бічна панель «Підготуватися до перевірки» з «Огляду» та «Звіту».
- * Черговий: повний екран #watch і пункти в блоці «Що потребує уваги» на «Огляді». */
+ * Сигнали: повний екран #watch (і #signals) і пункти в блоці «Що потребує уваги» на «Огляді». */
 import { Ic } from "../lib/icons.jsx";
 import { API, apiMod, apiModReset, apiAdvocate, apiDigest } from "../lib/api.js";
 import { S, persist } from "../lib/state.js";
@@ -116,7 +116,7 @@ const FixList = ({ fix }) => fix && fix.length ? <ol className="fix-l">{fix.slic
 
 export function Watch() {
   const r = useDigest();
-  if (!r) return <Loading t="Черговий" />;
+  if (!r) return <Loading t="Сигнали" />;
   if (r.error) return <Failed e={r.error} onRetry={() => apiModReset("digest")} />;
   const d = r.data, cat = S.digestCat || "all", items = d.items.filter(x => cat === "all" || x.category === cat), st = STATUS[d.status] || STATUS.attention, c = d.counts || {};
   const setCat = v => { S.digestCat = v; render(true); };
@@ -131,7 +131,7 @@ export function Watch() {
       <div className="txt">{dsh(x.what)}</div>
       {x.fix && x.fix.length > 0 && <div className="note-box" style={{ marginTop: 10 }}><b>Як виправити</b><FixList fix={x.fix} /></div>}
       <div className="chk-row" style={{ marginTop: 10, flexWrap: "wrap", alignItems: "flex-start" }}><GoBtn link={x.link} /><More t="Чому"><div className="lbl txt">{dsh(x.why)}</div></More></div></section>; })
-      : <Empty t={d.items.length ? "У цій групі нічого немає" : "Відхилень не знайдено"}>{d.items.length ? "Оберіть іншу групу." : "За правилами чергового все гаразд."}</Empty>}
+      : <Empty t={d.items.length ? "У цій групі нічого немає" : "Відхилень не знайдено"}>{d.items.length ? "Оберіть іншу групу." : "За правилами сигналів усе гаразд."}</Empty>}
   </>;
 }
 
@@ -148,6 +148,6 @@ export function DigestRows({ items }) {
       <summary><span className="dot" style={{ background: x.severity === "critical" ? "var(--red)" : "var(--amber)" }} /><span className="grow txt">{dsh(x.title)}</span>{sevPill(x.severity)}<Ic n="chev" /></summary>
       <div className="dg-b">{x.fix && x.fix.length ? <><b>Як виправити</b><FixList fix={x.fix} /></> : <span className="lbl txt">{dsh(x.why)}</span>}<div><GoBtn link={x.link} /></div></div>
     </details>)}
-    <a className="link-btn" href="#watch" style={{ marginTop: 6, display: "inline-block" }}>Усі пункти чергового</a>
+    {can("watch") && <a className="link-btn" href="#watch" style={{ marginTop: 6, display: "inline-block" }}>Усі сигнали</a>}
   </div>;
 }

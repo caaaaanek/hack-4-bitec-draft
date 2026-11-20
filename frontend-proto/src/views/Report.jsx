@@ -2,6 +2,7 @@
  * Шаблон рендериться в прихований блок, а в документ копіюється його HTML (або збережені правки).
  * Так React не чіпає вміст contentEditable і правки не конфліктують із перемальовуванням. */
 import { PrepBtn } from "./Insights.jsx";
+import { LeaderDocs } from "./Leadership.jsx";
 import { useCallback, useEffect, useLayoutEffect, useRef } from "react";
 import { Ic } from "../lib/icons.jsx";
 import { S, persist, addLog, me } from "../lib/state.js";
@@ -89,6 +90,7 @@ export function Report() {
     <div className="c12 rise toolbar rt-bar">
       <label className="rt-tpl" data-tip={RT_TPL[RT.tpl][1]}><span className="lbl">Шаблон</span>
         <select className="inp" value={RT.tpl} onChange={e => setTpl(e.target.value)} aria-label="Шаблон звіту">{Object.entries(RT_TPL).map(([k, [t]]) => <option key={k} value={k}>{t}</option>)}</select></label>
+      <LeaderDocs />
       <PrepBtn />
       <div className="sp" />
       <div className="rt-zoomctl" role="group" aria-label="Масштаб">

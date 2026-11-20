@@ -9,12 +9,24 @@ import { cur, go, can } from "../lib/nav.js";
 import { Pill, LvPill, TrustPill, SrcDot, Num, Delta, LevelBar, useWidth } from "../components/ui.jsx";
 import { MiniTrend, TrendChart, Radar } from "../components/charts.jsx";
 import { DigestRows, digestTop, PrepBtn } from "./Insights.jsx";
+import { CandorCard, GamingCard } from "./Candor.jsx";
+import { IndexExtras } from "./IndexExtras.jsx";
+import { LeaderDocs, canBriefing } from "./Leadership.jsx";
+import { ChildrenLevels } from "./Oversight.jsx";
+import { API, dn } from "../lib/api.js";
 import { openWhy, openTrust, openHow, openResp, openItem, openApiQ, openTrustHow, openTrackerHow, openRespHow, itemQs } from "./panels.jsx";
 
 const enter = f => e => { if (e.key === "Enter") f(e); };
 export function BackToInst() {
   if (S.role !== "observer") return null;
-  return <div className="c12 crumbs rise"><a href="#institutions"><Ic n="arrowL" />Усі заклади</a><span className="lbl">/</span><b>{cur().name}</b></div>;
+  return <div className="c12 crumbs rise"><a href="#institutions"><Ic n="arrowL" />Усі заклади</a><span className="lbl">/</span><b>{dn(cur().name)}</b></div>;
+}
+
+/* Вкладки «Результати»: ті самі маршрути, що й у меню */
+const RTABS = [["overview", "Огляд"], ["explain", "Розклад"], ["trends", "Динаміка"], ["compare", "Порівняння"]];
+export function ResultTabs({ at }) {
+  if (!RTABS.every(([r]) => can(r))) return null;
+  return <nav className="c12 rise rtabs seg" aria-label="Результати">{RTABS.map(([r, t]) => <a key={r} href={`#${r}`} className={r === at ? "on" : ""} aria-current={r === at ? "page" : undefined}>{t}</a>)}</nav>;
 }
 
 /* Блок «Як читати…» на екранах «Огляд» і «Заклади» */
@@ -41,7 +53,7 @@ function Tile({ ic, title, big, sub, act, info, tip = "Як рахується �
 
 /* Компактна динаміка індексу на «Огляді»: лише лінія індексу, повний екран на #trends */
 function DynCard({ m }) {
-  const sr = m.series, a = sr[0], b = sr[sr.length - 1], d = r1(b.index - a.index);
+  const sr = m.series.filter(r => r.index != null), a = sr[0] || m.series[0], b = sr[sr.length - 1] || a, d = r1((b.index ?? 0) - (a.index ?? 0));
   const txt = m.noHistory ? "Зміна невідома" : d > 0 ? `Зріс на ${pts(d)}` : d < 0 ? `Знизився на ${pts(d)}` : "Не змінився";
   const alt = `Індекс за цикли від ${a.cycle} до ${b.cycle}: з ${f1(a.index)} до ${f1(b.index)}. ${txt} за період.`;
   return <>
@@ -57,7 +69,8 @@ export function Overview() {
   const attn = S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX), strong = S.strAll ? m.strengths : m.strengths.slice(0, LIST_MAX), dg = digestTop();
   return <>
     <BackToInst />
-    {can("advocate") && <div className="c12 toolbar rise"><div className="sp" /><PrepBtn /></div>}
+    <ResultTabs at="overview" />
+    {(can("advocate") || canBriefing()) && <div className="c12 toolbar rise"><div className="sp" /><LeaderDocs /><PrepBtn /></div>}
     <div className="c12 kpi-row">
       <Tile ic="gauge" title="Індекс доброчесності" big={<span className="mid tnum"><Num v={m.index} /></span>} act={openWhy} info={openHow}
         sub={<><span>Рівень зрілості {m.level} з 5: {LSHORT[m.level - 1]}</span><br /><Delta d={m.delta} /></>} />
@@ -65,8 +78,9 @@ export function Overview() {
         sub={<>{TRUST[m.trust][1]}<br /><span className="lbl">Прапорці: {m.raised.length}</span></>} />
       {S.role === "observer"
         ? <Tile ic="users" title="Відповідей у циклі" big={<span className="mid tnum">{m.responses}</span>} sub={<span className="lbl">Мінімальна група k = {S.k}</span>} act={openResp} info={openRespHow} tip="Що таке мінімальна група k" />
-        : <Tile ic="target" title="Заходи в трекері" big={<span className="mid tnum">{ms.length}</span>} sub={od ? <span style={{ color: "var(--red)", fontWeight: 600 }}>З них {od} прострочено</span> : <span className="lbl">Прострочених немає</span>} act={can("tracker") ? () => go("tracker") : undefined} info={openTrackerHow} tip="Як працює трекер заходів" />}
+        : <Tile ic="target" title="Заходи в трекері" big={<span className="mid tnum">{ms.length}</span>} sub={od ? <span style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))", fontWeight: 600 }}>З них {od} прострочено</span> : <span className="lbl">Прострочених немає</span>} act={can("tracker") ? () => go("tracker") : undefined} info={openTrackerHow} tip="Як працює трекер заходів" />}
     </div>
+    <CandorCard />
     <section className="card c8 rise" id="attn">
       <div className="card-h"><h2>Що потребує уваги</h2></div>
       {m.attention.length ? <div className="rows">{attn.map((a, i) => <a key={i} className="row click" href={`#explain/${a.c}`} onClick={a.q ? e => { e.preventDefault(); openApiQ(a.q); } : undefined} data-tip={a.hint}><span className="dot" style={{ background: SCOL[status(a.v)] }} /><div className="grow"><div className="t">{a.t}</div></div><Pill cls="p-mute nodot">{COMP[a.c].n}</Pill><b className="tnum">{fb(a.v)}</b></a>)}</div> : dg.length ? null : <div className="lbl">Зауважень немає: нічого не потребує уваги.</div>}
@@ -82,16 +96,17 @@ export function Overview() {
       </section>
     </div>
     <div className="c12 comp-row">{m.components.map((c, ci) => {
-      const C = COMP[c.id], d = m.noHistory ? null : r1(c.cr.v - prev.cr[c.id]), lv = level(c.cr.v);
+      const C = COMP[c.id], d = m.noHistory || c.cr.v == null || prev.cr[c.id] == null ? null : r1(c.cr.v - prev.cr[c.id]), lv = c.cr.v == null ? null : level(c.cr.v);
       return <a key={c.id} className="card rise comp-card" href={`#explain/${c.id}`}>
-        <div className="comp-top"><span className="comp-ic" style={{ background: C.s, color: C.c }}><Ic n={C.ic} /></span><b>{C.n}</b><div className="sp" style={{ flex: 1 }} /><LvPill l={lv} /></div>
-        {c.cr.lim && <div className="comp-lim"><Pill cls="p-warn">Зараховано з обмеженням</Pill></div>}
+        <div className="comp-top"><span className="comp-ic" style={{ background: C.s, color: C.c }}><Ic n={C.ic} /></span><b>{C.n}</b><div className="sp" style={{ flex: 1 }} />{lv ? <LvPill l={lv} /> : <span className="lbl">немає даних</span>}</div>
+        {c.cr.lim && <div className="comp-lim"><Pill cls="p-warn">Знижено: факти не підтверджують</Pill></div>}
         <div className="comp-val">
           <div><div className="mid tnum"><Num v={c.cr.v} /></div><div style={{ marginTop: 6 }}><Delta d={d} /></div></div>
-          <div className="pf">{[["Сприйняття", c.P, "var(--blue)"], ["Факти", c.F, "var(--amber)"], ["Зараховано", c.cr.v, C.c]].map(([n, v, col], j) => <div key={n} data-tip={`${n}: ${fb(v)}`}><i className="bar-a" style={{ height: Math.max(4, v * .6), background: col, animationDelay: `${300 + ci * 100 + j * 80}ms` }} /><small>{n[0]}</small></div>)}</div>
+          <div className="pf">{[["Самооцінка", c.P, "var(--blue)", "С"], ["Підтверджено фактами", c.F, "var(--amber)", "Ф"], ["Зараховано в індекс", c.cr.v, C.c, "З"]].map(([n, v, col, ltr], j) => <div key={n} data-tip={`${n}: ${fb(v)}`} aria-label={`${n}: ${fb(v)}`} role="img"><i className="bar-a" style={{ height: Math.max(4, v * .6), background: col, animationDelay: `${300 + ci * 100 + j * 80}ms` }} /><small aria-hidden="true">{ltr}</small></div>)}</div>
         </div>
       </a>;
     })}</div>
+    <GamingCard />
     <section className="card c8 rise lv-card">
       <div className="card-h"><h2>Рівень зрілості</h2><div className="sp" /><button type="button" className="pill-btn" onClick={openHow}><Ic n="help" />Як рахується</button></div>
       <LevelBar v={m.index} />
@@ -103,7 +118,7 @@ export function Overview() {
       <div className="radar-body"><div className="radar-main"><Radar id="radar" series={[{ cls: "r-st", v: COMPS.map(c => m.byId[c].cr.v), delay: 150 }, { cls: "r-prev", v: COMPS.map(c => prev.cr[c]), delay: 0 }]} />
         <div className="legend lg-lines" style={{ justifyContent: "center" }}><span><i className="ar" style={{ background: "color-mix(in srgb,var(--teal) 30%,transparent)", borderColor: "var(--teal)" }} />Цикл {CYCLE}</span><span><i className="ln dash" style={{ borderColor: "var(--faint)" }} />Цикл {prev.cycle}</span></div>
         <div className="lbl" style={{ textAlign: "center", marginTop: 6 }}>Зараховані значення компонентів, 0–100.</div></div>
-        <div className="radar-side"><table><thead><tr><th>Компонент</th><th>Сприйняття</th><th>Факти</th><th>Зараховано</th></tr></thead><tbody>{m.components.map(c => <tr key={c.id}><td><b>{COMP[c.id].n}</b></td><td className="tnum">{fb(c.P)}</td><td className="tnum">{fb(c.F)}</td><td className="tnum"><b>{fb(c.cr.v)}</b></td></tr>)}</tbody></table><div className="lbl" style={{ marginTop: 8 }}>Зараховано це сприйняття, обмежене фактами: не більше ніж «факти + {CAP}».</div></div></div>
+        <div className="radar-side"><table><thead><tr><th>Компонент</th><th>Самооцінка</th><th>Підтверджено фактами</th><th>Зараховано в індекс</th></tr></thead><tbody>{m.components.map(c => <tr key={c.id}><td><b>{COMP[c.id].n}</b></td><td className="tnum">{fb(c.P)}</td><td className="tnum">{fb(c.F)}</td><td className="tnum"><b>{fb(c.cr.v)}</b></td></tr>)}</tbody></table><div className="lbl" style={{ marginTop: 8 }}>Зараховано в індекс: самооцінка, але не більше ніж «факти + {CAP}».</div></div></div>
     </section>
     <ReadGuide title="Як читати цей екран" />
   </>;
@@ -118,7 +133,7 @@ function toggleLine(c) {
   persist(); render(true);
 }
 function TrendCard({ m }) {
-  const t = S.trend, [from, to] = trendRange(m), rows = m.series.slice(from, to + 1), d = r1(rows[rows.length - 1].index - rows[0].index);
+  const t = S.trend, [from, to] = trendRange(m), rows = m.series.slice(from, to + 1), ri = rows.filter(r => r.index != null), d = ri.length > 1 ? r1(ri[ri.length - 1].index - ri[0].index) : 0;
   const evs = m.events.filter(e => rows.slice(0, -1).some(r => r.cycle === e.after));
   const chip = (k, n, c, on) => <button key={k} className={`chip ${on ? "on" : ""}`} style={{ "--c": c }} aria-pressed={on} onClick={() => toggleLine(k)}><i className={k === "index" ? "solid" : undefined} />{n}</button>;
   return <>
@@ -156,7 +171,7 @@ export function PeriodPop() {
 }
 
 /* Розклад індексу */
-const MODES = { perception: "Сприйняття", facts: "Факти", credited: "Зараховано" };
+const MODES = { perception: "Самооцінка", facts: "Підтверджено фактами", credited: "Зараховано в індекс" };
 function tree(m, mode) {
   return m.components.map(c => {
     const val = mode === "perception" ? c.P : mode === "facts" ? c.F : c.cr.v, lim = mode === "credited" && c.cr.lim;
@@ -200,7 +215,7 @@ function TreeGraph({ T, sum, hl, maxC, fallback }) {
         <circle cx={xC} cy={c.y} r={rC} style={{ fill: COMP[c.id].s, stroke: c.lim ? "var(--amber)" : COMP[c.id].c, strokeDasharray: c.lim ? "5 3" : undefined }} />
         <text x={xC} y={c.y + 5} className="tg-v" style={{ fontSize: 14 }}>{fb(c.val)}</text>
         <text x={xC} y={c.y + rC + 17} className="tg-t">{COMP[c.id].n}</text>
-        {c.lim && <text x={xC} y={c.y + rC + 33} className="tg-lim">Обмежувач</text>}</g>)}
+        {c.lim && <text x={xC} y={c.y + rC + 33} className="tg-lim">Знижено фактами</text>}</g>)}
       {G.flatMap(c => c.items.map(x => { const col = SRC[x.kind === "p" ? x.src : "facts"][1], act = () => openItem(x.id);
         return <g key={x.id} id={`n-${x.id}`} className="tg-leaf" role="button" tabIndex={0} aria-label={`${x.t}: ${fb(x.vv)}. ${leafSub(x)}`} onClick={act} onKeyDown={enter(act)}><title>{x.t}</title>
           <rect x={xL - rL - 6} y={x.y - rowH / 2 + 3} width={W - xL + rL + 6} height={rowH - 6} rx={10} className="tg-hit" />
@@ -220,20 +235,22 @@ export function Explain() {
   const table = <div className="tbl-wrap"><table className="ex-tbl"><thead><tr><th>Вузол</th><th>Рівень</th><th>Вага, %</th><th>Значення</th><th>Внесок, пункти</th><th>Джерело</th></tr></thead><tbody>
     <tr><td><b>Індекс доброчесності</b></td><td>1</td><td className="tnum">100</td><td className="tnum">{fb(sum)}</td><td className="tnum">{f2(T.reduce((a, c) => a + c.contrib, 0))}</td><td /></tr>
     {T.map(c => [<tr key={c.id} id={S.exTable ? `n-${c.id}` : undefined} className={`ex-grp ${shut[c.id] ? "shut" : ""}`} onClick={() => tog(c.id)}>
-        <td><span className="ex-gt"><button type="button" className="ex-tog" aria-expanded={!shut[c.id]} aria-label={`${shut[c.id] ? "Розгорнути" : "Згорнути"}: ${COMP[c.id].n}`} onClick={e => { e.stopPropagation(); tog(c.id); }}><Ic n="chev" /></button><b>{COMP[c.id].n}</b>{c.lim && <> <Pill cls="p-warn nodot">Обмежувач</Pill></>}{shut[c.id] && <span className="lbl">· {c.items.length}</span>}</span></td>
+        <td><span className="ex-gt"><button type="button" className="ex-tog" aria-expanded={!shut[c.id]} aria-label={`${shut[c.id] ? "Розгорнути" : "Згорнути"}: ${COMP[c.id].n}`} onClick={e => { e.stopPropagation(); tog(c.id); }}><Ic n="chev" /></button><b>{COMP[c.id].n}</b>{c.lim && <> <Pill cls="p-warn nodot">Знижено фактами</Pill></>}{shut[c.id] && <span className="lbl">· {c.items.length}</span>}</span></td>
         <td>2</td><td className="tnum">33,3</td><td className="tnum">{fb(c.val)}</td><td className="tnum">{f2(c.contrib)}</td><td /></tr>,
       ...(shut[c.id] ? [] : c.items.map(x => <tr key={x.id} id={S.exTable ? `n-${x.id}` : undefined} className={`ex-item ${hl === x.id ? "hl" : ""}`} onClick={() => openItem(x.id)}><td style={{ paddingLeft: 44 }}>{x.t}</td><td>3</td><td className="tnum">{x.w}</td><td className="tnum">{fb(x.vv)}</td><td className="tnum">{f2(x.contrib)}</td><td>{x.src ? SRC[x.src][0] : "Факти"}</td></tr>))])}
   </tbody></table></div>;
   return <>
     <BackToInst />
+    <ResultTabs at="explain" />
     <section className="c12 rise toolbar"><div className="sp" />
       <button className="btn btn-ghost" onClick={openHow}><Ic n="help" />Як це рахується</button>
       <div className="seg" role="group" aria-label="Що показувати">{Object.entries(MODES).map(([k, n]) => <button key={k} className={mode === k ? "on" : ""} aria-pressed={mode === k} onClick={() => { S.mode = k; persist(); render(true); }}>{n}</button>)}</div>
       <button className="btn btn-ghost" onClick={() => { S.exTable = !S.exTable; render(true); }}>{S.exTable ? <><Ic n="tree" />Показати як граф</> : <><Ic n="table" />Показати як таблицю</>}</button></section>
     <section className="card c12 rise">
-      {mode === "credited" && T.some(c => c.lim) && <div className="lim-callout" role="note"><span className="lim-ic"><Ic n="alert" /></span><div><b>Результат знижено обмежувачем</b>{T.filter(c => c.lim).map(c => <div key={c.id}><b>{COMP[c.id].n}:</b> {c.cr.reason}</div>)}</div></div>}
+      {mode === "credited" && T.some(c => c.lim) && <div className="lim-callout" role="note"><span className="lim-ic"><Ic n="alert" /></span><div><b>Самооцінку знижено, бо факти її не підтверджують</b>{T.filter(c => c.lim).map(c => <div key={c.id}><b>{COMP[c.id].n}:</b> {c.cr.reason}</div>)}</div></div>}
       {S.exTable ? table : <TreeGraph T={T} sum={sum} hl={hl} maxC={maxC} fallback={table} />}
     </section>
+    {API.on && API.res && <section className="card c12 rise ix-card"><div className="card-h"><h2>Перевірки розрахунку</h2></div><IndexExtras /></section>}
   </>;
 }
 
@@ -243,16 +260,17 @@ export function Trends() {
   const a = sr[Math.min(S.cmp.a, sr.length - 1)], b = sr[Math.min(S.cmp.b, sr.length - 1)];
   const cmpRows = [["Індекс доброчесності", a.index, b.index], ...COMPS.map(c => [COMP[c].n, a.cr[c], b.cr[c]])];
   const opt = sr.map((r, i) => <option key={i} value={i}>{r.cycle}</option>);
-  const f = sr[0], l = sr[sr.length - 1], p = COMPS.filter(c => l.cr[c] > f.cr[c]), n = COMPS.filter(c => l.cr[c] < f.cr[c]);
+  const f = sr[0], l = sr[sr.length - 1], has = c => l.cr[c] != null && f.cr[c] != null, p = COMPS.filter(c => has(c) && l.cr[c] > f.cr[c]), n = COMPS.filter(c => has(c) && l.cr[c] < f.cr[c]);
   return <>
     <BackToInst />
+    <ResultTabs at="trends" />
     {m.noHistory && <section className="card c12 rise"><div className="note-box"><b>Попередні цикли недоступні</b><span className="lbl">Сервер не віддав історію оцінювань, тому показано лише поточний цикл. Оновіть сторінку пізніше.</span></div></section>}
     <section className="card c12 rise"><TrendCard m={m} /></section>
     <section className="card c7 rise">
       <div className="card-h" style={{ flexWrap: "wrap" }}><h2>Порівняти два цикли</h2><div className="sp" />
         <label className="lbl">Було <select className="inp" value={S.cmp.a} onChange={e => { S.cmp.a = +e.target.value; persist(); render(true); }}>{opt}</select></label>
         <label className="lbl">Стало <select className="inp" value={S.cmp.b} onChange={e => { S.cmp.b = +e.target.value; persist(); render(true); }}>{opt}</select></label></div>
-      {a === b ? <div className="empty">Оберіть два різні цикли, щоб побачити, що змінилося.</div> : <div className="tbl-wrap"><table><thead><tr><th>Показник</th><th>Було</th><th>Стало</th><th>Зміна</th></tr></thead><tbody>{cmpRows.map(([nm, x, y]) => <tr key={nm}><td><b>{nm}</b></td><td className="tnum">{fb(x)}</td><td className="tnum">{fb(y)}</td><td><Delta d={r1(y - x)} /></td></tr>)}</tbody></table></div>}
+      {a === b ? <div className="empty">Оберіть два різні цикли, щоб побачити, що змінилося.</div> : <div className="tbl-wrap"><table><thead><tr><th>Показник</th><th>Було</th><th>Стало</th><th>Зміна</th></tr></thead><tbody>{cmpRows.map(([nm, x, y]) => <tr key={nm}><td><b>{nm}</b></td><td className="tnum">{fb(x)}</td><td className="tnum">{fb(y)}</td><td>{x == null || y == null ? <span className="lbl">Зміна невідома</span> : <Delta d={r1(y - x)} />}</td></tr>)}</tbody></table></div>}
     </section>
     <section className="card c5 rise">
       <div className="card-h"><h2>Висновок за весь період</h2></div>
@@ -262,6 +280,7 @@ export function Trends() {
         {m.events.map((e, i) => <div key={i} className="row"><span className="ev-ic ev-c"><Ic n="diamond" /></span><div className="grow"><div className="t">{e.t}</div><div className="s">Після циклу {e.after}</div></div></div>)}
       </div>
     </section>
+    {["leader", "observer", "auditor"].includes(S.role) && <ChildrenLevels />}
   </>;
 }
 
@@ -280,24 +299,25 @@ export function Compare() {
   const Mk = ({ s }) => <i className={`mk ${s}`} />;
   return <>
     <BackToInst />
+    <ResultTabs at="compare" />
     <section className="card c12 rise">
-      <div className="card-h" style={{ flexWrap: "wrap" }}><h2>Сприйняття проти фактів</h2><button type="button" className="kt-info" aria-label="Як читати" data-tip={`Точки показують середню оцінку кожної групи, риска це факти. Праворуч різниця «сприйняття мінус факти». Червоним позначено розрив понад ${CAP} пунктів: тоді вмикається обмежувач.`}><Ic n="info" /></button><div className="sp" /><div className="legend">{MARKS.map(([s, n]) => <span key={s}><Mk s={s} />{n}</span>)}<span><Mk s="f" />Факти</span></div></div>
+      <div className="card-h" style={{ flexWrap: "wrap" }}><h2>Самооцінка проти фактів</h2><button type="button" className="kt-info" aria-label="Як читати" data-tip={`Точки показують середню оцінку кожної групи, риска це факти. Праворуч різниця «самооцінка мінус факти». Червоним позначено розрив понад ${CAP} пунктів: тоді самооцінку знижують до «факти + ${CAP}».`}><Ic n="info" /></button><div className="sp" /><div className="legend">{MARKS.map(([s, n]) => <span key={s}><Mk s={s} />{n}</span>)}<span><Mk s="f" />Факти</span></div></div>
       {m.components.map((c, i) => {
         const vals = MARKS.map(([s]) => [s, srcAvg(c.id, s)]).filter(([, v]) => v != null), all = [...vals.map(x => x[1]), c.F];
         const lo = Math.min(...all), hi = Math.max(...all), gap = r1(c.P - c.F), open = () => go(`explain/${c.id}`);
         return <div key={c.id} className="db" style={{ cursor: "pointer" }} role="link" tabIndex={0} aria-label={`${COMP[c.id].n}: розклад індексу`} onClick={open} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } }}>
-          <span className="t"><b>{COMP[c.id].n}</b><br /><span className="lbl">Сприйняття {fb(c.P)} · факти {fb(c.F)}</span></span>
+          <span className="t"><b>{COMP[c.id].n}</b><br /><span className="lbl">Самооцінка {fb(c.P)} · факти {fb(c.F)}</span></span>
           <div className="track"><div className={`gap ${gap > CAP ? "bad" : ""}`} style={{ left: `${lo}%`, width: `${hi - lo}%`, animationDelay: `${i * 80}ms` }} />
             {vals.map(([s, v], j) => <span key={s} className={`m mk ${s}`} style={{ left: `${v}%`, animationDelay: `${200 + i * 80 + j * 60}ms` }} data-tip={`${SRC[s][0]}: ${fb(v)}`} />)}
             <span className="m mk f" style={{ left: `${c.F}%`, animationDelay: `${400 + i * 80}ms` }} data-tip={`Факти: ${fb(c.F)}`} /></div>
-          <b className="tnum" style={{ textAlign: "right", color: gap > CAP ? "var(--red)" : "var(--fg)" }} data-tip="Сприйняття мінус факти">{gap > 0 ? "+" : ""}{fb(gap)}</b></div>;
+          <b className="tnum" style={{ textAlign: "right", color: gap > CAP ? "color-mix(in srgb, var(--red) 60%, var(--fg))" : "var(--fg)" }} data-tip="Самооцінка мінус факти">{gap > 0 ? "+" : ""}{fb(gap)}</b></div>;
       })}
       <div className="db-axis lbl tnum"><span /><div><span>0</span><span>25</span><span>50</span><span>75</span><span>100</span></div><span /></div>
     </section>
     <section className="card c5 rise cmp-radar">
       <div className="card-h" style={{ flexWrap: "wrap" }}><h2>Профіль компонентів</h2><div className="sp" /><label className="lbl">Цикл {CYCLE} порівняти з <select className="inp" value={S.cmpCycle} onChange={e => { S.cmpCycle = +e.target.value; persist(); render(true); }}><option value="-1">без порівняння</option>{m.series.slice(0, -1).map((r, i) => <option key={i} value={i}>{r.cycle}</option>)}</select></label></div>
       <Radar id="cmpRadar" series={[{ cls: "r-st", v: COMPS.map(c => m.byId[c].cr.v), delay: 300 }, ...(old ? [{ cls: "r-prev", v: COMPS.map(c => old.cr[c]), delay: 0 }] : []), { cls: "r-f", v: COMPS.map(c => m.byId[c].F), delay: 150 }, { cls: "r-p", v: COMPS.map(c => m.byId[c].P), delay: 0 }]} />
-      <div className="legend lg-lines" style={{ justifyContent: "center", marginTop: 8 }}><span data-tip="Що думають люди: середнє за анкетами"><i className="ln" style={{ borderColor: "var(--blue)" }} />Сприйняття</span><span data-tip="Що підтверджують документи й облік"><i className="ln dash" style={{ borderColor: "var(--fg)" }} />Факти</span><span data-tip={`Що пішло в індекс: сприйняття, але не більше ніж факти + ${CAP}`}><i className="ar" style={{ background: "color-mix(in srgb,var(--teal) 30%,transparent)", borderColor: "var(--teal)" }} />Зараховано {CYCLE}</span>{old && <span><i className="ln dash" style={{ borderColor: "var(--faint)" }} />Зараховано {old.cycle}</span>}</div>
+      <div className="legend lg-lines" style={{ justifyContent: "center", marginTop: 8 }}><span data-tip="Що думають люди: середнє за анкетами"><i className="ln" style={{ borderColor: "var(--blue)" }} />Самооцінка</span><span data-tip="Що підтверджують документи й облік"><i className="ln dash" style={{ borderColor: "var(--fg)" }} />Факти</span><span data-tip={`Що пішло в індекс: самооцінка, але не більше ніж факти + ${CAP}`}><i className="ar" style={{ background: "color-mix(in srgb,var(--teal) 30%,transparent)", borderColor: "var(--teal)" }} />Зараховано {CYCLE}</span>{old && <span><i className="ln dash" style={{ borderColor: "var(--faint)" }} />Зараховано {old.cycle}</span>}</div>
       <div className="lbl" style={{ textAlign: "center", marginTop: 6 }}>Що далі від центру, то вище значення (0–100).</div>
     </section>
     <div className="c7 cmp-stack">

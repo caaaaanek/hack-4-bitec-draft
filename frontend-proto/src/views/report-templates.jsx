@@ -5,7 +5,7 @@ import { Fragment } from "react";
 import { S } from "../lib/state.js";
 import { API } from "../lib/api.js";
 import { COMPS, COMP, LEVELS, CAP, TRUST, REC_ST, M_ST, PRI, ALPHA, level, allItems, buildRecs, measures, dispSt, overdueDays, daysWord, verif, r1, CYCLE, TODAY_UA } from "../lib/model.js";
-import { fb, f1, pts, ua } from "../lib/format.js";
+import { fb, f1, pts, ua, plural } from "../lib/format.js";
 import { respGroups } from "./panels.jsx";
 
 export const RT_TPL = {
@@ -49,7 +49,7 @@ function ReportG({ m }) {
     <Head m={m} title="ЗВІТ" sub="про результати опитувань з визначення поточного рівня зрілості доброчесності" />
     <p>На підставі наказу керівника закладу {m.name} від «___» ____________ 2026 року № ___ «Про організацію роботи з трансформації функціонування закладу на засадах прозорості та доброчесності» проведено роботу з визначення поточного рівня зрілості доброчесності за Моделлю зрілості НАЗК.</p>
     <p>Проведено анонімне опитування трьох категорій респондентів:</p>
-    <p>І категорія: члени робочої групи (далі РГ), відповіли {g("wg")} осіб.<br />ІІ категорія: особовий склад закладу (далі ОС), відповіли {g("os")} осіб.<br />ІІІ категорія: зовнішні експерти, відповіли {g("ex")} осіб.</p>
+    <p>І категорія: члени робочої групи (далі РГ), відповіли {g("wg")} {plural(g("wg"), "особа", "особи", "осіб")}.<br />ІІ категорія: особовий склад закладу (далі ОС), відповіли {g("os")} {plural(g("os"), "особа", "особи", "осіб")}.<br />ІІІ категорія: зовнішні експерти, відповіли {g("ex")} {plural(g("ex"), "особа", "особи", "осіб")}.</p>
     <p><b>Мета опитування:</b></p>
     <ul>
       <li>визначення фактичного рівня зрілості системи доброчесності за кожним ключовим напрямом;</li>
@@ -57,19 +57,19 @@ function ReportG({ m }) {
       <li>формування базового показника («точки відліку») для відстеження подальшого розвитку;</li>
       <li>забезпечення керівництва обʼєктивними даними для планування заходів.</li></ul>
     <p><b>Методика дослідження:</b></p>
-    <p>Онлайн-опитування на платформі з одноразовими анонімними жетонами. Результати групи показуються, лише якщо відповіли щонайменше {S.k} осіб. Відповіді переведено в бали від 0 до 100. Сприйняття за кожним напрямом зіставлено з фактами контрольного чек-листа та даних обліку. Якщо сприйняття перевищує факти більш ніж на {CAP} пунктів, зараховується значення «факти + {CAP}». Індекс доброчесності є середнім трьох напрямів, рівень зрілості визначається межами 12,5 / 37,5 / 62,5 / 87,5.</p>
+    <p>Онлайн-опитування на платформі з одноразовими анонімними жетонами. Результати групи показуються, лише якщо відповіли щонайменше {S.k} осіб. Відповіді переведено в бали від 0 до 100. Самооцінку за кожним напрямом зіставлено з фактами контрольного чек-листа та даних обліку. Якщо самооцінка перевищує факти більш ніж на {CAP} пунктів, зараховується значення «факти + {CAP}». Індекс доброчесності є середнім трьох напрямів, рівень зрілості визначається межами 12,5 / 37,5 / 62,5 / 87,5.</p>
     <p><b>Основна частина:</b></p>
     <p>Аналіз проведено за трьома розділами Моделі зрілості НАЗК: «Культура», «Система» та «Підзвітність».</p>
     {m.components.map((c, ci) => <Fragment key={c.id}>
       <h3>Розділ {ci + 1}. {COMP[c.id].n}</h3>
       <p>{SEC_ABOUT[c.id]}</p>
-      <p className="doc-cap">Таблиця {ci * 2 + 1}. Сприйняття за питаннями анкет</p>
+      <p className="doc-cap">Таблиця {ci * 2 + 1}. Самооцінка за питаннями анкет</p>
       <table className="doc-t"><thead><tr><th>№</th><th>Питання</th><th>Категорія</th><th>Вага, %</th><th>Середній бал</th><th>Рівень зрілості (за моделлю НАЗК)</th></tr></thead><tbody>
         {m.pItems.filter(x => x.c === c.id).map((x, i) => <tr key={x.id}><td>{ci + 1}.{i + 1}</td><td>{x.t}</td><td>{GRP[x.src]}</td><td className="tnum">{x.w}</td><td className="tnum">{fb(x.v)}</td><td>{lvT(x.v)}</td></tr>)}</tbody></table>
       <p className="doc-cap">Таблиця {ci * 2 + 2}. Факти: контрольний чек-лист і дані обліку</p>
       <table className="doc-t"><thead><tr><th>№</th><th>Показник</th><th>Дані</th><th>Вага, %</th><th>Бал</th></tr></thead><tbody>
         {m.fItems.filter(x => x.c === c.id).map((x, i) => <tr key={x.id}><td>{ci + 1}.{i + 1}</td><td>{x.t}</td><td>{x.kind === "pct" ? `${x.val[0]} з ${x.val[1]}` : `рівень ${x.val} з 5`}</td><td className="tnum">{x.w}</td><td className="tnum">{fb(x.v)}</td></tr>)}</tbody></table>
-      <p>За розділом «{COMP[c.id].n}» сприйняття становить {fb(c.P)}, факти {fb(c.F)}, зараховано {fb(c.cr.v)} з 100, що відповідає рівню зрілості {lvT(c.cr.v)}.{c.cr.lim ? ` ${c.cr.reason}` : ""} {c.P - c.F > 10 ? "Самооцінка помітно вища за підтверджені факти, тож висновки потребують підтвердження документами." : c.F - c.P > 10 ? "Факти вищі за сприйняття: наявні процедури варто краще доносити до особового складу." : "Сприйняття й факти в цілому узгоджуються."}</p>
+      <p>За розділом «{COMP[c.id].n}» самооцінка становить {fb(c.P)}, факти {fb(c.F)}, зараховано {fb(c.cr.v)} з 100, що відповідає рівню зрілості {lvT(c.cr.v)}.{c.cr.lim ? ` ${c.cr.reason}` : ""} {c.P - c.F > 10 ? "Самооцінка помітно вища за підтверджені факти, тож висновки потребують підтвердження документами." : c.F - c.P > 10 ? "Факти вищі за самооцінку: наявні процедури варто краще доносити до особового складу." : "Самооцінка й факти в цілому узгоджуються."}</p>
     </Fragment>)}
     <h3>Розділ 4. Достовірність результатів</h3>
     <p>Достовірність {m.trust === "insufficient" ? "не оцінюється" : m.trust}: {TRUST[m.trust][1].toLowerCase()}. {m.raised.length ? `Спрацювало автоматичних перевірок: ${m.raised.length}.` : "Жодна автоматична перевірка не спрацювала."}</p>
@@ -101,7 +101,7 @@ function ReportBrief({ m }) {
     <h3>1. Головне</h3>
     <p>Індекс доброчесності <b>{f1(m.index)} з 100</b>, рівень зрілості {m.level} «{LEVELS[m.level - 1]}». {deltaPhrase(m)} Достовірність {m.trust === "insufficient" ? "не оцінюється" : m.trust}: {TRUST[m.trust][1].toLowerCase()}.</p>
     <p className="doc-cap">Таблиця 1. Компоненти індексу</p>
-    <table className="doc-t"><thead><tr><th>Компонент</th><th>Сприйняття</th><th>Факти</th><th>Зараховано</th><th>Рівень</th></tr></thead><tbody>
+    <table className="doc-t"><thead><tr><th>Компонент</th><th>Самооцінка</th><th>Підтверджено фактами</th><th>Зараховано в індекс</th><th>Рівень</th></tr></thead><tbody>
       {m.components.map(c => <tr key={c.id}><td>{COMP[c.id].n}</td><td className="tnum">{fb(c.P)}</td><td className="tnum">{fb(c.F)}</td><td className="tnum">{fb(c.cr.v)}</td><td>{lvT(c.cr.v)}</td></tr>)}</tbody></table>
     <h3>2. Що знизило оцінку</h3>
     <ol>{lowered.map((t, i) => <li key={i}>{t}</li>)}</ol>
@@ -143,13 +143,13 @@ function ReportDynamics({ m }) {
   if (m.noHistory) return <>{head}<p>Попередні цикли зараз недоступні: сервер не віддав історію оцінювань. Оновіть сторінку пізніше.</p><Foot /></>;
   if (!prev || prev === last) return <>{head}<p>Попереднього циклу немає: динаміку буде видно після наступного оцінювання.</p><Foot /></>;
   const rows = COMPS.map(id => ({ id, a: prev.cr && prev.cr[id], b: last.cr && last.cr[id] })).filter(x => x.a != null && x.b != null);
-  const up = rows.filter(x => x.b - x.a >= 5), down = rows.filter(x => x.a - x.b >= 5), d = r1(last.index - prev.index);
+  const ok = x => x.a != null && x.b != null, up = rows.filter(x => ok(x) && x.b - x.a >= 5), down = rows.filter(x => ok(x) && x.a - x.b >= 5), d = last.index == null || prev.index == null ? null : r1(last.index - prev.index);
   return <>
     {head}
     <h3>1. Індекс за циклами</h3>
     <p className="doc-cap">Таблиця 1. Індекс доброчесності</p>
     <table className="doc-t"><thead><tr><th>Цикл</th><th>Індекс</th><th>Рівень</th><th>Зміна</th></tr></thead><tbody>
-      {s.map((x, i) => <tr key={i}><td>{x.cycle}</td><td className="tnum">{f1(x.index)}</td><td>{lvT(x.index)}</td><td className="tnum">{i ? dl(r1(x.index - s[i - 1].index)) : "–"}</td></tr>)}</tbody></table>
+      {s.map((x, i) => <tr key={i}><td>{x.cycle}</td><td className="tnum">{f1(x.index)}</td><td>{lvT(x.index)}</td><td className="tnum">{i && x.index != null && s[i - 1].index != null ? dl(r1(x.index - s[i - 1].index)) : "–"}</td></tr>)}</tbody></table>
     <h3>2. Компоненти: {prev.cycle} → {last.cycle}</h3>
     <p className="doc-cap">Таблиця 2. Зараховані бали компонентів</p>
     <table className="doc-t"><thead><tr><th>Компонент</th><th>{prev.cycle}</th><th>{last.cycle}</th><th>Зміна</th></tr></thead><tbody>

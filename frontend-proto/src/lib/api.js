@@ -4,7 +4,7 @@
  * чек-лист із файлами-доказами, хвилі й посилання, журнал. Без API (відкрито з файлу, Vercel) — демо-дані
  * в браузері. Решта коду бере дані через гачки: inst(), buildRecs(), measures(), SV()/SQ() і екрани в views/Api*.
  */
-import { S, NAV, HOME, freshSurvey } from "./state.js";
+import { S, NAV, HOME, freshSurvey, loadDraft, clearDraft } from "./state.js";
 import { COMPS, COMP, ALPHA, r1, finish, setClock } from "./model.js";
 import { fb, esc, quarters } from "./format.js";
 import { render, toast, closeDrawer, ui } from "./store.js";
@@ -14,7 +14,7 @@ export const API = {
   model: null, empty: false, recs: [], ms: [], campaignId: null, unitId: null, res: null,
   survey: null, surveyUsed: false, surveyMsg: null, surveyTarget: null, formError: null,
   my: null, assignments: null, adm: null, qs: null, ck: null, log: null, logF: null, chain: null, loading: {},
-  down: false, resErr: null, mod: {},
+  down: false, resErr: null, mod: {}, deptUnit: null,
 };
 const SESSION_KEY = "ii-session";
 
@@ -48,13 +48,17 @@ const FIELD_UA = { planned_open_on: "Відкрити", planned_close_on: "За�
 const FIELD_RE = new RegExp(`\\b(${Object.keys(FIELD_UA).join("|")})\\b`, "g");
 export const uaFields = t => String(t || "").replace(FIELD_RE, k => `«${FIELD_UA[k]}»`);
 const errReasons = e => [...new Set(e.errors.map(i => uaFields(String((i && i.message) || "").replace(/^Value error,\s*/i, "").trim())).filter(Boolean))].slice(0, 3).join("; ");
-export const apiErrText = e => e instanceof ApiErr && e.code === "bad_transition" ? "Такий перехід статусу недоступний. Оновіть сторінку: статус могли змінити." : e instanceof ApiErr ? `${uaFields(e.message)}${errReasons(e) ? ": " + errReasons(e) : ""}${e.hint ? ". " + uaFields(e.hint) : ""}${e.status >= 500 && e.requestId ? ` Код запиту: ${e.requestId}` : ""}` : "Не вдалося виконати дію";
+// Політика STAFF_TOKEN_ONLY: сервер пояснює технічно (access_mode), показуємо людською мовою
+const STAFF_TOKEN_TXT = "Анкети особового складу проходять лише анонімно: за QR або одноразовими посиланнями. Створіть для особового складу окрему хвилю з режимом «QR або посилання», а за логіном лишіть робочу групу й експертів.";
+export const staffTokenOnly = () => !!(API.cfg && API.cfg.policies && API.cfg.policies.staff_token_only) && API.user && API.user.category === "staff";
+export const apiErrText = e => e instanceof ApiErr && e.code === "staff_token_only" ? STAFF_TOKEN_TXT : e instanceof ApiErr && e.code === "bad_transition" ? "Такий перехід статусу недоступний. Оновіть сторінку: статус могли змінити." : e instanceof ApiErr ? `${uaFields(e.message)}${errReasons(e) ? ": " + errReasons(e) : ""}${e.hint ? ". " + uaFields(e.hint) : ""}${e.status >= 500 && e.requestId ? ` Код запиту: ${e.requestId}` : ""}` : "Не вдалося виконати дію";
 export const apiFail = e => toast(apiErrText(e));
 
 /* --- Ролі: обліковий запис → роль інтерфейсу --- */
 function frontRole(u) {
   if (!u) return "respondent";
   if (["admin", "commissioner", "leader", "auditor", "coordinator"].includes(u.role)) return u.role;
+  if (u.role === "department") return "observer"; // Департамент: огляд закладів по одному, лише перегляд
   return u.category === "working_group" ? "checklist_editor" : "respondent";
 }
 const RESULT_ROLES = ["leader", "auditor", "admin", "commissioner"];
@@ -108,14 +112,15 @@ export async function loginProxy() {
 }
 export async function logout() {
   try { await api("/auth/session", { method: "DELETE" }); } catch (e) { /* сесія вже закрита */ }
-  apiSetToken(null); API.user = null; API.model = null; API.mod = {}; history.replaceState(null, "", "/"); showLogin();
+  apiSetToken(null); API.user = null; API.model = null; API.mod = {}; clearDraft(true); S.survey = freshSurvey(); history.replaceState(null, "", "/"); showLogin();
 }
 
 async function afterLogin(user) {
-  API.user = user; S.role = frontRole(user); API.my = API.assignments = API.adm = API.qs = API.ck = API.log = API.logF = API.chain = null; API.survey = null; API.formError = null; API.loginMsg = null;
+  API.user = user; S.role = frontRole(user); API.my = API.assignments = API.adm = API.qs = API.ck = API.log = API.logF = API.chain = API.dept = null; API.survey = null; API.formError = null; API.loginMsg = null;
   API.resErr = null; API.mod = {};
+  API.deptUnit = null;
   if (RESULT_ROLES.includes(S.role)) { try { await apiLoadResults(); } catch (e) { API.resErr = apiErrText(e); } }
-  if (!allowed((location.hash || "").slice(1).split("/")[0])) location.hash = HOME[S.role];
+  if (!allowed((location.hash || "").slice(1).split("/")[0]) || S.role === "observer") location.hash = HOME[S.role]; // Департамент починає зі списку закладів
   render();
 }
 
@@ -125,7 +130,7 @@ async function bootToken(token) {
   API.surveyTarget = { kind: "token", token };
   location.hash = "survey";
   S.survey = freshSurvey();
-  try { API.survey = apiSurveyModel(await api("/respond/form", { auth: false, headers: { "X-Response-Token": token } }), "token"); }
+  try { API.survey = apiSurveyModel(await api("/respond/form", { auth: false, headers: { "X-Response-Token": token } }), "token"); S.survey.a = loadDraft(Object.keys(API.survey.opt)); }
   catch (e) {
     API.survey = null; API.surveyMsg = e.code === "token_used" ? "used" : e.code === "campaign_not_open" ? "closed" : "invalid";
     // Після закриття хвилі те саме посилання показує узагальнені результати (GET /respond/results).
@@ -160,8 +165,9 @@ function cycleLabels(points) { const used = {}; return points.map(p => { const b
 function apiModel(r, h) {
   const comps = COMPS.map(id => {
     const c = r.components.find(x => x.code === id) || {};
-    const v = c.score ?? c.self_score ?? 0, P = c.self_score ?? v, F = c.facts_score ?? P;
-    return { id, P, F, cr: { v, lim: !!c.cut_by_facts, reason: c.cut_by_facts ? c.rule : undefined } };
+    // Компонент без даних лишається без числа (null): не підміняємо нулем, щоб не занизити рівень і слабку ланку
+    const v = c.score ?? c.self_score ?? null, P = c.self_score ?? v, F = c.facts_score ?? P;
+    return { id, P, F, nodata: v == null, cr: { v, lim: !!c.cut_by_facts, reason: c.cut_by_facts ? c.rule : undefined } };
   });
   const pItems = r.components.filter(c => COMPS.includes(c.code)).flatMap(c => {
     const src = (c.sources || []).filter(s => s.score != null && s.effective_weight > 0), tot = src.reduce((a, s) => a + s.effective_weight, 0) || 1;
@@ -177,10 +183,10 @@ function apiModel(r, h) {
       from: (f.sources || []).map(s => SRC[s] || s).join(", ") || "Дані обліку", rule: f.rule, per: quarters(f.periods) }));
   });
   const pts = (h && h.points) || [], labels = cycleLabels(pts);
-  let series = pts.map((p, i) => ({ cycle: labels[i], index: p.index ?? 0, cr: Object.fromEntries(COMPS.map(c => [c, (p.components || {})[c] ?? 0])) }));
+  let series = pts.map((p, i) => ({ cycle: labels[i], index: p.index ?? null, cr: Object.fromEntries(COMPS.map(c => [c, (p.components || {})[c] ?? null])) }));
   const at = pts.findIndex(p => p.campaign_id === r.campaign_id);
   if (at >= 0) series = series.slice(0, at + 1);
-  else series.push({ cycle: r.closed_on ? r.closed_on.slice(0, 7) : r.campaign_title, index: r.index.score ?? 0, cr: Object.fromEntries(comps.map(c => [c.id, c.cr.v])) });
+  else series.push({ cycle: r.closed_on ? r.closed_on.slice(0, 7) : r.campaign_title, index: r.index.score ?? null, cr: Object.fromEntries(comps.map(c => [c.id, c.cr.v])) });
   if (series.length === 1) series = [series[0], series[0]];
   const events = pts.flatMap((p, i) => i > 0 && p.measures_done > 0 ? [{ after: labels[i - 1], n: p.measures_done, t: `Виконано заходів між циклами: ${p.measures_done}` }] : []);
   const flags = [];
@@ -189,7 +195,7 @@ function apiModel(r, h) {
   const responses = r.groups.reduce((a, g) => a + (g.submitted || 0), 0);
   const m = finish({ id: ALPHA, name: r.unit_name, components: comps, pItems, fItems, series, events, flags, responses });
   m.trust = GRADE[r.index.reliability] || "insufficient";
-  m.index = r.index.score ?? m.index; m.level = (r.index.level && r.index.level.level) || m.level; m.delta = r1(m.index - m.prevIndex);
+  m.index = r.index.score ?? m.index; m.level = (r.index.level && r.index.level.level) || m.level; m.delta = m.index == null || m.prevIndex == null ? null : r1(m.index - m.prevIndex);
   if (!h) { m.noHistory = true; m.delta = null; m.prevIndex = null; } // попередніх циклів не отримано: зміна невідома
   if (r.index.reliability_reasons && r.index.reliability_reasons[0]) m.summary = r.index.reliability_reasons[0];
   m.groups = r.groups; m.rule = r.index.rule;
@@ -202,7 +208,7 @@ function apiModel(r, h) {
   ];
   m.strengths = (r.strengths || []).filter(s => byCode[s.code]).map(s => ({ t: `Сильний компонент: ${COMP[s.code].n}`, c: s.code, v: s.score ?? byCode[s.code].cr.v, hint: `Зараховане значення компонента ${COMP[s.code].n}, 0-100.` }));
   if (!m.strengths.length && !m.attention.some(a => a.c === top.id && !a.q)) m.strengths = [{ t: `Найвищий результат у компоненті ${COMP[top.id].n}`, c: top.id, v: top.cr.v, hint: `Зараховане значення компонента ${COMP[top.id].n}, 0-100.` }];
-  if (m.index > series[0].index) m.strengths.push({ t: "Зростання індексу з першого циклу", v: r1(m.index - series[0].index), hint: "Сумарна зміна індексу з першого закритого циклу, у пунктах.", unit: "пт" });
+  if (m.index != null && series[0].index != null && m.index > series[0].index) m.strengths.push({ t: "Зростання індексу з першого циклу", v: r1(m.index - series[0].index), hint: "Сумарна зміна індексу з першого закритого циклу, у пунктах.", unit: "пт" });
   return m;
 }
 
@@ -245,7 +251,8 @@ const MEAS_BACK = { accepted: "planned", inprogress: "in_progress", done: "done"
 async function apiLoadResults() {
   API.model = null; API.empty = false; API.recs = []; API.ms = [];
   let d;
-  try { d = await api("/dashboard"); }
+  // Департамент дивиться обраний заклад: без unit_id сервер відповідає 422 «Оберіть заклад»
+  try { d = await api("/dashboard" + (API.deptUnit ? `?unit_id=${API.deptUnit}` : "")); }
   catch (e) { if (e.status === 404 || e.status === 409) { API.empty = true; return; } throw e; }
   API.campaignId = d.campaign_id; API.unitId = d.unit_id;
   const q = d.unit_id ? `?unit_id=${d.unit_id}` : "";
@@ -263,6 +270,12 @@ async function apiLoadResults() {
   setClock(localToday, API.model.series[API.model.series.length - 1].cycle);
   const n = API.model.series.length;
   S.trend = { from: 0, to: n - 1, lines: [] }; S.cmp = { a: Math.max(0, n - 2), b: n - 1 };
+}
+// Департамент: обрати заклад і завантажити його результати (кожен заклад окремо, без рейтингу)
+export async function apiSelectInst(id) {
+  API.deptUnit = id; API.mod = {}; API.resErr = null; API.model = null; render(true);
+  try { await apiLoadResults(); } catch (e) { API.resErr = apiErrText(e); }
+  location.hash = "overview"; render();
 }
 export async function apiReloadResults() { try { await apiLoadResults(); } catch (e) { apiFail(e); } render(true); }
 // Повтор після збою завантаження результатів (екран «Не вдалося завантажити»)
@@ -288,37 +301,68 @@ function apiSurveyModel(form, kind, category) {
   const guess = t => /культур/i.test(t) ? "culture" : /систем/i.test(t) ? "system" : /підзвітн/i.test(t) ? "accountability" : null;
   const opt = {};
   const sections = form.sections.map(s => {
-    const id = s.component || guess(s.title) || "overall"; // компонент з сервера (culture/system/accountability/overall); за назвою лише для старих відповідей
-    return { id, t: s.title, about: COMPS.includes(id) ? { culture: "про ставлення до доброчесності", system: "про процедури й канали звернень", accountability: "про прозорість рішень і виконання заходів" }[id] : id === "overall" ? "" : "за темою розділу",
+    const id = s.component || guess(s.title) || "overall"; // компонент з сервера (culture/system/accountability/overall/candor); за назвою лише для старих відповідей
+    // Розділ непрямих питань: респонденту не пояснюємо метод у назві, щоб не підказувати, яке твердження головне
+    const candor = id === "candor";
+    return { id, t: candor ? "Ситуації на службі" : s.title, about: COMPS.includes(id) ? { culture: "про ставлення до доброчесності", system: "про процедури й канали звернень", accountability: "про прозорість рішень і виконання заходів" }[id] : id === "overall" ? "" : candor ? "кілька коротких питань про повсякденні ситуації" : "за темою розділу",
       q: s.questions.map(q => {
-        if (q.type === "scale" && !q.options.length) { const vals = []; for (let v = q.scale_min; v <= q.scale_max; v++) vals.push(v); opt[q.id] = vals.map(v => ({ value: v })); return [q.id, q.text, vals.map(String)]; }
-        opt[q.id] = q.options.map(o => ({ id: o.id })); return [q.id, q.text, q.options.map(o => o.text)];
+        // Підказка до питання (help_text): для непрямого питання «скільки з переліку» в ній самі твердження.
+        // Варіант переліку (A/B) лишається лише в ідентифікаторах відповідей, респондент його не бачить.
+        const help = q.help_text || "";
+        if (q.type === "scale" && !q.options.length) { const vals = []; for (let v = q.scale_min; v <= q.scale_max; v++) vals.push(v); opt[q.id] = vals.map(v => ({ value: v })); return [q.id, q.text, vals.map(String), help]; }
+        opt[q.id] = q.options.map(o => ({ id: o.id })); return [q.id, q.text, q.options.map(o => o.text), help];
       }) };
   });
   return { title: form.title, cat: CAT[category] || "Анонімне опитування", sections, opt, kind, campaignId: form.campaign_id, questionnaireId: form.questionnaire_id, k: form.min_group_size };
 }
 export async function apiSubmitSurvey() {
   const sv = API.survey, answers = Object.entries(S.survey.a).filter(([qid]) => sv.opt[qid]).map(([qid, i]) => { const o = sv.opt[qid][i]; return o.id ? { question_id: qid, option_ids: [o.id] } : { question_id: qid, option_ids: [], value: o.value }; });
+  let receipt = null;
   try {
     if (sv.kind === "token") await api("/respond/responses", { method: "POST", auth: false, headers: { "X-Response-Token": API.token }, body: { answers } });
-    else await api(`/campaigns/${sv.campaignId}/questionnaires/${sv.questionnaireId}/responses`, { method: "POST", body: { answers } });
+    else receipt = await submitBallot(sv, answers); // за обліковим записом: анонімний жетон зі сліпим підписом і квитанція
   } catch (e) {
     // «Вже пройдено» лише коли сервер так і каже; інші 409 (хвиля не відкрита тощо) ідуть тостом
-    if (e.code === "already_submitted" || e.code === "token_used") { API.surveyUsed = true; API.surveyMsg = "used"; render(); return; }
+    if (e.code === "ballot_used") clearBallot(sv);
+    if (e.code === "already_submitted" || e.code === "token_used" || e.code === "ballot_used") { API.surveyUsed = true; API.surveyMsg = "used"; render(); return; }
     if (e.code === "campaign_not_open") { API.survey = null; API.surveyMsg = "closed"; render(); return; }
     if (e.missing && e.missing.length) S.survey.miss = true;
     toast(apiErrText(e)); render(true); return;
   }
-  S.survey = { phase: "done", sec: 0, a: {}, miss: false }; API.surveyUsed = sv.kind === "token";
-  try { localStorage.removeItem("ii-survey-draft"); } catch (e) { /* немає */ }
+  S.survey = { phase: "done", sec: 0, a: {}, miss: false, receipt }; API.surveyUsed = sv.kind === "token";
+  clearDraft();
   if (sv.kind !== "token") { sv.submitted = true; API.assignments = null; API.my = null; }
   render();
 }
+/* --- Жетон зі сліпим підписом (lib/ballot.js) --- */
+// Жетон тримаємо в sessionStorage до успішного надсилання: якщо мережа впаде після підпису, повтор не потребує нового жетона
+const ballotKey = sv => `ii-ballot:${sv.campaignId}:${sv.questionnaireId}`;
+const clearBallot = sv => { try { sessionStorage.removeItem(ballotKey(sv)); } catch (e) { /* немає */ } };
+async function submitBallot(sv, answers) {
+  const B = await import("./ballot.js"), base = `/campaigns/${sv.campaignId}/questionnaires/${sv.questionnaireId}`;
+  let t = null; try { t = JSON.parse(sessionStorage.getItem(ballotKey(sv)) || "null"); } catch (e) { /* немає */ }
+  if (!t) {
+    const key = await api(`${base}/ballot-key`), b = await B.blind(key.n, key.e);
+    const s = await api(`${base}/ballot`, { method: "POST", body: { blinded: b.blinded } });
+    const sig = B.unblind(key.n, s.blinded_signature, b.r);
+    if (!await B.verifySig(key.n, key.e, b.nonce, sig)) throw new ApiErr(0, { message: "Жетон не пройшов перевірку в браузері", hint: "Оновіть сторінку й спробуйте ще раз." });
+    t = { key_id: s.key_id, nonce: b.nonce, signature: sig };
+    try { sessionStorage.setItem(ballotKey(sv), JSON.stringify(t)); } catch (e) { /* без збереження: повтор попросить новий жетон */ }
+  }
+  const r = await api("/respond/ballot", { method: "POST", auth: false, body: { answers, ...t } });
+  clearBallot(sv);
+  saveReceipt({ receipt: r.receipt, campaignId: sv.campaignId, title: sv.title });
+  return r.receipt;
+}
+// Квитанції лише на цьому пристрої: з них не видно відповідей, тільки «чи врахована відповідь»
+export const myReceipts = () => { try { return JSON.parse(localStorage.getItem("ii-receipts") || "[]"); } catch (e) { return []; } };
+function saveReceipt(x) { try { localStorage.setItem("ii-receipts", JSON.stringify([...myReceipts().filter(r => r.receipt !== x.receipt), x].slice(-20))); } catch (e) { /* немає */ } }
+export const apiCheckReceipt = r => api(`/respond/receipts/${r}`, { auth: false });
 export function apiLoadForm(next) {
   if (API.loading.form || API.formError) return;
   API.loading.form = true;
   api(`/campaigns/${next.campaign_id}/questionnaires/${next.questionnaire_id}/form`)
-    .then(f => { API.survey = apiSurveyModel(f, "account", API.user.category); S.survey = freshSurvey(); }, e => { API.formError = apiErrText(e); })
+    .then(f => { API.survey = apiSurveyModel(f, "account", API.user.category); S.survey = freshSurvey(); S.survey.a = loadDraft(Object.keys(API.survey.opt)); }, e => { API.formError = apiErrText(e); })
     .finally(() => { API.loading.form = false; render(true); });
 }
 
@@ -332,7 +376,7 @@ export function apiEnsure(key, loader) {
   }
   return false;
 }
-export function apiRetry() { API.adm = API.qs = API.ck = API.log = API.my = API.assignments = API.formError = null; API.mod = {}; render(); }
+export function apiRetry() { API.adm = API.qs = API.ck = API.log = API.my = API.assignments = API.formError = API.dept = null; API.mod = {}; render(); }
 export const RESULT_VIEWS = ["overview", "explain", "trends", "compare", "whatif", "recs", "tracker", "report", "sources"];
 
 /* --- Керування циклом (уповноважений) --- */
@@ -357,8 +401,17 @@ export async function apiCreateCampaign(body) {
   closeDrawer(); toast(`Хвилю «${c.title}» створено як чернетку`); apiAdmReload(c.id);
 }
 export async function apiCampaignAct(id, act) {
-  try { await api(`/campaigns/${id}/${act}`, { method: "POST" }); toast(act === "open" ? "Хвилю відкрито: респонденти бачать анкети" : "Хвилю закрито: знімок результатів збережено"); if (act === "close") API.model = null; apiAdmReload(id); }
-  catch (e) { apiFail(e); apiAdmReload(id); } // статус хвилі міг змінитися: показуємо актуальний
+  if (API.campBusy) return;
+  API.campBusy = id + act; render(true);
+  try {
+    const c = await api(`/campaigns/${id}/${act}`, { method: "POST" });
+    // Принцип двох осіб: перший виклик лише створює запит на відкриття
+    const pending = act === "open" && c && c.pending_approval_id && c.status !== "open";
+    toast(pending ? "Запит на відкриття надіслано: хвилю відкриє підтвердження другої людини" : act === "open" ? "Хвилю відкрито: респонденти бачать анкети" : "Хвилю закрито: знімок результатів збережено");
+    // Після закриття оновлюємо результати, трекер, лічильники меню й модулі без перезавантаження сторінки
+    if (act === "close") { API.mod = {}; API.ck = API.log = null; if (RESULT_ROLES.includes(S.role)) await apiReloadResults(); }
+  } catch (e) { apiFail(e); }
+  finally { API.campBusy = null; apiAdmReload(id); } // статус хвилі міг змінитися: показуємо актуальний
 }
 // QR для зали: одне посилання на групу (анкета + підрозділ), expected — скільки людей у групі
 export async function apiQrCreate(id, questionnaireId, unitId, expected) {
@@ -385,13 +438,16 @@ export const QST = { draft: ["Чернетка", "p-warn"], published: ["Опу�
 export const QCAT = { working_group: "Робоча група", staff: "Особовий склад", expert: "Зовнішні експерти" };
 export function apiSurveysReload() { API.qs = null; render(true); }
 export async function apiQAct(id, act) {
+  if (API.qBusy) return;
+  API.qBusy = id; render(true); // кнопки анкети неактивні, доки йде запит
   try {
     if (act === "publish") { const issues = await api(`/questionnaires/${id}/validate`); if (issues.length) { toast("Не можна опублікувати: " + issues.map(i => i.message).join("; ")); return; } }
     const q = await api(`/questionnaires/${id}/${act}`, { method: "POST" });
     toast(act === "publish" ? `Опубліковано: ${q.title}` : act === "new-version" ? `Створено чернетку версії ${q.version}` : act === "restore" ? `Повернуто з архіву: ${q.title}` : `В архіві: ${q.title}`);
     API.qs = null; render(true);
     if (act === "new-version") bldOpen(q.id); // нова версія це чернетка: одразу відкриваємо в конструкторі
-  } catch (e) { apiFail(e); }
+  } catch (e) { toast(act === "publish" && e.errors && e.errors.length ? "Не можна опублікувати: " + e.errors.map(x => x.message).join("; ") : apiErrText(e)); }
+  finally { API.qBusy = null; render(true); }
 }
 export async function bldOpen(id) {
   try { const q = await api(`/questionnaires/${id}`); ui.bld = { q, n: Date.now() }; render(true); } catch (e) { apiFail(e); }
@@ -427,7 +483,7 @@ export async function apiDownload(camp, qid, fid, name) {
 }
 
 /* --- Журнал --- */
-export const AUDIT_ENT = { campaign: "Хвиля", questionnaire: "Анкета", user: "Користувач", unit: "Підрозділ", checklist_entry: "Чек-лист", evidence_file: "Файл-доказ", measure: "Захід", recommendation: "Рекомендація", results: "Результати", indicator: "Факт", report: "Звіт", assistant: "Асистент", audit_log: "Журнал", autopilot: "Автопілот", normative: "Нормативка", learning_deck: "Навчання", check_run: "Перевірка", check_finding: "Знахідка перевірки" };
+export const AUDIT_ENT = { campaign: "Хвиля", questionnaire: "Анкета", user: "Користувач", unit: "Підрозділ", checklist_entry: "Чек-лист", evidence_file: "Файл-доказ", measure: "Захід", recommendation: "Рекомендація", results: "Результати", indicator: "Факт", report: "Звіт", assistant: "Асистент", audit_log: "Журнал", autopilot: "Автопілот", normative: "Нормативка", learning_deck: "Навчання", check_run: "Перевірка", check_finding: "Знахідка перевірки", approval: "Запит другій людині", category: "Категорія респондентів", checklist: "Чек-лист", fact_definition: "Показник фактів", position: "Посада" };
 // Людські назви дій бекенду: «сутність:дія» → текст
 export const AUDIT_ACT = {
   "assistant:ask": "Запит до асистента", "assistant:edit_report": "Звіт: запит до ШІ щодо фрагмента", "audit_log:verify": "Перевірено цілісність журналу",
@@ -446,6 +502,13 @@ export const AUDIT_ACT = {
   "campaign:devils_advocate": "Переглянуто питання перевірки", "campaign:autopilot": "Змінено налаштування автопілота хвилі", "autopilot:tick": "Виконано крок автопілота",
   "normative:analyze": "Проаналізовано нормативний документ", "learning_deck:complete": "Пройдено колоду флешкарток", "indicator:publish": "Записано показник із модуля системи",
   "check_run:run": "Запущено перевірку", "check_run:fetch": "Отримано дані для перевірки", "check_finding:review": "Розглянуто знахідку перевірки",
+  "approval:request_approval": "Запит на підтвердження другою людиною", "approval:approve": "Запит підтверджено другою людиною", "approval:reject": "Запит відхилено другою людиною",
+  "audit_log:accept_anchor": "Аудит прийняв хеш журналу", "audit_log:verify_anchor": "Хеш журналу звірено з копією аудиту",
+  "campaign:audit_lottery": "Проведено лотерею перевірок", "campaign:delete": "Видалено чернетку хвилі",
+  "campaign:urn_setup": "Увімкнено урну з трьома ключами", "campaign:urn_disable": "Вимкнено урну", "campaign:urn_take_share": "Власник отримав свою частину ключа", "campaign:urn_submit_share": "Введено частину ключа урни", "campaign:urn_close_requested": "Запит на відкриття урни",
+  "category:create": "Додано категорію респондентів", "category:update": "Змінено категорію респондентів", "checklist:assign": "Призначено відповідальних за пункти чек-листа",
+  "fact_definition:create": "Додано показник фактів", "fact_definition:update": "Змінено показник фактів", "position:create": "Додано посаду", "position:deactivate": "Посаду вимкнено",
+  "questionnaire:restore": "Анкету повернуто з архіву", "unit:import_risks": "Імпортовано реєстр корупційних ризиків", "user:invite": "Надіслано запрошення", "user:accept_invite": "Користувач прийняв запрошення й задав пароль",
   "user:create": "Створено користувача", "user:update": "Змінено користувача", "user:login_proxy": "Вхід через проксі",
 };
 export function apiLoadLog() {
@@ -526,4 +589,11 @@ export const apiCheckPublish = (unit_id, period) => api("/checks/publish", { met
 export async function apiCheckRun(kind, unit_id, period) {
   const body = await api(`/checks/mock/${kind}?unit_id=${unit_id}&period=${period}`);
   return api(`/checks/${kind}`, { method: "POST", body });
+}
+// Завантаження файлу з API (Word, Excel): назва з Content-Disposition або запасна
+export async function apiFile(path, fallback) {
+  const r = await api(path, { raw: true }), blob = await r.blob();
+  const cd = r.headers.get("content-disposition") || "", star = /filename\*=UTF-8''([^;]+)/i.exec(cd), plain = /filename="?([^";]+)"?/i.exec(cd);
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = star ? decodeURIComponent(star[1]) : plain ? plain[1] : fallback;
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
 }

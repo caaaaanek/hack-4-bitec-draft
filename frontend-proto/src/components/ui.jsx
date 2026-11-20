@@ -12,6 +12,10 @@ export const SrcDot = ({ s }) => <span className={`src-dot ${SRC[s][2]}`} style=
 const split = (v, d) => { const s = d ? f1(v) : fb(v); const [a, b] = s.split(","); return [a, b ? "," + b : ""]; };
 // Число з плавним «набіганням» під час появи (як countUp у першій версії)
 export function Num({ v, d = 1 }) {
+  if (v == null) return <span className="lbl nodata">немає даних</span>;
+  return <NumA v={v} d={d} />;
+}
+function NumA({ v, d }) {
   const [shown, setShown] = useState(() => matchMedia("(prefers-reduced-motion: reduce)").matches ? v : 0);
   const first = useRef(true);
   useEffect(() => {
@@ -45,7 +49,7 @@ export function LevelBar({ v }) {
 
 export function CapBars({ c }) {
   const bar = (n, v, col) => <div className="cap-row"><span className="lbl">{n}</span><div className="dist-bar"><i style={{ width: `${v}%`, background: col }} /></div><b className="tnum">{fb(v)}</b></div>;
-  return <div className="cap">{bar("Сприйняття", c.P, "var(--blue)")}{bar("Факти", c.F, "var(--amber)")}{bar("Зараховано", c.cr.v, "var(--teal)")}</div>;
+  return <div className="cap">{bar("Самооцінка", c.P, "var(--blue)")}{bar("Підтверджено фактами", c.F, "var(--amber)")}{bar("Зараховано", c.cr.v, "var(--teal)")}</div>;
 }
 
 // Смужка з 20/30 поділок (заповнення компонентів і жетонів)
