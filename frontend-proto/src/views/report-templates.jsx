@@ -41,7 +41,12 @@ const GRP = { wg: "РГ", os: "ОС", experts: "Експерти" };
 function ReportG({ m }) {
   const recs = m.id === ALPHA ? buildRecs(m) : [], ms = m.id === ALPHA ? measures() : [], gs = respGroups(m);
   const g = k => gs.filter(x => k === "wg" ? x.n === "Робоча група" : k === "ex" ? x.n === "Експерти" : x.n !== "Робоча група" && x.n !== "Експерти").reduce((a, x) => a + x.resp, 0);
-  const best = [...m.components].filter(c => !c.cr.lim).sort((a, b) => b.cr.v - a.cr.v), low = [...m.components].sort((a, b) => a.cr.v - b.cr.v).filter(c => c.cr.v < 65 || c.cr.lim);
+  // «Найефективніші» відносно: вище середнього або найбільший приріст; без жодного компонента на рівні 4+ списку немає. З «уваги» прибираємо те, що вже в «найефективніших»
+  const ok = m.components.filter(c => !c.cr.lim && c.cr.v != null), avg = ok.reduce((a, c) => a + c.cr.v, 0) / (ok.length || 1);
+  const pv = m.series.length > 1 ? m.series[m.series.length - 2].cr || {} : {}, gr = c => pv[c.id] == null ? 0 : c.cr.v - pv[c.id];
+  const topG = ok.reduce((b, c) => gr(c) > 0 && (!b || gr(c) > gr(b)) ? c : b, null), hasHigh = ok.some(c => level(c.cr.v) >= 4);
+  const best = hasHigh ? ok.filter(c => c.cr.v > avg || c === topG).sort((a, b) => b.cr.v - a.cr.v) : [];
+  const low = [...m.components].sort((a, b) => a.cr.v - b.cr.v).filter(c => (c.cr.v < 65 || c.cr.lim) && !best.includes(c));
   const weakItems = [...allItems(m)].sort((a, b) => a.v - b.v).slice(0, 3);
   const props = recs.filter(r => r.st !== "rejected");
   const lowList = [...low.map(c => `${COMP[c.id].n}: ${c.cr.lim ? "самооцінку не підтверджують факти" : `зараховано ${fb(c.cr.v)}`}.`), ...weakItems.map(x => `${x.t}: ${fb(x.v)} з 100.`)].slice(0, 4);
@@ -78,7 +83,7 @@ function ReportG({ m }) {
     <p>На основі аналізу відповідей респондентів за критеріями розділів «Культура», «Система» та «Підзвітність» Моделі зрілості НАЗК <b>загальний рівень зрілості доброчесності у {m.name} {m.level ? <>можна оцінити як «{LEVELS[m.level - 1]}»</> : "не вдалося оцінити: замало даних"}</b> ({m.level ? `рівень ${m.level} з 5; ` : ""}індекс доброчесності {m.index == null ? "не пораховано" : `${f1(m.index)} з 100`}; {m.delta == null ? "дані про попередній цикл недоступні" : `${m.delta > 0 ? `на ${pts(m.delta)} вище` : m.delta < 0 ? `на ${pts(m.delta)} нижче` : "без змін"} порівняно з попереднім циклом`}).</p>
     <p><i>Довідково:</i> {m.fItems.filter(x => x.kind === "pct").map(x => `${x.t.toLowerCase()}: ${x.val[0]} з ${x.val[1]}`).join("; ")}.</p>
     <p><b>Найбільш ефективні напрями:</b></p>
-    <ol>{best.slice(0, 2).map(c => <li key={c.id}>{COMP[c.id].n}: зараховано {fb(c.cr.v)}, рівень {lvT(c.cr.v)}.</li>)}</ol>
+    {best.length ? <ol>{best.slice(0, 2).map(c => <li key={c.id}>{COMP[c.id].n}: зараховано {fb(c.cr.v)}, рівень {lvT(c.cr.v)}.</li>)}</ol> : <p>Компонентів на рівні 4 і вище немає.</p>}
     <p><b>Напрями, що потребують більшої уваги:</b></p>
     <ol>{lowList.map(t => <li key={t}>{t}</li>)}</ol>
     <p><b>Пропозиції:</b></p>
