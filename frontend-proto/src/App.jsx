@@ -19,13 +19,14 @@ import { Builder } from "./views/Builder.jsx";
 import { Learn } from "./views/Learn.jsx";
 import { Advocate } from "./views/Insights.jsx";
 import { Autopilot } from "./views/Autopilot.jsx";
-import { Normative } from "./views/Normative.jsx";
 import { Checks } from "./views/Checks.jsx";
 import { ResultViews } from "./views/Oversight.jsx";
 import { Approvals, fourEyes, useApprovals } from "./views/Transparency.jsx";
 import { UrnScreen } from "./views/Urn.jsx";
 // Адміністрування рідко потрібне: окремий чанк
 const lazyAdm = k => { const C = lazy(() => import("./views/Admin.jsx").then(m => ({ default: m[k] }))); return () => <Suspense fallback={null}><C /></Suspense>; };
+// «Що змінилось» (нормативка) рідкісний екран: окремий чанк, щоб основний не перевищував 500 кБ
+const NormLazy = lazy(() => import("./views/Normative.jsx").then(m => ({ default: m.Normative }))), Normative = () => <Suspense fallback={null}><NormLazy /></Suspense>;
 const People = lazyAdm("People"), Units = lazyAdm("Units"), Summary = lazyAdm("Summary"), Dicts = lazyAdm("Dicts"), Risks = lazyAdm("Risks"), InvitePage = lazyAdm("InvitePage");
 
 const V = { people: People, units: Units, summary: Summary, dicts: Dicts, risks: Risks, urn: UrnScreen, approvals: Approvals, views: ResultViews, learn: Learn, advocate: Advocate, autopilot: Autopilot, normative: Normative, checks: Checks, overview: Overview, explain: Explain, trends: Trends, compare: Compare, whatif: WhatIf, recs: Recs, tracker: Tracker, sources: Sources, report: Report, manage: Manage, surveys: Surveys, checklist: Checklist, audit: Audit, survey: Survey, me: Me, institutions: Institutions };
