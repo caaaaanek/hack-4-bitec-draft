@@ -14,7 +14,7 @@ export const API = {
   model: null, empty: false, recs: [], ms: [], campaignId: null, unitId: null, res: null,
   survey: null, surveyUsed: false, surveyMsg: null, surveyTarget: null, formError: null,
   my: null, assignments: null, adm: null, qs: null, ck: null, log: null, logF: null, chain: null, loading: {},
-  down: false, resErr: null, mod: {},
+  down: false, resErr: null, mod: {}, deptUnit: null,
 };
 const SESSION_KEY = "ii-session";
 
@@ -55,6 +55,7 @@ export const apiFail = e => toast(apiErrText(e));
 function frontRole(u) {
   if (!u) return "respondent";
   if (["admin", "commissioner", "leader", "auditor", "coordinator"].includes(u.role)) return u.role;
+  if (u.role === "department") return "observer"; // Департамент: огляд закладів по одному, лише перегляд
   return u.category === "working_group" ? "checklist_editor" : "respondent";
 }
 const RESULT_ROLES = ["leader", "auditor", "admin", "commissioner"];
@@ -112,10 +113,11 @@ export async function logout() {
 }
 
 async function afterLogin(user) {
-  API.user = user; S.role = frontRole(user); API.my = API.assignments = API.adm = API.qs = API.ck = API.log = API.logF = API.chain = null; API.survey = null; API.formError = null; API.loginMsg = null;
+  API.user = user; S.role = frontRole(user); API.my = API.assignments = API.adm = API.qs = API.ck = API.log = API.logF = API.chain = API.dept = null; API.survey = null; API.formError = null; API.loginMsg = null;
   API.resErr = null; API.mod = {};
+  API.deptUnit = null;
   if (RESULT_ROLES.includes(S.role)) { try { await apiLoadResults(); } catch (e) { API.resErr = apiErrText(e); } }
-  if (!allowed((location.hash || "").slice(1).split("/")[0])) location.hash = HOME[S.role];
+  if (!allowed((location.hash || "").slice(1).split("/")[0]) || S.role === "observer") location.hash = HOME[S.role]; // Департамент починає зі списку закладів
   render();
 }
 
@@ -245,7 +247,8 @@ const MEAS_BACK = { accepted: "planned", inprogress: "in_progress", done: "done"
 async function apiLoadResults() {
   API.model = null; API.empty = false; API.recs = []; API.ms = [];
   let d;
-  try { d = await api("/dashboard"); }
+  // Департамент дивиться обраний заклад: без unit_id сервер відповідає 422 «Оберіть заклад»
+  try { d = await api("/dashboard" + (API.deptUnit ? `?unit_id=${API.deptUnit}` : "")); }
   catch (e) { if (e.status === 404 || e.status === 409) { API.empty = true; return; } throw e; }
   API.campaignId = d.campaign_id; API.unitId = d.unit_id;
   const q = d.unit_id ? `?unit_id=${d.unit_id}` : "";
@@ -263,6 +266,12 @@ async function apiLoadResults() {
   setClock(localToday, API.model.series[API.model.series.length - 1].cycle);
   const n = API.model.series.length;
   S.trend = { from: 0, to: n - 1, lines: [] }; S.cmp = { a: Math.max(0, n - 2), b: n - 1 };
+}
+// Департамент: обрати заклад і завантажити його результати (кожен заклад окремо, без рейтингу)
+export async function apiSelectInst(id) {
+  API.deptUnit = id; API.mod = {}; API.resErr = null; API.model = null; render(true);
+  try { await apiLoadResults(); } catch (e) { API.resErr = apiErrText(e); }
+  location.hash = "overview"; render();
 }
 export async function apiReloadResults() { try { await apiLoadResults(); } catch (e) { apiFail(e); } render(true); }
 // Повтор після збою завантаження результатів (екран «Не вдалося завантажити»)
@@ -337,7 +346,7 @@ export function apiEnsure(key, loader) {
   }
   return false;
 }
-export function apiRetry() { API.adm = API.qs = API.ck = API.log = API.my = API.assignments = API.formError = null; API.mod = {}; render(); }
+export function apiRetry() { API.adm = API.qs = API.ck = API.log = API.my = API.assignments = API.formError = API.dept = null; API.mod = {}; render(); }
 export const RESULT_VIEWS = ["overview", "explain", "trends", "compare", "whatif", "recs", "tracker", "report", "sources"];
 
 /* --- Керування циклом (уповноважений) --- */

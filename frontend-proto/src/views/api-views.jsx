@@ -13,10 +13,12 @@ import { UnitCombo, UnitPick } from "../components/UnitCombo.jsx";
 import { QrCode, qrAbs } from "../components/QrCode.jsx";
 import { bldFromServer, bldNewSec } from "./Builder.jsx";
 import { AutopilotSection } from "./Autopilot.jsx";
+import { DeptInstitutions, ChooseInst } from "./Department.jsx";
 import { LearnCard } from "./Learn.jsx";
 
 export function apiView(r) {
   if (!API.on) return null;
+  if (S.role === "observer") { if (r === "institutions") return <DeptInstitutions />; if (RESULT_VIEWS.includes(r) && !API.deptUnit) return <ChooseInst />; }
   if (RESULT_VIEWS.includes(r) && r !== "sources" && !API.model && API.resErr) return <Failed e={API.resErr} onRetry={apiRetryResults} />;
   if (RESULT_VIEWS.includes(r) && r !== "sources" && !API.model)
     return API.empty ? <Empty t="Ще немає закритої хвилі оцінювання">Результати зʼявляться, коли уповноважений закриє хвилю: система порахує індекс і збереже незмінний знімок.</Empty> : <Loading t="Результати" />;
