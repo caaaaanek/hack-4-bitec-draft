@@ -92,5 +92,5 @@ export function Pop({ children, mode, cls = "", label = "Вибір" }) {
 export function Toast() {
   const t = ui.toast, last = useRef("");
   if (t) last.current = t.t;
-  return <div className={`toast ${t ? "on" : ""}`} id="toast">{t ? t.t : last.current}</div>;
+  return <div className={`toast ${t ? "on" : ""}`} id="toast" role="status" aria-live="polite" aria-atomic="true">{t ? t.t : last.current}</div>;
 }
