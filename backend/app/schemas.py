@@ -424,6 +424,9 @@ class QrLinkOut(BaseModel):
     revoked: bool
     opened: int = Field(description="Скільки форм відкрито скануванням")
     completed: int = Field(description="Скільки з них завершено; різниця — покинуті форми")
+    over_expected: bool = Field(default=False, description="Завершено більше, ніж людей у групі: можлива накрутка")
+    scan_limit_reached: bool = Field(default=False,
+                                     description="Відкрито стільки форм, скільки дозволяє ліміт: нові скани не пускає")
 
 
 class QrOpenOut(BaseModel):

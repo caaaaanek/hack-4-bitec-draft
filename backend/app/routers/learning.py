@@ -137,7 +137,8 @@ def complete_deck(code: str, data: CompleteIn, db: Session = Depends(get_db), us
         raise ApiError(422, f"Переглянуто не всі картки: бракує {len(missing)}", code="validation_error",
                        hint="Перегорніть усі картки колоди.")
     row = learning.complete(db, user, code)
-    log_action(db, user, "complete", "learning_deck", None, {"deck": code})
+    # У журнал дій не пишемо: запис «хто пройшов колоду» склав би поіменний список навченості, а запобіжник А10
+    # (docs/abuse-analysis.md) його забороняє. Свій стан бачить лише сама людина, решта — агрегат від k (/stats).
     db.commit()
     return CompleteOut(deck=code, completed_on=row.completed_on, i_am_trained=user.id in learning.trained(db, today()))
 

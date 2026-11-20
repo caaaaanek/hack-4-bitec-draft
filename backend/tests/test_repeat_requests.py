@@ -145,15 +145,20 @@ def test_reject_after_accept_cancels_open_measures(client):
 
 
 def test_source_key_cannot_overwrite_other_source(client, monkeypatch):
-    monkeypatch.setattr(get_settings(), "integration_keys", "artemida=key-a;training=key-t")
+    monkeypatch.setattr(get_settings(), "integration_keys", "artemida=key-a;training=key-t;learning=key-l")
     root = units(client, auth(client, "admin"))[ROOT]
     body = {"unit_id": root, "period": "2026-07", "indicator": "training_coverage",
             "numerator": 72, "denominator": 100, "source": "training"}
     assert client.post(f"{API}/indicators", json=body, headers={"X-Integration-Key": "key-t"}).status_code == 201
 
+    # Інший власник того самого факту (флешкартки) не переписує вже переданий показник.
+    r = client.post(f"{API}/indicators", json={**body, "numerator": 100, "source": "learning"},
+                    headers={"X-Integration-Key": "key-l"})
+    assert r.status_code == 409 and r.json()["code"] == "source_conflict"
+    # Джерело, що не є власником факту, не передає його взагалі (В7).
     r = client.post(f"{API}/indicators", json={**body, "numerator": 100, "source": "artemida"},
                     headers={"X-Integration-Key": "key-a"})
-    assert r.status_code == 409 and r.json()["code"] == "source_conflict"
+    assert r.status_code == 409 and r.json()["code"] == "not_fact_owner" and "learning" in r.json()["message"]
 
     # Своє джерело оновлює свій показник, як і раніше.
     r = client.post(f"{API}/indicators", json={**body, "numerator": 80}, headers={"X-Integration-Key": "key-t"})

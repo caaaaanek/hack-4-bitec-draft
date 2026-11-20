@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.audit import log_action
 from app.db import get_db
 from app.models import Campaign, CampaignStatus, Role, User
-from app.security import RESULT_READERS, ensure_unit_access, record_view, require_roles
+from app.security import RESULT_READERS, ensure_unit_access, require_roles
 from app.services import facts, planning, results
 
 router = APIRouter(tags=["insights"])
@@ -27,12 +27,11 @@ def closed(db: Session, campaign_id: uuid.UUID) -> Campaign:
 
 
 def scoped(db: Session, user: User, campaign: Campaign, unit_id: uuid.UUID | None, endpoint: str) -> dict:
-    ensure_unit_access(db, user, unit_id or campaign.unit_id)
+    ensure_unit_access(db, user, unit_id or campaign.unit_id, campaign_id=campaign.id, root_id=campaign.unit_id)
     try:
         data = results.results_for(db, campaign, unit_id)
     except ValueError as e:
         raise HTTPException(status_code=422, detail=str(e))
-    record_view(db, user, uuid.UUID(data["unit_id"]), campaign.id, endpoint, campaign.unit_id)
     db.commit()
     return data
 
@@ -54,7 +53,7 @@ def next_level_plan(campaign_id: uuid.UUID, unit_id: uuid.UUID | None = None,
                     db: Session = Depends(get_db), user: User = Depends(readers)):
     """«Шлях до наступного рівня»: мінімальний набір заходів (формат Додатку Д), з посадами й строками; docx — Word."""
     campaign = closed(db, campaign_id)
-    ensure_unit_access(db, user, unit_id or campaign.unit_id)
+    ensure_unit_access(db, user, unit_id or campaign.unit_id, campaign_id=campaign.id, root_id=campaign.unit_id)
     try:
         plan = planning.next_level_plan(db, campaign, unit_id)
     except ValueError as e:
@@ -102,7 +101,7 @@ def weight_sensitivity(campaign_id: uuid.UUID, unit_id: uuid.UUID | None = None,
                        user: User = Depends(readers)) -> dict:
     """Перевірка стійкості ваг індексу: кожна вага джерела ±10 % → індекс і рівень."""
     campaign = closed(db, campaign_id)
-    ensure_unit_access(db, user, unit_id or campaign.unit_id)
+    ensure_unit_access(db, user, unit_id or campaign.unit_id, campaign_id=campaign.id, root_id=campaign.unit_id)
     try:
         return planning.sensitivity(db, campaign, unit_id)
     except ValueError as e:

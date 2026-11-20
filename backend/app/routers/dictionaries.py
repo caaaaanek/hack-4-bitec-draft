@@ -197,6 +197,8 @@ class FactIn(BaseModel):
     numerator: str = Field(default="так", max_length=100)
     denominator: str = Field(default="всього", max_length=100)
     rest: str = Field(default="решта", max_length=100)
+    owner_sources: list[str] = Field(default_factory=list, max_length=10,
+                                     description="Джерела, яким дозволено передавати факт. Порожньо — будь-яке")
 
 
 class FactUpdate(BaseModel):
@@ -205,6 +207,7 @@ class FactUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=3, max_length=200)
     thresholds: list[float] | None = None
     active: bool | None = None
+    owner_sources: list[str] | None = Field(default=None, max_length=10)
 
 
 class FactDefOut(BaseModel):
@@ -217,19 +220,38 @@ class FactDefOut(BaseModel):
     rest: str
     builtin: bool
     active: bool = True
+    owner_sources: list[str] = Field(default_factory=list,
+                                     description="Хто передає факт (POST /indicators). Порожньо — будь-яке джерело")
+
+
+def owners_of(code: str) -> list[str]:
+    return list(fact_registry.owners(code) or ())
+
+
+def owners_text(sources: list[str] | None) -> str | None:
+    clean = [s.strip() for s in sources or [] if s.strip()]
+    for s in clean:
+        if not re.fullmatch(r"[a-z][a-z0-9_-]{1,31}", s):
+            raise ApiError(422, f"owner_sources: «{s}» — латиниця, цифри, _ або -", code="invalid")
+    return ",".join(clean) or None
 
 
 @router.get("/facts", response_model=list[FactDefOut])
 def list_facts(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
-    """Факти методики: вбудовані (methodology.py) і додані в довідник."""
-    out = [FactDefOut(code=c, builtin=True, **{k: s[k] for k in ("title", "component", "thresholds", "numerator",
-                                                                    "denominator", "rest")})
+    """Факти методики: вбудовані (methodology.py) і додані в довідник, з джерелами-власниками."""
+    fact_registry.refresh(db)
+    out = [FactDefOut(code=c, builtin=True, owner_sources=owners_of(c),
+                      **{k: s[k] for k in ("title", "component", "thresholds", "numerator", "denominator", "rest")})
            for c, s in fact_registry.BUILTIN_FACTS.items()]
     for r in db.scalars(select(FactDefinition).order_by(FactDefinition.code)):
-        out.append(FactDefOut(code=r.code, title=r.title, component=r.component, thresholds=r.thresholds,
-                              numerator=r.numerator, denominator=r.denominator, rest=r.rest, builtin=False,
-                              active=r.active))
+        out.append(fact_out(r))
     return out
+
+
+def fact_out(r: FactDefinition) -> FactDefOut:
+    return FactDefOut(code=r.code, title=r.title, component=r.component, thresholds=r.thresholds,
+                      numerator=r.numerator, denominator=r.denominator, rest=r.rest, builtin=False, active=r.active,
+                      owner_sources=owners_of(r.code) if r.active else list(fact_registry.parse_owners(r.owner_sources)))
 
 
 def check_fact(component: str | None, thresholds: list | None) -> None:
@@ -247,12 +269,12 @@ def create_fact(data: FactIn, db: Session = Depends(get_db), user: User = Depend
         raise ApiError(409, f"Факт «{data.code}» уже є", code="conflict")
     if not re.fullmatch(r"[a-z][a-z0-9_]{1,63}", data.code):
         raise ApiError(422, "code: латиниця, цифри, _", code="invalid")
-    row = FactDefinition(**data.model_dump())
+    row = FactDefinition(**data.model_dump(exclude={"owner_sources"}), owner_sources=owners_text(data.owner_sources))
     db.add(row)
     log_action(db, user, "create", "fact_definition", data.code, data.model_dump())
     db.commit()
     fact_registry.refresh(db)
-    return FactDefOut(builtin=False, active=True, **data.model_dump())
+    return fact_out(row)
 
 
 @router.patch("/facts/{code}", response_model=FactDefOut)
@@ -265,11 +287,11 @@ def update_fact(code: str, data: FactUpdate, db: Session = Depends(get_db), user
                        else "Факт не знайдено")
     changes = data.model_dump(exclude_unset=True)
     check_fact(None, changes.get("thresholds"))
+    if "owner_sources" in changes:
+        changes["owner_sources"] = owners_text(changes["owner_sources"])
     for key, value in changes.items():
         setattr(row, key, value)
     log_action(db, user, "update", "fact_definition", code, changes)
     db.commit()
     fact_registry.refresh(db)
-    return FactDefOut(code=row.code, title=row.title, component=row.component, thresholds=row.thresholds,
-                      numerator=row.numerator, denominator=row.denominator, rest=row.rest, builtin=False,
-                      active=row.active)
+    return fact_out(row)

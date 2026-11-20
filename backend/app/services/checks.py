@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import CheckFinding, CheckRun, Indicator, User, utcnow
+from app.services import fact_registry
 from app.services.declarations_check import evaluate_declarations
 from app.services.procurement_flags import evaluate_records
 
@@ -139,9 +140,12 @@ def publish(db: Session, unit_id: uuid.UUID, period: str) -> list[dict]:
     }
     out = []
     for indicator, (num, den, extra_counts) in values.items():
-        if den > 0:
+        # Якщо власником факту в цьому розгортанні призначено іншу систему (FACT_OWNERS), модуль його не пише.
+        owner = fact_registry.may_write(indicator, "checks")
+        if den > 0 and owner:
             _upsert(db, unit_id, period, indicator, num, den, "Модуль «Перевірки»", extra_counts)
-        out.append({"indicator": indicator, "numerator": num, "denominator": den, "written": den > 0})
+        out.append({"indicator": indicator, "numerator": num, "denominator": den, "written": den > 0 and owner,
+                    **({} if owner else {"skipped": "not_fact_owner"})})
     db.flush()
     return out
 

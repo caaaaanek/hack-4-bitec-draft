@@ -3,6 +3,7 @@ import hmac
 import ipaddress
 import time
 import uuid
+from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 from functools import lru_cache
 
@@ -15,7 +16,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.config import check_settings, get_settings
-from app.db import get_db
+from app.db import PENDING_VIEWS, get_db
 from app.models import LoginFailure, RevokedToken, Role, User
 
 # Відносна адреса: працює і під ROOT_PATH (кнопка Authorize у /docs).
@@ -292,9 +293,12 @@ def allowed_units(db: Session, user: User) -> set[uuid.UUID] | None:
     return None
 
 
-def ensure_unit_access(db: Session, user: User, unit_id: uuid.UUID, purpose: str = "results") -> None:
+def ensure_unit_access(db: Session, user: User, unit_id: uuid.UUID, purpose: str = "results",
+                       campaign_id: uuid.UUID | None = None, root_id: uuid.UUID | None = None) -> None:
     """Кидає 403, якщо підрозділ поза тим, що користувач може бачити (allowed_units).
 
+    purpose="results" — перегляд результатів: якщо підрозділ чужий (не свій, не корінь хвилі, не корінь дерева),
+    перегляд автоматично записується в result_views. Тому окремо викликати record_view в ендпойнтах не треба.
     purpose="manage" — керування заходами (без індексів): керівник діє в усьому своєму піддереві, як і раніше.
     """
     if purpose == "manage" and user.role == Role.LEADER:
@@ -308,19 +312,44 @@ def ensure_unit_access(db: Session, user: User, unit_id: uuid.UUID, purpose: str
         if user.role == Role.LEADER and get_settings().leader_child_details:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Підрозділ поза вашою зоною відповідальності")
         raise UnitHidden()
+    if purpose == "results":
+        record_view(db, user, unit_id, campaign_id, None, root_id)
 
 
-def record_view(db: Session, user: User, unit_id: uuid.UUID, campaign_id: uuid.UUID | None, endpoint: str,
+# Маршрут поточного запиту (шаблон шляху без /api/v1): назва ендпойнта для result_views.
+_current_route: ContextVar[str | None] = ContextVar("current_route", default=None)
+
+
+async def remember_route(request: Request) -> None:
+    """Залежність роутерів: запам'ятовує шаблон маршруту, щоб record_view знав, звідки перегляд.
+
+    Асинхронна навмисно: виконується в контексті запиту, і синхронні ендпойнти в пулі потоків бачать значення.
+    """
+    route = request.scope.get("route")
+    path = getattr(route, "path", None) or request.url.path
+    _current_route.set(path.removeprefix("/api/v1"))
+
+
+def record_view(db: Session, user: User, unit_id: uuid.UUID, campaign_id: uuid.UUID | None, endpoint: str | None,
                 root_id: uuid.UUID | None = None) -> None:
-    """Перегляд результатів підрозділу, який не є коренем хвилі й не своїм підрозділом. Комітить той, хто викликав.
+    """Ставить у чергу запис про перегляд результатів чужого підрозділу.
 
+    Не пишеться: свій підрозділ, корінь хвилі, корінь дерева (заклад). Запис зберігає get_db окремою транзакцією
+    після успішного запиту, тож навіть ендпойнти лише для читання, що не комітять, лишають слід.
     Окремо від журналу дій: без блокування голови ланцюжка. Звіт для аудитора: GET /admin/result-views.
     """
     if unit_id == root_id or unit_id == user.unit_id:
         return
-    from app.models import ResultView
+    from app.models import Unit
 
-    db.add(ResultView(actor_id=user.id, unit_id=unit_id, campaign_id=campaign_id, endpoint=endpoint))
+    unit = db.get(Unit, unit_id)
+    if unit is None or unit.parent_id is None:
+        return
+    endpoint = (endpoint or _current_route.get() or "unknown")[:64]
+    pending = db.info.setdefault(PENDING_VIEWS, [])
+    item = {"actor_id": user.id, "unit_id": unit_id, "campaign_id": campaign_id, "endpoint": endpoint}
+    if item not in pending:
+        pending.append(item)
 
 
 # Хто читає результати, динаміку, факти, рекомендації, заходи.

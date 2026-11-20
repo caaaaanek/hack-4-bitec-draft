@@ -2,12 +2,13 @@ import logging
 import re
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import errors
 from app.config import check_settings, get_settings
 from app.schemas import ERROR_RESPONSES
+from app.security import remember_route
 from app.routers import (
     admin,
     assistant,
@@ -122,10 +123,12 @@ app.add_middleware(
 for module in (config_router, auth, admin, questionnaires, campaigns, respond, checklist, checks, indicators, results,
                dashboard, recommendations, measures, reports, integrations, assistant, what_if, insights, normative,
                learning, autopilot_router, dictionaries, department, insights_plus, urn, risks):
-    app.include_router(module.router, prefix=API_PREFIX, responses=ERROR_RESPONSES)
+    # remember_route: шаблон маршруту для журналу переглядів чужих підрозділів (security.record_view).
+    app.include_router(module.router, prefix=API_PREFIX, responses=ERROR_RESPONSES,
+                       dependencies=[Depends(remember_route)])
 
 # /api/assistant — асистент frontend-proto (шлях без /api/v1, як очікує фронтенд).
-app.include_router(llm_router.router, responses=ERROR_RESPONSES)
+app.include_router(llm_router.router, responses=ERROR_RESPONSES, dependencies=[Depends(remember_route)])
 
 # /health і /api/v1/health: перевірка процесу й БД (див. routers/config.py).
 app.include_router(config_router.health_router)

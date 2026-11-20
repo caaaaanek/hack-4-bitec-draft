@@ -38,6 +38,9 @@ class Policies(BaseModel):
     separate_tech_admin: bool
     checklist_confirmers: list[str]
     external_fetch: bool
+    # demo | production (SECURITY_PROFILE) і які запобіжники production явно вимкнено змінними оточення.
+    security_profile: str = "demo"
+    overridden: list[str] = []
 
 
 class PublicConfig(BaseModel):
@@ -79,6 +82,8 @@ def public_config():
             separate_tech_admin=s.separate_tech_admin,
             checklist_confirmers=[c.strip() for c in s.checklist_confirmers.split(",") if c.strip()],
             external_fetch=s.external_fetch_enabled,
+            security_profile=s.security_profile,
+            overridden=s.profile_overrides,
         ),
     )
 

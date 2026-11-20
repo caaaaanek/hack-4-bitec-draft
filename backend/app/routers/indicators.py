@@ -153,6 +153,11 @@ def post_indicator(data: IndicatorIn, db: Session = Depends(get_db), actor: Inte
                        code="unknown_indicator", hint="Новий показник додає адміністратор: POST /dictionaries/facts.")
     if db.get(Unit, data.unit_id) is None:
         raise HTTPException(status_code=422, detail="Підрозділ не знайдено")
+    if not actor.any_source and not fact_registry.may_write(data.indicator, data.source):
+        allowed = ", ".join(fact_registry.owners(data.indicator) or ())
+        raise ApiError(409, f"Показник «{data.indicator}» передає лише джерело: {allowed}", code="not_fact_owner",
+                       hint="Власника факту задає методика (fact_registry.BUILTIN_OWNERS), довідник фактів "
+                            "або FACT_OWNERS у налаштуваннях розгортання.")
     row = db.scalar(
         select(Indicator).where(
             Indicator.unit_id == data.unit_id, Indicator.period == data.period, Indicator.indicator == data.indicator
@@ -160,8 +165,9 @@ def post_indicator(data: IndicatorIn, db: Session = Depends(get_db), actor: Inte
     )
     if row is not None and not actor.any_source and row.source != actor.source:
         # Ключ джерела дозволяє писати лише свої показники: інакше одне джерело (чи викрадений ключ одного
-        # джерела) могло б тихо переписати факт іншого й змінити індекс. Хто першим передав показник
-        # підрозділу за місяць, той ним і володіє; переписати чужий може лише адмін або спільний ключ.
+        # джерела) могло б тихо переписати факт іншого й змінити індекс. Якщо в факту кілька власників,
+        # хто першим передав показник підрозділу за місяць, той ним і володіє; переписати чужий може лише
+        # адмін або спільний ключ.
         raise ApiError(409, f"Цей показник за {data.period} передало джерело «{row.source}»", code="source_conflict",
                        hint="Ключ джерела може оновлювати лише показники, які передало саме це джерело.")
     if row is None:
