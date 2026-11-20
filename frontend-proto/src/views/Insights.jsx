@@ -145,7 +145,7 @@ export function signals() {
   if (!SIG_ROLES.includes(S.role)) return null;
   const r = useDigest();
   // Лише те, що ця роль може виправити: сигнал з посиланням на недоступний їй екран не показуємо
-  return r && r.data ? r.data.items.filter(x => x.severity !== "info" && (!x.link || !x.link.view || linkTarget(x.link))) : null;
+  return r && r.data ? (r.data.items || []).filter(x => x.severity !== "info" && (!x.link || !x.link.view || linkTarget(x.link))) : null;
 }
 export function sigGo(x) { const t = linkTarget(x.link); if (t) goTo(t); }
 export const sigTarget = x => linkTarget(x.link);
