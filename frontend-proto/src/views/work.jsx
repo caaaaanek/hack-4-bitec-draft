@@ -2,7 +2,7 @@
 import { useRef, useState } from "react";
 import { Ic } from "../lib/icons.jsx";
 import { S, persist, addLog, me } from "../lib/state.js";
-import { API, apiDecide, apiSendMSt, apiErrText, apiFail, apiPositions } from "../lib/api.js";
+import { API, apiDecide, apiSendMSt, apiErrText, apiFail, apiPositions, dn } from "../lib/api.js";
 import { COMPS, COMP, PRI, REC_ST, REC_NEXT, POSITIONS, BASE_MEASURES, M_ST, M_NEXT, REGISTRY, INSTITUTIONS, buildRecs, measures, overdueDays, dispSt, daysWord, verif, TODAY } from "../lib/model.js";
 import { ua, plural } from "../lib/format.js";
 import { render, toast, openDrawer, closeDrawer } from "../lib/store.js";
@@ -27,6 +27,7 @@ export function Recs() {
   const hidden = ranked && !more ? sorted.filter(r => r.collapsed) : [], list = sorted.filter(r => !hidden.includes(r));
   return <>
     <section className="c12 rise toolbar"><span className="lbl">Рекомендація це пропозиція системи, рішення приймає керівник.</span><div className="sp" />
+      {waves.length > 1 && <select className="inp" aria-label="Хвиля" value={wv} onChange={e => { S.trF.wave = e.target.value; persist(); render(true); }}><option value="all">Усі хвилі</option>{waves.map(w => <option key={w} value={w}>{dn(API.waveT && API.waveT[w] || "Попередня хвиля")}</option>)}</select>}
       <select className="inp" aria-label="Статус" value={f.st} onChange={e => { S.recF.st = e.target.value; persist(); render(true); }}><option value="all">Усі статуси</option>{Object.entries(REC_ST).map(([k, [n]]) => <option key={k} value={k}>{n}</option>)}</select>
       <select className="inp" aria-label="Компонент" value={f.c} onChange={e => { S.recF.c = e.target.value; persist(); render(true); }}><option value="all">Усі компоненти</option>{COMPS.map(c => <option key={c} value={c}>{COMP[c].n}</option>)}</select>
       <span className="lbl tnum">Показано {list.length} з {all.length}</span></section>
@@ -121,7 +122,9 @@ function setMSt(id, st) {
   S.dec.mst[id] = st; addLog(me(), `Захід «${x.t}»: статус «${M_ST[st][0]}»`); persist(); render(true); toast(`Статус заходу змінено на «${M_ST[st][0]}».`);
 }
 export function Tracker() {
-  const all = measures(), f = S.trF, edit = S.role === "leader";
+  // Хвиля: з сервером заходи всіх хвиль, за замовчуванням показуємо поточну
+  const f = S.trF, waves = API.on ? [...new Set(measures().map(x => x.wave).filter(Boolean))] : [], wv = f.wave && (f.wave === "all" || waves.includes(f.wave)) ? f.wave : waves.includes(API.campaignId) ? API.campaignId : "all";
+  const all = measures().filter(x => wv === "all" || x.wave === wv), edit = S.role === "leader";
   const list = all.filter(x => (f.st === "all" || dispSt(x) === f.st || (f.st === "overdue" && overdueDays(x) > 0)) && (f.who === "all" || x.who === f.who));
   const [drag, setDrag] = useState(null), [over, setOver] = useState(null);
   const conf = all.filter(x => x.st === "confirmed").length, chk = all.filter(x => x.st === "done" && x.vf && x.vf[1] === "p-warn").length, wait = all.filter(x => x.st === "done").length - chk, rev = all.filter(x => x.st === "notconfirmed").length;
@@ -145,6 +148,7 @@ export function Tracker() {
   return <>
     <section className="c12 rise toolbar"><div className="sp" />
       <div className="seg" role="group" aria-label="Вигляд">{[["table", "Таблиця"], ["board", "Дошка"]].map(([k, n]) => <button key={k} className={S.trackView === k ? "on" : ""} onClick={() => { S.trackView = k; persist(); render(true); }}>{n}</button>)}</div>
+      {waves.length > 1 && <select className="inp" aria-label="Хвиля" value={wv} onChange={e => { S.trF.wave = e.target.value; persist(); render(true); }}><option value="all">Усі хвилі</option>{waves.map(w => <option key={w} value={w}>{dn(API.waveT && API.waveT[w] || "Попередня хвиля")}</option>)}</select>}
       <select className="inp" aria-label="Статус" value={f.st} onChange={e => { S.trF.st = e.target.value; persist(); render(true); }}><option value="all">Усі статуси</option>{Object.entries(M_ST).map(([k, [n]]) => <option key={k} value={k}>{n}</option>)}</select>
       <select className="inp" aria-label="Відповідальна посада" value={f.who} onChange={e => { S.trF.who = e.target.value; persist(); render(true); }}><option value="all">Усі посади</option>{[...new Set(all.map(x => x.who))].sort().map(w => <option key={w}>{w}</option>)}</select>
       <span className="lbl tnum">Показано {list.length} з {all.length}</span></section>

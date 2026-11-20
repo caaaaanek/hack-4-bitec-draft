@@ -214,6 +214,8 @@ function apiModel(r, h) {
       from: (f.sources || []).map(s => SRC[s] || s).join(", ") || "Дані обліку", rule: f.rule, per: quarters(f.periods) }));
   });
   const pts = (h && h.points) || [], labels = cycleLabels(pts);
+  // Назви хвиль для фільтра трекера
+  API.waveT = Object.fromEntries(pts.filter(p => p.campaign_id).map(p => [p.campaign_id, p.campaign_title || ""])); if (r.campaign_id) API.waveT[r.campaign_id] = r.campaign_title || API.waveT[r.campaign_id] || "";
   let series = pts.map((p, i) => ({ cycle: labels[i], index: p.index ?? null, cr: Object.fromEntries(COMPS.map(c => [c, (p.components || {})[c] ?? null])) }));
   const at = pts.findIndex(p => p.campaign_id === r.campaign_id);
   if (at >= 0) series = series.slice(0, at + 1);
@@ -309,7 +311,7 @@ function apiMeasure(x, titles) {
   const v = x.verification || {}, st = x.status === "done" && VERIFY_ST[v.status] ? VERIFY_ST[v.status] : MEAS_ST[x.status] || "accepted";
   const d = v.delta != null ? ` (${v.delta > 0 ? "+" : ""}${fb(v.delta)})` : "";
   const vf = x.status === "done" ? (st === "confirmed" ? [`Підтверджено: компонент зріс${d}`, "p-good"] : st === "notconfirmed" ? [`Не підтверджено: ${v.title || "без змін"}${d}`, "p-bad"] : v.status === "check_data" ? ["Перевірити дані: достовірність C", "p-warn"] : ["Очікує наступного оцінювання", "p-info"]) : null;
-  return { id: x.id, rec: titles[x.recommendation_code] || (x.recommendation_code ? "попередньої хвилі" : "окремий захід"), t: x.title, who: x.owner, due: x.due_date, st, ind: x.component, vf, vrule: v.rule, ext: apiExternal(x.external), ev: x.evidence || "", doneOn: x.done_on || null };
+  return { id: x.id, rec: titles[x.recommendation_code] || (x.recommendation_code ? "попередньої хвилі" : "окремий захід"), t: x.title, who: x.owner, due: x.due_date, st, ind: x.component, vf, vrule: v.rule, ext: apiExternal(x.external), ev: x.evidence || "", doneOn: x.done_on || null, wave: x.campaign_id || null };
 }
 // Стан заходу в Mitra (тема 2): бекенд приймає лише посилання на адресу Mitra з налаштувань (THEME2_PUBLIC_URL)
 function apiExternal(e) {
