@@ -444,7 +444,7 @@ export async function apiDownload(camp, qid, fid, name) {
 }
 
 /* --- Журнал --- */
-export const AUDIT_ENT = { campaign: "Хвиля", questionnaire: "Анкета", user: "Користувач", unit: "Підрозділ", checklist_entry: "Чек-лист", evidence_file: "Файл-доказ", measure: "Захід", recommendation: "Рекомендація", results: "Результати", indicator: "Факт", report: "Звіт", assistant: "Асистент", audit_log: "Журнал", autopilot: "Автопілот", normative: "Нормативка", learning_deck: "Навчання", check_run: "Перевірка", check_finding: "Знахідка перевірки" };
+export const AUDIT_ENT = { campaign: "Хвиля", questionnaire: "Анкета", user: "Користувач", unit: "Підрозділ", checklist_entry: "Чек-лист", evidence_file: "Файл-доказ", measure: "Захід", recommendation: "Рекомендація", results: "Результати", indicator: "Факт", report: "Звіт", assistant: "Асистент", audit_log: "Журнал", autopilot: "Автопілот", normative: "Нормативка", learning_deck: "Навчання", check_run: "Перевірка", check_finding: "Знахідка перевірки", approval: "Запит другій людині", category: "Категорія респондентів", checklist: "Чек-лист", fact_definition: "Показник фактів", position: "Посада" };
 // Людські назви дій бекенду: «сутність:дія» → текст
 export const AUDIT_ACT = {
   "assistant:ask": "Запит до асистента", "assistant:edit_report": "Звіт: запит до ШІ щодо фрагмента", "audit_log:verify": "Перевірено цілісність журналу",
@@ -463,6 +463,13 @@ export const AUDIT_ACT = {
   "campaign:devils_advocate": "Переглянуто питання перевірки", "campaign:autopilot": "Змінено налаштування автопілота хвилі", "autopilot:tick": "Виконано крок автопілота",
   "normative:analyze": "Проаналізовано нормативний документ", "learning_deck:complete": "Пройдено колоду флешкарток", "indicator:publish": "Записано показник із модуля системи",
   "check_run:run": "Запущено перевірку", "check_run:fetch": "Отримано дані для перевірки", "check_finding:review": "Розглянуто знахідку перевірки",
+  "approval:request_approval": "Запит на підтвердження другою людиною", "approval:approve": "Запит підтверджено другою людиною", "approval:reject": "Запит відхилено другою людиною",
+  "audit_log:accept_anchor": "Аудит прийняв хеш журналу", "audit_log:verify_anchor": "Хеш журналу звірено з копією аудиту",
+  "campaign:audit_lottery": "Проведено лотерею перевірок", "campaign:delete": "Видалено чернетку хвилі",
+  "campaign:urn_setup": "Увімкнено урну з трьома ключами", "campaign:urn_disable": "Вимкнено урну", "campaign:urn_take_share": "Власник отримав свою частину ключа", "campaign:urn_submit_share": "Введено частину ключа урни", "campaign:urn_close_requested": "Запит на відкриття урни",
+  "category:create": "Додано категорію респондентів", "category:update": "Змінено категорію респондентів", "checklist:assign": "Призначено відповідальних за пункти чек-листа",
+  "fact_definition:create": "Додано показник фактів", "fact_definition:update": "Змінено показник фактів", "position:create": "Додано посаду", "position:deactivate": "Посаду вимкнено",
+  "questionnaire:restore": "Анкету повернуто з архіву", "unit:import_risks": "Імпортовано реєстр корупційних ризиків", "user:invite": "Надіслано запрошення", "user:accept_invite": "Користувач прийняв запрошення й задав пароль",
   "user:create": "Створено користувача", "user:update": "Змінено користувача", "user:login_proxy": "Вхід через проксі",
 };
 export function apiLoadLog() {
