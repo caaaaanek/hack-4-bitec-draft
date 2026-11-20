@@ -98,6 +98,10 @@ function pickParticipants(c, d) {
 export const asgKey = id => "asg:" + id;
 export const loadAsg = id => apiMod(asgKey(id), () => api(`/campaigns/${id}/checklist/assignments`));
 export function AssignSection({ c }) {
+  if (c.has_checklist === false) return null; // без чек-листа не питаємо сервер: інакше 404 у консолі на кожному екрані
+  return <AssignBody c={c} />;
+}
+function AssignBody({ c }) {
   const r = loadAsg(c.id);
   if (r && r.error && r.status === 404) return null; // у хвилі немає чек-листа
   const d = r && r.data, n = d ? d.filter(x => x.enterer_id || x.confirmer_id).length : 0;
