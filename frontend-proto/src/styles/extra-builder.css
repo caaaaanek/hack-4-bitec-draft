@@ -41,3 +41,4 @@ body.bld-open { overflow: hidden; }
 .bld-note ul { margin: 6px 0 0; padding-left: 20px; }
 .bld-note-act { display: flex; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
 @media (max-width: 640px) { .bld-opt { flex-wrap: wrap; } .bld-opt > .inp:first-child { flex-basis: 100%; } .bld-actions { width: 100%; } .bld-actions .btn { flex: 1; justify-content: center; } }
+.inp[aria-invalid="true"] { border-color: var(--red); box-shadow: 0 0 0 3px var(--red-soft); }

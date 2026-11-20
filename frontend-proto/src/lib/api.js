@@ -48,7 +48,15 @@ const FIELD_UA = { planned_open_on: "Відкрити", planned_close_on: "За�
   title: "Назва", unit_id: "Підрозділ", questionnaire_ids: "Анкети", access_mode: "Як проходять", due_date: "Строк", owner: "Відповідальний", password: "Пароль", username: "Логін" };
 const FIELD_RE = new RegExp(`\\b(${Object.keys(FIELD_UA).join("|")})\\b`, "g");
 export const uaFields = t => String(t || "").replace(FIELD_RE, k => `«${FIELD_UA[k]}»`);
-const errReasons = e => [...new Set(e.errors.map(i => uaFields(String((i && i.message) || "").replace(/^Value error,\s*/i, "").trim())).filter(Boolean))].slice(0, 3).join("; ");
+// Шлях поля з 422 (sections.0.questions.1.text) → назва поля в інтерфейсі; англійське повідомлення pydantic не показуємо
+export const fieldName = path => {
+  const p = String(path || ""), m = p.match(/^sections\.(\d+)(?:\.questions\.(\d+))?\.(\w+)$/);
+  if (m) return m[2] != null ? `${m[3] === "text" ? "текст питання" : "питання"} ${+m[2] + 1} у розділі ${+m[1] + 1}` : `${m[3] === "title" ? "назву розділу" : "розділ"} ${+m[1] + 1}`;
+  const k = p.split(".").pop(); return FIELD_UA[k] ? `«${FIELD_UA[k]}»` : "";
+};
+const EN_RE = /[A-Za-z]{4,}.*[A-Za-z]{4,}/;
+export const fieldErrText = errs => { const n = [...new Set((errs || []).map(i => fieldName(i && i.path)).filter(Boolean))]; return n.length ? `Заповніть або виправте: ${n.slice(0, 4).join(", ")}${n.length > 4 ? ` і ще ${n.length - 4}` : ""}` : ""; };
+const errReasons = e => { const f = fieldErrText(e.errors); if (f) return f; return [...new Set(e.errors.map(i => uaFields(String((i && i.message) || "").replace(/^Value error,\s*/i, "").trim())).filter(t => t && !EN_RE.test(t)))].slice(0, 3).join("; "); };
 // Політика STAFF_TOKEN_ONLY: сервер пояснює технічно (access_mode), показуємо людською мовою
 const STAFF_TOKEN_TXT = "Анкети особового складу проходять лише анонімно: за QR або одноразовими посиланнями. Створіть для особового складу окрему хвилю з режимом «QR або посилання», а за логіном лишіть робочу групу й експертів.";
 export const staffTokenOnly = () => !!(API.cfg && API.cfg.policies && API.cfg.policies.staff_token_only) && API.user && API.user.category === "staff";

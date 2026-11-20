@@ -1,7 +1,7 @@
 /* Конструктор анкети (Департамент, режим API): розділи, питання, варіанти й бали. Повноекранне вікно #bld. */
 import { useEffect, useReducer, useRef, useState } from "react";
 import { Ic } from "../lib/icons.jsx";
-import { api, apiFail, apiErrText, apiSurveysReload, QCAT } from "../lib/api.js";
+import { api, apiFail, apiErrText, apiSurveysReload, QCAT, fieldErrText } from "../lib/api.js";
 import { ui, toast } from "../lib/store.js";
 import { plural } from "../lib/format.js";
 
@@ -31,7 +31,7 @@ export function Builder() {
 }
 function BuilderBody({ init }) {
   const [B] = useState(() => init.b || bldFromServer(init.q)), [, redraw] = useReducer(x => x + 1, 0), body = useRef(null);
-  const touch = () => { B.dirty = true; B.issues = null; redraw(); };
+  const touch = () => { B.dirty = true; B.issues = null; B.bad = null; redraw(); };
   const close = force => {
     if (B.dirty && !force) { B.confirmClose = true; return redraw(); }
     ui.bld = null; apiSurveysReload();
@@ -48,7 +48,7 @@ function BuilderBody({ init }) {
       await api(`/questionnaires/${B.q.id}`, { method: "PATCH", body: { title: B.q.title.trim() || "Без назви", description: B.q.description, kind: B.q.kind, target_category: B.q.target_category } });
       await api(`/questionnaires/${B.q.id}/structure`, { method: "PUT", body: payload(B) });
       B.dirty = false; B.busy = false; redraw(); if (!silent) toast("Чернетку збережено"); return true;
-    } catch (err) { B.busy = false; redraw(); toast(apiErrText(err)); return false; }
+    } catch (err) { B.busy = false; B.bad = new Set((err.errors || []).map(i => String(i.path || ""))); redraw(); toast(fieldErrText(err.errors) || apiErrText(err)); return false; }
   };
   const validate = async () => {
     try { B.issues = await api(`/questionnaires/${B.q.id}/validate`); redraw(); if (body.current) body.current.scrollTop = 0; return B.issues; } catch (err) { apiFail(err); return null; }
@@ -66,13 +66,14 @@ function BuilderBody({ init }) {
     } finally { B.busy = false; redraw(); }
   };
   // Зміна поля: введення тексту не скидає перевірку повністю, лише позначає незбережені зміни
-  const set = (obj, k, v) => { obj[k] = v; if (!B.dirty) { B.dirty = true; B.issues = null; } redraw(); };
+  const set = (obj, k, v) => { obj[k] = v; if (!B.dirty) { B.dirty = true; B.issues = null; } if (B.bad) B.bad = null; redraw(); };
   const setType = (q, v) => { q.type = v; if (v === "scale") { q.scale_min = q.scale_min ?? 1; q.scale_max = q.scale_max ?? 5; } else if (q.options.length < 2) q.options = [{ text: "", score: 1 }, { text: "", score: 0 }]; touch(); };
   const m = B.q, nq = B.sections.reduce((a, s) => a + s.questions.length, 0);
+  const bad = p => !!(B.bad && B.bad.has(p)); // поля з помилкою перевірки сервера
 
   const Q = (x, s, qi, last) => <div key={x.code} className="bld-q"><div className="bld-q-h"><span className="bld-qn">{qi + 1}</span>
       <div className="bld-move"><button type="button" className="icon-btn sm" disabled={qi === 0} aria-label="Питання вище" onClick={() => { move(s.questions, qi, -1); touch(); }}><Up /></button><button type="button" className="icon-btn sm" disabled={last} aria-label="Питання нижче" onClick={() => { move(s.questions, qi, 1); touch(); }}><Ic n="chev" /></button><button type="button" className="icon-btn sm" aria-label="Видалити питання" data-tip="Видалити питання" onClick={() => { s.questions.splice(qi, 1); touch(); }}><Ic n="x" /></button></div></div>
-    <div className="field"><label>Текст питання</label><textarea className="inp" rows="2" placeholder="Сформулюйте питання" value={x.text} onChange={e => set(x, "text", e.target.value)} /></div>
+    <div className="field"><label>Текст питання</label><textarea className="inp" rows="2" placeholder="Сформулюйте питання" aria-invalid={bad(`sections.${B.sections.indexOf(s)}.questions.${qi}.text`) || undefined} value={x.text} onChange={e => set(x, "text", e.target.value)} /></div>
     <div className="bld-row">
       <div className="field"><label>Тип відповіді</label><select className="inp" value={x.type} onChange={e => setType(x, e.target.value)}>{BLD_TYPE.map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select></div>
       <div className="field bld-w"><label>Вага</label><input className="inp tnum" inputMode="decimal" value={comma(x.weight)} onChange={e => set(x, "weight", e.target.value.replace(",", "."))} /></div>
@@ -98,7 +99,7 @@ function BuilderBody({ init }) {
         <div className="bld-row"><div className="field"><label>Для кого</label><select className="inp" value={m.target_category} onChange={e => set(m, "target_category", e.target.value)}>{Object.entries(QCAT).map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select></div>
           <div className="field"><label>Вид</label><select className="inp" value={m.kind} onChange={e => set(m, "kind", e.target.value)}><option value="survey">Анкета зрілості</option><option value="checklist">Чек-лист</option></select></div></div></section>
       {B.sections.map((s, si) => <section key={si} className="bld-sec"><div className="bld-sec-h"><span className="pv-num">{si + 1}</span>
-          <div className="field bld-grow"><label>Назва розділу</label><input className="inp" placeholder="Наприклад, Культура" value={s.title} onChange={e => set(s, "title", e.target.value)} /></div>
+          <div className="field bld-grow"><label>Назва розділу</label><input className="inp" placeholder="Наприклад, Культура" aria-invalid={bad(`sections.${si}.title`) || undefined} value={s.title} onChange={e => set(s, "title", e.target.value)} /></div>
           <div className="field bld-comp"><label>Компонент індексу</label><select className="inp" value={s.component} onChange={e => set(s, "component", e.target.value)}>{BLD_COMP.map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select></div>
           <div className="bld-move"><button type="button" className="icon-btn sm" disabled={si === 0} aria-label="Розділ вище" onClick={() => { move(B.sections, si, -1); touch(); }}><Up /></button><button type="button" className="icon-btn sm" disabled={si === B.sections.length - 1} aria-label="Розділ нижче" onClick={() => { move(B.sections, si, 1); touch(); }}><Ic n="chev" /></button><button type="button" className="icon-btn sm" aria-label="Видалити розділ" data-tip="Видалити розділ" onClick={() => { B.sections.splice(si, 1); touch(); }}><Ic n="x" /></button></div></div>
         {s.questions.map((x, qi) => Q(x, s, qi, qi === s.questions.length - 1))}
