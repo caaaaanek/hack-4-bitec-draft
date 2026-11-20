@@ -93,7 +93,7 @@ export function Checklist() {
         })}
       </tbody></table></div>
     </section>
-    <section className="card c12 rise"><div className="lock"><Ic n="shield" /><div><b>До індексу потрапляють лише підтверджені значення.</b><div className="lbl">Поточний індекс закладу {f1(m.index)}. Після підтвердження система одразу перераховує компонент, обмежувач і прапорці. Кожна дія записується в журнал.</div></div></div></section>
+    <section className="card c12 rise"><div className="lock"><Ic n="shield" /><div><b>До індексу потрапляють лише підтверджені значення.</b><div className="lbl">Поточний індекс закладу {f1(m.index)}. Після підтвердження система одразу перераховує компонент, правило «факти + 25» і прапорці. Кожна дія записується в журнал.</div></div></div></section>
   </>;
 }
 function editFact(id) {

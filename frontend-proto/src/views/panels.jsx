@@ -34,7 +34,7 @@ export function openTrust() {
   openDrawer("Достовірність результату", () => {
     const m = cur();
     return <>
-      <div className="card-h"><h2>{TRUST[m.trust][1]}</h2><div className="sp" /><TrustPill g={m.trust} /></div>
+      <div className="card-h"><h2>Достовірність: {TRUST[m.trust][1].toLowerCase()}</h2><div className="sp" /><TrustPill g={m.trust} /></div>
       <div><div className="lbl" style={{ marginBottom: 4 }}>Короткий висновок</div><div style={{ lineHeight: 1.55 }}>{trustBecause(m)}</div></div>
       <div className="lbl">{TRUST_HINT}</div>
       <div className="rows">{m.flags.map(f => <div key={f.id} className="row" style={{ alignItems: "flex-start" }}><FlagIc f={f} ok={!f.raised} /><div className="grow"><div style={{ fontWeight: 600 }}>{flagTitle(f)} <Pill cls={`${f.raised ? "p-bad" : "p-good"} nodot`}>{f.raised ? "Спрацював" : "Не спрацював"}</Pill></div><div className="lbl">{checkText(f)} {f.w === "major" ? "Серйозний прапорець." : "Незначний прапорець."}</div></div></div>)}</div>
@@ -50,8 +50,8 @@ export function openHow() {
     return <>
       <div><div className="lbl" style={{ marginBottom: 6 }}>Як це рахується</div><ol className="howto">
         <li>Індекс від 0 до 100 це середнє трьох компонентів: Культура, Система, Підзвітність.</li>
-        <li>Кожен компонент складається зі сприйняття (анкети) і фактів (чек-лист та дані обліку).</li>
-        <li>Сприйняття не може бути вищим за факти більш ніж на {CAP} пунктів. Якщо розрив більший, зараховується «факти + {CAP}».</li>
+        <li>Кожен компонент складається із самооцінки (анкети; у методиці це «сприйняття») і фактів (чек-лист та дані обліку).</li>
+        <li>Самооцінка не може бути вищою за факти більш ніж на {CAP} пунктів. Якщо розрив більший, зараховується «факти + {CAP}» (у методиці це правило реальності, або «обмежувач»).</li>
         <li>Рівень зрілості від 1 до 5 визначають межі шкали нижче.</li>
         <li>Достовірність показує, наскільки результату можна довіряти. Вона залежить від прапорців: автоматичних перевірок даних.</li></ol>
         {route().r !== "explain" && <Link href="#explain">Відкрити розклад індексу <Ic n="arrowR" /></Link>}</div>
@@ -133,7 +133,7 @@ export function openItem(id) {
       <div><div className="lbl" style={{ marginBottom: 4 }}>Звідки число</div><div style={{ lineHeight: 1.55 }}>{isP ? `${SRC_HINT[x.src]} Відповіді переводяться в бали: варіант 1 це 0, варіант 5 це 100.` : x.kind === "pct" ? `${x.val[0]} з ${x.val[1]}, тобто ${fb(x.v)} %. Джерело: ${x.from}.` : `Рівень ${x.val} з 5 за анкетою чек-листа. Рівень переводиться в бали: (рівень − 1) × 25 = ${fb(x.v)}. Джерело: ${x.from}.`}</div></div>
       {qs.length > 0 && <div><div className="lbl" style={{ marginBottom: 4 }}>Питання цього джерела ({qs.length}), бал групи. Натисніть, щоб побачити розподіл відповідей</div><div className="rows">{qs.map(i => <a key={i.code} className="row click" href="#" onClick={e => { e.preventDefault(); openApiQ(i.code); }}><div className="grow">{i.t}</div><b className="tnum">{i.v != null ? fb(i.v) : "–"}</b></a>)}</div></div>}
       {q && <div><div className="lbl" style={{ marginBottom: 6 }}>Відповідне питання в анкеті особового складу</div><div style={{ fontWeight: 500, marginBottom: 6 }}>{q.t}</div><ol className="howto">{q.o.map(o => <li key={o}>{o}</li>)}</ol></div>}
-      <div><div className="lbl" style={{ marginBottom: 4 }}>Як іде в індекс</div><div style={{ lineHeight: 1.55 }}>Компонент «{COMP[x.c].n}»: {isP ? `сприйняття ${fb(c.P)}` : `факти ${fb(c.F)}`} це зважене середнє {isP ? "питань" : "показників"}. Зараховано {fb(c.cr.v)}{c.cr.lim ? " з обмеженням: " + c.cr.reason : "."} Індекс це середнє трьох компонентів.</div></div>
+      <div><div className="lbl" style={{ marginBottom: 4 }}>Як іде в індекс</div><div style={{ lineHeight: 1.55 }}>Компонент «{COMP[x.c].n}»: {isP ? `самооцінка ${fb(c.P)}` : `факти ${fb(c.F)}`} це зважене середнє {isP ? "питань" : "показників"}. Зараховано {fb(c.cr.v)}{c.cr.lim ? " з обмеженням: " + c.cr.reason : "."} Індекс це середнє трьох компонентів.</div></div>
     </>;
   });
 }

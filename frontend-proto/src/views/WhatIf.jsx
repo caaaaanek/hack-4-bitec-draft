@@ -95,7 +95,7 @@ export function WhatIf() {
     <BackToInst />
     <section className="card c12 rise wi-head">
       <div className="card-h" style={{ flexWrap: "wrap" }}><h2>Прогноз індексу</h2>
-        <button type="button" className="kt-info" aria-label="Як рахується" data-tip={`Та сама методика, що й для справжнього індексу: зараховано = min(сприйняття; факти + ${CAP}), індекс = середнє трьох компонентів. Відповіді анкет не змінюються.`}><Ic n="info" /></button>
+        <button type="button" className="kt-info" aria-label="Як рахується" data-tip={`Та сама методика, що й для справжнього індексу: зараховано в індекс = min(самооцінка; факти + ${CAP}), індекс = середнє трьох компонентів. Відповіді анкет не змінюються.`}><Ic n="info" /></button>
         <div className="sp" />{WI.busy && <span className="lbl wi-busy">Рахуємо…</span>}
         {!empty() && <button type="button" className="btn btn-ghost" onClick={() => change(resetScenario)}><Ic n="reset" />Скинути сценарій</button>}</div>
       <div className="wi-sum">

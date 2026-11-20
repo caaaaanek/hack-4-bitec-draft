@@ -45,7 +45,7 @@ export function LevelBar({ v }) {
 
 export function CapBars({ c }) {
   const bar = (n, v, col) => <div className="cap-row"><span className="lbl">{n}</span><div className="dist-bar"><i style={{ width: `${v}%`, background: col }} /></div><b className="tnum">{fb(v)}</b></div>;
-  return <div className="cap">{bar("Сприйняття", c.P, "var(--blue)")}{bar("Факти", c.F, "var(--amber)")}{bar("Зараховано", c.cr.v, "var(--teal)")}</div>;
+  return <div className="cap">{bar("Самооцінка", c.P, "var(--blue)")}{bar("Підтверджено фактами", c.F, "var(--amber)")}{bar("Зараховано", c.cr.v, "var(--teal)")}</div>;
 }
 
 // Смужка з 20/30 поділок (заповнення компонентів і жетонів)
