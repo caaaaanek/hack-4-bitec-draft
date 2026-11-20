@@ -15,6 +15,7 @@
 конкретний набір доказів.
 """
 
+import os
 import uuid
 from datetime import datetime, timezone
 from urllib.parse import quote
@@ -448,8 +449,11 @@ def drop_orphans(db: Session, shas: list[str]) -> None:
     for sha in set(shas):
         if db.scalar(select(func.count()).select_from(EvidenceFile).where(EvidenceFile.sha256 == sha)):
             continue
+        path = storage.path_for(sha)
         try:
-            storage.path_for(sha).unlink(missing_ok=True)
+            if path.exists():
+                os.chmod(path, 0o640)  # файл зберігається лише для читання; на Windows такий не видалити
+                path.unlink()
         except OSError:
             pass
 
