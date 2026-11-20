@@ -29,7 +29,7 @@ def mitra(monkeypatch):
 
 
 def unit_id(client, name="Підрозділ А-1"):
-    return {u["name"]: u["id"] for u in client.get(f"{API}/admin/units", headers=auth(client, "admin")).json()}[name]
+    return {u["name"]: u["id"] for u in client.get(f"{API}/units", headers=auth(client, "admin")).json()}[name]
 
 
 def new_measure(client, unit=None, title="Провести навчання з конфлікту інтересів"):

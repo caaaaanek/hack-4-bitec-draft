@@ -22,14 +22,15 @@ def test_long_password_is_401_not_500(client):
     assert client.post(f"{API}/auth/login", data={"username": "admin", "password": PASSWORD}).status_code == 200
 
 
-def test_admin_cannot_set_password_over_72_bytes(client):
-    admin = auth(client, "admin")
-    body = {"login": "longpw", "display_name": "Довгий пароль", "password": "я" * 40, "role": "auditor"}
-    r = client.post(f"{API}/admin/users", json=body, headers=admin)
-    assert r.status_code == 422 and "72" in r.text, r.text
-    body["password"] = "я" * 36  # рівно 72 байти — можна
-    r = client.post(f"{API}/admin/users", json=body, headers=admin)
+def test_invite_password_over_72_bytes_is_rejected(client):
+    body = {"login": "longpw", "display_name": "Довгий пароль", "role": "auditor"}
+    r = client.post(f"{API}/admin/users", json=body, headers=auth(client, "coordinator"))
     assert r.status_code == 201, r.text
+    token = r.json()["invite_link"].rsplit("/", 1)[-1]
+    r = client.post(f"{API}/auth/invite", json={"token": token, "password": "я" * 40})
+    assert r.status_code == 422 and "72" in r.text, r.text
+    # рівно 72 байти — можна
+    assert client.post(f"{API}/auth/invite", json={"token": token, "password": "я" * 36}).status_code == 204
     r = client.post(f"{API}/auth/session", json={"login": "longpw", "password": "я" * 36})
     assert r.status_code == 200, r.text
 

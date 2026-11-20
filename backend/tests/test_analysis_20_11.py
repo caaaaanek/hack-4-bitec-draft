@@ -10,9 +10,10 @@ from app.config import get_settings
 from app.db import SessionLocal
 from app.models import AuditLog, ResponsePool
 from app.services import ballots, candor, goodhart, scoring, urn
-from tests.conftest import auth
+from tests.conftest import auth, create_person
 from tests.helpers import (
-    ALL, API, ROOT, answer, clamp, close, fill_checklist, full_wave, open_campaign, questionnaire_ids, results, units,
+    ALL, API, ROOT, answer, clamp, close, fill_checklist, full_wave, open_campaign, questionnaire_ids, results, submit_item,
+    units,
 )
 
 STAFF = "nazk-maturity-staff"
@@ -20,8 +21,8 @@ WG = "nazk-maturity-wg"
 
 
 def user_id(client, login):
-    admin = auth(client, "admin")
-    return next(u["id"] for u in client.get(f"{API}/admin/users", headers=admin).json() if u["login"] == login)
+    co = auth(client, "coordinator")
+    return next(u["id"] for u in client.get(f"{API}/admin/users", headers=co).json() if u["login"] == login)
 
 
 @pytest.fixture()
@@ -35,23 +36,22 @@ def setting(monkeypatch):
 # ---------- Довідники ----------
 
 def test_custom_category_without_weight_is_compared_but_not_in_index(client):
-    admin, commissioner = auth(client, "admin"), auth(client, "commissioner")
-    r = client.post(f"{API}/dictionaries/categories", json={"code": "cadet", "title": "Курсанти"}, headers=admin)
+    admin, commissioner, co = auth(client, "admin"), auth(client, "department"), auth(client, "coordinator")
+    assert client.post(f"{API}/dictionaries/categories", json={"code": "cadet", "title": "Курсанти"},
+                       headers=admin).status_code == 403  # довідники людей — не уповноваженого
+    r = client.post(f"{API}/dictionaries/categories", json={"code": "cadet", "title": "Курсанти"}, headers=co)
     assert r.status_code == 201 and r.json()["in_index"] is False
     assert client.post(f"{API}/dictionaries/categories", json={"code": "cadet", "title": "X"},
-                       headers=admin).status_code == 409
+                       headers=commissioner).status_code == 409
     codes = {c["code"] for c in client.get(f"{API}/dictionaries/categories", headers=auth(client, "staff01")).json()}
     assert {"working_group", "staff", "expert", "cadet"} <= codes
     # Невідому категорію не призначити.
-    r = client.post(f"{API}/admin/users", headers=admin, json={
-        "login": "xx1", "display_name": "X", "password": "long-password-1", "role": "respondent", "category": "nope"})
+    r = client.post(f"{API}/admin/users", headers=co, json={
+        "login": "xx1", "display_name": "X", "role": "respondent", "category": "nope"})
     assert r.status_code == 422 and r.json()["code"] == "unknown_category"
     unit = units(client, admin)["Підрозділ А"]
     for i in range(5):
-        r = client.post(f"{API}/admin/users", headers=admin, json={
-            "login": f"cadet{i}", "display_name": f"Курсант {i}", "password": "long-password-1", "role": "respondent",
-            "category": "cadet", "unit_id": unit})
-        assert r.status_code == 201, r.text
+        create_person(client, f"cadet{i}", category="cadet", unit_id=unit, password="long-password-1")
     staff = client.get(f"{API}/questionnaires/{questionnaire_ids(client, admin)[STAFF]}", headers=commissioner).json()
     body = {"code": "cadet-survey", "title": "Анкета курсантів", "kind": "survey", "target_category": "cadet",
             "sections": [{"title": s["title"], "component": s["component"],
@@ -77,25 +77,28 @@ def test_custom_category_without_weight_is_compared_but_not_in_index(client):
     assert any(g["category"] == "cadet" and g["sufficient"] for g in data["groups"])
     assert data["index"]["score"] == 50.0  # лише особовий склад (рівень 3); курсанти без ваги
     # З вагою курсанти стають джерелом самооцінки (перерахунок за поточною методикою).
-    assert client.patch(f"{API}/dictionaries/categories/cadet", json={"weight": 0.2}, headers=admin).status_code == 200
+    assert client.patch(f"{API}/dictionaries/categories/cadet", json={"weight": 0.2}, headers=co).status_code == 200
     again = results(client, campaign_id, admin, recalculate=True)
     assert again["index"]["score"] > 50.0
     assert any(s["source"] == "cadet" for s in again["components"][0]["sources"])
-    assert client.patch(f"{API}/dictionaries/categories/staff", json={"weight": 0.5}, headers=admin).status_code == 409
+    assert client.patch(f"{API}/dictionaries/categories/staff", json={"weight": 0.5}, headers=co).status_code == 409
 
 
 def test_positions_and_facts_dictionaries(client):
-    admin, commissioner = auth(client, "admin"), auth(client, "commissioner")
+    admin, co = auth(client, "admin"), auth(client, "coordinator")
     titles = [p["title"] for p in client.get(f"{API}/dictionaries/positions", headers=auth(client, "leader")).json()]
     assert "Начальник служби закупівель" in titles
     assert client.post(f"{API}/dictionaries/positions", json={"title": "Шевченко Т. Г."},
-                       headers=commissioner).json()["code"] == "person_name"
+                       headers=co).json()["code"] == "person_name"
     assert client.post(f"{API}/dictionaries/positions", json={"title": "Начальник служби безпеки"},
-                       headers=commissioner).status_code == 201
+                       headers=co).status_code == 201
+    assert client.post(f"{API}/dictionaries/positions", json={"title": "Начальник відділу кадрів 2"},
+                       headers=admin).status_code == 403
     fact = {"code": "gifts_registered", "title": "Подарунки задекларовано вчасно", "component": "culture",
             "thresholds": [60, 75, 90, 98]}
     assert client.post(f"{API}/dictionaries/facts", json={**fact, "thresholds": [90, 80, 70, 60]},
                        headers=admin).status_code == 422
+    assert client.post(f"{API}/dictionaries/facts", json=fact, headers=co).status_code == 403  # факти — методика
     assert client.post(f"{API}/dictionaries/facts", json=fact, headers=admin).status_code == 201
     root = units(client, admin)[ROOT]
     r = client.post(f"{API}/indicators", json={"unit_id": root, "period": "2026-01", "indicator": "gifts_registered",
@@ -115,27 +118,27 @@ def test_checklist_assignment_enterer_and_auditor_confirmer(client):
     campaign_id, q, admin = open_campaign(client, ("nazk-checklist", STAFF))
     items = client.get(f"{API}/campaigns/{campaign_id}/checklist", headers=auth(client, "wg1")).json()["items"]
     item = items[0]["question_id"]
-    wg2, auditor = user_id(client, "wg2"), user_id(client, "auditor")
+    people = {p["login"]: p["id"] for p in client.get(f"{API}/campaigns/{campaign_id}/people", headers=admin).json()}
+    wg2, auditor = people["wg2"], people["auditor"]
+    assert "coordinator" not in people and "department" not in people
     bad = client.put(f"{API}/campaigns/{campaign_id}/checklist/assignments",
                      json={"items": [{"question_id": item, "enterer_id": wg2, "confirmer_id": wg2}]}, headers=admin)
     assert bad.status_code == 422
     r = client.put(f"{API}/campaigns/{campaign_id}/checklist/assignments",
                    json={"items": [{"question_id": item, "enterer_id": wg2, "confirmer_id": auditor}]},
-                   headers=auth(client, "commissioner"))
+                   headers=admin)
     assert r.status_code == 200 and r.json()[0]["enterer"] == "Член робочої групи 2"
     body = {"status": "full", "evidence": "Наказ"}
     r = client.put(f"{API}/campaigns/{campaign_id}/checklist/{item}", json=body, headers=auth(client, "wg1"))
     assert r.status_code == 403 and r.json()["code"] == "not_assigned"
-    assert client.put(f"{API}/campaigns/{campaign_id}/checklist/{item}", json=body,
-                      headers=auth(client, "wg2")).status_code == 200
-    r = client.post(f"{API}/campaigns/{campaign_id}/checklist/{item}/confirm", headers=auth(client, "commissioner"))
+    assert submit_item(client, campaign_id, item, auth(client, "wg2")).status_code == 200
+    r = client.post(f"{API}/campaigns/{campaign_id}/checklist/{item}/confirm", headers=auth(client, "department"))
     assert r.status_code == 403
     r = client.post(f"{API}/campaigns/{campaign_id}/checklist/{item}/confirm", headers=auth(client, "auditor"))
     assert r.status_code == 200 and r.json()["confirmed"] and r.json()["confirmer_id"] == auditor
     # Пункт без призначення: вносить будь-хто з РГ, підтверджує й аудит.
     other = items[1]["question_id"]
-    assert client.put(f"{API}/campaigns/{campaign_id}/checklist/{other}", json=body,
-                      headers=auth(client, "wg1")).status_code == 200
+    assert submit_item(client, campaign_id, other, auth(client, "wg1")).status_code == 200
     assert client.post(f"{API}/campaigns/{campaign_id}/checklist/{other}/confirm",
                        headers=auth(client, "auditor")).status_code == 200
 
@@ -171,21 +174,21 @@ def test_department_and_leader_see_no_child_details(client):
                       headers=auth(client, "leader_a")).status_code == 200
 
 
-def test_separate_tech_admin(client, setting):
-    setting(separate_tech_admin=True)
-    body = {"login": "newbie", "display_name": "Новий", "password": "long-password-1", "role": "leader"}
+def test_tech_admin_is_separate(client):
+    body = {"login": "newbie", "display_name": "Новий", "role": "leader"}
     assert client.post(f"{API}/admin/users", json=body, headers=auth(client, "admin")).status_code == 403
     assert client.post(f"{API}/admin/users", json=body, headers=auth(client, "coordinator")).status_code == 201
     # Технічний адміністратор результатів не бачить.
     assert client.get(f"{API}/dashboard", headers=auth(client, "coordinator")).status_code == 403
+    assert client.get(f"{API}/config").json()["policies"]["separate_tech_admin"] is True
 
 
 # ---------- Облікові записи: запрошення, дві особи ----------
 
-def test_invite_password_set_by_person(client, setting):
-    admin = auth(client, "admin")
-    r = client.post(f"{API}/admin/users", headers=admin, json={"login": "invited", "display_name": "Запрошений",
-                                                               "role": "leader"})
+def test_invite_password_set_by_person(client):
+    co = auth(client, "coordinator")
+    r = client.post(f"{API}/admin/users", headers=co, json={"login": "invited", "display_name": "Запрошений",
+                                                            "role": "leader"})
     assert r.status_code == 201 and r.json()["invite_link"].count("/invite/") == 1
     token = r.json()["invite_link"].rsplit("/", 1)[1]
     assert client.post(f"{API}/auth/login", data={"username": "invited", "password": "whatever-123"}).status_code == 401
@@ -193,49 +196,78 @@ def test_invite_password_set_by_person(client, setting):
     assert client.post(f"{API}/auth/invite", json={"token": token, "password": "my-own-pass-1"}).status_code == 204
     assert client.post(f"{API}/auth/invite", json={"token": token, "password": "my-own-pass-2"}).status_code == 404
     assert client.post(f"{API}/auth/login", data={"username": "invited", "password": "my-own-pass-1"}).status_code == 200
-    setting(admin_sets_passwords=False)
-    r = client.post(f"{API}/admin/users", headers=admin, json={"login": "pw1", "display_name": "П",
-                                                               "password": "long-password-1", "role": "leader"})
-    assert r.status_code == 422 and r.json()["code"] == "password_by_invite"
+    # Пароля адміністратор не задає взагалі.
+    r = client.post(f"{API}/admin/users", headers=co, json={"login": "pw1", "display_name": "П",
+                                                            "password": "long-password-1", "role": "leader"})
+    assert r.status_code == 422
     uid = user_id(client, "invited")
-    assert client.patch(f"{API}/admin/users/{uid}", json={"password": "long-password-9"},
-                        headers=admin).json()["code"] == "password_by_invite"
-    assert client.post(f"{API}/admin/users/{uid}/invite", headers=admin).status_code == 201
+    assert client.patch(f"{API}/admin/users/{uid}", json={"password": "long-password-9"}, headers=co).status_code == 422
+    # Скидання — новим запрошенням: старий пароль більше не діє.
+    assert client.post(f"{API}/admin/users/{uid}/invite", headers=co).status_code == 201
+    assert client.post(f"{API}/auth/login", data={"username": "invited", "password": "my-own-pass-1"}).status_code == 401
 
 
-def test_four_eyes_for_privileged_roles_and_opening(client, setting):
+def test_four_eyes_matrix(client, setting):
     setting(four_eyes_enabled=True)
-    admin, coordinator = auth(client, "admin"), auth(client, "coordinator")
-    r = client.post(f"{API}/admin/users", headers=admin, json={"login": "boss", "display_name": "Б",
-                                                               "password": "long-password-1", "role": "auditor"})
+    admin, co, auditor = auth(client, "admin"), auth(client, "coordinator"), auth(client, "auditor")
+    # Новий обліковий запис просить техадмін, підтверджує уповноважений (не техадмін і не аудит).
+    r = client.post(f"{API}/admin/users", headers=co, json={"login": "boss", "display_name": "Б", "role": "auditor"})
     assert r.status_code == 201 and r.json()["is_active"] is False
     approval = r.json()["pending_approval_id"]
-    assert client.post(f"{API}/admin/approvals/{approval}/approve", headers=admin).json()["code"] == "same_person"
-    assert client.post(f"{API}/admin/approvals/{approval}/approve", headers=coordinator).status_code == 200
-    assert client.post(f"{API}/auth/login", data={"username": "boss", "password": "long-password-1"}).status_code == 200
+    r = client.post(f"{API}/admin/approvals/{approval}/approve", headers=co)
+    assert r.status_code == 403 and r.json()["code"] == "same_person" and "уповноважений" in r.json()["hint"]
+    assert client.post(f"{API}/admin/approvals/{approval}/approve", headers=auditor).json()["code"] == "forbidden_role"
+    listed = client.get(f"{API}/admin/approvals", headers=admin).json()
+    assert next(x for x in listed if x["id"] == approval)["can_decide"] is True
+    assert client.post(f"{API}/admin/approvals/{approval}/approve", headers=admin).status_code == 200
     # Зміна категорії — через запит.
     uid = user_id(client, "staff20")
-    r = client.patch(f"{API}/admin/users/{uid}", json={"category": "working_group"}, headers=admin)
+    r = client.patch(f"{API}/admin/users/{uid}", json={"category": "working_group"}, headers=co)
     assert r.json()["category"] == "staff" and r.json()["pending_approval_id"]
-    # Відкриття хвилі: запит, потім підтвердження іншою людиною.
+    # Відкриття хвилі: просить уповноважений, підтверджує лише внутрішній аудит.
     campaign_id, _, admin = open_campaign(client, (STAFF,), open_it=False)
     r = client.post(f"{API}/campaigns/{campaign_id}/open", headers=admin)
     assert r.status_code == 200 and r.json()["status"] == "draft" and r.json()["pending_approval_id"]
-    pending = client.get(f"{API}/admin/approvals", headers=auth(client, "commissioner")).json()
-    req = next(x for x in pending if x["kind"] == "open_campaign")
-    assert "created_last_30_days" in req["payload"]
-    assert client.post(f"{API}/admin/approvals/{req['id']}/approve", headers=auth(client, "commissioner")).status_code == 200
+    req = next(x for x in client.get(f"{API}/admin/approvals", headers=auditor).json() if x["kind"] == "open_campaign")
+    assert "created_last_30_days" in req["payload"] and req["approver_roles"] == ["auditor"]
+    assert client.post(f"{API}/admin/approvals/{req['id']}/approve", headers=co).status_code == 403
+    assert client.post(f"{API}/admin/approvals/{req['id']}/approve", headers=admin).status_code == 403
+    assert client.post(f"{API}/admin/approvals/{req['id']}/approve", headers=auditor).status_code == 200
     assert client.get(f"{API}/campaigns/{campaign_id}", headers=admin).json()["status"] == "open"
+    # Техадмін бачить свої запити, але не може нічого вирішити.
+    mine = client.get(f"{API}/admin/approvals", params={"status": "pending"}, headers=co).json()
+    assert mine and all(not x["can_decide"] for x in mine)
+
+
+def test_first_launch_needs_admin_before_anyone_else(client, setting):
+    from app.db import SessionLocal
+    from app.models import Role, User
+
+    setting(four_eyes_enabled=True)
+    with SessionLocal() as db:  # «порожня» система: уповноваженого ще немає
+        db.query(User).filter(User.role == Role.ADMIN).update({"is_active": False})
+        db.commit()
+    co = auth(client, "coordinator")
+    r = client.post(f"{API}/admin/users", headers=co, json={"login": "st1", "display_name": "S", "role": "respondent",
+                                                            "category": "staff"})
+    assert r.status_code == 409 and r.json()["code"] == "bootstrap_incomplete", r.text
+    r = client.post(f"{API}/admin/users", headers=co, json={"login": "boss", "display_name": "Б", "role": "admin"})
+    assert r.status_code == 201 and r.json()["is_active"] is True and r.json()["pending_approval_id"] is None
+    # Тепер уповноважений є: наступний запис — уже через підтвердження.
+    r = client.post(f"{API}/admin/users", headers=co, json={"login": "st1", "display_name": "S", "role": "respondent",
+                                                            "category": "staff"})
+    assert r.status_code == 201 and r.json()["pending_approval_id"]
 
 
 def test_composition_frozen_from_creation(client):
     campaign_id, _, admin = open_campaign(client, (STAFF,), open_it=False)
     assert client.get(f"{API}/campaigns/{campaign_id}", headers=admin).json()["eligible_frozen"] is True
     uid, other = user_id(client, "staff01"), units(client, admin)["Підрозділ Б"]
-    r = client.patch(f"{API}/admin/users/{uid}", json={"unit_id": other}, headers=admin)
+    co = auth(client, "coordinator")
+    r = client.patch(f"{API}/admin/users/{uid}", json={"unit_id": other}, headers=co)
     assert r.status_code == 409 and r.json()["code"] == "campaign_open"
     assert client.delete(f"{API}/campaigns/{campaign_id}", headers=admin).status_code == 204
-    assert client.patch(f"{API}/admin/users/{uid}", json={"unit_id": other}, headers=admin).status_code == 200
+    assert client.patch(f"{API}/admin/users/{uid}", json={"unit_id": other}, headers=co).status_code == 200
 
 
 def test_audit_anchor_detects_rewrite(client):
@@ -298,7 +330,7 @@ def test_shamir_two_of_three():
 
 def test_urn_ceremony(client):
     campaign_id, q, admin = open_campaign(client, (STAFF,), open_it=False)
-    holders = ["commissioner", "auditor", "staff24"]
+    holders = ["leader", "auditor", "staff24"]
     r = client.put(f"{API}/campaigns/{campaign_id}/urn", json={"holder_ids": [user_id(client, h) for h in holders]},
                    headers=admin)
     assert r.status_code == 200 and r.json()["enabled"] and not r.json()["ready"]
@@ -317,10 +349,10 @@ def test_urn_ceremony(client):
     assert r.status_code == 409 and r.json()["code"] == "urn_pending"
     # Чужа частина не підходить.
     bad = client.post(f"{API}/campaigns/{campaign_id}/urn/shares", json={"share": shares["auditor"]},
-                      headers=auth(client, "commissioner"))
+                      headers=auth(client, "leader"))
     assert bad.json()["code"] == "urn_wrong_share"
-    r = client.post(f"{API}/campaigns/{campaign_id}/urn/shares", json={"share": shares["commissioner"]},
-                    headers=auth(client, "commissioner"))
+    r = client.post(f"{API}/campaigns/{campaign_id}/urn/shares", json={"share": shares["leader"]},
+                    headers=auth(client, "leader"))
     assert r.json()["status"] == "waiting"
     r = client.post(f"{API}/campaigns/{campaign_id}/urn/shares", json={"share": shares["staff24"]},
                     headers=auth(client, "staff24"))

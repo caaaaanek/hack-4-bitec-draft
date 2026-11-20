@@ -167,15 +167,15 @@ class DigestOut(BaseModel):
 def agent_digest(
     unit_id: uuid.UUID | None = None,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(*RESULT_READERS, Role.ADMIN, Role.COORDINATOR)),
+    user: User = Depends(require_roles(*RESULT_READERS)),
 ):
     """Агент-черговий: що знизилось і чому (за джерелами), технічні збої, що прострочено — і як виправити.
 
-    Технічні пункти (тема 2, джерела фактів, журнал дій, автопілот) бачать адміністратор і координатор.
+    Технічні пункти (тема 2, джерела фактів, журнал дій, автопілот) бачать уповноважений і аудит.
     """
     if unit_id is None and user.role == Role.LEADER:
         unit_id = user.unit_id
     if unit_id is not None:
         ensure_unit_access(db, user, unit_id)
-    technical = user.role in (Role.ADMIN, Role.COORDINATOR, Role.AUDITOR)
+    technical = user.role in (Role.ADMIN, Role.AUDITOR)
     return watchdog.digest(db, unit_id, technical=technical)

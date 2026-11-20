@@ -709,7 +709,7 @@
           "admin"
         ],
         "summary": "Create User",
-        "description": "Створити обліковий запис.\n\n- Без пароля (рекомендовано): відповідь містить одноразове запрошення, і людина ставить пароль сама.\n  ADMIN_SETS_PASSWORDS=false дозволяє лише так.\n- FOUR_EYES_ENABLED=true: обліковий запис створюється неактивним, доки його не підтвердить друга\n  людина (POST /admin/approvals/{id}/approve). Так закривається атака «n−1» підставними респондентами.",
+        "description": "Створити обліковий запис (лише технічний адміністратор).\n\nПароля тут немає: відповідь містить одноразове запрошення, і людина ставить пароль сама.\nFOUR_EYES_ENABLED=true (за замовчуванням): обліковий запис неактивний, доки його не підтвердить\nуповноважений (POST /admin/approvals/{id}/approve). Так закривається атака «n−1» підставними респондентами.",
         "operationId": "create_user_api_v1_admin_users_post",
         "security": [
           {
@@ -790,13 +790,100 @@
         }
       }
     },
+    "/api/v1/admin/users/import": {
+      "post": {
+        "tags": [
+          "admin"
+        ],
+        "summary": "Import Users",
+        "description": "Масово завести респондентів (лише технічний адміністратор). Кожному — одноразове запрошення.\n\nУсе або нічого: рядок з помилкою (логін зайнятий, немає категорії чи підрозділу) — нічого не змінюється.\nFOUR_EYES_ENABLED: записи неактивні, доки імпорт не підтвердить уповноважений (один запит на файл).\nПривілейовані ролі так не видаються: лише POST /admin/users по одному.",
+        "operationId": "import_users_api_v1_admin_users_import_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_import_users_api_v1_admin_users_import_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UsersImportOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Forbidden",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Conflict",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Unprocessable Content",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ]
+      }
+    },
     "/api/v1/admin/users/{user_id}/invite": {
       "post": {
         "tags": [
           "admin"
         ],
         "summary": "Reissue Invite",
-        "description": "Нове запрошення (забув пароль, не встиг за строк). Попередні невикористані перестають діяти.\nПоточний пароль діє, доки людина не поставить новий за запрошенням.",
+        "description": "Нове запрошення: так скидається пароль (забув, не встиг за строк). Попередні невикористані перестають\nдіяти, а всі сесії людини відкликаються: старий пароль більше не дає доступу.",
         "operationId": "reissue_invite_api_v1_admin_users__user_id__invite_post",
         "security": [
           {
@@ -875,6 +962,9 @@
               }
             },
             "description": "Unprocessable Content"
+          },
+          "202": {
+            "description": "Привілейований запис: створено запит user_invite (pending_approval_id)"
           }
         }
       }
@@ -885,7 +975,7 @@
           "admin"
         ],
         "summary": "Update User",
-        "description": "Змінити обліковий запис. З FOUR_EYES_ENABLED привілейована роль і зміна категорії не застосовуються\nодразу: створюється запит, який підтверджує друга людина (pending_approval_id у відповіді).",
+        "description": "Змінити обліковий запис (лише технічний адміністратор). Пароль тут не змінюється: нове запрошення —\nPOST /admin/users/{id}/invite.\n\nЗ FOUR_EYES_ENABLED не застосовуються одразу, а йдуть запитом другій людині (pending_approval_id):\nпривілейована роль (видача чи зняття), категорія, а для привілейованого запису — ще й блокування і підрозділ.",
         "operationId": "update_user_api_v1_admin_users__user_id__patch",
         "security": [
           {
@@ -984,7 +1074,7 @@
           "admin"
         ],
         "summary": "List Approvals",
-        "description": "Запити на підтвердження другою людиною (FOUR_EYES_ENABLED).",
+        "description": "Запити принципу двох осіб: ті, що людина може вирішити (за роллю й зоною), і ті, що подала сама.\n\ncan_decide у відповіді: чи може поточний користувач підтвердити чи відхилити запит.",
         "operationId": "list_approvals_api_v1_admin_approvals_get",
         "security": [
           {
@@ -1085,7 +1175,7 @@
           "admin"
         ],
         "summary": "Approve",
-        "description": "Підтвердити: дія виконується від імені того, хто підтвердив. Підтверджує не той, хто просив.",
+        "description": "Підтвердити: дія виконується від імені того, хто підтвердив. Підтверджує не той, хто просив,\nроль — за матрицею (approver_roles), підрозділ — у зоні підтверджувача.\n\nuser_invite: відповідь один раз містить invite_link — підтверджувач передає його людині.",
         "operationId": "approve_api_v1_admin_approvals__approval_id__approve_post",
         "security": [
           {
@@ -1374,6 +1464,7 @@
           "admin"
         ],
         "summary": "Create Unit",
+        "description": "Створити підрозділ. Новий дочірній у підрозділі чернетки хвилі — через запит (202), відкритої — 409.",
         "operationId": "create_unit_api_v1_admin_units_post",
         "requestBody": {
           "content": {
@@ -1445,6 +1536,9 @@
                 }
               }
             }
+          },
+          "202": {
+            "description": "Зміна зачіпає чернетку хвилі: створено запит unit_change (pending_approval_id), виконає його підтвердження уповноваженого"
           }
         },
         "security": [
@@ -1460,7 +1554,7 @@
           "admin"
         ],
         "summary": "Update Unit",
-        "description": "Перейменувати або перенести підрозділ (parent_id: null — зробити кореневим).\n\nПереносити не можна в самого себе чи в свій дочірній підрозділ, а також поки відкрита хвиля,\nщо охоплює старе чи нове місце: інакше зміниться склад груп посеред збору відповідей.\nЗнімки закритих хвиль не змінюються.",
+        "description": "Перейменувати або перенести підрозділ (parent_id: null — зробити кореневим).\n\nПереносити не можна в самого себе чи в свій дочірній підрозділ. Структура заморожена від створення хвилі до\nзакриття: якщо старе чи нове місце в чернетці хвилі — запит unit_change (202), у відкритій — 409.\nПерейменувати можна завжди. Знімки закритих хвиль не змінюються.",
         "operationId": "update_unit_api_v1_admin_units__unit_id__patch",
         "security": [
           {
@@ -1549,6 +1643,9 @@
               }
             },
             "description": "Unprocessable Content"
+          },
+          "202": {
+            "description": "Зміна зачіпає чернетку хвилі: створено запит unit_change (pending_approval_id), виконає його підтвердження уповноваженого"
           }
         }
       },
@@ -1629,6 +1726,9 @@
               }
             },
             "description": "Unprocessable Content"
+          },
+          "202": {
+            "description": "Зміна зачіпає чернетку хвилі: створено запит unit_change (pending_approval_id), виконає його підтвердження уповноваженого"
           }
         }
       }
@@ -1639,7 +1739,7 @@
           "admin"
         ],
         "summary": "Overview",
-        "description": "Зведення для координатора: без персональних даних, групи менші за k приховані.",
+        "description": "Зведення без персональних даних, групи менші за k приховані.\n\nТехнічний адміністратор бачить лише людей і підрозділи; хвилі й перевірки — уповноважений (своєї зони).",
         "operationId": "overview_api_v1_admin_overview_get",
         "responses": {
           "200": {
@@ -4229,6 +4329,131 @@
         }
       }
     },
+    "/api/v1/campaigns/{campaign_id}/people": {
+      "get": {
+        "tags": [
+          "campaigns"
+        ],
+        "summary": "Campaign People",
+        "description": "З кого уповноважений обирає для цієї хвилі: учасників (PUT .../participants), відповідальних за пункти\nчек-листа (PUT .../checklist/assignments), власників частин ключа урни.\n\nЛише активні облікові записи підрозділу хвилі та його піддерева (і без підрозділу: експерти, аудит).\nПовного довідника людей уповноважений не бачить: його веде технічний адміністратор.",
+        "operationId": "campaign_people_api_v1_campaigns__campaign_id__people_get",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          },
+          {
+            "name": "role",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Role"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Role"
+            }
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Category"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CampaignPersonOut"
+                  },
+                  "title": "Response Campaign People Api V1 Campaigns  Campaign Id  People Get"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
     "/api/v1/campaigns/{campaign_id}/participants": {
       "get": {
         "tags": [
@@ -4508,7 +4733,7 @@
           "campaigns"
         ],
         "summary": "Import Participants",
-        "description": "Імпорт псевдонімів з CSV (`login,category,unit[,display_name]`; роздільник «,» або «;»).\n\n- Хвиля за обліковими записами: створює відсутніх респондентів (пароль показується один раз),\n  додає всіх до явного складу учасників. Можна в чернетці й у відкритій хвилі (лише додавання).\n- Хвиля за посиланнями: видає кожному рядку по посиланню на кожну анкету його категорії.\n  Псевдоніми не зберігаються: зв'язок «псевдонім → посилання» є лише у файлі, який отримує адміністратор.\n\nУсе або нічого: якщо хоч один рядок з помилкою, нічого не змінюється (422 з номерами рядків).",
+        "description": "Імпорт псевдонімів з CSV (`login,category,unit[,display_name]`; роздільник «,» або «;»).\n\n- Хвиля за обліковими записами: додає наявних респондентів до явного складу учасників. Можна в чернетці\n  й у відкритій хвилі (лише додавання). Нових облікових записів уповноважений не створює: людей заводить\n  технічний адміністратор (POST /admin/users або POST /admin/users/import).\n- Хвиля за посиланнями: видає кожному рядку по посиланню на кожну анкету його категорії.\n  Псевдоніми не зберігаються: зв'язок «псевдонім → посилання» є лише у файлі, який отримує адміністратор.\n\nУсе або нічого: якщо хоч один рядок з помилкою, нічого не змінюється (422 з номерами рядків).",
         "operationId": "import_participants_api_v1_campaigns__campaign_id__participants_import_post",
         "security": [
           {
@@ -6499,7 +6724,7 @@
           "checklist"
         ],
         "summary": "Set Entry",
-        "description": "Член робочої групи вносить або змінює статус пункту. Зміна знімає підтвердження.",
+        "description": "Член робочої групи вносить або змінює статус пункту. Зміна знімає підтвердження.\n\nФайли-докази додаються окремо (POST .../files) або разом зі статусом (POST .../submit).",
         "operationId": "set_entry_api_v1_campaigns__campaign_id__checklist__question_id__put",
         "security": [
           {
@@ -6602,13 +6827,122 @@
         }
       }
     },
+    "/api/v1/campaigns/{campaign_id}/checklist/{question_id}/submit": {
+      "post": {
+        "tags": [
+          "checklist"
+        ],
+        "summary": "Submit Entry",
+        "description": "Внести пункт разом із документами одним multipart-запитом (поля status, evidence, comment, files[]).\n\nАтомарно: якщо хоч один файл не пройшов перевірку (тип, розмір, кількість), не змінюється нічого.\nНові файли додаються до вже прикріплених; видалити зайвий: DELETE .../files/{file_id}.\nЯк і PUT, знімає підтвердження. Ліміти: GET /config → evidence.",
+        "operationId": "submit_entry_api_v1_campaigns__campaign_id__checklist__question_id__submit_post",
+        "security": [
+          {
+            "OAuth2PasswordBearer": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "campaign_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Campaign Id"
+            }
+          },
+          {
+            "name": "question_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid",
+              "title": "Question Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_submit_entry_api_v1_campaigns__campaign_id__checklist__question_id__submit_post"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChecklistItemOut"
+                }
+              }
+            }
+          },
+          "401": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unauthorized"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Forbidden"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Not Found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Conflict"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorOut"
+                }
+              }
+            },
+            "description": "Unprocessable Content"
+          }
+        }
+      }
+    },
     "/api/v1/campaigns/{campaign_id}/checklist/{question_id}/confirm": {
       "post": {
         "tags": [
           "checklist"
         ],
         "summary": "Confirm Entry",
-        "description": "Підтвердити пункт можна лише за наявності доказу. Підтверджує не той, хто вніс.",
+        "description": "Підтвердити пункт можна лише за наявності доказу. Підтверджує не той, хто вніс.\n\nЗа CHECKLIST_REQUIRE_FILE пункт «повністю» чи «частково» потребує хоча б одного файлу:\nтекстового опису замало (422, code=file_required).",
         "operationId": "confirm_entry_api_v1_campaigns__campaign_id__checklist__question_id__confirm_post",
         "security": [
           {
@@ -9153,7 +9487,7 @@
           "results"
         ],
         "summary": "List Units",
-        "description": "Дерево підрозділів (id, name, parent_id) для вибору області перегляду.\n\nКерівник, прив'язаний до підрозділу, бачить лише своє піддерево (як і в результатах).",
+        "description": "Дерево підрозділів (id, name, parent_id) для вибору області перегляду.\n\nКерівник, прив'язаний до підрозділу, бачить лише своє піддерево (як і в результатах). Уповноважений і аудит —\nлише свою зону: з цього ж списку обирається підрозділ нової хвилі.",
         "operationId": "list_units_api_v1_units_get",
         "responses": {
           "200": {
@@ -11454,7 +11788,7 @@
           "insights"
         ],
         "summary": "Agent Digest",
-        "description": "Агент-черговий: що знизилось і чому (за джерелами), технічні збої, що прострочено — і як виправити.\n\nТехнічні пункти (тема 2, джерела фактів, журнал дій, автопілот) бачать адміністратор і координатор.",
+        "description": "Агент-черговий: що знизилось і чому (за джерелами), технічні збої, що прострочено — і як виправити.\n\nТехнічні пункти (тема 2, джерела фактів, журнал дій, автопілот) бачать уповноважений і аудит.",
         "operationId": "agent_digest_api_v1_agent_digest_get",
         "security": [
           {
@@ -12267,7 +12601,7 @@
           "autopilot"
         ],
         "summary": "Run Tick",
-        "description": "Виконати крок автопілота зараз (фоново він іде кожні AUTOPILOT_INTERVAL_SECONDS).",
+        "description": "Виконати крок автопілота зараз (фоново він іде кожні AUTOPILOT_INTERVAL_SECONDS).\n\nКрок іде для всіх хвиль, але у відповіді — лише події хвиль зони уповноваженого (і загальні).",
         "operationId": "run_tick_api_v1_autopilot_tick_post",
         "responses": {
           "200": {
@@ -15360,6 +15694,42 @@
           "comment": {
             "type": "string",
             "title": "Comment"
+          },
+          "approver_roles": {
+            "items": {
+              "$ref": "#/components/schemas/Role"
+            },
+            "type": "array",
+            "title": "Approver Roles",
+            "default": []
+          },
+          "can_decide": {
+            "type": "boolean",
+            "title": "Can Decide",
+            "default": false
+          },
+          "invite_link": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invite Link"
+          },
+          "invite_expires_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Invite Expires At"
           }
         },
         "type": "object",
@@ -15847,6 +16217,44 @@
             },
             "type": "array",
             "title": "Events"
+          },
+          "interval_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Interval Seconds",
+            "description": "Як часто автопілот робить крок (AUTOPILOT_INTERVAL_SECONDS); 0 — лише вручну"
+          },
+          "next_tick_at": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "date-time"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Tick At",
+            "description": "Коли наступний крок; null — фоновий потік не запущено"
+          },
+          "waiting_approval_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Waiting Approval Id",
+            "description": "Хвиля чекає на підтвердження відкриття (принцип двох осіб)"
           }
         },
         "type": "object",
@@ -16039,6 +16447,21 @@
         ],
         "title": "Body_import_risks_api_v1_units__unit_id__risk_register_import_post"
       },
+      "Body_import_users_api_v1_admin_users_import_post": {
+        "properties": {
+          "file": {
+            "type": "string",
+            "contentMediaType": "application/octet-stream",
+            "title": "File",
+            "description": "CSV UTF-8: login,category,unit[,display_name]"
+          }
+        },
+        "type": "object",
+        "required": [
+          "file"
+        ],
+        "title": "Body_import_users_api_v1_admin_users_import_post"
+      },
       "Body_login_api_v1_auth_login_post": {
         "properties": {
           "grant_type": {
@@ -16097,6 +16520,42 @@
           "password"
         ],
         "title": "Body_login_api_v1_auth_login_post"
+      },
+      "Body_submit_entry_api_v1_campaigns__campaign_id__checklist__question_id__submit_post": {
+        "properties": {
+          "status": {
+            "$ref": "#/components/schemas/ChecklistStatus",
+            "description": "full | partial | none"
+          },
+          "evidence": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Evidence",
+            "description": "Короткий опис доказу (необов'язково)",
+            "default": ""
+          },
+          "comment": {
+            "type": "string",
+            "maxLength": 2000,
+            "title": "Comment",
+            "default": ""
+          },
+          "files": {
+            "items": {
+              "type": "string",
+              "contentMediaType": "application/octet-stream"
+            },
+            "type": "array",
+            "title": "Files",
+            "description": "Документи-докази: PDF, зображення, Office/ODF, TXT, CSV",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "status"
+        ],
+        "title": "Body_submit_entry_api_v1_campaigns__campaign_id__checklist__question_id__submit_post"
       },
       "Body_upload_file_api_v1_campaigns__campaign_id__checklist__question_id__files_post": {
         "properties": {
@@ -16464,6 +16923,59 @@
           "questionnaire_ids"
         ],
         "title": "CampaignOut"
+      },
+      "CampaignPersonOut": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "title": "Id"
+          },
+          "login": {
+            "type": "string",
+            "title": "Login"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "role": {
+            "$ref": "#/components/schemas/Role"
+          },
+          "category": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category"
+          },
+          "unit_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unit Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "login",
+          "display_name",
+          "role",
+          "category",
+          "unit_id"
+        ],
+        "title": "CampaignPersonOut"
       },
       "CampaignProgress": {
         "properties": {
@@ -17082,6 +17594,11 @@
               }
             ],
             "title": "Confirmer Id"
+          },
+          "file_required": {
+            "type": "boolean",
+            "title": "File Required",
+            "default": false
           }
         },
         "type": "object",
@@ -22095,7 +22612,8 @@
           },
           "admin_sets_passwords": {
             "type": "boolean",
-            "title": "Admin Sets Passwords"
+            "title": "Admin Sets Passwords",
+            "default": false
           },
           "staff_token_only": {
             "type": "boolean",
@@ -22107,7 +22625,8 @@
           },
           "separate_tech_admin": {
             "type": "boolean",
-            "title": "Separate Tech Admin"
+            "title": "Separate Tech Admin",
+            "default": true
           },
           "checklist_confirmers": {
             "items": {
@@ -22115,6 +22634,11 @@
             },
             "type": "array",
             "title": "Checklist Confirmers"
+          },
+          "checklist_require_file": {
+            "type": "boolean",
+            "title": "Checklist Require File",
+            "default": true
           },
           "external_fetch": {
             "type": "boolean",
@@ -22137,10 +22661,8 @@
         "type": "object",
         "required": [
           "four_eyes",
-          "admin_sets_passwords",
           "staff_token_only",
           "leader_child_details",
-          "separate_tech_admin",
           "checklist_confirmers",
           "external_fetch"
         ],
@@ -23608,14 +24130,14 @@
         "type": "string",
         "enum": [
           "admin",
-          "commissioner",
           "respondent",
           "leader",
           "auditor",
           "coordinator",
           "department"
         ],
-        "title": "Role"
+        "title": "Role",
+        "description": "Сім ролей (docs/backend.md). Два адміністратори: уповноважений (admin) і технічний (coordinator);\nпривілейований крок одного підтверджує інший або внутрішній аудит (FOUR_EYES_ENABLED)."
       },
       "RuleOut": {
         "properties": {
@@ -24601,19 +25123,6 @@
             "minLength": 1,
             "title": "Display Name"
           },
-          "password": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 128,
-                "minLength": 8
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Password"
-          },
           "role": {
             "$ref": "#/components/schemas/Role"
           },
@@ -24644,6 +25153,7 @@
             "title": "Unit Id"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "required": [
           "login",
@@ -24769,19 +25279,6 @@
             ],
             "title": "Display Name"
           },
-          "password": {
-            "anyOf": [
-              {
-                "type": "string",
-                "maxLength": 128,
-                "minLength": 8
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Password"
-          },
           "role": {
             "anyOf": [
               {
@@ -24830,8 +25327,47 @@
             "title": "Is Active"
           }
         },
+        "additionalProperties": false,
         "type": "object",
         "title": "UserUpdate"
+      },
+      "UsersImportOut": {
+        "properties": {
+          "rows": {
+            "type": "integer",
+            "title": "Rows"
+          },
+          "created_users": {
+            "type": "integer",
+            "title": "Created Users"
+          },
+          "credentials": {
+            "items": {
+              "$ref": "#/components/schemas/ImportedCredential"
+            },
+            "type": "array",
+            "title": "Credentials"
+          },
+          "pending_approval_id": {
+            "anyOf": [
+              {
+                "type": "string",
+                "format": "uuid"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pending Approval Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "rows",
+          "created_users",
+          "credentials"
+        ],
+        "title": "UsersImportOut"
       },
       "ValidationIssue": {
         "properties": {

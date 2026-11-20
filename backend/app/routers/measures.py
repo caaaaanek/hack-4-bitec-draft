@@ -197,7 +197,8 @@ def list_measures(
     db: Session = Depends(get_db),
     user: User = Depends(readers),
 ):
-    scope = unit_id or (user.unit_id if user.role == Role.LEADER else None)
+    # Керівник, а також уповноважений і аудит зі своєю зоною — за замовчуванням лише свій підрозділ і піддерево.
+    scope = unit_id or (user.unit_id if user.role in (Role.LEADER, Role.ADMIN, Role.AUDITOR) else None)
     query = select(Measure).order_by(Measure.due_date, Measure.created_at)
     if scope is not None:
         ensure_unit_access(db, user, scope, "manage")

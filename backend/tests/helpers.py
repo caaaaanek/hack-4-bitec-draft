@@ -10,7 +10,7 @@ ROOT = "Організація (демо)"
 
 
 def units(client, admin) -> dict[str, str]:
-    return {u["name"]: u["id"] for u in client.get(f"{API}/admin/units", headers=admin).json()}
+    return {u["name"]: u["id"] for u in client.get(f"{API}/units", headers=admin).json()}
 
 
 def questionnaire_ids(client, admin) -> dict[str, str]:
@@ -49,16 +49,26 @@ def answer(client, campaign_id, questionnaire_id, login, pick):
     assert r.status_code == 201, r.text
 
 
+EVIDENCE_PDF = b"%PDF-1.4\n% synthetic evidence\n1 0 obj << >> endobj\ntrailer << >>\n%%EOF\n"
+
+
+def submit_item(client, campaign_id, question_id, headers, status="full", evidence="Наказ №1 (синтетичний)",
+                with_file=True):
+    """Внести пункт чек-листа одним multipart-запитом: статус, текст і (за замовчуванням) PDF-доказ."""
+    files = [("files", ("nakaz.pdf", EVIDENCE_PDF, "application/pdf"))] if with_file else None
+    return client.post(f"{API}/campaigns/{campaign_id}/checklist/{question_id}/submit",
+                       data={"status": status, "evidence": evidence}, files=files, headers=headers)
+
+
 def fill_checklist(client, campaign_id, status="full", evidence="Наказ №1 (синтетичний)", confirm=True):
     wg = auth(client, "wg1")
-    commissioner = auth(client, "commissioner")
+    confirmer = auth(client, "auditor")
     items = client.get(f"{API}/campaigns/{campaign_id}/checklist", headers=wg).json()["items"]
     for item in items:
-        r = client.put(f"{API}/campaigns/{campaign_id}/checklist/{item['question_id']}",
-                       json={"status": status, "evidence": evidence}, headers=wg)
+        r = submit_item(client, campaign_id, item["question_id"], wg, status, evidence)
         assert r.status_code == 200, r.text
         if confirm:
-            r = client.post(f"{API}/campaigns/{campaign_id}/checklist/{item['question_id']}/confirm", headers=commissioner)
+            r = client.post(f"{API}/campaigns/{campaign_id}/checklist/{item['question_id']}/confirm", headers=confirmer)
             assert r.status_code == 200, r.text
 
 

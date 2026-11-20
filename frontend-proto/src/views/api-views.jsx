@@ -1,9 +1,10 @@
 /* Екрани з даними сервера (null — показати звичайний екран). */
 import { useState, useEffect, useCallback } from "react";
 import { Ic } from "../lib/icons.jsx";
+import { FileDrop } from "../components/FileDrop.jsx";
 import { S } from "../lib/state.js";
-import { API, api, apiEnsure, apiRetry, apiRetryResults, apiLoadForm, apiFail, apiErrText, RESULT_VIEWS, dn, apiLoadAdm, apiAdmReload, apiCreateCampaign, apiCampaignAct, apiQrCreate, apiQrRevoke, apiQrTick,
-  QST, QCAT, apiQAct, bldOpen, CKS, apiLoadCk, apiCkReload, apiSaveItem, apiConfirm, apiDelFile, apiDownload, AUDIT_ENT, AUDIT_ACT, apiLoadLog, auditDetails, apiVerify } from "../lib/api.js";
+import { API, api, staffTokenOnly, apiEnsure, apiRetry, apiRetryResults, apiLoadForm, apiFail, apiErrText, RESULT_VIEWS, dn, apiLoadAdm, apiAdmReload, apiCreateCampaign, apiCampaignAct, apiQrCreate, apiQrRevoke, apiQrTick,
+  QST, QCAT, apiQAct, orgCap, bldOpen, CKS, apiLoadCk, apiCkReload, apiSaveItem, apiConfirm, apiDelFile, apiDownload, AUDIT_ENT, AUDIT_ACT, apiLoadLog, auditDetails, apiVerify } from "../lib/api.js";
 import { COMPS, COMP, level } from "../lib/model.js";
 import { fb, ua, plural } from "../lib/format.js";
 import { render, toast, openDrawer, closeDrawer, ui } from "../lib/store.js";
@@ -13,10 +14,17 @@ import { UnitCombo, UnitPick } from "../components/UnitCombo.jsx";
 import { QrCode, qrAbs } from "../components/QrCode.jsx";
 import { bldFromServer, bldNewSec } from "./Builder.jsx";
 import { AutopilotSection } from "./Autopilot.jsx";
+import { DeptInstitutions, ChooseInst } from "./Department.jsx";
+import { AnchorCard, LotteryCard } from "./Transparency.jsx";
+import { UrnSection } from "./Urn.jsx";
+import { MitraCard } from "./Integrations.jsx";
+import { ReceiptsCard } from "./Receipts.jsx";
 import { LearnCard } from "./Learn.jsx";
+import { ParticipantsSection, AssignSection, loadAsg } from "./WaveAdmin.jsx";
 
 export function apiView(r) {
   if (!API.on) return null;
+  if (S.role === "observer") { if (r === "institutions") return <DeptInstitutions />; if (RESULT_VIEWS.includes(r) && !API.deptUnit) return <ChooseInst />; }
   if (RESULT_VIEWS.includes(r) && r !== "sources" && !API.model && API.resErr) return <Failed e={API.resErr} onRetry={apiRetryResults} />;
   if (RESULT_VIEWS.includes(r) && r !== "sources" && !API.model)
     return API.empty ? <Empty t="Ще немає закритої хвилі оцінювання">Результати зʼявляться, коли уповноважений закриє хвилю: система порахує індекс і збереже незмінний знімок.</Empty> : <Loading t="Результати" />;
@@ -36,9 +44,9 @@ function apiSurveyView() {
       return <>
         <section className="c12 rise toolbar"><span className="lbl">{r.campaign_title}{r.closed_on ? `, закрито ${ua(r.closed_on)}` : ""}. Відповіді анонімні: посилання не повʼязане з вашою відповіддю.</span></section>
         {r.my_unit && <ApiScope sc={r.my_unit} title={"Ваша група: " + r.my_unit.unit_name} />}
-        <ApiScope sc={r.institution} title={"Заклад: " + r.institution.unit_name} />
+        <ApiScope sc={r.institution} title={orgCap("nominative") + ": " + r.institution.unit_name} />
         {r.summary && r.summary.length > 0 && <section className="card c12 rise"><div className="card-h"><h2>Коротко</h2></div><div className="rows">{r.summary.map(t => <div key={t} className="row"><span className="dot" style={{ background: "var(--teal)" }} /><div className="grow">{t}</div></div>)}</div></section>}
-        <section className="c12 rise"><div className="lbl" style={{ textAlign: "center" }}>Тут лише узагальнені дані груп не менше k осіб. Окремих відповідей, імен і порівнянь підрозділів немає.</div></section>
+        <section className="c12 rise"><div className="lbl" style={{ textAlign: "center" }}>Тут лише узагальнені дані груп не менше {S.k} осіб. Окремих відповідей, імен і порівнянь підрозділів немає.</div></section>
       </>;
     }
     if (API.surveyMsg && !API.survey) {
@@ -59,7 +67,7 @@ function apiSurveyView() {
   const todo = API.assignments.filter(a => a.kind !== "checklist"), next = todo.find(a => !a.submitted);
   if (next && API.formError) return <Failed e={API.formError} />;
   if (next) { apiLoadForm(next); return <Loading t={next.questionnaire_title} />; }
-  return <Empty t="Зараз немає анкет до проходження">{todo.length ? `Ви вже пройшли: ${todo.map(a => a.questionnaire_title).join(", ")}.` : "Анкети зʼявляться, коли уповноважений відкриє хвилю оцінювання."}<br /><br /><a className="btn btn-soft" href="#me">Мої результати <Ic n="arrowR" /></a></Empty>;
+  return <Empty t="Зараз немає анкет до проходження">{todo.length ? `Ви вже пройшли: ${todo.map(a => a.questionnaire_title).join(", ")}.` : staffTokenOnly() ? "Особовий склад проходить анкету анонімно, без входу: за персональним посиланням або QR, які роздає уповноважений. Скористайтеся посиланням, коли його отримаєте." : "Анкети зʼявляться, коли уповноважений відкриє хвилю оцінювання."}<br /><br /><a className="btn btn-soft" href="#me">Мої результати <Ic n="arrowR" /></a></Empty>;
 }
 
 function ApiScope({ sc, title }) {
@@ -80,19 +88,19 @@ function ApiMe() {
   if (API.my.error) return <Failed e={API.my.error} />;
   const todo = Array.isArray(API.assignments) ? API.assignments.filter(a => a.kind !== "checklist") : [];
   const latest = Array.isArray(API.my) ? API.my[0] : API.my;
-  return <>
+  return <><ReceiptsCard />
     <section className="c12 rise toolbar"><span className="lbl">Відповіді анонімні: вони не повʼязані з вашим обліковим записом.</span></section>
     <section className="card c12 rise"><div className="card-h"><h2>Анкети відкритих хвиль</h2></div>
-      <div className="rows">{todo.length ? todo.map((a, i) => <div key={i} className="row"><div className="grow"><div className="t">{a.questionnaire_title}</div><div className="s">{a.campaign_title}</div></div>{a.submitted ? <Pill cls="p-good">Пройдено</Pill> : <a className="btn btn-primary" href="#survey">Пройти анкету <Ic n="arrowR" /></a>}</div>) : <div className="lbl">Зараз немає відкритих анкет для вас.</div>}</div>
+      <div className="rows">{todo.length ? todo.map((a, i) => <div key={i} className="row"><div className="grow"><div className="t">{a.questionnaire_title}</div><div className="s">{a.campaign_title}</div></div>{a.submitted ? <Pill cls="p-good">Пройдено</Pill> : <a className="btn btn-primary" href="#survey">Пройти анкету <Ic n="arrowR" /></a>}</div>) : <div className="lbl">{staffTokenOnly() ? "Зараз немає відкритих анкет. Особовий склад проходить анкету анонімно: за персональним посиланням або QR від уповноваженого." : "Зараз немає відкритих анкет для вас."}</div>}</div>
       {S.role === "checklist_editor" && <div className="lbl" style={{ marginTop: 10 }}>Ви в робочій групі: <a className="link" href="#checklist">заповнити чек-лист</a>.</div>}</section>
     <LearnCard />
     {latest ? <>
       <section className="c12 rise toolbar"><span className="lbl">{latest.campaign_title}{latest.closed_on ? `, закрито ${ua(latest.closed_on)}` : ""}</span></section>
       {latest.my_unit && <ApiScope sc={latest.my_unit} title={"Мій підрозділ: " + latest.my_unit.unit_name} />}
-      <ApiScope sc={latest.institution} title={"Заклад: " + latest.institution.unit_name} />
+      <ApiScope sc={latest.institution} title={orgCap("nominative") + ": " + latest.institution.unit_name} />
       {latest.summary && latest.summary.length > 0 && <section className="card c12 rise"><div className="card-h"><h2>Коротко</h2></div><div className="rows">{latest.summary.map(t => <div key={t} className="row"><span className="dot" style={{ background: "var(--teal)" }} /><div className="grow">{t}</div></div>)}</div></section>}
     </> : <Empty t="Результатів ще немає">Вони зʼявляться після закриття хвилі.</Empty>}
-    <section className="c12 rise"><div className="lbl" style={{ textAlign: "center" }}>Тут лише узагальнені дані груп не менше k осіб. Окремих відповідей, імен і порівнянь підрозділів немає.</div></section>
+    <section className="c12 rise"><div className="lbl" style={{ textAlign: "center" }}>Тут лише узагальнені дані груп не менше {S.k} осіб. Окремих відповідей, імен і порівнянь підрозділів немає.</div></section>
   </>;
 }
 
@@ -121,8 +129,8 @@ function ApiManage() {
           <div className="ticks" style={{ height: 14, marginTop: 8 }}>{Array.from({ length: n }, (_, j) => <span key={j} style={j < on ? { background: "var(--teal)" } : undefined} />)}</div>
           {i.over_expected && <QrOver />}</div></div>; }) : <div className="lbl">Анкет у хвилі немає.</div>}</div>
         <div style={{ display: "flex", gap: 8, marginTop: 16, flexWrap: "wrap" }} id="cActs">
-          {ask === c.id ? <><div className="lbl" style={{ width: "100%" }}>Прийом відповідей зупиниться, система порахує індекс і збереже незмінний знімок. Відкриті, але не подані форми стануть недійсними. Скасувати не можна.</div><button className="btn btn-ghost" onClick={() => setAsk(null)}>Скасувати</button><button className="btn btn-danger" onClick={() => { setAsk(null); apiCampaignAct(c.id, "close"); }}>Завершити</button></> : <>
-            {c.status === "draft" && <button className="btn btn-primary" onClick={() => apiCampaignAct(c.id, "open")}><Ic n="ok" />Відкрити хвилю</button>}
+          {ask === c.id ? <><div className="lbl" style={{ width: "100%" }}>Прийом відповідей зупиниться, система порахує індекс і збереже незмінний знімок. Відкриті, але не подані форми стануть недійсними. Скасувати не можна.</div><button className="btn btn-ghost" onClick={() => setAsk(null)}>Скасувати</button><button className="btn btn-danger" disabled={!!API.campBusy} onClick={() => { setAsk(null); apiCampaignAct(c.id, "close"); }}>Завершити</button></> : <>
+            {c.status === "draft" && <button className="btn btn-primary" disabled={!!API.campBusy} onClick={() => apiCampaignAct(c.id, "open")}><Ic n="ok" />Відкрити хвилю</button>}
             {c.status === "open" && <button className="btn btn-soft" onClick={() => setAsk(c.id)}><Ic n="lock" />Завершити й порахувати індекс</button>}</>}
         </div></> : <div className="empty"><b>Хвиль ще немає</b><br />Створіть першу хвилю оцінювання.</div>}
     </section>
@@ -148,7 +156,11 @@ function ApiManage() {
           {!l.revoked && c.status !== "closed" && <button className="btn btn-ghost" onClick={() => apiQrRevoke(c.id, l.id)}>Зупинити скани</button>}</div>
       </div>)}</div>}
     </section>}
+    {c && c.access_mode !== "token" && <ParticipantsSection key={"pt" + c.id} c={c} />}
+    {c && <AssignSection key={"as" + c.id} c={c} />}
     {c && <AutopilotSection key={c.id} id={c.id} />}
+    {c && <UrnSection key={"urn" + c.id} c={c} />}
+    <MitraCard />
     {shown && <QrScreen l={shown} onClose={hideQr} />}
   </>;
 }
@@ -159,7 +171,7 @@ const QrOver = () => <span className="qr-over" role="alert"><Ic n="lock" />Ві�
 function QrCounters({ l }) {
   return <div className="qr-cnt"><span>Завершено: <b className="tnum">{l.completed}</b> з <span className="tnum">{l.expected}</span></span>
     <span className="lbl">Відкрито форм: <span className="tnum">{l.opened}</span>, не завершено: <span className="tnum">{l.opened - l.completed}</span></span>
-    {l.completed > l.expected && <QrOver />}</div>;
+    {(l.over_expected ?? l.completed > l.expected) && <QrOver />}{l.scan_limit_reached && <span className="lbl">Ліміт сканів вичерпано</span>}</div>;
 }
 // Повноекранний QR для проєктора; лічильники під ним оновлюються разом з екраном
 function QrScreen({ l, onClose }) {
@@ -185,7 +197,7 @@ function apiNewCampaign() {
     const ok = async () => {
       if (!title.trim()) return setErr("Вкажіть назву.");
       if (!ids.length) return setErr("Оберіть хоча б одну анкету.");
-      if (!(+k >= 5)) return setErr("Мінімальна група k не менше 5.");
+      if (!(+k >= 5)) return setErr("Мінімальна група: не менше 5 осіб.");
       const u = A.units.find(x => x.id === unit) || A.units.find(x => !x.parent_id) || A.units[0];
       try { await apiCreateCampaign({ title: title.trim(), unit_id: u ? u.id : "", questionnaire_ids: ids, min_group_size: +k, access_mode: mode }); }
       catch (e) { setErr(apiErrText(e)); }
@@ -195,8 +207,8 @@ function apiNewCampaign() {
       <UnitPick id="n-u" units={A.units} value={unit} onChange={setUnit} />
       <div className="field"><label>Анкети</label>{A.qs.map(q => <label key={q.id} className="chk-row"><input type="checkbox" className="n-q" value={q.id} checked={ids.includes(q.id)} onChange={e => setIds(v => e.target.checked ? [...v, q.id] : v.filter(x => x !== q.id))} /><span>{q.title} <span className="lbl">v{q.version}</span></span></label>)}</div>
       <div className="field"><label>Як проходять</label><div className="seg seg-full" id="n-m">{[["token", "Анонімно за QR"], ["login", "За обліковими записами"]].map(([m, n]) => <button key={m} type="button" className={mode === m ? "on" : ""} onClick={() => setMode(m)}>{n}</button>)}</div><span className="lbl" id="n-mh">{MODE_HINT[mode]}</span></div>
-      <div className="field"><label htmlFor="n-k">Мінімальна група k</label><input className="inp tnum" id="n-k" type="number" min="5" value={k} onChange={e => setK(e.target.value)} /><span className="lbl">Менші групи не показуються. Не менше 5.</span></div>
-      <span className="lbl" id="n-err" style={{ color: "var(--red)" }}>{err}</span>
+      <div className="field"><label htmlFor="n-k">Мінімальна група, осіб</label><input className="inp tnum" id="n-k" type="number" min="5" value={k} onChange={e => setK(e.target.value)} /><span className="lbl">Менші групи не показуються. Не менше 5.</span></div>
+      <span className="lbl" id="n-err" style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))" }}>{err}</span>
       <button className="btn btn-primary" id="n-ok" style={{ justifyContent: "center" }} onClick={ok}><Ic n="plus" />Створити чернетку</button>
     </>;
   });
@@ -212,11 +224,12 @@ function ApiSurveys() {
     {list.map(q => <section key={q.id} className="card c6 rise">
       <div className="comp-top"><span className="comp-ic" style={{ background: "var(--lime-soft)", color: "var(--teal-deep)" }}><Ic n={q.kind === "checklist" ? "check" : "survey"} /></span><b>{q.title}</b><div className="sp" style={{ flex: 1 }} /><Pill cls={QST[q.status][1]}>{QST[q.status][0]}</Pill></div>
       <div className="stat4 tnum" style={{ gridTemplateColumns: "repeat(3,1fr)", marginTop: 14 }}><div><small>Група</small><b style={{ fontSize: 14 }}>{q.kind === "checklist" ? "Чек-лист" : QCAT[q.target_category]}</b></div><div><small>Версія</small><b>{q.version}</b></div><div><small>Код</small><b style={{ fontSize: 12 }}>{q.code}</b></div></div>
-      <div className="lbl" style={{ marginTop: 10 }}>Оновлено {ua(q.updated_at.slice(0, 10))}</div><div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end" }}>
+      {/* wrap-reverse: якщо кнопки не вміщаються, дата лишається внизу ліворуч, а кнопки піднімаються рядком вище */}
+      <div className="q-foot"><span className="lbl">Оновлено {ua(q.updated_at.slice(0, 10))}</span><div className="q-acts">
         <button className="btn btn-soft" onClick={() => apiOpenQ(q.id)}><Ic n="eye" />Переглянути</button>
-        {q.status === "draft" ? <><button className="btn btn-soft" onClick={() => bldOpen(q.id)}><Ic n="edit" />Редагувати</button><button className="btn btn-primary" onClick={() => apiQAct(q.id, "publish")}><Ic n="ok" />Опублікувати</button></>
-          : q.status === "published" ? <><button className="btn btn-ghost" onClick={() => apiQAct(q.id, "new-version")}><Ic n="plus" />Нова версія</button><button className="btn btn-ghost" onClick={() => apiQAct(q.id, "archive")}>В архів</button></>
-          : q.status === "archived" ? <button className="btn btn-ghost" onClick={() => apiQAct(q.id, "restore")}>Повернути з архіву</button> : null}</div>
+        {q.status === "draft" ? <><button className="btn btn-soft" onClick={() => bldOpen(q.id)}><Ic n="edit" />Редагувати</button><button className="btn btn-primary" disabled={!!API.qBusy} onClick={() => apiQAct(q.id, "publish")}><Ic n="ok" />Опублікувати</button></>
+          : q.status === "published" ? <><button className="btn btn-ghost" disabled={!!API.qBusy} onClick={() => apiQAct(q.id, "new-version")}><Ic n="plus" />Нова версія</button><button className="btn btn-ghost" disabled={!!API.qBusy} onClick={() => apiQAct(q.id, "archive")}>В архів</button></>
+          : q.status === "archived" ? <button className="btn btn-ghost" disabled={!!API.qBusy} onClick={() => apiQAct(q.id, "restore")}>Повернути з архіву</button> : null}</div></div>
     </section>)}
   </>;
 }
@@ -255,7 +268,7 @@ function bldNew() {
       <div className="field"><label htmlFor="bn-c">Код</label><input className="inp" id="bn-c" placeholder="kursanty-survey" value={code} onChange={e => { setCode(e.target.value); setTouched(true); }} /><span className="lbl">Латиницею, цифри, дефіс. За кодом пов'язуються версії анкети.</span></div>
       <div className="field"><label htmlFor="bn-g">Для кого</label><select className="inp" id="bn-g" value={g} onChange={e => setG(e.target.value)}>{Object.entries(QCAT).map(([v, n]) => <option key={v} value={v}>{n}</option>)}</select></div>
       <div className="field"><label htmlFor="bn-k">Вид</label><select className="inp" id="bn-k" value={kind} onChange={e => setKind(e.target.value)}><option value="survey">Анкета зрілості</option><option value="checklist">Чек-лист</option></select></div>
-      <span className="lbl" id="bn-err" style={{ color: "var(--red)" }}>{err}</span>
+      <span className="lbl" id="bn-err" style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))" }}>{err}</span>
       <button className="btn btn-primary" id="bn-ok" style={{ justifyContent: "center" }} onClick={ok}><Ic n="plus" />Створити й відкрити конструктор</button>
     </>;
   });
@@ -269,41 +282,49 @@ function ApiChecklist() {
   const camp = K.camps.find(c => c.id === K.sel), open = camp && camp.status === "open";
   const ed = S.role === "checklist_editor" && open, ap = S.role === "commissioner" && open, D = K.data;
   const head = <section className="c12 rise toolbar">{!(ed || ap) && <span className="lbl">Режим перегляду.</span>}<div className="sp" />
-    {K.camps.length > 1 ? <select className="inp" aria-label="Хвиля" value={K.sel} onChange={e => apiCkReload(e.target.value)}>{K.camps.map(c => <option key={c.id} value={c.id}>{c.title}</option>)}</select> : <span className="lbl">{camp ? camp.title : ""}</span>}</section>;
+    {K.camps.length > 1 ? <select className="inp" aria-label="Хвиля" value={K.sel} onChange={e => apiCkReload(e.target.value)}>{K.camps.map(c => <option key={c.id} value={c.id}>{dn(c.title)}</option>)}</select> : <span className="lbl">{camp ? camp.title : ""}</span>}</section>;
   if (!D) return <>{head}<Empty t="Чек-лист недоступний">{K.err || ""}</Empty></>;
+  const asg = loadAsg(K.sel), AS = Object.fromEntries(((asg && asg.data) || []).map(a => [a.question_id, a]));
+  const mine = it => !it.enterer_id || it.enterer_id === (API.user && API.user.id);
   const tile = (ic, t, v) => <section className="card rise kpi-tile"><div className="kt-h"><span className="kt-ic"><Ic n={ic} /></span><span className="lbl">{t}</span></div><div className="kt-b"><span className="mid tnum">{v}</span></div></section>;
-  return <>{head}
+  return <>{head}{["auditor", "commissioner"].includes(S.role) && <LotteryCard campaignId={K.sel} status={camp && camp.status} />}
     <div className="c12 kpi-row kpi-row-s">{tile("check", "Пунктів", D.total)}{tile("edit", "Внесено", D.filled)}{tile("ok", "Підтверджено", D.confirmed)}</div>
-    <section className="card c12 rise"><div className="tbl-wrap"><table><thead><tr><th>Пункт</th><th>Компонент</th><th>Стан і доказ</th><th>Файли</th><th></th></tr></thead><tbody>
+    <section className="card c12 rise"><div className="tbl-wrap"><table><thead><tr><th>Пункт</th><th>Компонент</th><th>Стан і доказ</th><th>Документи</th><th></th></tr></thead><tbody>
       {D.items.map(it => <tr key={it.question_id} id={`ck-${it.question_id}`}><td style={{ minWidth: 260 }}><b style={{ fontWeight: 600 }}>{it.number}.</b> {it.text.replace(/^\d+(\.\d+)*\.\s*/, "")}</td>
         <td>{COMPS.includes(it.component) && <Pill cls="p-mute nodot">{COMP[it.component].n}</Pill>}</td>
-        <td style={{ minWidth: 200 }}><div className="tags" style={{ alignItems: "flex-start" }}>{it.status ? <Pill cls={CKS[it.status][1]}>{CKS[it.status][0]}</Pill> : <Pill cls="p-mute">Не внесено</Pill>}{it.confirmed ? <Pill cls="p-good nodot">Підтверджено</Pill> : it.status ? <Pill cls="p-mute nodot">Не підтверджено</Pill> : null}</div>{it.evidence && <div className="lbl" style={{ marginTop: 8, lineHeight: 1.45 }}>{it.evidence}</div>}</td>
-        <td className="lbl" style={{ minWidth: 160 }}>{it.files.length ? it.files.map(f => <div key={f.id}><a className="link" href="#checklist" onClick={e => { e.preventDefault(); apiDownload(K.sel, it.question_id, f.id, f.filename); }}>{f.filename}</a> <span className="hash" title={`sha256 ${f.sha256}`}>{f.sha256.slice(0, 10)}</span>{ed && <> <a className="link" href="#checklist" aria-label="Прибрати файл" onClick={e => { e.preventDefault(); apiDelFile(K.sel, it.question_id, f.id); }}>×</a></>}</div>) : "–"}</td>
-        <td style={{ whiteSpace: "nowrap" }}>{ed && <button className="btn btn-soft" style={{ padding: "6px 12px" }} onClick={() => apiEditItem(it.question_id)}><Ic n="edit" />Внести</button>}{ap && it.status ? (it.confirmed ? <button className="btn btn-ghost" style={{ padding: "6px 12px" }} onClick={() => apiConfirm(it.question_id, false)}>Відкликати</button> : <button className="btn btn-primary" style={{ padding: "6px 12px" }} onClick={() => apiConfirm(it.question_id, true)}><Ic n="ok" />Підтвердити</button>) : null}</td></tr>)}
+        <td style={{ minWidth: 200 }}><div className="tags" style={{ alignItems: "flex-start" }}>{it.status ? <Pill cls={CKS[it.status][1]}>{CKS[it.status][0]}</Pill> : <Pill cls="p-mute">Не внесено</Pill>}{it.confirmed ? <Pill cls="p-good nodot">Підтверджено</Pill> : it.status ? <Pill cls="p-mute nodot">Не підтверджено</Pill> : null}</div>{it.evidence && <div className="lbl" style={{ marginTop: 8, lineHeight: 1.45 }}>{it.evidence}</div>}{AS[it.question_id] && (AS[it.question_id].enterer || AS[it.question_id].confirmer) && <div className="lbl ck-who">{AS[it.question_id].enterer && <>Вносить: {dn(AS[it.question_id].enterer)}</>}{AS[it.question_id].enterer && AS[it.question_id].confirmer && " · "}{AS[it.question_id].confirmer && <>підтверджує: {dn(AS[it.question_id].confirmer)}</>}</div>}</td>
+        <td className="lbl" style={{ minWidth: 160 }}>{it.files.length ? it.files.map(f => <div key={f.id}><a className="link" href="#checklist" onClick={e => { e.preventDefault(); apiDownload(K.sel, it.question_id, f.id, f.filename); }}>{f.filename}</a> <span className="hash" title={`sha256 ${f.sha256}`}>{f.sha256.slice(0, 10)}</span>{ed && <> <a className="link" href="#checklist" aria-label="Прибрати файл" onClick={e => { e.preventDefault(); apiDelFile(K.sel, it.question_id, f.id); }}>×</a></>}</div>) : it.status ? "Документа немає" : "–"}</td>
+        <td style={{ whiteSpace: "nowrap" }}>{ed && mine(it) && <button className="btn btn-soft" style={{ padding: "6px 12px" }} onClick={() => apiEditItem(it.question_id)}><Ic n="edit" />Внести</button>}{ap && it.status && (!it.confirmer_id || it.confirmer_id === (API.user && API.user.id)) ? (it.confirmed ? <button className="btn btn-ghost" style={{ padding: "6px 12px" }} onClick={() => apiConfirm(it.question_id, false)}>Відкликати</button> : <button className="btn btn-primary" style={{ padding: "6px 12px" }} onClick={() => apiConfirm(it.question_id, true)}><Ic n="ok" />Підтвердити</button>) : null}</td></tr>)}
     </tbody></table></div></section>
   </>;
 }
 function apiEditItem(qid) {
   const it = API.ck.data.items.find(x => x.question_id === qid), camp = API.ck.sel;
   openDrawer("Внести пункт чек-листа", () => {
-    const [st, setSt] = useState(it.status), [ev, setEv] = useState(it.evidence || ""), [cm, setCm] = useState(it.comment || ""), [file, setFile] = useState(null), [err, setErr] = useState("");
+    const [st, setSt] = useState(it.status), [ev, setEv] = useState(it.evidence || ""), [cm, setCm] = useState(it.comment || ""), [files, setFiles] = useState([]), [err, setErr] = useState(""), [busy, setBusy] = useState(false), E = API.cfg.evidence;
     const ok = async () => {
       if (!st) return setErr("Оберіть статус.");
+      // Сервер (checklist_require_file) не підтвердить пункт без файлу, тож кажемо про це одразу
+      if (API.cfg.policies && API.cfg.policies.checklist_require_file && st !== "none" && !it.files.length && !files.length) return setErr("Додайте документ: без нього пункт не підтвердять.");
+      setBusy(true);
       try {
-        const r = await apiSaveItem(camp, qid, { status: st, evidence: ev.trim(), comment: cm.trim() }, file);
-        toast(r ? `Файл «${r.filename}» додано, sha256 ${r.sha256.slice(0, 12)}…` : `Пункт ${it.number} збережено`);
+        const r = await apiSaveItem(camp, qid, { status: st, evidence: ev.trim(), comment: cm.trim() }, files);
+        toast(r.length ? `Пункт ${it.number} збережено, документів додано: ${r.length}` : `Пункт ${it.number} збережено`);
         closeDrawer(); apiCkReload(camp);
-      } catch (e) { setErr(apiErrText(e)); }
+      } catch (e) { setErr(apiErrText(e)); setBusy(false); apiCkReload(camp); }
     };
     return <>
       <div><div className="lbl">Пункт {it.number}</div><div style={{ fontWeight: 600, marginTop: 4 }}>{it.text}</div></div>
       {it.indicator && <div className="lbl">{it.indicator}</div>}
       <div className="field"><label>Статус</label><div className="seg" id="e-st">{Object.entries(CKS).map(([k, [n]]) => <button key={k} type="button" className={st === k ? "on" : ""} onClick={() => setSt(k)}>{n}</button>)}</div></div>
-      <div className="field"><label htmlFor="e-ev">Доказ (документ, наказ, посилання)</label><textarea className="inp" id="e-ev" rows="3" value={ev} onChange={e => setEv(e.target.value)} /></div>
+      <div className="field"><label>Документи-підтвердження</label>
+        {it.files.length > 0 && <div className="fd-list">{it.files.map(f => <div key={f.id} className="fd-row"><Ic n="file" /><a className="link grow" href="#checklist" onClick={e => { e.preventDefault(); apiDownload(camp, qid, f.id, f.filename); }}>{f.filename}</a><span className="lbl">уже додано</span></div>)}</div>}
+        <FileDrop files={files} onChange={setFiles} exts={E.allowed_extensions} maxBytes={E.max_bytes} maxFiles={E.max_files_per_item} already={it.files.length} hint={`Наказ, протокол, скан, фото; до ${Math.round(E.max_bytes / 1048576)} МБ.`} />
+        <span className="lbl">Новий документ знімає підтвердження пункту: його перевірять ще раз.</span></div>
+      <div className="field"><label htmlFor="e-ev">Опис доказу</label><textarea className="inp" id="e-ev" rows="2" placeholder="Наприклад, наказ № 45 від 03.11.2026, с. 2" value={ev} onChange={e => setEv(e.target.value)} /></div>
       <div className="field"><label htmlFor="e-cm">Коментар</label><input className="inp" id="e-cm" value={cm} onChange={e => setCm(e.target.value)} /></div>
-      <div className="field"><label htmlFor="e-f">Файл-доказ (PDF, зображення, документ; до {Math.round(API.cfg.evidence.max_bytes / 1048576)} МБ)</label><input className="inp" id="e-f" type="file" accept={API.cfg.evidence.allowed_extensions.map(x => "." + x).join(",")} onChange={e => setFile(e.target.files[0] || null)} /></div>
-      <span className="lbl" id="e-err" style={{ color: "var(--red)" }}>{err}</span>
-      <button className="btn btn-primary" id="e-ok" style={{ justifyContent: "center" }} onClick={ok}><Ic n="send" />Зберегти</button>
+      <span className="lbl" id="e-err" style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))" }}>{err}</span>
+      <button className="btn btn-primary" id="e-ok" style={{ justifyContent: "center" }} disabled={busy} onClick={ok}><Ic n="send" />{busy ? "Зберігаю…" : "Зберегти"}</button>
     </>;
   });
 }
@@ -323,7 +344,7 @@ function ApiAudit() {
   const groups = []; shown.forEach(i => { const g = groups[groups.length - 1]; if (g && g[0].a === i.a && g[0].w === i.w && g[0].d === i.d) g.push(i); else groups.push([i]); });
   const ents = [...new Set(rows.map(x => x.entity))].sort((a, b) => (AUDIT_ENT[a] || a).localeCompare(AUDIT_ENT[b] || b, "uk"));
   const actors = [...new Set(rows.map(x => x.actor_id).filter(Boolean))].map(id => [id, who(id)]).sort((a, b) => a[1].localeCompare(b[1], "uk"));
-  return <section className="card c12 rise">
+  return <><AnchorCard /><section className="card c12 rise">
     <div className="card-h" style={{ flexWrap: "wrap" }}><h2>Журнал дій</h2><div className="sp" /><span id="chainSt">{API.chain && <Pill cls={API.chain.ok ? "p-good" : "p-bad"}>{API.chain.ok ? `Ланцюг цілісний: перевірено ${API.chain.checked} записів` : `Ланцюг порушено на записі № ${API.chain.broken_seq}`}</Pill>}</span><button className="btn btn-soft" onClick={apiVerify}><Ic n="shield" />Перевірити цілісність</button></div>
     <div className="lbl" style={{ marginBottom: 10 }}>Хто, коли й що змінив. Кожен запис містить хеш попереднього (sha256), тож тиха правка чи видалення ламає ланцюг. Подань анкет у журналі немає.</div>
     <div className="toolbar" style={{ marginBottom: 8 }}><label className="search inst-search"><span><Ic n="search" /></span><input id="logQ" placeholder="Дія, хто, підрозділ, дата або хеш" value={F.q || ""} onChange={e => set("q", e.target.value)} /></label>
@@ -331,5 +352,5 @@ function ApiAudit() {
       {actors.length > 0 && <select className="inp" aria-label="Хто" value={F.who} onChange={e => set("who", e.target.value)}><option value="all">Усі користувачі</option>{actors.map(([id, n]) => <option key={id} value={id}>{n}</option>)}</select>}
       <span className="lbl tnum">Показано {shown.length} з {rows.length}</span></div>
     {groups.length ? <div className="tl">{groups.map((g, i) => { const f = g[0], l = g[g.length - 1]; return <div key={f.x.seq} className="tl-i rise" style={{ animationDelay: `${Math.min(i, 12) * 40}ms` }}><span className="nd" /><div><div style={{ fontWeight: 500 }}>{f.a}{g.length > 1 && <> <span className="pill p-mute nodot">×{g.length}</span></>}</div><div className="lbl">{f.w} · {g.length > 1 ? `${l.t} – ${f.t}` : f.t}{f.d ? " · " + f.d : ""}</div></div><span className="hash" data-tip={`Запис № ${f.x.seq}`}>{f.x.hash.slice(0, 10)}</span></div>; })}</div> : <div className="empty">Записів за цим запитом немає.</div>}
-  </section>;
+  </section></>;
 }

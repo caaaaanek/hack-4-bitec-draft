@@ -4,7 +4,7 @@ import { API, apiMod, apiModReset, apiNotices } from "../lib/api.js";
 import { closePop } from "../lib/store.js";
 import { dsh, ua } from "../lib/format.js";
 
-const KIND = { opened: "Хвилю відкрито", reminder: "Нагадування", results: "Результати доступні", recommendations: "Рекомендації чекають рішення", digest: "Підсумок чергового" };
+const KIND = { opened: "Хвилю відкрито", reminder: "Нагадування", results: "Результати доступні", recommendations: "Рекомендації чекають рішення", digest: "Підсумок сигналів" };
 const seenKey = () => "ii-notes-seen:" + (API.user ? API.user.login : "");
 const seenAt = () => { try { return localStorage.getItem(seenKey()) || ""; } catch (e) { return ""; } };
 export const markNotesSeen = () => { try { localStorage.setItem(seenKey(), new Date().toISOString()); } catch (e) { /* сховище недоступне */ } };

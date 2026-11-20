@@ -7,7 +7,7 @@ import { fb, f1, pts } from "./format.js";
 export function whyText(m, noTrust) {
   const t = m.delta == null ? "дані про попередній цикл зараз недоступні" : m.delta > 0 ? `що на ${pts(m.delta)} вище, ніж у попередньому циклі` : m.delta < 0 ? `що на ${pts(m.delta)} нижче, ніж у попередньому циклі` : "що не змінилося порівняно з попереднім циклом";
   let s = `Заклад перебуває на рівні зрілості ${m.level} «${LEVELS[m.level - 1]}»: індекс доброчесності ${f1(m.index)} з 100, ${t}.`;
-  if (m.limited) s += ` Для компонента «${COMP[m.limited.id].n}» сприйняття (${fb(m.limited.P)}) помітно вище за факти (${fb(m.limited.F)}), тому зараховано ${fb(m.limited.cr.v)}.`;
+  if (m.limited) s += ` Для компонента «${COMP[m.limited.id].n}» самооцінка (${fb(m.limited.P)}) помітно вища за факти (${fb(m.limited.F)}), тому зараховано ${fb(m.limited.cr.v)}.`;
   const tr = TRUST[m.trust]; if (!noTrust) s += ` Достовірність ${tr[0]}: ${tr[1].toLowerCase()}${m.trust === "C" ? ", тож спершу варто підтвердити факти документами" : ""}.`;
   return s;
 }
@@ -19,7 +19,7 @@ export function flagsText(m) {
   return s + "\nЦе напрям для додаткового аналізу, а не висновок про людей чи підрозділи.";
 }
 // Картка «Достовірність»: яка літера, за яким правилом і результат кожної з чотирьох перевірок
-const CHECK_OK = { "tf-gap": "Сприйняття ніде не перевищує факти більш ніж на 25 пунктів.", "tf-same": "Підозріло однакових анкет не виявлено." };
+const CHECK_OK = { "tf-gap": "Самооцінка ніде не перевищує факти більш ніж на 25 пунктів.", "tf-same": "Підозріло однакових анкет не виявлено." };
 const CHECK_BAD = { "tf-jump": "Індекс різко змінився між циклами, і пояснення цьому немає.", "tf-experts": "Експертних анкет надійшло менше, ніж очікувалось." };
 export const checkText = f => f.raised ? (CHECK_BAD[f.id] || f.ex) : (CHECK_OK[f.id] || f.ex);
 export const flagTitle = f => (FLAGS.find(x => x.id === f.id) || f).t;
@@ -34,7 +34,7 @@ export function trustText(m) {
 // Одне речення «Достовірність C, бо …» — готове до кліку, без асистента
 export function trustBecause(m) {
   const maj = m.raised.filter(f => f.w === "major"), min = m.raised.filter(f => f.w !== "major"), q = a => a.map(f => `«${flagTitle(f)}»`).join(", ");
-  if (m.trust === "insufficient") return `Достовірність не оцінюється, бо відповідей ${m.responses} – менше за мінімальну групу k = ${S.k}.`;
+  if (m.trust === "insufficient") return `Достовірність не оцінюється, бо відповідей ${m.responses} – менше за мінімальну групу (${S.k} осіб).`;
   if (m.trust === "A") return "Достовірність A, бо жоден прапорець не спрацював: дані узгоджені між собою.";
   if (m.trust === "B") return `Достовірність B, бо спрацювали лише незначні прапорці: ${q(min)}. Серйозних немає.`;
   return maj.length ? `Достовірність C, бо спрацював серйозний прапорець: ${q(maj)}.${min.length ? ` Також незначні: ${q(min)}.` : ""}`

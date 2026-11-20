@@ -86,7 +86,7 @@
 - Вносить лише призначений член РГ, підтверджує призначений підтверджувач (`policies.checklist_confirmers`); одна людина
   не може бути обома (422). Без призначення — як раніше.
 
-### 7. Довідники (admin, у SEPARATE_TECH_ADMIN — coordinator)
+### 7. Довідники (категорії й посади — coordinator; категорії ще й department; факти — admin)
 - Категорії: `GET/POST/PATCH /dictionaries/categories` — `{code, title, weight, builtin, active, in_index}`.
   Без ваги нова категорія (курсанти) лише порівнюється, в індекс не йде — так і підписати.
 - Посади: `GET/POST/DELETE /dictionaries/positions`. **Трекер заходів:** поле «Відповідальний» брати списком звідси.
@@ -108,11 +108,12 @@
 
 ### 9. `GET /config` → `policies`
 ```json
-{"four_eyes": false, "admin_sets_passwords": true, "staff_token_only": false, "leader_child_details": false,
- "separate_tech_admin": false, "checklist_confirmers": ["commissioner", "auditor"], "external_fetch": false,
- "security_profile": "demo", "overridden": []}
+{"four_eyes": true, "admin_sets_passwords": false, "staff_token_only": false, "leader_child_details": false,
+ "separate_tech_admin": true, "checklist_confirmers": ["auditor"], "checklist_require_file": true,
+ "external_fetch": false, "security_profile": "demo", "overridden": []}
 ```
-- `admin_sets_passwords: false` — прибрати поле пароля з форми користувача.
+- `admin_sets_passwords` тепер завжди `false`, `separate_tech_admin` — завжди `true` (поля лишено для сумісності).
+  Поле пароля з форми користувача прибрати зовсім: API його не приймає (422).
 - `staff_token_only: true` — у майстрі хвилі для особового складу лише QR і посилання.
 - `security_profile: "production"` і непорожній `overridden` — адміну показати попередження «вимкнено запобіжник: …».
 - `org_terms` (`{"nominative": "заклад", …}`) — підставляти замість зашитого «заклад».
@@ -148,3 +149,35 @@
 - `GET /campaigns/{id}/qr-links` — додано `over_expected`, `scan_limit_reached`.
 - `GET /dictionaries/facts` — додано `owner_sources`.
 - `GET /config` → `policies` — додано `security_profile`, `overridden`.
+
+---
+
+## Ролі, два адміністратори, зони (бекенд 20.11, ввечері)
+
+Опис моделі — `docs/backend.md`, «Ролі» і «Два адміністратори, зони, принцип двох осіб». Що треба на фронтенді:
+
+- **Прибрати `commissioner`.** Логіна в демо більше немає. У `department` першим екраном «Анкети» (конструктор, версії,
+  публікація). Підтверджує чек-лист `auditor` (`policies.checklist_confirmers`).
+- **«Люди» й «Довідники» (категорії, посади) — лише `coordinator`.** Уповноважений отримує 403 на `/admin/users`,
+  `/admin/units`, `/dictionaries/categories|positions` (POST/PATCH). Поля пароля немає; після створення показати
+  `invite_link` один раз. Масовий імпорт людей: `POST /admin/users/import` (CSV `login,category,unit[,display_name]`).
+  Скидання пароля — кнопка «Нове запрошення» (`POST /admin/users/{id}/invite`; старий пароль і сесії гаснуть).
+- **Координатор не бачить хвиль, результатів, журналу, чергового, автопілота** (403). Його меню: Люди, Підрозділи,
+  Довідники, Запити (свої), Зведення (`/admin/overview` без хвиль: `campaigns: []`, `checks: null`).
+- **Уповноважений обирає людей хвилі з `GET /campaigns/{id}/people?role=&category=`**: учасників, відповідальних за
+  пункти чек-листа, власників ключа урни. Підрозділ нової хвилі — з `GET /units` (лише його зона); чужий → 422 `out_of_zone`.
+  Імпорт учасників хвилі лише додає наявних людей; невідомий логін → рядок помилки «людей заводить технічний адміністратор».
+- **«Запити другій людині»** (`GET /admin/approvals`): у кожного запиту `approver_roles` і `can_decide`. Кнопки
+  «Підтвердити / Відхилити» лише при `can_decide: true`. Відкриття хвилі підтверджує лише `auditor`, нові люди й ролі —
+  `admin` (запис самого уповноваженого — `auditor`). Відповідь `POST /campaigns/{id}/open` з `pending_approval_id` —
+  стан «чекає на підтвердження аудиту», а не помилка.
+- **Підрозділи в межах чернетки хвилі**: `POST/PATCH/DELETE /admin/units` → 202 `{pending_approval_id, kind: "unit_change"}`
+  — показати «зміну передано уповноваженому»; відкритої хвилі — 409 `campaign_open`.
+- **Чек-лист**: обов'язковий документ за `policies.checklist_require_file`; пункт з `file_required: true` підсвітити.
+  Надсилати пункт разом із файлами одним запитом `POST .../checklist/{qid}/submit` (multipart `status`, `evidence`,
+  `comment`, `files`).
+- **Автопілот**: `GET /campaigns/{id}/autopilot` → `interval_seconds` (0 — лише вручну), `next_tick_at` (точний час
+  наступного кроку; `null` — фоновий потік не запущено) і `waiting_approval_id` (стан «чекає на підтвердження відкриття»).
+  Подія кроку зі `status: "waiting"` — не помилка.
+- **Сторінка входу**: список «Демо-облікові записи» — `admin`, `coordinator`, `department`, `auditor`, `leader`,
+  `leader_a`, `wg1`, `staff01`, `expert1` (без `commissioner`).

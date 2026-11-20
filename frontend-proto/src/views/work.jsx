@@ -2,18 +2,18 @@
 import { useRef, useState } from "react";
 import { Ic } from "../lib/icons.jsx";
 import { S, persist, addLog, me } from "../lib/state.js";
-import { API, apiDecide, apiSendMSt, apiErrText, apiFail } from "../lib/api.js";
+import { API, apiDecide, apiSendMSt, apiErrText, apiFail, apiPositions } from "../lib/api.js";
 import { COMPS, COMP, PRI, REC_ST, REC_NEXT, POSITIONS, BASE_MEASURES, M_ST, M_NEXT, REGISTRY, INSTITUTIONS, buildRecs, measures, overdueDays, dispSt, daysWord, verif, TODAY } from "../lib/model.js";
 import { ua } from "../lib/format.js";
 import { render, toast, openDrawer, closeDrawer } from "../lib/store.js";
 import { can } from "../lib/nav.js";
-import { Pill, LvPill, TrustPill, Num, Delta } from "../components/ui.jsx";
+import { Pill, LvPill, TrustPill } from "../components/ui.jsx";
 import { DatePicker } from "../components/DatePicker.jsx";
 import { openApiQ, openMeasure, openSource, srcRows, MODE } from "./panels.jsx";
 import { ReadGuide } from "./results.jsx";
 
 const enter = f => e => { if (e.key === "Enter") f(e); };
-const Err = ({ t, hint, red }) => <span className="lbl" id="f-err" style={red || t ? { color: "var(--red)" } : undefined}>{t || hint}</span>;
+const Err = ({ t, hint, red }) => <span className="lbl" id="f-err" style={red || t ? { color: "color-mix(in srgb, var(--red) 60%, var(--fg))" } : undefined}>{t || hint}</span>;
 
 /* Рекомендації */
 export function Recs() {
@@ -45,10 +45,10 @@ export function Recs() {
 function acceptRec(id) {
   const r = buildRecs().find(x => x.id === id); if (!r) return;
   openDrawer("Прийняти рекомендацію", () => {
-    const [who, setWho] = useState(POSITIONS[0]), [due, setDue] = useState("2027-02-28"), [err, setErr] = useState(""), [busy, setBusy] = useState(false);
+    const ap = API.on ? apiPositions() : null, POS = ap && ap.length ? ap : POSITIONS, [who, setWho] = useState(POS[0]), [due, setDue] = useState("2027-02-28"), [err, setErr] = useState(""), [busy, setBusy] = useState(false);
     const ok = () => {
       if (!due || due < TODAY) return setErr("Оберіть строк не раніше за сьогодні.");
-      if (API.on) { setBusy(true); apiDecide(id, "accepted", "", { owner: who, due_date: due }).then(() => { closeDrawer(); toast(`Рекомендацію прийнято. Захід «${r.t}» додано до трекера.`); }, e => { setErr(apiErrText(e)); setBusy(false); }); return; }
+      if (API.on) { setBusy(true); apiDecide(id, "accepted", "", { owner: POS.includes(who) ? who : POS[0], due_date: due }).then(() => { closeDrawer(); toast(`Рекомендацію прийнято. Захід «${r.t}» додано до трекера.`); }, e => { setErr(apiErrText(e)); setBusy(false); }); return; }
       const mid = "m-" + (BASE_MEASURES.length + S.dec.added.length + 1);
       S.dec.rec[id] = { status: "accepted" };
       S.dec.added.push({ id: mid, recId: id, rec: r.t, t: r.t, who, due, st: "accepted", ind: r.items[0] });
@@ -57,7 +57,7 @@ function acceptRec(id) {
     };
     return <>
       <div><div className="lbl">{COMP[r.c].n}</div><div style={{ fontSize: 16, fontWeight: 600, marginTop: 4 }}>{r.t}</div></div>
-      <div className="field"><label htmlFor="f-who">Відповідальна посада</label><select id="f-who" className="inp" value={who} onChange={e => setWho(e.target.value)}>{POSITIONS.map(w => <option key={w}>{w}</option>)}</select></div>
+      <div className="field"><label htmlFor="f-who">Відповідальна посада</label><select id="f-who" className="inp" value={POS.includes(who) ? who : POS[0]} onChange={e => setWho(e.target.value)}>{POS.map(w => <option key={w}>{w}</option>)}</select></div>
       <div className="field"><label htmlFor="f-due">Строк виконання</label><DatePicker id="f-due" value={due} min={TODAY} onChange={setDue} /><span className="err lbl" id="f-err">{err}</span></div>
       <div className="note-box"><span className="lbl">Після прийняття в трекері зʼявиться захід із цією посадою й строком. Посада і строк зберігаються в заході разом із рішенням.</span></div>
       <div style={{ display: "flex", gap: 8 }}><button className="btn btn-ghost" style={{ flex: 1, justifyContent: "center" }} onClick={closeDrawer}>Скасувати</button><button className="btn btn-primary" id="f-ok" style={{ flex: 2, justifyContent: "center" }} disabled={busy} onClick={ok}><Ic n="ok" />Прийняти й створити захід</button></div>
@@ -129,7 +129,7 @@ export function Tracker() {
       onDragStart={mv ? e => { e.dataTransfer.effectAllowed = "move"; e.dataTransfer.setData("text/plain", x.id); setDrag({ id: x.id, st: x.st }); } : undefined} onDragEnd={() => { setDrag(null); setOver(null); }}
       onClick={e => open(e, x.id)} onKeyDown={enter(e => open(e, x.id))}>
       <b>{x.t}</b><span className="lbl">{x.who}</span>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, flexWrap: "wrap" }}><span className="lbl tnum" style={dd ? { color: "var(--red)", fontWeight: 600 } : undefined}>Строк: {ua(x.due)}</span>{dd > 0 && <Pill cls="p-bad nodot">+{dd} {daysWord(dd)}</Pill>}</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 6, flexWrap: "wrap" }}><span className="lbl tnum" style={dd ? { color: "color-mix(in srgb, var(--red) 60%, var(--fg))", fontWeight: 600 } : undefined}>Строк: {ua(x.due)}</span>{dd > 0 && <Pill cls="p-bad nodot">+{dd} {daysWord(dd)}</Pill>}</div>
       {mv ? <div className="seg sm">{M_NEXT[x.st].map(s => <button key={s} onClick={() => setMSt(x.id, s)}><Ic n="arrowR" />{M_ST[s][0]}</button>)}</div> : null}
     </div>; }) : <div className="lbl" style={{ padding: 8 }}>Порожньо</div>}
   </div>; })}</section>;
@@ -144,7 +144,7 @@ export function Tracker() {
       : <section className="card c12 rise"><div className="tbl-wrap"><table><thead><tr><th>Захід</th><th>Відповідальна посада</th><th>Строк</th><th>Статус</th><th>Верифікація</th><th>Змінити статус</th></tr></thead><tbody>
         {list.map(x => { const dd = overdueDays(x); return <tr key={x.id} className="tr-click" tabIndex={0} onClick={e => open(e, x.id)} onKeyDown={e => { if (e.key === "Enter" && !e.target.closest("button")) openMeasure(x.id); }}>
           <td style={{ minWidth: 220 }}><b style={{ fontWeight: 600 }}>{x.t}</b><div className="lbl">З рекомендації: {x.rec}</div>{x.ext && <div className="lbl">{x.ext.t}{x.ext.docs.length ? ` · документів: ${x.ext.docs.length}` : ""}</div>}</td><td style={{ minWidth: 160 }}>{x.who}</td>
-          <td className="tnum" style={{ whiteSpace: "nowrap" }}>{dd ? <><span style={{ color: "var(--red)", fontWeight: 600 }}>{ua(x.due)}</span><div className="lbl" style={{ color: "var(--red)" }}>прострочено на {dd} {daysWord(dd)}</div></> : ua(x.due)}</td>
+          <td className="tnum" style={{ whiteSpace: "nowrap" }}>{dd ? <><span style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))", fontWeight: 600 }}>{ua(x.due)}</span><div className="lbl" style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))" }}>прострочено на {dd} {daysWord(dd)}</div></> : ua(x.due)}</td>
           <td><Pill cls={M_ST[x.st][1]}>{M_ST[x.st][0]}</Pill></td><td><Pill cls={verif(x)[1] + " nodot"}>{verif(x)[0]}</Pill></td><td>{actCell(x)}</td></tr>; })}
       </tbody></table></div></section>}
     <section className="card c12 rise vf">
@@ -157,8 +157,8 @@ export function Tracker() {
 
 /* Джерела */
 const INTEG = [
-  ["Модуль опитувань", "auto", "Зібрати сприйняття працівників без ідентифікації", "Одноразові коди доступу, агрегація на сервері", "survey"],
-  ["Чек-лист закладу", "manual", "Підтвердити сприйняття фактами", "Ручний ввід і підтвердження другою особою", "check"],
+  ["Модуль опитувань", "auto", "Зібрати самооцінку працівників без ідентифікації", "Одноразові коди доступу, агрегація на сервері", "survey"],
+  ["Чек-лист закладу", "manual", "Підтвердити самооцінку фактами", "Ручний ввід і підтвердження другою особою", "check"],
   ["Відкрита база декларацій", "planned", "Перевіряти вчасність подання декларацій", "Отримання відкритих даних за розкладом", "file"],
   ["Рішення з попереднього хакатону", "approval", "Підказувати випадки конфліктів інтересів для перевірки", "Передача знеособлених результатів", "scale"],
   ["Проєкт оцінки закупівель", "planned", "Додати факти про закупівлі до Підзвітності", "Обмін агрегованими показниками", "layers"],
@@ -180,7 +180,8 @@ export function Sources() {
 export function Institutions() {
   const q = S.instQ.trim().toLowerCase(), arch = S.insts.archived;
   const all = INSTITUTIONS().filter(m => !q || m.name.toLowerCase().includes(q) || (m.edrpou || "").includes(q));
-  const list = all.filter(m => S.instArch ? arch.includes(m.id) : !arch.includes(m.id)), nArch = INSTITUTIONS().filter(m => arch.includes(m.id)).length;
+  // Порядок за кодом ЄДРПОУ, а не за назвою чи рівнем: випадковий збіг порядку з рівнями читався б як рейтинг
+  const list = all.filter(m => S.instArch ? arch.includes(m.id) : !arch.includes(m.id)).sort((a, b) => String(a.edrpou || "").localeCompare(String(b.edrpou || ""))), nArch = INSTITUTIONS().filter(m => arch.includes(m.id)).length;
   const menu = m => <button type="button" className="icon-btn inst-more" aria-label="Керування закладом" data-tip="Перейменувати або архівувати" onClick={e => { e.preventDefault(); e.stopPropagation(); openInstMenu(m.id); }}><Ic n="dots" /></button>;
   return <>
     <section className="c12 rise toolbar"><label className="search inst-search"><span><Ic n="search" /></span><input id="instQ" placeholder="Назва або код ЄДРПОУ" value={S.instQ} onChange={e => { S.instQ = e.target.value; render(true); }} /></label>
@@ -193,11 +194,11 @@ export function Institutions() {
       : <a key={m.id} className="card c6 rise inst" href="#overview" onClick={() => { S.inst = m.id; addLog(me(), `Переглянуто огляд закладу ${m.edrpou}`); persist(); }}>
         <div className="comp-top"><span className="comp-ic" style={{ background: "var(--lime-soft)", color: "var(--teal-deep)" }}><Ic n="building" /></span><b>{m.name}</b><div className="sp" style={{ flex: 1 }} />{menu(m)}</div>
         <div className="lbl tnum" style={{ marginTop: 6 }}>ЄДРПОУ {m.edrpou}</div>
-        <div className="inst-b"><div><span className="lbl">Індекс доброчесності</span><div className="mid tnum"><Num v={m.index} /><span className="of">з 100</span></div></div>
-          <dl className="inst-kv"><dt>Рівень зрілості</dt><dd><LvPill l={m.level} /></dd><dt>Достовірність</dt><dd><TrustPill g={m.trust} /></dd></dl></div>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14, gap: 10, flexWrap: "wrap" }}><Delta d={m.delta} suf="до попереднього циклу" /><span className="link">Відкрити огляд <Ic n="arrowR" /></span></div>
+        <dl className="inst-kv" style={{ marginTop: 14 }}><dt>Рівень зрілості</dt><dd><LvPill l={m.level} /></dd><dt>Достовірність</dt><dd><TrustPill g={m.trust} /></dd><dt>Останній цикл</dt><dd className="tnum">{m.series[m.series.length - 1].cycle}</dd></dl>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 14 }}><span className="link">Відкрити огляд <Ic n="arrowR" /></span></div>
       </a>)
       : <section className="card c12"><div className="empty"><b>{q ? "Нічого не знайдено" : S.instArch ? "В архіві порожньо" : "Закладів немає"}</b><br />{q ? "Змініть запит або додайте заклад за кодом ЄДРПОУ." : ""}</div></section>}
+    <section className="card c12 rise"><div className="lock"><Ic n="shield" /><div><b>Заклади не порівнюються між собою</b><div className="lbl">На картках немає індексу й рейтингу, список упорядковано за кодом ЄДРПОУ. Індекс і його зміну видно лише на огляді конкретного закладу, і порівнюється заклад тільки сам із собою. Так результати не стають підставою для колективного покарання.</div></div></div></section>
     <ReadGuide title="Як читати картки" />
   </>;
 }

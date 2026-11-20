@@ -17,32 +17,51 @@ def users_by_login(client, headers) -> dict:
     return {u["login"]: u for u in client.get(f"{API}/admin/users", headers=headers).json()}
 
 
-# ---------- Координатор не може стати адміністратором ----------
+# ---------- Технічний адміністратор не може стати адміністратором ----------
 
-def test_coordinator_cannot_escalate(client):
+def test_coordinator_cannot_escalate(client, setting):
+    setting(four_eyes_enabled=True)
     co = auth(client, "coordinator")
     users = users_by_login(client, co)
-    body = {"login": "evil", "display_name": "x", "password": "password123", "role": "admin"}
-    assert client.post(f"{API}/admin/users", json=body, headers=co).status_code == 403
-    assert client.post(f"{API}/admin/users", json={**body, "role": "coordinator"}, headers=co).status_code == 403
-    assert client.patch(f"{API}/admin/users/{users['admin']['id']}", json={"password": "hijacked123"},
-                        headers=co).status_code == 403
-    assert client.patch(f"{API}/admin/users/{users['admin']['id']}", json={"is_active": False}, headers=co).status_code == 403
-    assert client.patch(f"{API}/admin/users/{users['auditor']['id']}", json={"role": "admin"}, headers=co).status_code == 403
+    # Нового уповноваженого чи техадміна він лише просить: запис неактивний, доки не підтвердить уповноважений.
+    r = client.post(f"{API}/admin/users", json={"login": "evil", "display_name": "x", "role": "admin"}, headers=co)
+    assert r.status_code == 201 and r.json()["is_active"] is False and r.json()["pending_approval_id"]
+    r = client.post(f"{API}/auth/login", data={"username": "evil", "password": "whatever-123"})
+    assert r.status_code == 401
+    # Привілейована роль, блокування уповноваженого — запитом, не одразу.
+    r = client.patch(f"{API}/admin/users/{users['auditor']['id']}", json={"role": "admin"}, headers=co)
+    assert r.status_code == 200 and r.json()["role"] == "auditor" and r.json()["pending_approval_id"]
+    r = client.patch(f"{API}/admin/users/{users['admin']['id']}", json={"is_active": False}, headers=co)
+    assert r.status_code == 200 and r.json()["is_active"] is True and r.json()["pending_approval_id"]
+    blocked_admin = r.json()["pending_approval_id"]
+    # Собі — нічого, крім імені; пароля не задає ніхто.
     assert client.patch(f"{API}/admin/users/{users['coordinator']['id']}", json={"role": "admin"},
-                        headers=co).status_code in (403, 422)  # власну роль не змінити
-    # Звичайна робота координатора лишається: респонденти, керівники, власний пароль.
-    r = client.post(f"{API}/admin/users", json={"login": "new_staff", "display_name": "Новий", "password": "password123",
+                        headers=co).status_code == 403
+    assert client.patch(f"{API}/admin/users/{users['admin']['id']}", json={"password": "hijacked123"},
+                        headers=co).status_code == 422
+    # Сам собі не підтвердить: техадмін нічого не підтверджує.
+    assert client.post(f"{API}/admin/approvals/{blocked_admin}/approve", headers=co).status_code == 403
+    # Блокування уповноваженого підтверджує аудит, а не сам уповноважений.
+    r = client.post(f"{API}/admin/approvals/{blocked_admin}/approve", headers=auth(client, "admin"))
+    assert r.status_code == 403 and r.json()["code"] == "forbidden_role"
+    assert client.post(f"{API}/admin/approvals/{blocked_admin}/reject", headers=auth(client, "auditor")).status_code == 200
+    # Скинути пароль уповноваженого й зайти замість нього не вийде: скидання — запитом, посилання отримує аудит.
+    r = client.post(f"{API}/admin/users/{users['admin']['id']}/invite", headers=co)
+    assert r.status_code == 202 and r.json()["kind"] == "user_invite" and "invite_link" not in r.json()
+    reset = r.json()["pending_approval_id"]
+    assert client.post(f"{API}/admin/approvals/{reset}/approve", headers=auth(client, "admin")).status_code == 403
+    r = client.post(f"{API}/admin/approvals/{reset}/approve", headers=auth(client, "auditor"))
+    assert r.status_code == 200 and "/invite/" in r.json()["invite_link"]
+    assert client.post(f"{API}/auth/login", data={"username": "admin", "password": "demo-pass-123"}).status_code == 401
+    # Активувати запис, що чекає підтвердження, техадмін сам не може.
+    r = client.patch(f"{API}/admin/users/{users_by_login(client, co)['evil']['id']}", json={"is_active": True}, headers=co)
+    assert r.status_code == 200 and r.json()["is_active"] is False and r.json()["pending_approval_id"]
+    # Звичайна робота: респонденти, керівники.
+    r = client.post(f"{API}/admin/users", json={"login": "new_staff", "display_name": "Новий",
                                                 "role": "respondent", "category": "staff"}, headers=co)
     assert r.status_code == 201, r.text
     assert client.patch(f"{API}/admin/users/{users['leader']['id']}", json={"display_name": "Керівник"},
                         headers=co).status_code == 200
-    assert client.patch(f"{API}/admin/users/{users['coordinator']['id']}", json={"password": "newpassword123"},
-                        headers=co).status_code == 200
-    # Адміністратор може все.
-    admin = auth(client, "admin")
-    assert client.patch(f"{API}/admin/users/{users['auditor']['id']}", json={"role": "coordinator"},
-                        headers=admin).status_code == 200
 
 
 # ---------- «Адвокат диявола» ----------

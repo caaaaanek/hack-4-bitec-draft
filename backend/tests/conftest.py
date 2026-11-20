@@ -11,6 +11,8 @@ os.environ["INTEGRATION_API_KEY"] = "test-integration-key"
 os.environ["EVIDENCE_DIR"] = tempfile.mkdtemp(prefix="imd_evidence_")
 os.environ["EVIDENCE_MAX_BYTES"] = str(64 * 1024)
 os.environ["EVIDENCE_MAX_FILES_PER_ITEM"] = "3"
+# Принцип двох осіб за замовчуванням увімкнено; тести, що його перевіряють, вмикають явно (fixture setting).
+os.environ["FOUR_EYES_ENABLED"] = "false"
 
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
@@ -44,3 +46,31 @@ def auth(client: TestClient, login: str) -> dict[str, str]:
     response = client.post("/api/v1/auth/login", data={"username": login, "password": PASSWORD})
     assert response.status_code == 200, response.text
     return {"Authorization": f"Bearer {response.json()['access_token']}"}
+
+
+@pytest.fixture()
+def setting(monkeypatch):
+    """setting(four_eyes_enabled=True, ...) — змінити налаштування на час тесту."""
+    from app.config import get_settings
+
+    def apply(**values):
+        for key, value in values.items():
+            monkeypatch.setattr(get_settings(), key, value)
+    return apply
+
+
+def user_ids(client: TestClient) -> dict[str, str]:
+    """login -> id (людей бачить лише технічний адміністратор)."""
+    users = client.get("/api/v1/admin/users", headers=auth(client, "coordinator")).json()
+    return {u["login"]: u["id"] for u in users}
+
+
+def create_person(client: TestClient, login: str, role: str = "respondent", category: str | None = "staff",
+                  unit_id: str | None = None, password: str = PASSWORD) -> str:
+    """Технічний адміністратор заводить людину, людина ставить пароль за запрошенням. Повертає id."""
+    body = {"login": login, "display_name": login, "role": role, "category": category, "unit_id": unit_id}
+    r = client.post("/api/v1/admin/users", json=body, headers=auth(client, "coordinator"))
+    assert r.status_code == 201, r.text
+    token = r.json()["invite_link"].rsplit("/", 1)[-1]
+    assert client.post("/api/v1/auth/invite", json={"token": token, "password": password}).status_code == 204
+    return r.json()["id"]

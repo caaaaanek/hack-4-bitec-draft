@@ -29,12 +29,12 @@ export const clamp = (v, a = 0, b = 100) => Math.max(a, Math.min(b, v));
 // Рівень за мінімальними межами 0 / 12,5 / 37,5 / 62,5 / 87,5: бал >= межі (як maturity_level на сервері)
 export const level = v => 1 + BOUNDS.filter(b => v >= b).length;
 // Слабка ланка (методика v2.1): рівень індексу не вищий за рівень найслабшого компонента плюс 1
-export const indexLevel = (idx, comps) => comps.length ? Math.min(level(idx), Math.min(...comps.map(level)) + 1) : level(idx);
+export const indexLevel = (idx, comps) => { const c = comps.filter(v => v != null); return c.length ? Math.min(level(idx), Math.min(...c.map(level)) + 1) : level(idx); };
 export const lvl100 = l => (l - 1) * 25;
 export const status = v => v >= 65 ? "good" : v >= 40 ? "warn" : "bad";
 export const ST = { good: ["Сильна сторона", "p-good"], warn: ["Потребує уваги", "p-warn"], bad: ["Критична зона", "p-bad"] };
 export const SCOL = { good: "var(--teal)", warn: "var(--amber)", bad: "var(--red)" };
-export const SRC = { wg: ["Сприйняття РГ", "var(--blue)", "circle"], os: ["Сприйняття ОС", "var(--teal)", "square"], experts: ["Експерти", "#8b6fd6", "diamond"], facts: ["Факти", "var(--amber)", "triangle"] };
+export const SRC = { wg: ["Робоча група", "var(--blue)", "circle"], os: ["Особовий склад", "var(--teal)", "square"], experts: ["Експерти", "#8b6fd6", "diamond"], facts: ["Підтверджено фактами", "var(--amber)", "triangle"] };
 export const SRC_HINT = { wg: "Середня оцінка відповідей робочої групи, 0-100.", os: "Середня оцінка відповідей особового складу, 0-100.", experts: "Середня оцінка експертів, 0-100." };
 export const wmean = arr => { const w = arr.reduce((a, x) => a + x.w, 0); return r1(arr.reduce((a, x) => a + x.w * x.v, 0) / w); };
 export const indexOf = cr => r1(COMPS.reduce((a, c) => a + cr[c] / 3, 0));
@@ -70,7 +70,7 @@ export const factValue = (f, val) => f.kind === "pct" ? Math.round(val[0] / val[
 
 export function credit(P, F) {
   const lim = F + CAP;
-  return P <= lim ? { v: P, lim: false } : { v: lim, lim: true, reason: `Сприйняття (${fb(P)}) вище за факти (${fb(F)}) більш ніж на ${CAP} пунктів. Тому зараховано не ${fb(P)}, а факти + ${CAP}: ${fb(F)} + ${CAP} = ${fb(lim)}.` };
+  return P <= lim ? { v: P, lim: false } : { v: lim, lim: true, reason: `Самооцінка (${fb(P)}) вища за факти (${fb(F)}) більш ніж на ${CAP} пунктів, тобто факти її не підтверджують. Тому в індекс зараховано не ${fb(P)}, а факти + ${CAP}: ${fb(F)} + ${CAP} = ${fb(lim)}.` };
 }
 export function components(pItems, fItems) {
   return COMPS.map(c => {
@@ -84,14 +84,14 @@ export function trust(flags, responses) {
   return major >= 1 || minor >= 3 ? "C" : minor >= 1 ? "B" : "A";
 }
 export const TRUST = {
-  A: ["A", "Підтверджується", "Жоден прапорець не спрацював.", "p-good"],
-  B: ["B", "Є зауваження", "Спрацювали один або два незначні прапорці.", "p-warn"],
+  A: ["A", "Висока", "Жоден прапорець не спрацював.", "p-good"],
+  B: ["B", "Помірна", "Спрацювали один або два незначні прапорці.", "p-warn"],
   C: ["C", "Потрібна перевірка", "Спрацював хоча б один серйозний прапорець або три і більше незначних.", "p-bad"],
-  insufficient: ["?", "Недостатньо даних", "У групі менше k відповідей, тому достовірність не оцінюється.", "p-mute"],
+  insufficient: ["?", "Недостатньо даних", "Відповідей менше, ніж мінімальна група, тому достовірність не оцінюється.", "p-mute"],
 };
 export const TRUST_HINT = "Наскільки результату можна довіряти. Літера залежить від прапорців: A без прапорців, B один-два незначних, C серйозний або три і більше незначних.";
 export const FLAGS = [
-  { id: "tf-gap", w: "major", t: "Розбіжність сприйняття й фактів", ex: "Сприйняття значно вище за факти, тому зараховано з обмеженням. Варто звірити з чек-листом." },
+  { id: "tf-gap", w: "major", t: "Розбіжність самооцінки й фактів", ex: "Самооцінка значно вища за факти, тому її знижено до фактів + 25. Варто звірити з чек-листом." },
   { id: "tf-same", w: "minor", t: "Однакові відповіді в частині анкет особового складу", ex: "У частині анкет усі відповіді однакові. Це може означати, що анкету заповнювали поспіхом. Варто перевірити додатково." },
   { id: "tf-jump", w: "major", t: "Різка зміна індексу між циклами без пояснення", ex: "Індекс змінився помірно, різкого стрибка немає." },
   { id: "tf-experts", w: "minor", t: "Замало відповідей від експертів", ex: "Отримано всі очікувані експертні анкети." },
@@ -126,11 +126,11 @@ const round5 = v => Math.round(clamp(v) / 5) * 5;
 
 export function finish(m) {
   const cur = m.series[m.series.length - 1], prev = m.series[m.series.length - 2];
-  m.index = cur.index; m.level = indexLevel(cur.index, m.components.map(c => c.cr.v)); m.prevIndex = prev.index; m.delta = r1(cur.index - prev.index);
+  m.index = cur.index; m.level = indexLevel(cur.index, m.components.map(c => c.cr.v)); m.prevIndex = prev.index; m.delta = cur.index == null || prev.index == null ? null : r1(cur.index - prev.index);
   m.limited = m.components.find(c => c.cr.lim);
   m.trust = trust(m.flags, m.responses);
   m.raised = m.flags.filter(f => f.raised);
-  m.summary = m.limited ? `${COMP[m.limited.id].n}: самооцінку не підтверджують факти` : "Суттєвих розбіжностей між сприйняттям і фактами немає";
+  m.summary = m.limited ? `${COMP[m.limited.id].n}: самооцінку не підтверджують факти` : "Суттєвих розбіжностей між самооцінкою і фактами немає";
   m.byId = Object.fromEntries(m.components.map(c => [c.id, c]));
   return m;
 }
@@ -140,7 +140,7 @@ function buildAlpha() {
   const cr = Object.fromEntries(comps.map(c => [c.id, c.cr.v]));
   const series = [...ALPHA_HISTORY.map(h => ({ cycle: h.cycle, index: indexOf(h.cr), cr: h.cr })), { cycle: CYCLE, index: indexOf(cr), cr }];
   const lim = comps.find(c => c.cr.lim);
-  const flags = FLAGS.map(f => ({ ...f, raised: f.id === "tf-gap" ? !!lim : f.id === "tf-same", t: f.id === "tf-gap" && lim ? `Розбіжність сприйняття й фактів у ${COMP[lim.id].loc} (${fb(lim.P)} проти ${fb(lim.F)})` : f.t }));
+  const flags = FLAGS.map(f => ({ ...f, raised: f.id === "tf-gap" ? !!lim : f.id === "tf-same", t: f.id === "tf-gap" && lim ? `Розбіжність самооцінки й фактів у ${COMP[lim.id].loc} (${fb(lim.P)} проти ${fb(lim.F)})` : f.t }));
   const m = finish({ id: ALPHA, name: "Умовний військовий інститут «Альфа»", components: comps, pItems: PERCEPTION, fItems: facts, series, events: ALPHA_EVENTS, flags, responses: UNIT_RESP[ALPHA] });
   const byId = m.byId;
   m.attention = [
@@ -173,7 +173,7 @@ function buildOther(o) {
     series.unshift({ cycle: cy, index: indexOf(prev), cr: prev }); u = prev;
   }
   const lim = comps.find(c => c.cr.lim);
-  const flags = FLAGS.map(f => ({ ...f, t: f.id === "tf-gap" && lim ? `Розбіжність сприйняття й фактів у ${COMP[lim.id].loc} (${fb(lim.P)} проти ${fb(lim.F)})` : f.t, raised: f.id === "tf-gap" ? !!lim : o.flags ? o.flags.includes(f.id) : f.id !== "tf-jump" && t() < 0.35 }));
+  const flags = FLAGS.map(f => ({ ...f, t: f.id === "tf-gap" && lim ? `Розбіжність самооцінки й фактів у ${COMP[lim.id].loc} (${fb(lim.P)} проти ${fb(lim.F)})` : f.t, raised: f.id === "tf-gap" ? !!lim : o.flags ? o.flags.includes(f.id) : f.id !== "tf-jump" && t() < 0.35 }));
   const responses = o.responses ?? 40 + Math.floor(t() * 30);
   const m = finish({ id: o.id, name: o.name, components: comps, pItems, fItems, series, flags, responses,
     events: [{ after: "2025-12", t: "Виконано захід: оновлено процедури" }, { after: "2026-06", t: "Виконано захід: проведено навчання" }] });
@@ -231,7 +231,7 @@ export const GROUPS = [
 /* ---------- Рекомендації: явні правила ---------- */
 const REC_RULES = [
   { id: "rec-procurement", t: "Розібрати закупівлі, що потребують додаткової перевірки", c: "accountability", items: ["ac-p1", "ac-f1"], flags: ["tf-gap"],
-    why: "Працівники оцінюють прозорість рішень високо, а факти це не підтверджують. Розбір закупівель допоможе звірити сприйняття з документами.",
+    why: "Працівники оцінюють прозорість рішень високо, а факти це не підтверджують. Розбір закупівель допоможе звірити самооцінку з документами.",
     acts: ["Скласти перелік закупівель за останній цикл, що потребують перевірки", "Звірити умови закупівель із чек-листом", "Оприлюднити короткий підсумок розбору"] },
   { id: "rec-conflicts", t: "Скоротити строки перевірки конфліктів інтересів", c: "accountability", items: ["ac-f2"], flags: [],
     why: "Лише частина випадків потенційних конфліктів інтересів розглянута в строк. Чіткі строки допоможуть закрити цю прогалину.",

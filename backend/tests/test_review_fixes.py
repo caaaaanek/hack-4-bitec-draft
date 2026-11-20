@@ -45,7 +45,7 @@ def test_open_wave_keeps_its_past_open_date(client):
 
 
 def test_restore_questionnaire_from_archive(client):
-    commissioner = auth(client, "commissioner")
+    commissioner = auth(client, "department")
     qid = questionnaire_ids(client, commissioner)[STAFF]
 
     assert client.post(f"{API}/questionnaires/{qid}/restore", headers=commissioner).status_code == 409  # не в архіві

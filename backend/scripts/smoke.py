@@ -89,9 +89,9 @@ def main() -> int:
               "або додайте --force, якщо слід на цьому стенді не заважає.")
         return 2
 
-    units = {u["name"]: u["id"] for u in api.call("GET", "/api/v1/admin/units")[1]}
+    units = {u["name"]: u["id"] for u in api.call("GET", "/api/v1/units")[1]}
     qs = {q["code"]: q["id"] for q in api.call("GET", "/api/v1/questionnaires")[1]}
-    root = next(u["id"] for u in api.call("GET", "/api/v1/admin/units")[1] if u["parent_id"] is None)
+    root = next(u["id"] for u in api.call("GET", "/api/v1/units")[1] if u["parent_id"] is None)
     unit = next(i for n, i in units.items() if i != root)
     s, camp, _ = api.call("POST", "/api/v1/campaigns", {
         "title": f"Smoke {time.strftime('%H:%M:%S')}", "unit_id": root, "access_mode": "token",
@@ -101,7 +101,15 @@ def main() -> int:
     s, issued, _ = api.call("POST", f"/api/v1/campaigns/{cid}/tokens",
                             {"questionnaire_id": qs["nazk-maturity-staff"], "unit_id": unit, "count": 6})
     check("видача посилань", s == 201 and len(issued["tokens"]) == 6, issued)
-    check("відкриття", api.call("POST", f"/api/v1/campaigns/{cid}/open")[0] == 200)
+    s, opened, _ = api.call("POST", f"/api/v1/campaigns/{cid}/open")
+    check("відкриття", s == 200, opened)
+    if s == 200 and opened.get("pending_approval_id"):  # принцип двох осіб: підтверджує внутрішній аудит
+        saved = api.token
+        s, au, _ = api.call("POST", "/api/v1/auth/session", {"login": "auditor", "password": args.password})
+        api.token = au["access_token"]
+        s, body, _ = api.call("POST", f"/api/v1/admin/approvals/{opened['pending_approval_id']}/approve")
+        check("відкриття підтвердив аудит", s == 200, body)
+        api.token = saved
 
     tokens = [t["token"] for t in issued["tokens"]]
     saved = api.token

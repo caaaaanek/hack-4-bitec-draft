@@ -65,7 +65,7 @@ frontend-proto/
 **`lib/`**
 - `model.js` — модель і дані: `COMPS`, `COMP`, `LEVELS`, `LDESC`, `BOUNDS`, `CAP = 25`, `TODAY`/`CYCLE` (змінюються через `setClock`), `PERCEPTION`, `FACTS`, `credit`, `components`, `trust`, `FLAGS`, `ALPHA_HISTORY`, `OTHERS`, `inst(id)`, `INSTITUTIONS`, `UNITS`, `resolveUnit`, `buildRecs`, `measures`, `overdueDays`.
 - `state.js` — анкета `SURVEY`, ролі `ROLE`, меню `NAV` (`[route, label, icon, roles]`), `HOME`, `AI_ROLES`, стан `S` (localStorage `ii-proto-v2`), `persist`, `resetDemo`, журнал з хеш-ланцюгом (`fnv`, `addLog`, `logItems`).
-- `api.js` — режим бекенду: `boot` (зокрема скан QR `/q/<код>` → `/s/<токен>`), вхід/вихід, завантаження результатів, рішення, анкети, хвилі й QR для зали (`apiQrCreate`, `apiQrRevoke`, живі лічильники `apiQrTick`), чек-лист, журнал. У текстах помилок назви полів сервера (`planned_close_on` тощо) замінюються підписями з інтерфейсу (`uaFields`).
+- `api.js` — режим бекенду: `boot` (зокрема скан QR `/q/<код>` → `/s/<токен>`), вхід/вихід, запрошення (`#invite/<токен>`, `apiInviteDone`), посади з довідника (`apiPositions`), назва організації з `org_terms` (`orgT`, `orgCap`), завантаження результатів, рішення, анкети, хвилі й QR для зали (`apiQrCreate`, `apiQrRevoke`, живі лічильники `apiQrTick`), чек-лист, журнал. У текстах помилок назви полів сервера (`planned_close_on` тощо) замінюються підписями з інтерфейсу (`uaFields`).
 - `nav.js` — `route()`, `allowed`, `can`, `cur()`, `TITLES`, `isLogin`.
 - `store.js` — `render`, `useStore`, `ui`, панелі, поповер, сповіщення.
 - `format.js` (`fb`, `f1`, `pts`, `ua`, `plural`), `texts.js` (тексти «Чому такий індекс/достовірність»), `util.js` (завантаження файлу, копіювання), `icons.jsx` (`<Ic n="…"/>`).
@@ -90,6 +90,8 @@ frontend-proto/
 - `demo.jsx` — демо-екрани без бекенду: «Керування циклом», «Анкети», «Чек-лист», «Журнал», «Опитування», «Мої результати».
 - `api-views.jsx` — ті самі екрани з даними сервера; `apiView(route)` повертає `null`, якщо треба показати звичайний екран. У «Керуванні циклом» картка «QR для зали» і повноекранний QR (`QrScreen`); сам код малює `components/QrCode.jsx` (qrcode-generator, локально).
 - `Builder.jsx` — конструктор анкети (режим API).
+- `Admin.jsx` (окремий чанк через `React.lazy` в App.jsx) — лише з бекендом: «Люди» (`/admin/users`, запрошення показуються один раз), «Довідники» (категорії, факти, посади), «Реєстр ризиків» (`/units/{id}/risk-register`, імпорт CSV), сторінка запрошення `InvitePage`. Запрошення даємо як `/#invite/<токен>` (`inviteAbs`): сторінки `/invite/…` немає ні в API, ні в nginx, а фрагмент не потрапляє в журнали. Ролі цих пунктів меню виставляє `boot()` (у демо їх не видно; «Люди» при `separate_tech_admin` лише координатору).
+- `WaveAdmin.jsx` — спільні помічники (`SROLE`, `importErr`, `unitOpts`) і секції «Керування циклом»: «Учасники» (`/participants`, імпорт CSV, лише в чернетці) і «Відповідальні за чек-лист» (`/checklist/assignments`). У чек-листі показано, хто вносить і хто підтверджує пункт; чужий пункт кнопки «Внести» не має.
 - `Learn.jsx`, `Insights.jsx`, `Autopilot.jsx`, `Normative.jsx`, `Checks.jsx` — модулі автоматизації (див. README). Дані з сервера беруть через `apiMod(ключ, завантажувач)` з `lib/api.js` (кеш у `API.mod`, `apiModReset` для повтору); стани екрана (`Loading`, `Failed`, `Empty`, `NoAccess`, `NeedServer`) у `components/states.jsx`. Тексти правил сервера з довгим тире показуємо через `dsh()`.
 
 **`ai/assistant.jsx`** — `aiTemplate(q)` (шаблони правил, регулярні вирази від питання), `aiAsk`, `aiOpen`, `aiClose`, панель `AiPanel`.

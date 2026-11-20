@@ -118,3 +118,89 @@
 .ap-fields .field { width: 180px; margin: 0; }
 .ap-fields .ap-num { width: 150px; }
 @media (max-width: 640px) { .ap-fields .field, .ap-fields .ap-num { width: calc(50% - 6px); } .ap-fields .btn { width: 100%; justify-content: center; } }
+/* «Що люди бояться сказати прямо» і «Ознаки підгонки» на «Огляді» */
+.cd-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 340px), 1fr)); gap: 14px; }
+.cd-item { background: var(--soft); border-radius: 12px; padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.cd-st { font-weight: 600; overflow-wrap: anywhere; }
+.cd-nums { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.cd-nums > div { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cd-nums b { font-size: 26px; font-weight: 600; letter-spacing: -.02em; }
+.cd-bar { position: relative; height: 8px; border-radius: 999px; background: var(--line); }
+.cd-bar i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 999px; }
+.cd-direct { background: var(--blue); } .cd-indirect { background: var(--amber); }
+.cd-self { background: var(--teal); } .cd-others { background: var(--blue); }
+.cd-ci { position: absolute; top: -4px; bottom: -4px; border: 2px solid var(--fg); border-top: 0; border-bottom: 0; opacity: .55; }
+.cd-say { margin: 0; font-size: 13.5px; }
+.cd-flags { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+.cd-flag { display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap; }
+.cd-links { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 4px; }
+.cd-foot { margin-top: 12px; font-size: 12.5px; }
+@media (max-width: 520px) { .cd-nums b { font-size: 22px; } }
+.row .t.gm-t { white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+.ix-extra { display: flex; flex-direction: column; gap: 2px; }
+.ix-card .ix-extra + .ix-extra { margin-top: 14px; }
+/* Брифінг і шлях до наступного рівня */
+.bf-nums { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; }
+.bf-num { background: var(--soft); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.bf-num b { font-size: 15px; overflow-wrap: anywhere; }
+.row .t.nl-t { white-space: normal; overflow-wrap: anywhere; }
+/* Підрозділи за рівнями: стовпчики без назв */
+.ch-bars { display: flex; align-items: flex-end; gap: 14px; height: 130px; padding-top: 8px; }
+.ch-b { display: flex; flex-direction: column; align-items: center; gap: 4px; flex: 1; max-width: 72px; }
+.ch-b i { width: 100%; border-radius: 8px 8px 3px 3px; }
+.ch-b small { color: var(--muted); }
+.rv-units { white-space: normal; overflow-wrap: anywhere; }
+/* Прозорість: хеші, якір журналу, лотерея, запити другій людині */
+.hash-full { display: block; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12.5px; overflow-wrap: anywhere; word-break: break-all; background: var(--soft); border-radius: 8px; padding: 6px 8px; margin: 6px 0; }
+.an-last { display: flex; flex-direction: column; gap: 4px; }
+.an-form { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px; }
+.an-form .field { margin: 0; min-width: 0; } .an-form .an-h { flex: 1 1 260px; }
+.note-box.an-bad { background: var(--red-soft); }
+.lt-t { white-space: normal; overflow-wrap: anywhere; font-size: 13.5px; min-width: 0; }
+.lt-st { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex: none; }
+.ap-t { overflow-wrap: anywhere; min-width: 0; }
+.ap-act { display: flex; gap: 10px; align-items: flex-end; flex-wrap: wrap; margin-top: 12px; }
+.ap-act .field { flex: 1 1 240px; margin: 0; }
+@media (max-width: 520px) { .lt-st { align-items: flex-start; } }
+.lt-more summary { cursor: pointer; color: var(--teal-deep); font-weight: 600; font-size: 12.5px; display: inline; }
+.lt-more[open] { margin-top: 6px; }
+@media (max-width: 520px) { .lt-row { flex-wrap: wrap; } .lt-row .lt-t { flex: 1 1 calc(100% - 60px); } .lt-st { flex-direction: row; flex-wrap: wrap; margin-left: 54px; } }
+/* Урна з трьома ключами */
+.urn-share { margin-top: 12px; }
+.urn-qr { display: flex; gap: 14px; align-items: flex-start; flex-wrap: wrap; }
+.urn-qr .hash-full { flex: 1 1 220px; }
+.urn-qr-svg { width: 160px; max-width: 100%; background: #fff; border-radius: 8px; padding: 6px; }
+.urn-qr-svg svg { display: block; width: 100%; height: auto; }
+.urn-in { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
+.urn-setup { display: flex; flex-direction: column; gap: 8px; max-width: 520px; }
+.urn-setup .field { margin: 0; }
+.urn-demo { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; margin-top: 10px; }
+.urn-demo-i { background: var(--soft); border-radius: 12px; padding: 10px; display: flex; flex-direction: column; gap: 8px; align-items: flex-start; }
+@media print { .urn-share { break-inside: avoid; } }
+.mt-url a { overflow-wrap: anywhere; }
+.row .t.mt-t { white-space: normal; overflow-wrap: anywhere; }
+
+/* Адміністрування: Люди, Довідники, Реєстр ризиків, учасники, відповідальні (views/Admin.jsx) */
+.btn-s { padding: 6px 12px; }
+.btn.dis { opacity: .6; pointer-events: none; }
+.adm-err { color: color-mix(in srgb, var(--red) 60%, var(--fg)); }
+.adm-err:empty { display: none; }
+.adm-tbl td { vertical-align: middle; }
+.adm-st { white-space: nowrap; }
+.adm-st .dot { display: inline-block; margin-right: 6px; vertical-align: middle; }
+.adm-acts { white-space: nowrap; text-align: right; }
+.adm-acts .btn + .btn { margin-left: 4px; }
+.adm-chk { display: flex; gap: 8px; align-items: center; cursor: pointer; }
+.adm-chk input { width: 16px; height: 16px; accent-color: var(--teal); flex: none; }
+.adm-add { display: flex; gap: 8px; margin-top: 10px; }
+.adm-add .inp { flex: 1; min-width: 0; }
+.rk-sum { display: flex; flex-wrap: wrap; gap: 6px 22px; margin-bottom: 12px; font-size: 14px; }
+.rk-warn { color: color-mix(in srgb, var(--red) 60%, var(--fg)); }
+.as-all, .as-row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.as-row { grid-template-columns: 44px 1fr 1fr; align-items: center; }
+.as-list { display: flex; flex-direction: column; gap: 6px; max-height: 55vh; overflow: auto; padding-right: 4px; }
+.as-row .inp, .as-all .inp { min-width: 0; padding: 6px 8px; font-size: 13px; }
+.pt-list { max-height: 50vh; overflow: auto; }
+@media (max-width: 620px) { .as-row { grid-template-columns: 1fr 1fr; } .as-row b { grid-column: 1 / -1; } .adm-acts { text-align: left; } }
+.ck-who { margin-top: 6px; }
+.adm-line { font-size: 14px; line-height: 1.5; }

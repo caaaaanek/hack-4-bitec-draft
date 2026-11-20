@@ -29,36 +29,38 @@ def test_logout_revokes_only_this_token(client):
         assert db.scalar(select(RevokedToken)) is not None
 
 
-def test_password_change_revokes_all_sessions(client):
-    admin = auth(client, "admin")
+def test_password_reset_by_invite_revokes_all_sessions(client):
+    co = auth(client, "coordinator")
     old = auth(client, "leader")
-    r = client.patch(f"{API}/admin/users/{user_id(client, admin, 'leader')}", headers=admin,
-                     json={"password": "new-password-123"})
-    assert r.status_code == 200, r.text
-    assert me(client, old) == 401
+    r = client.post(f"{API}/admin/users/{user_id(client, co, 'leader')}/invite", headers=co)
+    assert r.status_code == 201, r.text
+    assert me(client, old) == 401  # скидання запрошенням гасить старі сесії
+    assert client.post(f"{API}/auth/session", json={"login": "leader", "password": PASSWORD}).status_code == 401
+    assert client.post(f"{API}/auth/invite", json={"token": r.json()["invite_token"],
+                                                   "password": "new-password-123"}).status_code == 204
     r = client.post(f"{API}/auth/session", json={"login": "leader", "password": "new-password-123"})
     assert r.status_code == 200
     assert me(client, {"Authorization": f"Bearer {r.json()['access_token']}"}) == 200
-    assert me(client, admin) == 200  # сесії інших користувачів не зачеплені
+    assert me(client, co) == 200  # сесії інших користувачів не зачеплені
 
 
 def test_block_and_unblock_keeps_old_token_invalid(client):
-    admin = auth(client, "admin")
+    co = auth(client, "coordinator")
     old = auth(client, "staff01")
-    uid = user_id(client, admin, "staff01")
-    assert client.patch(f"{API}/admin/users/{uid}", headers=admin, json={"is_active": False}).status_code == 200
-    assert client.patch(f"{API}/admin/users/{uid}", headers=admin, json={"is_active": True}).status_code == 200
+    uid = user_id(client, co, "staff01")
+    assert client.patch(f"{API}/admin/users/{uid}", headers=co, json={"is_active": False}).status_code == 200
+    assert client.patch(f"{API}/admin/users/{uid}", headers=co, json={"is_active": True}).status_code == 200
     assert me(client, old) == 401  # після розблокування потрібен новий вхід
     assert me(client, auth(client, "staff01")) == 200
 
 
-def test_role_change_keeps_sessions(client):
-    admin = auth(client, "admin")
-    other = auth(client, "commissioner")
-    uid = user_id(client, admin, "commissioner")
+def test_rename_keeps_sessions(client):
+    co = auth(client, "coordinator")
+    other = auth(client, "department")
+    uid = user_id(client, co, "department")
     with SessionLocal() as db:
         before = db.get(User, uuid.UUID(uid)).token_version
-    r = client.patch(f"{API}/admin/users/{uid}", headers=admin, json={"display_name": "Укладач анкет"})
+    r = client.patch(f"{API}/admin/users/{uid}", headers=co, json={"display_name": "Департамент"})
     assert r.status_code == 200
     assert me(client, other) == 200
     with SessionLocal() as db:

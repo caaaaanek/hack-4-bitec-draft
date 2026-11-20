@@ -1,4 +1,4 @@
-"""Конструктор анкет. Змінює анкети лише commissioner.
+"""Конструктор анкет. Змінює анкети лише Департамент (department).
 
 Адмін сюди навмисно не допускається: хто складає анкети, той не запускає хвилі,
 і навпаки (розподіл обов'язків)."""
@@ -33,9 +33,9 @@ from app.services import categories
 from app.services import questionnaires as service
 
 router = APIRouter(prefix="/questionnaires", tags=["questionnaires"])
-commissioner_only = require_roles(Role.COMMISSIONER)
+department_only = require_roles(Role.DEPARTMENT)  # анкети й версії веде Департамент
 # Адмін бачить лише опубліковані анкети, щоб обрати їх для хвилі. Змінювати не може.
-can_read = require_roles(Role.COMMISSIONER, Role.ADMIN)
+can_read = require_roles(Role.DEPARTMENT, Role.ADMIN)
 
 
 def get_or_404(db: Session, questionnaire_id: uuid.UUID) -> Questionnaire:
@@ -80,7 +80,7 @@ def list_questionnaires(
 
 
 @router.post("", response_model=QuestionnaireOut, status_code=status.HTTP_201_CREATED)
-def create_questionnaire(data: QuestionnaireCreate, db: Session = Depends(get_db), user: User = Depends(commissioner_only)):
+def create_questionnaire(data: QuestionnaireCreate, db: Session = Depends(get_db), user: User = Depends(department_only)):
     if db.scalar(select(Questionnaire.id).where(Questionnaire.code == data.code)):
         raise HTTPException(status_code=409, detail="Анкета з таким кодом уже існує. Створіть нову версію.")
     require_category(db, data.target_category)
@@ -114,7 +114,7 @@ def update_meta(
     questionnaire_id: uuid.UUID,
     data: QuestionnaireMetaUpdate,
     db: Session = Depends(get_db),
-    user: User = Depends(commissioner_only),
+    user: User = Depends(department_only),
 ):
     questionnaire = get_or_404(db, questionnaire_id)
     require_draft(questionnaire)
@@ -133,7 +133,7 @@ def replace_structure(
     questionnaire_id: uuid.UUID,
     data: StructureIn,
     db: Session = Depends(get_db),
-    user: User = Depends(commissioner_only),
+    user: User = Depends(department_only),
 ):
     questionnaire = get_or_404(db, questionnaire_id)
     require_draft(questionnaire)
@@ -149,13 +149,13 @@ def replace_structure(
 
 
 @router.get("/{questionnaire_id}/validate", response_model=list[ValidationIssue])
-def validate(questionnaire_id: uuid.UUID, db: Session = Depends(get_db), _: User = Depends(commissioner_only)):
+def validate(questionnaire_id: uuid.UUID, db: Session = Depends(get_db), _: User = Depends(department_only)):
     """Попередня перевірка: що завадить публікації. Порожній список означає, що все гаразд."""
     return service.validate_for_publish(get_or_404(db, questionnaire_id))
 
 
 @router.post("/{questionnaire_id}/publish", response_model=QuestionnaireOut)
-def publish(questionnaire_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(commissioner_only)):
+def publish(questionnaire_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(department_only)):
     questionnaire = get_or_404(db, questionnaire_id)
     require_draft(questionnaire)
     issues = service.validate_for_publish(questionnaire)
@@ -168,7 +168,7 @@ def publish(questionnaire_id: uuid.UUID, db: Session = Depends(get_db), user: Us
 
 
 @router.post("/{questionnaire_id}/new-version", response_model=QuestionnaireOut, status_code=status.HTTP_201_CREATED)
-def new_version(questionnaire_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(commissioner_only)):
+def new_version(questionnaire_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(department_only)):
     source = get_or_404(db, questionnaire_id)
     if source.status == QuestionnaireStatus.DRAFT:
         raise HTTPException(status_code=409, detail="Це вже чернетка, редагуйте її напряму")
@@ -181,7 +181,7 @@ def new_version(questionnaire_id: uuid.UUID, db: Session = Depends(get_db), user
 
 
 @router.post("/{questionnaire_id}/archive", response_model=QuestionnaireOut)
-def archive(questionnaire_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(commissioner_only)):
+def archive(questionnaire_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(department_only)):
     questionnaire = get_or_404(db, questionnaire_id)
     if questionnaire.status != QuestionnaireStatus.PUBLISHED:
         raise HTTPException(status_code=409, detail="Архівувати можна лише опубліковану анкету")
@@ -192,7 +192,7 @@ def archive(questionnaire_id: uuid.UUID, db: Session = Depends(get_db), user: Us
 
 
 @router.post("/{questionnaire_id}/restore", response_model=QuestionnaireOut)
-def restore(questionnaire_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(commissioner_only)):
+def restore(questionnaire_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(department_only)):
     """Повернути анкету з архіву в опубліковані. Зміст не змінюється, тож відповіді лишаються порівнюваними."""
     questionnaire = get_or_404(db, questionnaire_id)
     if questionnaire.status != QuestionnaireStatus.ARCHIVED:
@@ -204,7 +204,7 @@ def restore(questionnaire_id: uuid.UUID, db: Session = Depends(get_db), user: Us
 
 
 @router.delete("/{questionnaire_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_draft(questionnaire_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(commissioner_only)):
+def delete_draft(questionnaire_id: uuid.UUID, db: Session = Depends(get_db), user: User = Depends(department_only)):
     questionnaire = get_or_404(db, questionnaire_id)
     require_draft(questionnaire)
     in_use = db.scalar(

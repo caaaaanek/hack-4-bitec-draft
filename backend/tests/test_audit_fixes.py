@@ -8,14 +8,14 @@ from sqlalchemy import select
 from app.db import SessionLocal
 from app.models import Question, QuestionType, RespondentCategory
 from app.services import scoring
-from tests.conftest import auth
+from tests.conftest import auth, create_person
 from tests.helpers import API, ROOT, answer, close, full_wave, open_campaign, questionnaire_ids, results, units
 
 STAFF = "nazk-maturity-staff"
 
 
-def users_by_login(client, admin) -> dict:
-    return {u["login"]: u for u in client.get(f"{API}/admin/users", headers=admin).json()}
+def users_by_login(client, _=None) -> dict:
+    return {u["login"]: u for u in client.get(f"{API}/admin/users", headers=auth(client, "coordinator")).json()}
 
 
 # ---------- B4. Склад фіксується при відкритті ----------
@@ -27,7 +27,8 @@ def test_blocking_people_after_submission_does_not_inflate_participation(client)
     before = client.get(f"{API}/campaigns/{campaign_id}/progress", headers=admin).json()["items"][0]
     users = users_by_login(client, admin)
     for i in range(11, 19):  # блокуємо тих, хто НЕ пройшов: раніше це піднімало участь
-        r = client.patch(f"{API}/admin/users/{users[f'staff{i:02d}']['id']}", json={"is_active": False}, headers=admin)
+        r = client.patch(f"{API}/admin/users/{users[f'staff{i:02d}']['id']}", json={"is_active": False},
+                         headers=auth(client, "coordinator"))
         assert r.status_code == 200, r.text
     after = client.get(f"{API}/campaigns/{campaign_id}/progress", headers=admin).json()["items"][0]
     assert after["eligible"] == before["eligible"] and after["percent"] == before["percent"]
@@ -40,26 +41,24 @@ def test_blocking_people_after_submission_does_not_inflate_participation(client)
 def test_structural_user_changes_are_blocked_during_open_wave(client):
     campaign_id, q, admin = open_campaign(client, (STAFF,))
     u = units(client, admin)
-    staff = users_by_login(client, admin)["staff01"]
-    r = client.patch(f"{API}/admin/users/{staff['id']}", json={"unit_id": u["Підрозділ В"]}, headers=admin)
+    staff = users_by_login(client)["staff01"]
+    co = auth(client, "coordinator")
+    r = client.patch(f"{API}/admin/users/{staff['id']}", json={"unit_id": u["Підрозділ В"]}, headers=co)
     assert r.status_code == 409 and r.json()["code"] == "campaign_open"
-    r = client.patch(f"{API}/admin/users/{staff['id']}", json={"category": "working_group"}, headers=admin)
+    r = client.patch(f"{API}/admin/users/{staff['id']}", json={"category": "working_group"}, headers=co)
     assert r.status_code == 409
     # Блокування дозволено (людина пішла), і знаменник від цього не змінюється.
-    assert client.patch(f"{API}/admin/users/{staff['id']}", json={"is_active": False}, headers=admin).status_code == 200
+    assert client.patch(f"{API}/admin/users/{staff['id']}", json={"is_active": False}, headers=co).status_code == 200
     close(client, campaign_id, admin)
     assert client.patch(f"{API}/admin/users/{staff['id']}", json={"unit_id": u["Підрозділ В"]},
-                        headers=admin).status_code == 200
+                        headers=co).status_code == 200
 
 
 def test_user_created_after_opening_is_not_in_wave(client):
     campaign_id, q, admin = open_campaign(client, (STAFF,))
     root = units(client, admin)[ROOT]
-    r = client.post(f"{API}/admin/users", json={"login": "late01", "display_name": "Пізній", "password": "password-123",
-                                                "role": "respondent", "category": "staff", "unit_id": root}, headers=admin)
-    assert r.status_code == 201, r.text
-    token = client.post(f"{API}/auth/login", data={"username": "late01", "password": "password-123"}).json()
-    late = {"Authorization": f"Bearer {token['access_token']}"}
+    create_person(client, "late01", unit_id=root)
+    late = auth(client, "late01")
     assert client.get(f"{API}/me/assignments", headers=late).json() == []
     r = client.get(f"{API}/campaigns/{campaign_id}/questionnaires/{q[STAFF]}/form", headers=late)
     assert r.status_code == 403
@@ -67,13 +66,13 @@ def test_user_created_after_opening_is_not_in_wave(client):
 
 def test_import_into_open_wave_adds_to_frozen_set(client):
     campaign_id, q, admin = open_campaign(client, (STAFF,))
+    create_person(client, "late02", unit_id=units(client, admin)["Підрозділ А"])  # людей заводить техадмін
     csv = "login,category,unit\nlate02,staff,Підрозділ А\n".encode()
     r = client.post(f"{API}/campaigns/{campaign_id}/participants/import", files={"file": ("p.csv", csv, "text/csv")},
                     headers=admin)
     assert r.status_code == 200, r.text
-    password = r.json()["credentials"][0]["password"]
-    token = client.post(f"{API}/auth/login", data={"username": "late02", "password": password}).json()["access_token"]
-    late = {"Authorization": f"Bearer {token}"}
+    assert r.json()["created_users"] == 0 and r.json()["credentials"] == []
+    late = auth(client, "late02")
     assert [a["questionnaire_id"] for a in client.get(f"{API}/me/assignments", headers=late).json()] == [q[STAFF]]
 
 
@@ -240,7 +239,7 @@ def test_unit_leader_sees_only_own_subtree_in_units(client):
 # ---------- B10. Чек-лист з конструктора ----------
 
 def test_constructor_checklist_items_get_section_component(client):
-    commissioner = auth(client, "commissioner")
+    commissioner = auth(client, "department")
     body = {"code": "other-checklist", "title": "Чек-лист іншого органу", "kind": "checklist",
             "target_category": "working_group", "sections": [
                 {"title": "Процедури", "component": "system", "questions": [

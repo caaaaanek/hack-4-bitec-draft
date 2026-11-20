@@ -322,7 +322,7 @@ def test_unit_can_be_given_by_name(client, llm_env, monkeypatch):
     llm_env(LLM_ALLOW_EXTERNAL="true", LLM_BASE_URL="https://llm.example.test/v1", LLM_MODEL="gemma4-26b")
     calls = scripted_model(monkeypatch, [(200, tool_call("get_history", '{"unit_id": "підрозділ а"}')), (200, final("Ок."))])
     # Уповноважений бачить усе дерево; вищий керівник деталей дочірнього підрозділу не бачить (див. нижче).
-    r = client.post("/api/assistant", json={"question": "Динаміка Підрозділу А"}, headers=auth(client, "commissioner"))
+    r = client.post("/api/assistant", json={"question": "Динаміка Підрозділу А"}, headers=auth(client, "admin"))
     assert r.status_code == 200, r.text
     tool_msg = next(m for m in calls[1]["messages"] if m["role"] == "tool")
     assert '"unit": "Підрозділ А"' in tool_msg["content"] and "error" not in tool_msg["content"]

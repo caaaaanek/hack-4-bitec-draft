@@ -72,7 +72,7 @@ def _int(value: str, n: int, field: str, issues: list) -> int | None:
 
 @router.post("/units/{unit_id}/risk-register/import")
 async def import_risks(unit_id: uuid.UUID, file: UploadFile = File(...), db: Session = Depends(get_db),
-                       user: User = Depends(require_roles(Role.ADMIN, Role.COMMISSIONER))) -> dict:
+                       user: User = Depends(require_roles(Role.ADMIN))) -> dict:
     if db.get(Unit, unit_id) is None:
         raise HTTPException(status_code=404, detail="Підрозділ не знайдено")
     raw = await file.read(MAX_BYTES + 1)

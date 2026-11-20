@@ -48,9 +48,9 @@ export const NAV = [
   ["compare", "Порівняння", "compare", ["leader", "observer", "auditor"]],
   ["whatif", "Що, якщо", "sliders", ["leader", "observer", "auditor"]],
   ["recs", "Рекомендації", "bulb", ["leader"]],
-  ["tracker", "Трекер", "target", ["leader", "auditor"]],
+  ["tracker", "Трекер заходів", "target", ["leader", "auditor"]],
   ["sources", "Джерела", "plug", ["leader", "observer", "auditor"]],
-  ["watch", "Черговий", "eye", ["leader", "observer", "auditor", "admin", "commissioner", "coordinator"]],
+  ["watch", "Сигнали", "eye", ["observer", "auditor", "admin", "commissioner", "coordinator"]],
   ["advocate", "Питання перевірки", "scale", ["leader", "observer", "auditor", "admin", "commissioner"]],
   ["report", "Звіт", "file", ["leader", "observer"]],
   ["manage", "Керування циклом", "sliders", ["admin"]],
@@ -59,11 +59,26 @@ export const NAV = [
   ["surveys", "Анкети", "survey", ["commissioner"]],
   ["checklist", "Чек-лист", "check", ["checklist_editor", "checklist_approver"]],
   ["normative", "Нормативка", "layers", ["leader", "observer", "auditor", "admin", "commissioner", "coordinator"]],
+  ["people", "Люди", "users", []],
+  ["dicts", "Довідники", "layers", []],
+  ["risks", "Реєстр ризиків", "flag", []],
   ["audit", "Журнал", "history", ["admin", "auditor"]],
+  ["views", "Перегляди підрозділів", "eye", ["admin", "auditor"]],
+  ["approvals", "Запити другій людині", "users", ["admin", "commissioner", "auditor", "coordinator"]],
+  ["urn", "Урна з трьома ключами", "lock", ["admin", "auditor", "commissioner", "respondent", "checklist_editor"]],
   ["survey", "Пройти опитування", "survey", ["respondent"]],
   ["me", "Мої результати", "user", ["respondent"]],
   ["learn", "Навчання", "book", ["respondent", "checklist_editor", "checklist_approver", "leader", "observer", "auditor", "admin", "commissioner", "coordinator"]],
 ];
+// Групи меню: «Результати», «Дії», «Інструменти» (маршрути без змін)
+export const NAV_GROUP = { overview: "res", explain: "res", trends: "res", compare: "res", whatif: "res", institutions: "res", recs: "act", tracker: "act", manage: "act", surveys: "act", checklist: "act", survey: "act", me: "act", autopilot: "act", checks: "act" };
+export const NAV_GROUP_T = { res: "Результати", act: "Дії", tools: "Інструменти" };
+// «Простий режим» для вищого керівництва: у меню лише Огляд і Звіт (брифінг на «Огляді»).
+// Вибір зберігається в localStorage (лише "1" або "0", без персональних даних); за замовчуванням увімкнено для Департаменту.
+const SIMPLE_KEY = "ii-simple-mode";
+export const SIMPLE_ROUTES = ["institutions", "overview", "report"];
+export function simpleMode() { try { const v = localStorage.getItem(SIMPLE_KEY); if (v === "1" || v === "0") return v === "1"; } catch (e) { /* сховище недоступне */ } return S.role === "observer"; }
+export function setSimpleMode(on) { try { localStorage.setItem(SIMPLE_KEY, on ? "1" : "0"); } catch (e) { /* сховище недоступне */ } render(true); }
 export const HOME = { admin: "manage", commissioner: "surveys", respondent: "me", leader: "overview", observer: "institutions", checklist_editor: "checklist", checklist_approver: "checklist", auditor: "overview", coordinator: "watch" };
 export const AI_ROLES = ["leader", "observer", "auditor"];
 
@@ -87,19 +102,29 @@ export const S = Object.assign(DEFAULTS(), { chat: [], survey: freshSurvey(), op
 const KEY = "ii-proto-v2";
 const SAVE = ["role", "k", "inst", "unit", "cycleOpen", "facts", "fpend", "dec", "qs", "log", "notes", "aiOn", "tokenUsed", "mode", "trackView", "recF", "trF", "trend", "cmp", "cmpCycle", "a11y", "insts", "instArch", "guideOpen", "advDone"];
 try { const saved = JSON.parse(localStorage.getItem(KEY) || "null"); if (saved) SAVE.forEach(k => { if (saved[k] !== undefined) S[k] = saved[k]; }); } catch (e) { /* без збереженого стану */ }
-try { const d = JSON.parse(localStorage.getItem("ii-survey-draft") || "null"); if (d) S.survey.a = d; } catch (e) { /* без чернетки */ }
+/* Чернетка анкети: окремий ключ для кожної хвилі й анкети (за обліковим записом) або для кожного посилання
+   (хеш токена, не сам токен). Підставляється після завантаження форми; очищається після надсилання й при виході. */
+const DRAFT = "ii-survey-draft";
+export const draftKey = () => !API.on ? `${DRAFT}:demo` : API.anon ? `${DRAFT}:t:${fnv(String(API.token || ""))}` : API.survey ? `${DRAFT}:${API.survey.campaignId}:${API.survey.questionnaireId}` : null;
+export function loadDraft(ids) {
+  const k = draftKey(); if (!k) return {};
+  try { const d = JSON.parse(localStorage.getItem(k) || "null") || {}; return ids ? Object.fromEntries(Object.entries(d).filter(([q]) => ids.includes(q))) : d; } catch (e) { return {}; }
+}
+export function saveDraft(a) { const k = draftKey(); if (k) try { localStorage.setItem(k, JSON.stringify(a)); } catch (e) { /* сховище недоступне */ } }
+export function clearDraft(all) { try { for (const k of Object.keys(localStorage)) if (all ? k.startsWith(DRAFT) : k === draftKey() || k === DRAFT) localStorage.removeItem(k); } catch (e) { /* немає */ } }
+S.survey.a = loadDraft();
 export const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(Object.fromEntries(SAVE.map(k => [k, S[k]])))); } catch (e) { /* сховище недоступне */ } };
 export function resetDemo() {
   const role = S.role, a11y = S.a11y;
   Object.assign(S, DEFAULTS(), { role, a11y, chat: [], survey: freshSurvey() });
-  try { localStorage.removeItem("ii-survey-draft"); } catch (e) { /* немає */ }
+  clearDraft(true);
   addLog(me(), "Демо-дані скинуто"); persist(); render(); toast("Демо-дані скинуто");
 }
 
 /* Журнал дій із ланцюгом хешів */
 export function fnv(s) { let h = 0x811c9dc5; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 0x01000193); } return (h >>> 0).toString(16).padStart(8, "0"); }
 const SEEDLOG = [
-  ["2026-11-01 09:12", "Уповноважений (адміністратор)", "Відкрито цикл 2026-11, мінімальна група k = 10"],
+  ["2026-11-01 09:12", "Уповноважений (адміністратор)", "Відкрито цикл 2026-11, мінімальна група 10 осіб"],
   ["2026-11-01 09:20", "Уповноважений (адміністратор)", "Видано 84 одноразові жетони (РГ 15, ОС 64, експерти 5)"],
   ["2026-11-02 10:05", "Укладач анкет", "Опубліковано анкету «Анонімне опитування особового складу», версія 3"],
   ["2026-11-10 14:05", "Вносить дані чек-листа", "Чек-лист: внесено 8 показників фактів"],

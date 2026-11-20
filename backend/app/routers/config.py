@@ -32,11 +32,15 @@ class Policies(BaseModel):
     """Політики розгортання, від яких залежить інтерфейс (які кнопки показувати)."""
 
     four_eyes: bool
-    admin_sets_passwords: bool
+    # Завжди false і true відповідно: паролі лише за запрошенням, люди й підрозділи — лише технічний адміністратор.
+    # Поля лишено для сумісності з фронтендом.
+    admin_sets_passwords: bool = False
     staff_token_only: bool
     leader_child_details: bool
-    separate_tech_admin: bool
+    separate_tech_admin: bool = True
     checklist_confirmers: list[str]
+    # Пункт «повністю» чи «частково» підтверджується лише з файлом-доказом (CHECKLIST_REQUIRE_FILE).
+    checklist_require_file: bool = True
     external_fetch: bool
     # demo | production (SECURITY_PROFILE) і які запобіжники production явно вимкнено змінними оточення.
     security_profile: str = "demo"
@@ -77,10 +81,11 @@ def public_config():
         ),
         org_terms=ORG_TERMS[s.org_kind],
         policies=Policies(
-            four_eyes=s.four_eyes_enabled, admin_sets_passwords=s.admin_sets_passwords,
+            four_eyes=s.four_eyes_enabled, admin_sets_passwords=False,
             staff_token_only=s.staff_token_only, leader_child_details=s.leader_child_details,
-            separate_tech_admin=s.separate_tech_admin,
+            separate_tech_admin=True,
             checklist_confirmers=[c.strip() for c in s.checklist_confirmers.split(",") if c.strip()],
+            checklist_require_file=s.checklist_require_file,
             external_fetch=s.external_fetch_enabled,
             security_profile=s.security_profile,
             overridden=s.profile_overrides,

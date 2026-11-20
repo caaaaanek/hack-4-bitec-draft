@@ -1,7 +1,7 @@
 """Чек-лист з підтвердженням і прийом фактів."""
 
 from tests.conftest import auth
-from tests.helpers import API, ROOT, close, fill_checklist, open_campaign, post_fact, results, units
+from tests.helpers import API, ROOT, close, fill_checklist, open_campaign, post_fact, results, submit_item, units
 
 
 def first_items(client, campaign_id, count=2):
@@ -13,12 +13,19 @@ def first_items(client, campaign_id, count=2):
 
 def test_checklist_enter_and_confirm(client):
     campaign_id, _, _ = open_campaign(client, ("nazk-checklist",))
-    wg, commissioner = auth(client, "wg1"), auth(client, "commissioner")
+    wg, commissioner = auth(client, "wg1"), auth(client, "auditor")
     with_proof, without_proof = first_items(client, campaign_id)
     url = f"{API}/campaigns/{campaign_id}/checklist"
 
     r = client.put(f"{url}/{with_proof['question_id']}", json={"status": "full", "evidence": "Наказ №5"}, headers=wg)
     assert r.json()["score"] == 50.0 and r.json()["confirmed"] is False  # повністю без підтвердження = 50
+    assert r.json()["file_required"] is True
+
+    # Лише текстом «повністю» не підтверджується: потрібен документ.
+    r = client.post(f"{url}/{with_proof['question_id']}/confirm", headers=commissioner)
+    assert r.status_code == 422 and r.json()["code"] == "file_required"
+    r = submit_item(client, campaign_id, with_proof["question_id"], wg, evidence="Наказ №5")
+    assert r.status_code == 200 and r.json()["file_required"] is False and len(r.json()["files"]) == 1
 
     r = client.post(f"{url}/{with_proof['question_id']}/confirm", headers=commissioner)
     assert r.status_code == 200 and r.json()["score"] == 100.0 and r.json()["confirmed"] is True
@@ -41,7 +48,7 @@ def test_checklist_permissions(client):
     body = {"status": "partial", "evidence": "Звіт"}
 
     assert client.put(url, json=body, headers=auth(client, "staff01")).status_code == 403
-    assert client.put(url, json=body, headers=auth(client, "commissioner")).status_code == 403  # підтверджує, але не вносить
+    assert client.put(url, json=body, headers=auth(client, "auditor")).status_code == 403  # підтверджує, але не вносить
     assert client.put(url, json=body, headers=auth(client, "admin")).status_code == 403
     assert client.get(f"{API}/campaigns/{campaign_id}/checklist", headers=auth(client, "staff01")).status_code == 403
     assert client.put(url, json=body, headers=auth(client, "wg1")).status_code == 200
@@ -96,7 +103,7 @@ def test_indicator_auth(client):
     root = units(client, auth(client, "admin"))[ROOT]
     assert client.post(f"{API}/indicators", json=fact(root)).status_code == 401
     assert client.post(f"{API}/indicators", json=fact(root), headers={"X-Integration-Key": "wrong"}).status_code == 401
-    assert client.post(f"{API}/indicators", json=fact(root), headers=auth(client, "commissioner")).status_code == 403
+    assert client.post(f"{API}/indicators", json=fact(root), headers=auth(client, "auditor")).status_code == 403
     assert client.post(f"{API}/indicators", json=fact(root), headers=auth(client, "admin")).status_code == 201
     assert client.post(f"{API}/indicators", json=fact(root), headers=KEY).status_code == 201
 

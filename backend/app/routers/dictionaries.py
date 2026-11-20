@@ -23,8 +23,12 @@ from app.services import categories, fact_registry
 from app.services import methodology as m
 
 router = APIRouter(prefix="/dictionaries", tags=["dictionaries"])
-managers = require_roles(Role.ADMIN, Role.COORDINATOR)
-position_editors = require_roles(Role.ADMIN, Role.COORDINATOR, Role.COMMISSIONER)
+# Категорії респондентів і посади — довідники людей: веде технічний адміністратор. Категорію може додати й
+# Департамент: на неї спрямовуються анкети (target_category).
+managers = require_roles(Role.COORDINATOR, Role.DEPARTMENT)
+position_editors = require_roles(Role.COORDINATOR)
+# Факти (що приходить з інших систем і як впливає на індекс) — методика, а не люди: веде уповноважений.
+fact_editors = require_roles(Role.ADMIN)
 
 # Посади за замовчуванням (seed і порожній довідник).
 DEFAULT_POSITIONS = [
@@ -262,7 +266,7 @@ def check_fact(component: str | None, thresholds: list | None) -> None:
 
 
 @router.post("/facts", response_model=FactDefOut, status_code=status.HTTP_201_CREATED)
-def create_fact(data: FactIn, db: Session = Depends(get_db), user: User = Depends(managers)):
+def create_fact(data: FactIn, db: Session = Depends(get_db), user: User = Depends(fact_editors)):
     """Новий факт для правила реальності. Після цього інші системи можуть передавати його в POST /indicators."""
     check_fact(data.component, data.thresholds)
     if data.code in fact_registry.BUILTIN_FACTS or db.get(FactDefinition, data.code) is not None:
@@ -278,7 +282,7 @@ def create_fact(data: FactIn, db: Session = Depends(get_db), user: User = Depend
 
 
 @router.patch("/facts/{code}", response_model=FactDefOut)
-def update_fact(code: str, data: FactUpdate, db: Session = Depends(get_db), user: User = Depends(managers)):
+def update_fact(code: str, data: FactUpdate, db: Session = Depends(get_db), user: User = Depends(fact_editors)):
     """Змінюються лише факти довідника. Вбудовані змінює методика (нова версія)."""
     row = db.get(FactDefinition, code)
     if row is None:

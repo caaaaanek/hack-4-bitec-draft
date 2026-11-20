@@ -2,12 +2,16 @@
 import { LearnCard } from "./Learn.jsx";
 import { useEffect, useRef, useState } from "react";
 import { Ic } from "../lib/icons.jsx";
-import { S, SURVEY, SV, SQ, persist, addLog, me, logItems, fnv } from "../lib/state.js";
+import { S, SURVEY, SV, SQ, persist, addLog, me, logItems, fnv, saveDraft, clearDraft } from "../lib/state.js";
 import { API, apiSubmitSurvey } from "../lib/api.js";
 import { COMPS, COMP, FACTS, GROUPS, UNITS, UNIT_RESP, UNIT_CR, ALPHA, factValue, inst, level, indexOf, resolveUnit, CYCLE, TODAY_UA } from "../lib/model.js";
-import { fb, f1 } from "../lib/format.js";
+import { fb, f1, dsh } from "../lib/format.js";
+import { PrivacyNote } from "./Privacy.jsx";
+import { ReceiptBox } from "./Receipts.jsx";
+import { UrnDemo } from "./Urn.jsx";
 import { render, toast, openDrawer, closeDrawer } from "../lib/store.js";
 import { Pill, LvPill, Num, LevelBar, Ticks } from "../components/ui.jsx";
+import { FileDrop } from "../components/FileDrop.jsx";
 
 const enter = f => e => { if (e.key === "Enter") f(e); };
 
@@ -19,7 +23,7 @@ export function Manage() {
   // Значення k фіксується, коли повзунок відпущено (подія change), а під час руху лише оновлюється число
   useEffect(() => {
     const el = rng.current; if (!el) return;
-    const f = () => { S.k = +el.value; addLog(me(), `Мінімальна група k = ${S.k}`); persist(); render(true); toast(`Мінімальна група k = ${S.k}`); };
+    const f = () => { S.k = +el.value; addLog(me(), `Мінімальна група: ${S.k} осіб`); persist(); render(true); toast(`Мінімальна група: ${S.k} осіб`); };
     el.addEventListener("change", f); return () => el.removeEventListener("change", f);
   }, []);
   const rows = [["2026-11", "01.11 – 20.11.2026", S.k, `${tot} / ${used}`, S.cycleOpen ? ["Триває", "p-good"] : ["Завершено", "p-mute"]], ["2026-06", "02.06 – 20.06.2026", 10, "82 / 71", ["Завершено", "p-mute"]], ["2025-12", "01.12 – 19.12.2025", 10, "80 / 66", ["Завершено", "p-mute"]], ["2025-06", "02.06 – 20.06.2025", 10, "78 / 59", ["Завершено", "p-mute"]]];
@@ -32,7 +36,7 @@ export function Manage() {
     <section className="card c4 rise">
       <div className="card-h"><h2>Налаштування</h2></div>
       <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <div className="field"><label htmlFor="kin">Мінімальна група k</label><div style={{ display: "flex", gap: 10, alignItems: "center" }}><input type="range" min="5" max="20" id="kin" ref={rng} value={k} onChange={e => setK(+e.target.value)} style={{ flex: 1 }} /><b className="tnum" id="kv" style={{ minWidth: 24 }}>{k}</b></div><span className="lbl">Групи з меншою кількістю відповідей приховано, показано рівень вище.</span></div>
+        <div className="field"><label htmlFor="kin">Мінімальна група, осіб</label><div style={{ display: "flex", gap: 10, alignItems: "center" }}><input type="range" min="5" max="20" id="kin" ref={rng} value={k} onChange={e => setK(+e.target.value)} style={{ flex: 1 }} /><b className="tnum" id="kv" style={{ minWidth: 24 }}>{k}</b></div><span className="lbl">Групи з меншою кількістю відповідей приховано, показано рівень вище.</span></div>
         <div className="stat4" style={{ gridTemplateColumns: "1fr 1fr" }}><div><small>Жетонів видано</small><b className="tnum"><Num v={tot} d={0} /></b></div><div><small>Використано</small><b className="tnum"><Num v={used} d={0} /></b></div></div>
         <div id="closeZone">{S.cycleOpen
           ? ask ? <><div className="lbl" style={{ marginBottom: 8 }}>Після завершення відповіді більше не прийматимуться, а жетони, що лишились, стануть недійсними.</div><div style={{ display: "flex", gap: 8 }}><button className="btn btn-ghost" style={{ flex: 1, justifyContent: "center" }} onClick={() => setAsk(false)}>Скасувати</button><button className="btn btn-danger" style={{ flex: 1, justifyContent: "center" }} onClick={() => { S.cycleOpen = false; addLog(me(), `Цикл ${CYCLE} завершено`); persist(); setAsk(false); render(true); }}>Завершити</button></div></>
@@ -42,10 +46,11 @@ export function Manage() {
     </section>
     <section className="card c12 rise">
       <div className="card-h"><h2>Цикли оцінювання</h2></div>
-      <div className="tbl-wrap"><table><thead><tr><th>Цикл</th><th>Період</th><th>Мінімальна група k</th><th>Жетонів видано / використано</th><th>Статус</th></tr></thead><tbody>
+      <div className="tbl-wrap"><table><thead><tr><th>Цикл</th><th>Період</th><th>Мінімальна група</th><th>Жетонів видано / використано</th><th>Статус</th></tr></thead><tbody>
         {rows.map(([c, p, kk, t, st]) => <tr key={c}><td><b>{c}</b></td><td>{p}</td><td className="tnum">{kk}</td><td className="tnum">{t}</td><td><Pill cls={st[1]}>{st[0]}</Pill></td></tr>)}
       </tbody></table></div>
     </section>
+    <UrnDemo />
   </>;
 }
 
@@ -87,40 +92,49 @@ export function Checklist() {
           const conf = S.facts[f.id], p = S.fpend[f.id], val = conf ? conf.val : f.base, meta = conf ? [conf.at, conf.by] : (f.id === "sy-f1" ? ["12.11.2026", "Уповноважений"] : ["10.11.2026", "Вносить дані чек-листа"]);
           return <tr key={f.id}><td style={{ minWidth: 240 }}><b style={{ fontWeight: 600 }}>{f.t}</b></td><td><Pill cls="p-mute nodot">{COMP[f.c].n}</Pill></td>
             <td className="tnum" style={{ whiteSpace: "nowrap" }}>{valText(f, val)}<div className="lbl">{fb(factValue(f, val))} зі 100</div></td>
-            <td className="lbl" style={{ minWidth: 160 }}>{(conf && conf.src) || f.from}<br />{meta[0]} · {meta[1]}</td>
+            <td className="lbl" style={{ minWidth: 160 }}>{(conf && conf.src) || f.from}<br />{meta[0]} · {meta[1]}<Docs list={(p && p.files) || (conf && conf.files)} warn={!!p} /></td>
             <td style={{ minWidth: 170 }}>{p ? (p.ret ? <><Pill cls="p-bad">Повернуто</Pill><div className="lbl" style={{ marginTop: 4 }}>{p.ret}</div></> : <><Pill cls="p-warn">Очікує підтвердження</Pill><div className="lbl tnum" style={{ marginTop: 4 }}>Нове: {valText(f, p.val)} ({fb(factValue(f, p.val))})</div></>) : <Pill cls="p-good">Підтверджено</Pill>}</td>
             <td style={{ whiteSpace: "nowrap" }}>{ed ? <button className="btn btn-soft" style={{ padding: "6px 12px" }} onClick={() => editFact(f.id)}><Ic n="edit" />Внести</button> : p && !p.ret ? <><button className="btn btn-primary" style={{ padding: "6px 12px" }} onClick={() => approveFact(f.id)}><Ic n="ok" />Підтвердити</button> <button className="btn btn-ghost" style={{ padding: "6px 12px" }} onClick={() => returnFact(f.id)}>Повернути</button></> : null}</td></tr>;
         })}
       </tbody></table></div>
     </section>
-    <section className="card c12 rise"><div className="lock"><Ic n="shield" /><div><b>До індексу потрапляють лише підтверджені значення.</b><div className="lbl">Поточний індекс закладу {f1(m.index)}. Після підтвердження система одразу перераховує компонент, обмежувач і прапорці. Кожна дія записується в журнал.</div></div></div></section>
+    <section className="card c12 rise"><div className="lock"><Ic n="shield" /><div><b>До індексу потрапляють лише підтверджені значення.</b><div className="lbl">Поточний індекс закладу {f1(m.index)}. Після підтвердження система одразу перераховує компонент, правило «факти + 25» і прапорці. Кожна дія записується в журнал.</div></div></div></section>
   </>;
 }
 function editFact(id) {
   const f = FACTS.find(x => x.id === id), p = S.fpend[id], conf = S.facts[id], val = p ? p.val : conf ? conf.val : f.base;
   openDrawer("Внести дані чек-листа", () => {
     const [lvl, setLvl] = useState(f.kind === "pct" ? null : val), [num, setNum] = useState(f.kind === "pct" ? val[0] : 0), [den, setDen] = useState(f.kind === "pct" ? val[1] : 1);
-    const [src, setSrc] = useState((conf && conf.src) || f.from), [err, setErr] = useState("");
-    const ok = () => {
+    const [src, setSrc] = useState((conf && conf.src) || f.from), [err, setErr] = useState(""), [files, setFiles] = useState((p && p.files) || []);
+    const ok = async () => {
       let v = lvl;
       if (f.kind === "pct") { const n = +num, d = +den; if (!(d > 0) || n < 0 || n > d || !Number.isInteger(n) || !Number.isInteger(d)) return setErr("Кількість має бути цілим числом від 0 до загальної кількості."); v = [n, d]; }
-      S.fpend[id] = { val: v, src: src.trim() || f.from, at: TODAY_UA, by: me() };
-      addLog(me(), `Чек-лист: внесено «${f.t}» = ${valText(f, v)}`); persist(); closeDrawer(); render(true); toast("Надіслано на підтвердження");
+      const docs = await Promise.all(files.map(demoDoc));
+      S.fpend[id] = { val: v, src: src.trim() || f.from, at: TODAY_UA, by: me(), files: docs };
+      addLog(me(), `Чек-лист: внесено «${f.t}» = ${valText(f, v)}${docs.length ? `, документів: ${docs.length}` : ""}`); persist(); closeDrawer(); render(true); toast("Надіслано на підтвердження");
     };
     return <>
       <div><div className="lbl">{COMP[f.c].n}</div><div style={{ fontWeight: 600, marginTop: 4 }}>{f.t}</div></div>
       {f.kind === "pct"
         ? <div style={{ display: "flex", gap: 10 }}><div className="field" style={{ flex: 1 }}><label htmlFor="f-num">Кількість</label><input className="inp tnum" type="number" min="0" id="f-num" value={num} onChange={e => setNum(e.target.value)} /></div><div className="field" style={{ flex: 1 }}><label htmlFor="f-den">З них усього</label><input className="inp tnum" type="number" min="1" id="f-den" value={den} onChange={e => setDen(e.target.value)} /></div></div>
         : <div className="field"><label>Рівень за анкетою чек-листа</label><div className="seg" id="f-lvl">{[1, 2, 3, 4, 5].map(l => <button key={l} type="button" className={l === lvl ? "on" : ""} onClick={() => setLvl(l)}>{l}</button>)}</div><span className="lbl">Рівень переводиться у шкалу 0-100: рівень 1 це 0, рівень 5 це 100.</span></div>}
+      <div className="field"><label>Документи-підтвердження</label><FileDrop files={files} onChange={setFiles} maxBytes={DEMO_MAX} maxFiles={10} hint="Наказ, протокол, скан, фото; у демо до 1 МБ." /></div>
       <div className="field"><label htmlFor="f-src">Джерело (документ, реєстр)</label><input className="inp" id="f-src" value={src} onChange={e => setSrc(e.target.value)} /></div>
-      <span className="lbl" id="f-err" style={err ? { color: "var(--red)" } : undefined}>{err}</span>
+      <span className="lbl" id="f-err" style={err ? { color: "color-mix(in srgb, var(--red) 60%, var(--fg))" } : undefined}>{err}</span>
       <button className="btn btn-primary" id="f-ok" style={{ justifyContent: "center" }} onClick={ok}><Ic n="send" />Надіслати на підтвердження</button>
     </>;
   });
 }
+/* Документи в демо: зберігаються в браузері (localStorage), тому лише невеликі, до 1 МБ */
+const DEMO_MAX = 1048576;
+const demoDoc = f => !(f instanceof Blob) ? Promise.resolve(f) : new Promise(res => { const r = new FileReader(); r.onload = () => res({ name: f.name, size: f.size, data: r.result }); r.onerror = () => res({ name: f.name, size: f.size }); r.readAsDataURL(f); });
+function Docs({ list, warn }) {
+  if (!list || !list.length) return <div className={`ck-nodoc ${warn ? "warn" : ""}`}>Документа немає</div>;
+  return <div className="ck-docs">{list.map((d, i) => <a key={i} className="link" href={d.data || "#"} download={d.name} onClick={d.data ? undefined : e => e.preventDefault()}><Ic n="file" size={14} />{d.name}</a>)}</div>;
+}
 function approveFact(id) {
   const f = FACTS.find(x => x.id === id), p = S.fpend[id], before = inst(ALPHA).index;
-  S.facts[id] = { val: p.val, src: p.src, at: TODAY_UA, by: p.by }; delete S.fpend[id];
+  S.facts[id] = { val: p.val, src: p.src, at: TODAY_UA, by: p.by, files: p.files }; delete S.fpend[id];
   const after = inst(ALPHA).index;
   addLog(me(), `Чек-лист: підтверджено «${f.t}» = ${valText(f, p.val)}${after !== before ? `; індекс ${f1(before)} → ${f1(after)}` : ""}`); persist(); render(true);
   toast(after !== before ? `Підтверджено. Індекс перераховано: ${f1(before)} → ${f1(after)}` : "Підтверджено. Індекс не змінився.");
@@ -166,13 +180,18 @@ function openLog(n, n2) {
 
 /* Опитування за жетоном */
 const answered = () => SQ().filter(q => S.survey.a[q.id] != null).length;
-function pick(id, i) { S.survey.a[id] = i; try { localStorage.setItem("ii-survey-draft", JSON.stringify(S.survey.a)); } catch (e) { /* немає */ } render(true); }
+function pick(id, i) { S.survey.a[id] = i; saveDraft(S.survey.a); render(true); }
 function submitSurvey() {
   if (answered() < SQ().length) { S.survey.miss = true; render(true); return; }
   if (API.on) return apiSubmitSurvey();
   S.survey = { phase: "done", sec: 0, a: {}, miss: false }; S.tokenUsed = true; UNIT_RESP[S.unit] = (UNIT_RESP[S.unit] || 0) + 1;
-  try { localStorage.removeItem("ii-survey-draft"); } catch (e) { /* немає */ }
+  clearDraft();
   addLog("Система", "Отримано анонімну відповідь, жетон погашено"); persist(); render();
+}
+// Підказка до питання: рядки «• …» показуємо списком (твердження непрямого питання), решту абзацом
+function QHelp({ t }) {
+  const lines = String(t).split("\n").map(x => x.trim()).filter(Boolean), items = lines.filter(x => x.startsWith("•")), rest = lines.filter(x => !x.startsWith("•"));
+  return <div className="q-help">{rest.map((x, i) => <p key={i} className="lbl">{dsh(x)}</p>)}{items.length > 0 && <ul>{items.map((x, i) => <li key={i}>{dsh(x.replace(/^•\s*/, ""))}</li>)}</ul>}</div>;
 }
 export function Survey() {
   const sv = S.survey, N = SQ().length;
@@ -191,11 +210,13 @@ export function Survey() {
       <div><Ic n="eye" /><b>Лише кількість</b><span className="lbl">Адміністратор бачить лише кількість відповідей, а не те, що ви відповіли.</span></div>
       <div><Ic n="users" /><b>Від {S.k} осіб</b><span className="lbl">Результати показують лише для груп не менше {S.k} осіб.</span></div>
     </div>
+    <PrivacyNote />
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 24, flexWrap: "wrap", gap: 12 }}><span className="lbl">{answered() ? `Збережені раніше відповіді на цьому пристрої буде підставлено (${answered()} з ${N}).` : "Відповіді зберігаються на цьому пристрої, поки ви заповнюєте."}</span><button className="btn btn-primary" onClick={() => { S.survey.phase = "form"; render(); }}>Розумію, почати <Ic n="arrowR" /></button></div>
   </section></div>;
   if (sv.phase === "done") return <div className="survey c12"><section className="card rise" style={{ padding: 36, textAlign: "center" }}><div className="done-ic"><Ic n="ok" /></div>
     <h2 style={{ margin: "18px 0 6px", fontSize: 24, fontWeight: 600 }}>Дякуємо. Ваші відповіді збережено анонімно.</h2>
     <p className="lbl" style={{ maxWidth: 520, margin: "0 auto 20px" }}>Що далі: коли відповість достатньо людей (не менше {S.k}), {API.anon ? "узагальнені результати підрозділу стануть доступні керівництву й учасникам" : "ви зможете побачити узагальнені результати свого підрозділу"}. Окремих відповідей і імен там не буде.</p>
+    {sv.receipt && <ReceiptBox r={sv.receipt} />}
     {!API.anon && <a className="btn btn-primary" href="#me">Переглянути результати підрозділу <Ic n="arrowR" /></a>}</section></div>;
   const sec = SV().sections[sv.sec], SC = COMP[sec.id] || { s: "var(--soft)", c: "var(--muted)", ic: "survey" }, last = sv.sec === SV().sections.length - 1, miss = SQ().filter(q => sv.a[q.id] == null);
   const goMiss = q => { S.survey.sec = q.si; S.survey.miss = false; render(true); setTimeout(() => { const el = document.getElementById("q-" + q.id); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }); }, 60); };
@@ -203,7 +224,7 @@ export function Survey() {
     <div className="sv-top"><span className="lbl">Розділ {sv.sec + 1} з {SV().sections.length}</span><div className="qprog" style={{ flex: 1 }}>{SQ().map(q => <span key={q.id} className={`${q.si === sv.sec ? "cur" : ""} ${sv.a[q.id] != null ? "done" : ""}`} />)}</div><span className="lbl tnum">Відповіли на {answered()} з {N}</span><button className="icon-btn" aria-label="Закрити" onClick={() => { S.survey.phase = "intro"; render(); toast("Відповіді лишаються на цьому пристрої. Їх ще не надіслано."); }}><Ic n="x" /></button></div>
     <div className="qcard" key={sv.sec}>
       <div className="sv-sec-h"><span className="comp-ic" style={{ background: SC.s, color: SC.c }}><Ic n={SC.ic} /></span><div><b>{sec.t}</b><div className="lbl">{sec.about}</div></div></div>
-      {sec.q.map(([id, t, o], qi) => <fieldset key={id} className="card qf" id={`q-${id}`}><legend>{qi + 1}. {t}</legend><div className="opts">{o.map((x, i) => <button key={i} type="button" className={`opt ${sv.a[id] === i ? "on" : ""}`} aria-pressed={sv.a[id] === i} onClick={() => pick(id, i)}><span className="rb" /><span>{x}</span></button>)}</div></fieldset>)}
+      {sec.q.map(([id, t, o, help], qi) => <fieldset key={id} className="card qf" id={`q-${id}`}><legend>{qi + 1}. {t}</legend>{help ? <QHelp t={help} /> : null}<div className="opts">{o.map((x, i) => <button key={i} type="button" className={`opt ${sv.a[id] === i ? "on" : ""}`} aria-pressed={sv.a[id] === i} onClick={() => pick(id, i)}><span className="rb" /><span>{x}</span></button>)}</div></fieldset>)}
       {sv.miss && last && miss.length > 0 && <div className="note-box" style={{ marginTop: 12 }}><b>Залишилось відповісти на {miss.length} {miss.length === 1 ? "питання" : miss.length < 5 ? "питання" : "питань"}</b><span className="lbl">Натисніть на питання, щоб перейти до нього.</span>{miss.map(q => <a key={q.id} className="link" href="#survey" onClick={e => { e.preventDefault(); goMiss(q); }}>Розділ «{SV().sections[q.si].t}», питання {q.qi + 1}</a>)}</div>}
       <div style={{ display: "flex", justifyContent: "space-between", marginTop: 20, gap: 10 }}>
         <button className="btn btn-ghost" disabled={sv.sec === 0} onClick={() => { S.survey.sec--; S.survey.miss = false; render(); window.scrollTo(0, 0); }}><Ic n="arrowL" />Назад</button>

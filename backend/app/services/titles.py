@@ -9,9 +9,8 @@ CHECKLIST_STATUS_SHORT = {"full": "повністю", "partial": "частков
 MEASURE_STATUS_TITLES = {"planned": "заплановано", "in_progress": "в роботі", "done": "виконано",
                          "cancelled": "скасовано"}
 DECISION_TITLES = {"accepted": "прийнято", "rejected": "відхилено", "clarify": "потрібне уточнення"}
-ROLE_TITLES = {"admin": "адміністратор", "commissioner": "укладач анкет", "respondent": "респондент",
-               "leader": "керівник", "auditor": "аудитор", "coordinator": "координатор",
-               "department": "Департамент МОУ"}
+ROLE_TITLES = {"admin": "уповноважений", "respondent": "респондент", "leader": "керівник",
+               "auditor": "внутрішній аудит", "coordinator": "технічний адміністратор", "department": "Департамент"}
 
 
 def code_of(value) -> str | None:
