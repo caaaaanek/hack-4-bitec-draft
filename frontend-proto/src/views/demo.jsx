@@ -11,6 +11,7 @@ import { ReceiptBox } from "./Receipts.jsx";
 import { UrnDemo } from "./Urn.jsx";
 import { render, toast, openDrawer, closeDrawer } from "../lib/store.js";
 import { Pill, LvPill, Num, LevelBar, Ticks } from "../components/ui.jsx";
+import { FileDrop } from "../components/FileDrop.jsx";
 
 const enter = f => e => { if (e.key === "Enter") f(e); };
 
@@ -91,7 +92,7 @@ export function Checklist() {
           const conf = S.facts[f.id], p = S.fpend[f.id], val = conf ? conf.val : f.base, meta = conf ? [conf.at, conf.by] : (f.id === "sy-f1" ? ["12.11.2026", "Уповноважений"] : ["10.11.2026", "Вносить дані чек-листа"]);
           return <tr key={f.id}><td style={{ minWidth: 240 }}><b style={{ fontWeight: 600 }}>{f.t}</b></td><td><Pill cls="p-mute nodot">{COMP[f.c].n}</Pill></td>
             <td className="tnum" style={{ whiteSpace: "nowrap" }}>{valText(f, val)}<div className="lbl">{fb(factValue(f, val))} зі 100</div></td>
-            <td className="lbl" style={{ minWidth: 160 }}>{(conf && conf.src) || f.from}<br />{meta[0]} · {meta[1]}</td>
+            <td className="lbl" style={{ minWidth: 160 }}>{(conf && conf.src) || f.from}<br />{meta[0]} · {meta[1]}<Docs list={(p && p.files) || (conf && conf.files)} warn={!!p} /></td>
             <td style={{ minWidth: 170 }}>{p ? (p.ret ? <><Pill cls="p-bad">Повернуто</Pill><div className="lbl" style={{ marginTop: 4 }}>{p.ret}</div></> : <><Pill cls="p-warn">Очікує підтвердження</Pill><div className="lbl tnum" style={{ marginTop: 4 }}>Нове: {valText(f, p.val)} ({fb(factValue(f, p.val))})</div></>) : <Pill cls="p-good">Підтверджено</Pill>}</td>
             <td style={{ whiteSpace: "nowrap" }}>{ed ? <button className="btn btn-soft" style={{ padding: "6px 12px" }} onClick={() => editFact(f.id)}><Ic n="edit" />Внести</button> : p && !p.ret ? <><button className="btn btn-primary" style={{ padding: "6px 12px" }} onClick={() => approveFact(f.id)}><Ic n="ok" />Підтвердити</button> <button className="btn btn-ghost" style={{ padding: "6px 12px" }} onClick={() => returnFact(f.id)}>Повернути</button></> : null}</td></tr>;
         })}
@@ -104,27 +105,36 @@ function editFact(id) {
   const f = FACTS.find(x => x.id === id), p = S.fpend[id], conf = S.facts[id], val = p ? p.val : conf ? conf.val : f.base;
   openDrawer("Внести дані чек-листа", () => {
     const [lvl, setLvl] = useState(f.kind === "pct" ? null : val), [num, setNum] = useState(f.kind === "pct" ? val[0] : 0), [den, setDen] = useState(f.kind === "pct" ? val[1] : 1);
-    const [src, setSrc] = useState((conf && conf.src) || f.from), [err, setErr] = useState("");
-    const ok = () => {
+    const [src, setSrc] = useState((conf && conf.src) || f.from), [err, setErr] = useState(""), [files, setFiles] = useState((p && p.files) || []);
+    const ok = async () => {
       let v = lvl;
       if (f.kind === "pct") { const n = +num, d = +den; if (!(d > 0) || n < 0 || n > d || !Number.isInteger(n) || !Number.isInteger(d)) return setErr("Кількість має бути цілим числом від 0 до загальної кількості."); v = [n, d]; }
-      S.fpend[id] = { val: v, src: src.trim() || f.from, at: TODAY_UA, by: me() };
-      addLog(me(), `Чек-лист: внесено «${f.t}» = ${valText(f, v)}`); persist(); closeDrawer(); render(true); toast("Надіслано на підтвердження");
+      const docs = await Promise.all(files.map(demoDoc));
+      S.fpend[id] = { val: v, src: src.trim() || f.from, at: TODAY_UA, by: me(), files: docs };
+      addLog(me(), `Чек-лист: внесено «${f.t}» = ${valText(f, v)}${docs.length ? `, документів: ${docs.length}` : ""}`); persist(); closeDrawer(); render(true); toast("Надіслано на підтвердження");
     };
     return <>
       <div><div className="lbl">{COMP[f.c].n}</div><div style={{ fontWeight: 600, marginTop: 4 }}>{f.t}</div></div>
       {f.kind === "pct"
         ? <div style={{ display: "flex", gap: 10 }}><div className="field" style={{ flex: 1 }}><label htmlFor="f-num">Кількість</label><input className="inp tnum" type="number" min="0" id="f-num" value={num} onChange={e => setNum(e.target.value)} /></div><div className="field" style={{ flex: 1 }}><label htmlFor="f-den">З них усього</label><input className="inp tnum" type="number" min="1" id="f-den" value={den} onChange={e => setDen(e.target.value)} /></div></div>
         : <div className="field"><label>Рівень за анкетою чек-листа</label><div className="seg" id="f-lvl">{[1, 2, 3, 4, 5].map(l => <button key={l} type="button" className={l === lvl ? "on" : ""} onClick={() => setLvl(l)}>{l}</button>)}</div><span className="lbl">Рівень переводиться у шкалу 0-100: рівень 1 це 0, рівень 5 це 100.</span></div>}
+      <div className="field"><label>Документи-підтвердження</label><FileDrop files={files} onChange={setFiles} maxBytes={DEMO_MAX} maxFiles={10} hint="Наказ, протокол, скан, фото; у демо до 1 МБ." /></div>
       <div className="field"><label htmlFor="f-src">Джерело (документ, реєстр)</label><input className="inp" id="f-src" value={src} onChange={e => setSrc(e.target.value)} /></div>
       <span className="lbl" id="f-err" style={err ? { color: "color-mix(in srgb, var(--red) 60%, var(--fg))" } : undefined}>{err}</span>
       <button className="btn btn-primary" id="f-ok" style={{ justifyContent: "center" }} onClick={ok}><Ic n="send" />Надіслати на підтвердження</button>
     </>;
   });
 }
+/* Документи в демо: зберігаються в браузері (localStorage), тому лише невеликі, до 1 МБ */
+const DEMO_MAX = 1048576;
+const demoDoc = f => !(f instanceof Blob) ? Promise.resolve(f) : new Promise(res => { const r = new FileReader(); r.onload = () => res({ name: f.name, size: f.size, data: r.result }); r.onerror = () => res({ name: f.name, size: f.size }); r.readAsDataURL(f); });
+function Docs({ list, warn }) {
+  if (!list || !list.length) return <div className={`ck-nodoc ${warn ? "warn" : ""}`}>Документа немає</div>;
+  return <div className="ck-docs">{list.map((d, i) => <a key={i} className="link" href={d.data || "#"} download={d.name} onClick={d.data ? undefined : e => e.preventDefault()}><Ic n="file" size={14} />{d.name}</a>)}</div>;
+}
 function approveFact(id) {
   const f = FACTS.find(x => x.id === id), p = S.fpend[id], before = inst(ALPHA).index;
-  S.facts[id] = { val: p.val, src: p.src, at: TODAY_UA, by: p.by }; delete S.fpend[id];
+  S.facts[id] = { val: p.val, src: p.src, at: TODAY_UA, by: p.by, files: p.files }; delete S.fpend[id];
   const after = inst(ALPHA).index;
   addLog(me(), `Чек-лист: підтверджено «${f.t}» = ${valText(f, p.val)}${after !== before ? `; індекс ${f1(before)} → ${f1(after)}` : ""}`); persist(); render(true);
   toast(after !== before ? `Підтверджено. Індекс перераховано: ${f1(before)} → ${f1(after)}` : "Підтверджено. Індекс не змінився.");

@@ -126,7 +126,17 @@ function SearchPop({ q, hits, sel, pick }) {
 }
 
 /* ---------- Вхід (режим API) ---------- */
-const DEMO_USERS = [["leader", "Керівник: огляд, рекомендації, заходи"], ["leader_a", "Керівник підрозділу А: лише свій підрозділ"], ["admin", "Уповноважений: хвилі, посилання, журнал"], ["commissioner", "Укладач: анкети, підтвердження чек-листа"], ["auditor", "Аудитор: перегляд і журнал"], ["wg1", "Робоча група: анкета й чек-лист"], ["staff01", "Особовий склад: анкета й результати"], ["expert1", "Експерт: анкета"], ["coordinator", "Координатор: сигнали, автопілот, навчання"]];
+// Демо-облікові записи за моделлю з 7 ролей. Логіни ті, що створює backend/app/seed/seed.py;
+// поки ролі на сервері не перейменовано, «Департамент» розкладено на два входи: зведення (department) і анкети (commissioner).
+const DEMO_ROLES = [
+  ["Респондент", "Проходить анкету: особовий склад або зовнішній експерт", ["staff01", "expert1"]],
+  ["Член робочої групи", "Анкета 1 і внесення даних чек-листа, без підтвердження", ["wg1"]],
+  ["Уповноважений", "Хвилі, поріг k, QR-коди, автопілот", ["admin"]],
+  ["Керівник", "Результати, рекомендації, заходи, звіт", ["leader", "leader_a"]],
+  ["Внутрішній аудит", "Перегляд результатів, підтвердження чек-листа, журнал", ["auditor"]],
+  ["Департамент", "Анкети та їхні версії, зведення по закладах", ["department", "commissioner"]],
+  ["Технічний адміністратор", "Користувачі, підрозділи, ролі, без результатів", ["coordinator"]],
+];
 function Login() {
   const [u, setU] = useState(""), [p, setP] = useState(""), [err, setErr] = useState(""), [busy, setBusy] = useState(false), lu = useRef(null), lp = useRef(null), a = API.cfg.auth;
   useEffect(() => { const t = setTimeout(() => lu.current && lu.current.focus(), 50); return () => clearTimeout(t); }, []);
@@ -148,7 +158,8 @@ function Login() {
     {a.password && <section className="card rise login-card">
       <h2 style={{ margin: "0 0 4px", fontSize: 16 }}>Демо-облікові записи</h2>
       <div className="lbl" style={{ marginBottom: 10 }}>Пароль у всіх однаковий: DEMO_PASSWORD з файлу .env. Дані синтетичні.</div>
-      <div className="rows">{DEMO_USERS.map(([l, t]) => <a key={l} className="row click" href="#" onClick={e => { e.preventDefault(); setU(l); lp.current && lp.current.focus(); }}><b className="tnum" style={{ minWidth: 110, color: "var(--teal-deep)" }}>{l}</b><div className="grow lbl">{t}</div></a>)}</div>
+      <div className="rows">{DEMO_ROLES.map(([r, t, ls]) => <div key={r} className="row demo-role"><div className="grow"><b>{r}</b><div className="lbl">{t}</div></div>
+        <div className="demo-logins">{ls.map(l => <a key={l} href="#" data-tip="Підставити логін" onClick={e => { e.preventDefault(); setU(l); lp.current && lp.current.focus(); }}>{l}</a>)}</div></div>)}</div>
     </section>}
   </div>;
 }
@@ -230,13 +241,12 @@ export default function App() {
             onClick={e => { if ("#" + nr === location.hash.split("/")[0]) { e.preventDefault(); ui.side = false; render(); } }}><Ic n={ic} /><span>{n}</span><Badge r={nr} /></a>);
           return g ? <div key={g} className="nav-grp" role="group" aria-labelledby={`ng-${g}`}><div className="nav-g" id={`ng-${g}`}>{NAV_GROUP_T[g]}</div>{links}</div> : links;
         })}{!login && simple && <button type="button" className="link-btn nav-all" onClick={() => setSimpleMode(false)}>Простий режим: показати все меню</button>}</nav>
-        <div className="side-foot"><div className="role-card">{API.down ? null : API.on ? (u ? <>
-          <small>Ви увійшли як</small><b style={{ fontSize: 14 }}>{dn(u.display_name)}</b><small>{ROLE[S.role][0]} · {u.login}</small>
-          <button className="btn btn-ghost" id="logoutBtn" type="button" onClick={logout}><Ic n="arrowL" />Вийти</button></> : null) : <>
+        {/* Хто увійшов і «Вийти» з бекендом показує лише меню аватара вгорі; тут лишився вибір ролі для демо */}
+        {!API.down && !API.on && <div className="side-foot"><div className="role-card"><>
           <small>Демо: роль</small>
           <select id="role" aria-label="Роль для демо" value={S.role} onChange={e => { S.role = e.target.value; addLog(ROLE[S.role][0], "Вхід у систему"); persist(); ui.ai = false; ui.drawer = null; location.hash = HOME[S.role]; render(); toast("Роль: " + ROLE[S.role][0]); }}>{Object.entries(ROLE).map(([k, [n]]) => <option key={k} value={k}>{n}</option>)}</select>
           <button className="btn btn-ghost" id="resetBtn" type="button" onClick={resetDemo}><Ic n="reset" />Скинути демо-дані</button>
-          <small>Усі дані синтетичні. Зміна ролі веде на її головний екран.</small></>}</div></div>
+          <small>Усі дані синтетичні. Зміна ролі веде на її головний екран.</small></></div></div>}
       </aside>
       <div className="main">
         <header className="top">
@@ -264,7 +274,7 @@ export default function App() {
       {pk === "a11y" && <A11yPop />}
       {pk === "notes" && ns && <NotesPop ns={ns} />}
       {pk === "search" && <SearchPop q={q} hits={hits} sel={sel} pick={pick} />}
-      {pk === "profile" && <><div style={{ fontWeight: 600 }}>{u ? dn(u.display_name) : ROLE[S.role][0]}</div><div className="lbl" style={{ margin: "2px 0 12px" }}>{ROLE[S.role][0]}{u ? ` · ${u.login}` : ""}</div>{u ? <button className="btn btn-ghost" style={{ width: "100%", justifyContent: "center" }} onClick={() => { closePop(); logout(); }}><Ic n="arrowL" />Вийти</button> : <div className="lbl">Демо-режим: вихід не потрібен.</div>}</>}
+      {pk === "profile" && <>{u && <div className="lbl" style={{ fontSize: 12 }}>Ви увійшли як</div>}<div style={{ fontWeight: 600 }}>{u ? dn(u.display_name) : ROLE[S.role][0]}</div><div className="lbl" style={{ margin: "2px 0 12px" }}>{ROLE[S.role][0]}{u ? ` · ${u.login}` : ""}</div>{u ? <button className="btn btn-ghost" style={{ width: "100%", justifyContent: "center" }} onClick={() => { closePop(); logout(); }}><Ic n="arrowL" />Вийти</button> : <div className="lbl">Демо-режим: вихід не потрібен.</div>}</>}
     </Pop>
     <ExportDialog />
     <Builder />

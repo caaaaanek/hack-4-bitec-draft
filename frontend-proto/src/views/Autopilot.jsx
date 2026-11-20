@@ -64,6 +64,9 @@ export function AutopilotSection({ id }) {
       <span><span className="lbl">Закриття</span> {closeT}</span>
       <span><span className="lbl">Нагадування</span> {a.remind_every_days ? `кожні ${a.remind_every_days} дн.` : "немає"}{a.last_reminder_on ? `, останнє ${ua(a.last_reminder_on)}` : ""}</span>
     </div>
+    {a.status === "draft" && a.enabled && a.planned_open_on && <div className="note-box" style={{ marginTop: 12 }}>{a.planned_open_on <= TODAY
+      ? <><b>Чому досі чернетка</b><span className="lbl">Дата відкриття настала, але хвилю відкриває не календар, а крок автопілота. Сервер робить його сам кожні кілька хвилин, тож хвиля скоро стане «Триває».{admin ? " Щоб відкрити одразу, натисніть «Виконати крок зараз»." : ""}</span></>
+      : <><b>Коли відкриється</b><span className="lbl">До {ua(a.planned_open_on)} хвиля лишається чернеткою. Цього дня після 00:00 її відкриє найближчий крок автопілота, зазвичай за кілька хвилин.</span></>}</div>}
     <div className="rows">{a.plan.map((t, i) => <div key={i} className="row"><span className="dot" style={{ background: "var(--teal)" }} /><div className="grow txt">{dsh(t)}</div></div>)}</div>
     <div className="ap-acts">
       {admin && <button type="button" className="btn btn-soft" onClick={tick}><Ic n="bolt" />Виконати крок зараз</button>}

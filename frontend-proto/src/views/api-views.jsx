@@ -1,6 +1,7 @@
 /* Екрани з даними сервера (null — показати звичайний екран). */
 import { useState, useEffect, useCallback } from "react";
 import { Ic } from "../lib/icons.jsx";
+import { FileDrop } from "../components/FileDrop.jsx";
 import { S } from "../lib/state.js";
 import { API, api, staffTokenOnly, apiEnsure, apiRetry, apiRetryResults, apiLoadForm, apiFail, apiErrText, RESULT_VIEWS, dn, apiLoadAdm, apiAdmReload, apiCreateCampaign, apiCampaignAct, apiQrCreate, apiQrRevoke, apiQrTick,
   QST, QCAT, apiQAct, orgCap, bldOpen, CKS, apiLoadCk, apiCkReload, apiSaveItem, apiConfirm, apiDelFile, apiDownload, AUDIT_ENT, AUDIT_ACT, apiLoadLog, auditDetails, apiVerify } from "../lib/api.js";
@@ -223,11 +224,12 @@ function ApiSurveys() {
     {list.map(q => <section key={q.id} className="card c6 rise">
       <div className="comp-top"><span className="comp-ic" style={{ background: "var(--lime-soft)", color: "var(--teal-deep)" }}><Ic n={q.kind === "checklist" ? "check" : "survey"} /></span><b>{q.title}</b><div className="sp" style={{ flex: 1 }} /><Pill cls={QST[q.status][1]}>{QST[q.status][0]}</Pill></div>
       <div className="stat4 tnum" style={{ gridTemplateColumns: "repeat(3,1fr)", marginTop: 14 }}><div><small>Група</small><b style={{ fontSize: 14 }}>{q.kind === "checklist" ? "Чек-лист" : QCAT[q.target_category]}</b></div><div><small>Версія</small><b>{q.version}</b></div><div><small>Код</small><b style={{ fontSize: 12 }}>{q.code}</b></div></div>
-      <div className="lbl" style={{ marginTop: 10 }}>Оновлено {ua(q.updated_at.slice(0, 10))}</div><div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap", alignItems: "center", justifyContent: "flex-end" }}>
+      {/* wrap-reverse: якщо кнопки не вміщаються, дата лишається внизу ліворуч, а кнопки піднімаються рядком вище */}
+      <div className="q-foot"><span className="lbl">Оновлено {ua(q.updated_at.slice(0, 10))}</span><div className="q-acts">
         <button className="btn btn-soft" onClick={() => apiOpenQ(q.id)}><Ic n="eye" />Переглянути</button>
         {q.status === "draft" ? <><button className="btn btn-soft" onClick={() => bldOpen(q.id)}><Ic n="edit" />Редагувати</button><button className="btn btn-primary" disabled={!!API.qBusy} onClick={() => apiQAct(q.id, "publish")}><Ic n="ok" />Опублікувати</button></>
           : q.status === "published" ? <><button className="btn btn-ghost" disabled={!!API.qBusy} onClick={() => apiQAct(q.id, "new-version")}><Ic n="plus" />Нова версія</button><button className="btn btn-ghost" disabled={!!API.qBusy} onClick={() => apiQAct(q.id, "archive")}>В архів</button></>
-          : q.status === "archived" ? <button className="btn btn-ghost" disabled={!!API.qBusy} onClick={() => apiQAct(q.id, "restore")}>Повернути з архіву</button> : null}</div>
+          : q.status === "archived" ? <button className="btn btn-ghost" disabled={!!API.qBusy} onClick={() => apiQAct(q.id, "restore")}>Повернути з архіву</button> : null}</div></div>
     </section>)}
   </>;
 }
@@ -287,11 +289,11 @@ function ApiChecklist() {
   const tile = (ic, t, v) => <section className="card rise kpi-tile"><div className="kt-h"><span className="kt-ic"><Ic n={ic} /></span><span className="lbl">{t}</span></div><div className="kt-b"><span className="mid tnum">{v}</span></div></section>;
   return <>{head}{["auditor", "commissioner"].includes(S.role) && <LotteryCard campaignId={K.sel} status={camp && camp.status} />}
     <div className="c12 kpi-row kpi-row-s">{tile("check", "Пунктів", D.total)}{tile("edit", "Внесено", D.filled)}{tile("ok", "Підтверджено", D.confirmed)}</div>
-    <section className="card c12 rise"><div className="tbl-wrap"><table><thead><tr><th>Пункт</th><th>Компонент</th><th>Стан і доказ</th><th>Файли</th><th></th></tr></thead><tbody>
+    <section className="card c12 rise"><div className="tbl-wrap"><table><thead><tr><th>Пункт</th><th>Компонент</th><th>Стан і доказ</th><th>Документи</th><th></th></tr></thead><tbody>
       {D.items.map(it => <tr key={it.question_id} id={`ck-${it.question_id}`}><td style={{ minWidth: 260 }}><b style={{ fontWeight: 600 }}>{it.number}.</b> {it.text.replace(/^\d+(\.\d+)*\.\s*/, "")}</td>
         <td>{COMPS.includes(it.component) && <Pill cls="p-mute nodot">{COMP[it.component].n}</Pill>}</td>
         <td style={{ minWidth: 200 }}><div className="tags" style={{ alignItems: "flex-start" }}>{it.status ? <Pill cls={CKS[it.status][1]}>{CKS[it.status][0]}</Pill> : <Pill cls="p-mute">Не внесено</Pill>}{it.confirmed ? <Pill cls="p-good nodot">Підтверджено</Pill> : it.status ? <Pill cls="p-mute nodot">Не підтверджено</Pill> : null}</div>{it.evidence && <div className="lbl" style={{ marginTop: 8, lineHeight: 1.45 }}>{it.evidence}</div>}{AS[it.question_id] && (AS[it.question_id].enterer || AS[it.question_id].confirmer) && <div className="lbl ck-who">{AS[it.question_id].enterer && <>Вносить: {dn(AS[it.question_id].enterer)}</>}{AS[it.question_id].enterer && AS[it.question_id].confirmer && " · "}{AS[it.question_id].confirmer && <>підтверджує: {dn(AS[it.question_id].confirmer)}</>}</div>}</td>
-        <td className="lbl" style={{ minWidth: 160 }}>{it.files.length ? it.files.map(f => <div key={f.id}><a className="link" href="#checklist" onClick={e => { e.preventDefault(); apiDownload(K.sel, it.question_id, f.id, f.filename); }}>{f.filename}</a> <span className="hash" title={`sha256 ${f.sha256}`}>{f.sha256.slice(0, 10)}</span>{ed && <> <a className="link" href="#checklist" aria-label="Прибрати файл" onClick={e => { e.preventDefault(); apiDelFile(K.sel, it.question_id, f.id); }}>×</a></>}</div>) : "–"}</td>
+        <td className="lbl" style={{ minWidth: 160 }}>{it.files.length ? it.files.map(f => <div key={f.id}><a className="link" href="#checklist" onClick={e => { e.preventDefault(); apiDownload(K.sel, it.question_id, f.id, f.filename); }}>{f.filename}</a> <span className="hash" title={`sha256 ${f.sha256}`}>{f.sha256.slice(0, 10)}</span>{ed && <> <a className="link" href="#checklist" aria-label="Прибрати файл" onClick={e => { e.preventDefault(); apiDelFile(K.sel, it.question_id, f.id); }}>×</a></>}</div>) : it.status ? "Документа немає" : "–"}</td>
         <td style={{ whiteSpace: "nowrap" }}>{ed && mine(it) && <button className="btn btn-soft" style={{ padding: "6px 12px" }} onClick={() => apiEditItem(it.question_id)}><Ic n="edit" />Внести</button>}{ap && it.status && (!it.confirmer_id || it.confirmer_id === (API.user && API.user.id)) ? (it.confirmed ? <button className="btn btn-ghost" style={{ padding: "6px 12px" }} onClick={() => apiConfirm(it.question_id, false)}>Відкликати</button> : <button className="btn btn-primary" style={{ padding: "6px 12px" }} onClick={() => apiConfirm(it.question_id, true)}><Ic n="ok" />Підтвердити</button>) : null}</td></tr>)}
     </tbody></table></div></section>
   </>;
@@ -299,24 +301,28 @@ function ApiChecklist() {
 function apiEditItem(qid) {
   const it = API.ck.data.items.find(x => x.question_id === qid), camp = API.ck.sel;
   openDrawer("Внести пункт чек-листа", () => {
-    const [st, setSt] = useState(it.status), [ev, setEv] = useState(it.evidence || ""), [cm, setCm] = useState(it.comment || ""), [file, setFile] = useState(null), [err, setErr] = useState("");
+    const [st, setSt] = useState(it.status), [ev, setEv] = useState(it.evidence || ""), [cm, setCm] = useState(it.comment || ""), [files, setFiles] = useState([]), [err, setErr] = useState(""), [busy, setBusy] = useState(false), E = API.cfg.evidence;
     const ok = async () => {
       if (!st) return setErr("Оберіть статус.");
+      setBusy(true);
       try {
-        const r = await apiSaveItem(camp, qid, { status: st, evidence: ev.trim(), comment: cm.trim() }, file);
-        toast(r ? `Файл «${r.filename}» додано, sha256 ${r.sha256.slice(0, 12)}…` : `Пункт ${it.number} збережено`);
+        const r = await apiSaveItem(camp, qid, { status: st, evidence: ev.trim(), comment: cm.trim() }, files);
+        toast(r.length ? `Пункт ${it.number} збережено, документів додано: ${r.length}` : `Пункт ${it.number} збережено`);
         closeDrawer(); apiCkReload(camp);
-      } catch (e) { setErr(apiErrText(e)); }
+      } catch (e) { setErr(apiErrText(e)); setBusy(false); apiCkReload(camp); }
     };
     return <>
       <div><div className="lbl">Пункт {it.number}</div><div style={{ fontWeight: 600, marginTop: 4 }}>{it.text}</div></div>
       {it.indicator && <div className="lbl">{it.indicator}</div>}
       <div className="field"><label>Статус</label><div className="seg" id="e-st">{Object.entries(CKS).map(([k, [n]]) => <button key={k} type="button" className={st === k ? "on" : ""} onClick={() => setSt(k)}>{n}</button>)}</div></div>
-      <div className="field"><label htmlFor="e-ev">Доказ (документ, наказ, посилання)</label><textarea className="inp" id="e-ev" rows="3" value={ev} onChange={e => setEv(e.target.value)} /></div>
+      <div className="field"><label>Документи-підтвердження</label>
+        {it.files.length > 0 && <div className="fd-list">{it.files.map(f => <div key={f.id} className="fd-row"><Ic n="file" /><a className="link grow" href="#checklist" onClick={e => { e.preventDefault(); apiDownload(camp, qid, f.id, f.filename); }}>{f.filename}</a><span className="lbl">уже додано</span></div>)}</div>}
+        <FileDrop files={files} onChange={setFiles} exts={E.allowed_extensions} maxBytes={E.max_bytes} maxFiles={E.max_files_per_item} already={it.files.length} hint={`Наказ, протокол, скан, фото; до ${Math.round(E.max_bytes / 1048576)} МБ.`} />
+        <span className="lbl">Новий документ знімає підтвердження пункту: його перевірять ще раз.</span></div>
+      <div className="field"><label htmlFor="e-ev">Опис доказу</label><textarea className="inp" id="e-ev" rows="2" placeholder="Наприклад, наказ № 45 від 03.11.2026, с. 2" value={ev} onChange={e => setEv(e.target.value)} /></div>
       <div className="field"><label htmlFor="e-cm">Коментар</label><input className="inp" id="e-cm" value={cm} onChange={e => setCm(e.target.value)} /></div>
-      <div className="field"><label htmlFor="e-f">Файл-доказ (PDF, зображення, документ; до {Math.round(API.cfg.evidence.max_bytes / 1048576)} МБ)</label><input className="inp" id="e-f" type="file" accept={API.cfg.evidence.allowed_extensions.map(x => "." + x).join(",")} onChange={e => setFile(e.target.files[0] || null)} /></div>
       <span className="lbl" id="e-err" style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))" }}>{err}</span>
-      <button className="btn btn-primary" id="e-ok" style={{ justifyContent: "center" }} onClick={ok}><Ic n="send" />Зберегти</button>
+      <button className="btn btn-primary" id="e-ok" style={{ justifyContent: "center" }} disabled={busy} onClick={ok}><Ic n="send" />{busy ? "Зберігаю…" : "Зберегти"}</button>
     </>;
   });
 }

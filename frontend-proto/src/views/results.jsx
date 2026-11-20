@@ -22,13 +22,6 @@ export function BackToInst() {
   return <div className="c12 crumbs rise"><a href="#institutions"><Ic n="arrowL" />{API.on ? "Усі " + orgT("plural") : "Усі заклади"}</a><span className="lbl">/</span><b>{dn(cur().name)}</b></div>;
 }
 
-/* Вкладки «Результати»: ті самі маршрути, що й у меню */
-const RTABS = [["overview", "Огляд"], ["explain", "Розклад"], ["trends", "Динаміка"], ["compare", "Порівняння"]];
-export function ResultTabs({ at }) {
-  if (!RTABS.every(([r]) => can(r))) return null;
-  return <nav className="c12 rise rtabs seg" aria-label="Результати">{RTABS.map(([r, t]) => <a key={r} href={`#${r}`} className={r === at ? "on" : ""} aria-current={r === at ? "page" : undefined}>{t}</a>)}</nav>;
-}
-
 /* Блок «Як читати…» на екранах «Огляд» і «Заклади» */
 export function ReadGuide({ title }) {
   return <details className="card c12 rise guide" open={S.guideOpen} onToggle={e => { S.guideOpen = e.currentTarget.open; persist(); }}>
@@ -69,16 +62,15 @@ export function Overview() {
   const attn = S.attnAll ? m.attention : m.attention.slice(0, LIST_MAX), strong = S.strAll ? m.strengths : m.strengths.slice(0, LIST_MAX), dg = digestTop();
   return <>
     <BackToInst />
-    <ResultTabs at="overview" />
     {(can("advocate") || canBriefing()) && <div className="c12 toolbar rise"><div className="sp" /><LeaderDocs /><PrepBtn /></div>}
     <div className="c12 kpi-row">
       <Tile ic="gauge" title="Індекс доброчесності" big={<span className="mid tnum"><Num v={m.index} /></span>} act={openWhy} info={openHow}
-        sub={<><span>Рівень зрілості {m.level} з 5: {LSHORT[m.level - 1]}</span><br /><Delta d={m.delta} /></>} />
-      <Tile ic="shield" title="Достовірність" big={<span className="mid">{m.trust === "insufficient" ? "?" : m.trust}</span>} act={openTrust} info={openTrustHow} tip="Як визначається достовірність"
-        sub={<>{TRUST[m.trust][1]}<br /><span className="lbl">Прапорці: {m.raised.length}</span></>} />
-      {S.role === "observer"
+        sub={<><span>Рівень зрілості: <b className={`lv-txt lv-t${m.level}`}><i />{LSHORT[m.level - 1]}</b></span><br /><Delta d={m.delta} /></>} />
+      <Tile ic="shield" title="Достовірність" big={<span className={`mid tr-txt tr-${m.trust}`}>{m.trust === "insufficient" ? "?" : m.trust}</span>} act={openTrust} info={openTrustHow} tip="Як визначається достовірність"
+        sub={<><b className={`tr-txt tr-${m.trust}`}><i />{TRUST[m.trust][1]}</b><br /><span className="lbl">Прапорці: {m.raised.length}</span></>} />
+      {S.role === "observer" || !can("tracker")
         ? <Tile ic="users" title="Відповідей у циклі" big={<span className="mid tnum">{m.responses}</span>} sub={<span className="lbl">Мінімальна група k = {S.k}</span>} act={openResp} info={openRespHow} tip="Що таке мінімальна група k" />
-        : <Tile ic="target" title="Заходи в трекері" big={<span className="mid tnum">{ms.length}</span>} sub={od ? <span style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))", fontWeight: 600 }}>З них {od} прострочено</span> : <span className="lbl">Прострочених немає</span>} act={can("tracker") ? () => go("tracker") : undefined} info={openTrackerHow} tip="Як працює трекер заходів" />}
+        : <Tile ic="target" title="Заходи в трекері" big={<span className="mid tnum">{ms.length}</span>} sub={od ? <span style={{ color: "color-mix(in srgb, var(--red) 60%, var(--fg))", fontWeight: 600 }}>З них {od} прострочено</span> : <span className="lbl">Прострочених немає</span>} act={() => go("tracker")} info={openTrackerHow} tip="Як працює трекер заходів" />}
     </div>
     <CandorCard />
     <section className="card c8 rise" id="attn">
@@ -187,8 +179,11 @@ const mixC = c => `color-mix(in srgb, ${c} 16%, var(--panel))`;
 function TreeGraph({ T, sum, hl, maxC, fallback }) {
   const [ref, w] = useWidth(1000);
   if (w && w < 620) return <div ref={ref} className="tg">{fallback}</div>;
-  const W = Math.max(w || 1000, 620), rowH = 60, gap = 24, top = 24, rL = 22, rC = 30, rR = 38;
-  const xR = 60, xC = Math.round(W * .27), xL = Math.round(W * .48), chars = Math.max(14, Math.floor((W - xL - rL - 24) / 7.6));
+  // Граф займає до 1040 px і стоїть по центру картки, а не тулиться до лівого краю
+  const W = Math.max(w || 1000, 620), rowH = 60, gap = 24, top = 24, rL = 22, rC = 30, rR = 38, cw = Math.min(W, 1040), off = Math.round((W - cw) / 2);
+  const xR = off + 60, xC = off + Math.round(cw * .3), xL = off + Math.round(cw * .58), chars = Math.max(14, Math.floor((Math.min(W, xL + 420) - xL - rL - 24) / 7.6));
+  const ew = r => 1.5 + r * r * 9; // товщина ребра: квадрат частки, щоб різницю було видно
+  const tipE = (n, v) => `${n}<small>Внесок в індекс: ${f2(v)}</small>`;
   let y = top;
   const G = T.map(c => {
     const items = c.items.map(x => { const it = { ...x, y: y + rowH / 2 }; y += rowH; return it; });
@@ -200,11 +195,11 @@ function TreeGraph({ T, sum, hl, maxC, fallback }) {
   const used = new Set(T.flatMap(c => c.items.map(x => x.kind === "p" ? x.src : "facts")));
   const leafSub = x => { const n = itemQs(x).length; return [x.kind === "p" ? (n ? `${n} ${plural(n, "питання", "питання", "питань")}` : null) : x.kind === "pct" ? `${x.val[0]} з ${x.val[1]}` : `рівень ${x.val} з 5`, `вага ${fb(x.w)} %`, `внесок ${f2(x.contrib)}`].filter(Boolean).join(" · "); };
   return <div ref={ref} className="tg">
-    <div className="tg-legend lbl">{LEG.filter(k => used.has(k)).map(k => <span key={k}><i style={{ background: SRC[k][1] }} />{SRC[k][0]}</span>)}<span className="tg-w"><i />Товщина лінії: внесок в індекс</span></div>
+    <div className="tg-legend lbl">{LEG.filter(k => used.has(k)).map(k => <span key={k}><i style={{ background: SRC[k][1] }} />{SRC[k][0]}</span>)}<span className="tg-w"><i />Товщина лінії: внесок в індекс. Наведіть на лінію, щоб побачити число</span></div>
     <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={`Розклад індексу ${fb(sum)}: ${G.map(c => `${COMP[c.id].n} ${fb(c.val)}`).join(", ")}`}>
       {G.map(c => <g key={c.id}>
-        <path d={edgeP(xR + rR, yR, xC - rC, c.y)} className="tg-e" style={{ stroke: COMP[c.id].c, strokeWidth: 2 + c.contrib / 34 * 6 }} />
-        {c.items.map(x => <path key={x.id} d={edgeP(xC + rC, c.y, xL - rL, x.y)} className="tg-e" style={{ stroke: COMP[c.id].c, strokeWidth: 1.5 + (maxC ? x.contrib / maxC : 0) * 5 }} />)}
+        <g className="tg-eg" data-tip={tipE(COMP[c.id].n, c.contrib)}><path d={edgeP(xR + rR, yR, xC - rC, c.y)} className="tg-e" style={{ stroke: COMP[c.id].c, strokeWidth: ew(c.contrib / 34) }} /><path d={edgeP(xR + rR, yR, xC - rC, c.y)} className="tg-eh" /></g>
+        {c.items.map(x => <g key={x.id} className="tg-eg" data-tip={tipE(x.t, x.contrib)}><path d={edgeP(xC + rC, c.y, xL - rL, x.y)} className="tg-e" style={{ stroke: COMP[c.id].c, strokeWidth: ew(maxC ? x.contrib / maxC : 0) }} /><path d={edgeP(xC + rC, c.y, xL - rL, x.y)} className="tg-eh" /></g>)}
       </g>)}
       <g className="tg-n"><title>{`Індекс доброчесності: ${fb(sum)}. Середнє трьох компонентів.`}</title>
         <circle cx={xR} cy={yR} r={rR} style={{ fill: "var(--lime-soft)", stroke: "var(--teal-deep)" }} />
@@ -218,7 +213,7 @@ function TreeGraph({ T, sum, hl, maxC, fallback }) {
         {c.lim && <text x={xC} y={c.y + rC + 33} className="tg-lim">Знижено фактами</text>}</g>)}
       {G.flatMap(c => c.items.map(x => { const col = SRC[x.kind === "p" ? x.src : "facts"][1], act = () => openItem(x.id);
         return <g key={x.id} id={`n-${x.id}`} className="tg-leaf" role="button" tabIndex={0} aria-label={`${x.t}: ${fb(x.vv)}. ${leafSub(x)}`} onClick={act} onKeyDown={enter(act)}><title>{x.t}</title>
-          <rect x={xL - rL - 6} y={x.y - rowH / 2 + 3} width={W - xL + rL + 6} height={rowH - 6} rx={10} className="tg-hit" />
+          <rect x={xL - rL - 4} y={x.y - rL - 4} width={rL * 2 + 20 + Math.max(cut(x.t).length * 7.4, leafSub(x).length * 6.2)} height={rL * 2 + 8} rx={rL + 4} className="tg-hit" />
           {hl === x.id && <circle cx={xL} cy={x.y} r={rL + 5} className="tg-hl" />}
           <circle cx={xL} cy={x.y} r={rL} style={{ fill: mixC(col), stroke: col }} />
           <text x={xL} y={x.y + 4} className="tg-v" style={{ fontSize: 12 }}>{fb(x.vv)}</text>
@@ -241,7 +236,6 @@ export function Explain() {
   </tbody></table></div>;
   return <>
     <BackToInst />
-    <ResultTabs at="explain" />
     <section className="c12 rise toolbar"><div className="sp" />
       <button className="btn btn-ghost" onClick={openHow}><Ic n="help" />Як це рахується</button>
       <div className="seg" role="group" aria-label="Що показувати">{Object.entries(MODES).map(([k, n]) => <button key={k} className={mode === k ? "on" : ""} aria-pressed={mode === k} onClick={() => { S.mode = k; persist(); render(true); }}>{n}</button>)}</div>
@@ -263,7 +257,6 @@ export function Trends() {
   const f = sr[0], l = sr[sr.length - 1], has = c => l.cr[c] != null && f.cr[c] != null, p = COMPS.filter(c => has(c) && l.cr[c] > f.cr[c]), n = COMPS.filter(c => has(c) && l.cr[c] < f.cr[c]);
   return <>
     <BackToInst />
-    <ResultTabs at="trends" />
     {m.noHistory && <section className="card c12 rise"><div className="note-box"><b>Попередні цикли недоступні</b><span className="lbl">Сервер не віддав історію оцінювань, тому показано лише поточний цикл. Оновіть сторінку пізніше.</span></div></section>}
     <section className="card c12 rise"><TrendCard m={m} /></section>
     <section className="card c7 rise">
@@ -299,7 +292,6 @@ export function Compare() {
   const Mk = ({ s }) => <i className={`mk ${s}`} />;
   return <>
     <BackToInst />
-    <ResultTabs at="compare" />
     <section className="card c12 rise">
       <div className="card-h" style={{ flexWrap: "wrap" }}><h2>Самооцінка проти фактів</h2><button type="button" className="kt-info" aria-label="Як читати" data-tip={`Точки показують середню оцінку кожної групи, риска це факти. Праворуч різниця «самооцінка мінус факти». Червоним позначено розрив понад ${CAP} пунктів: тоді самооцінку знижують до «факти + ${CAP}».`}><Ic n="info" /></button><div className="sp" /><div className="legend">{MARKS.map(([s, n]) => <span key={s}><Mk s={s} />{n}</span>)}<span><Mk s="f" />Факти</span></div></div>
       {m.components.map((c, i) => {
@@ -320,16 +312,14 @@ export function Compare() {
       <div className="legend lg-lines" style={{ justifyContent: "center", marginTop: 8 }}><span data-tip="Що думають люди: середнє за анкетами"><i className="ln" style={{ borderColor: "var(--blue)" }} />Самооцінка</span><span data-tip="Що підтверджують документи й облік"><i className="ln dash" style={{ borderColor: "var(--fg)" }} />Факти</span><span data-tip={`Що пішло в індекс: самооцінка, але не більше ніж факти + ${CAP}`}><i className="ar" style={{ background: "color-mix(in srgb,var(--teal) 30%,transparent)", borderColor: "var(--teal)" }} />Зараховано {CYCLE}</span>{old && <span><i className="ln dash" style={{ borderColor: "var(--faint)" }} />Зараховано {old.cycle}</span>}</div>
       <div className="lbl" style={{ textAlign: "center", marginTop: 6 }}>Що далі від центру, то вище значення (0–100).</div>
     </section>
-    <div className="c7 cmp-stack">
-      <section className="card rise">
-        <div className="card-h"><h2>Обʼєктивні показники</h2><div className="sp" /><a className="pill-btn" href="#sources"><Ic n="plug" />Джерела</a></div>
-        <div className="kpis">{pctFacts.map(f => { const sh = f.val[1] ? f.val[0] / f.val[1] * 100 : f.v, sc = Math.abs(sh - f.v) >= 0.5; return <a key={f.id} className="kpi" href={`#explain/${f.id}`} style={{ textDecoration: "none", color: "inherit" }}><span className="kpi-t">{f.t}</span><div className="ring"><Ring f={f} /><span className="mid tnum" style={{ fontSize: 24 }}><Num v={sh} d={sc ? 1 : 0} /><span className="dec">%</span></span></div><span className="lbl tnum">{f.val[0]} з {f.val[1]}{sc && <><br /><span data-tip={f.rule ? esc(f.rule) : undefined}>Бал методики: <b>{fb(f.v)}</b></span></>}<br />{COMP[f.c].n}{f.per && <><br /><span style={{ whiteSpace: "nowrap" }} data-tip="Факти рахуються лише цілими завершеними кварталами">{f.per}</span></>}</span></a>; })}</div>
-      </section>
-      <section className="card rise">
-        <div className="card-h"><h2>Достовірність</h2><div className="sp" /><TrustPill g={m.trust} /></div>
-        <div className="rows">{m.raised.length ? m.raised.map(f => <div key={f.id} className="row click" role="button" tabIndex={0} onClick={openTrust} onKeyDown={enter(openTrust)} style={{ alignItems: "flex-start" }}><span className={`flag-ic ${f.w}`}><Ic n={f.w === "major" ? "alert" : "flag"} /></span><div className="grow" style={{ fontSize: 13 }}><b style={{ fontWeight: 600 }}>{f.t}</b><div className="lbl">{f.ex}</div></div></div>) : <div className="lbl">Жоден прапорець не спрацював.</div>}</div>
-      </section>
-    </div>
+    <section className="card c7 rise cmp-facts">
+      <div className="card-h"><h2>Обʼєктивні показники</h2><div className="sp" /><a className="pill-btn" href="#sources"><Ic n="plug" />Джерела</a></div>
+      <div className="kpis">{pctFacts.map(f => { const sh = f.val[1] ? f.val[0] / f.val[1] * 100 : f.v, sc = Math.abs(sh - f.v) >= 0.5; return <a key={f.id} className="kpi" href={`#explain/${f.id}`} style={{ textDecoration: "none", color: "inherit" }}><span className="kpi-t">{f.t}</span><div className="ring"><Ring f={f} /><span className="mid tnum" style={{ fontSize: 24 }}><Num v={sh} d={sc ? 1 : 0} /><span className="dec">%</span></span></div><span className="lbl tnum">{f.val[0]} з {f.val[1]}{sc && <><br /><span data-tip={f.rule ? esc(f.rule) : undefined}>Бал методики: <b>{fb(f.v)}</b></span></>}<br />{COMP[f.c].n}{f.per && <><br /><span style={{ whiteSpace: "nowrap" }} data-tip="Факти рахуються лише цілими завершеними кварталами">{f.per}</span></>}</span></a>; })}</div>
+    </section>
+    <section className="card c12 rise cmp-trust">
+      <div className="card-h"><h2>Достовірність</h2><div className="sp" /><TrustPill g={m.trust} /></div>
+      <div className="rows">{m.raised.length ? m.raised.map(f => <div key={f.id} className="row click" role="button" tabIndex={0} onClick={openTrust} onKeyDown={enter(openTrust)} style={{ alignItems: "flex-start" }}><span className={`flag-ic ${f.w}`}><Ic n={f.w === "major" ? "alert" : "flag"} /></span><div className="grow" style={{ fontSize: 13 }}><b style={{ fontWeight: 600 }}>{f.t}</b><div className="lbl">{f.ex}</div></div></div>) : <div className="lbl">Жоден прапорець не спрацював.</div>}</div>
+    </section>
     <section className="card c12 rise">
       <div className="card-h" style={{ flexWrap: "wrap" }}><h2>Питання анкет за групами</h2><div className="sp" /><div className="legend"><span className="lbl">Бал:</span><span><i style={{ background: "var(--teal)" }} />65 і вище</span><span><i style={{ background: "var(--amber)" }} />40–65</span><span><i style={{ background: "var(--red)" }} />нижче 40</span><span className="lbl" style={{ marginLeft: 6 }}>Група:</span>{MARKS.map(([s, n]) => <span key={s}><Mk s={s} />{n}</span>)}</div></div>
       <div className="lbl" style={{ margin: "-4px 0 12px" }}>Число над стовпчиком це середній бал питання від 0 до 100. {m.pItems.some(x => IB_GRP[x.id.split("-").pop()]) ? "Під стовпчиком компонент (К культура, С система, П підзвітність) і джерело: ОС особовий склад, РГ робоча група, ЕК експерти, ЧЛ чек-лист. Наведіть або клацніть, щоб побачити деталі." : "Під стовпчиком код питання: К культура, С система, П підзвітність. Наведіть або клацніть, щоб побачити питання."}</div>

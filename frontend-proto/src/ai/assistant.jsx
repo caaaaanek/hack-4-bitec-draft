@@ -113,7 +113,7 @@ function Typed({ t, log }) {
 function Msg({ m, i, log }) {
   if (m.r === "u") return <div className="m u">{m.t}</div>;
   const canAccept = S.role === "leader" && m.draft;
-  return <div className="m a"><div className="m-h"><Pill cls="p-info nodot">Чернетка ШІ</Pill><span className="lbl">{m.live ? modelName(m.model) : "Шаблон правил"}</span></div>
+  return <div className="m a"><div className="m-h"><Pill cls="p-info nodot">Чернетка ШІ</Pill></div>
     <div className="m-t" data-i={i}>{AI.typing === i ? <Typed t={m.t} log={log} /> : m.t}</div>
     {m.src && m.src.length > 0 && <div className="src">{m.src.map((x, k) => <span key={k}>{x}</span>)}</div>}
     <div className="m-act"><button type="button" onClick={() => copyText(m.t, () => toast("Скопійовано"))}><Ic n="copy" />Копіювати</button>{canAccept && (m.accepted ? <button type="button" disabled><Ic n="ok" />Додано до звіту</button> : <button type="button" className="ok" onClick={() => aiAccept(i)}><Ic n="ok" />Затвердити у звіт</button>)}</div></div>;
@@ -122,14 +122,11 @@ export function AiPanel() {
   const on = ui.ai, log = useRef(null), inp = useRef(null), [q, setQ] = useState("");
   useEffect(() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; });
   useEffect(() => { if (on && focusNext) { focusNext = false; const t = setTimeout(() => S.aiOn && inp.current && inp.current.focus(), 350); return () => clearTimeout(t); } }, [on]);
-  const mode = !S.aiOn ? [<i key="i" style={{ background: "var(--faint)" }} />, "Вимкнено · розрахунки працюють без ШІ"]
-    : AI.live ? [<i key="i" style={{ background: "var(--teal)" }} />, `${modelName(AI.model)} · відповіді є лише чернетками`]
-    : [<i key="i" style={{ background: "var(--amber)" }} />, "Демо-режим · відповіді з шаблонів правил"];
   return <aside className={`drawer ${on ? "on" : ""}`} id="ai" role="dialog" aria-modal="true" aria-label="ШІ-асистент" inert={on ? undefined : ""}>
     <div className="drawer-h"><span className="logo" id="aiLogo"><Ic n="spark" size={17} /></span><h3>Асистент</h3>
       <label className="sw" title="Увімкнути / вимкнути ШІ"><input type="checkbox" id="aiOn" checked={!!S.aiOn} onChange={e => { S.aiOn = e.target.checked; persist(); addLog(me(), S.aiOn ? "ШІ-асистента увімкнено" : "ШІ-асистента вимкнено"); render(true); if (S.aiOn) checkLive(); }} /><span /></label>
       <button className="icon-btn" id="aiClose" aria-label="Закрити" onClick={aiClose}><Ic n="x" /></button></div>
-    <div className="ai-mode" id="aiMode">{mode}</div>
+    {/* Службовий рядок (назва моделі, режим) прибрано: користувачу він нічого не дає. Модель лишається в журналі дій. */}
     <div className="ai-log" id="aiLog" aria-live="polite" ref={log}>
       {!S.aiOn ? <div className="ai-off"><Ic n="lock" /><b style={{ color: "var(--fg)" }}>Асистент вимкнено</b><span>Індекс, рекомендації та звіти працюють як і раніше: їх розраховують правила системи.</span></div>
         : !S.chat.length ? <div className="ai-hello"><div className="ai-orb"><Ic n="spark" /></div><b style={{ fontSize: 17 }}>Поясню результати й підготую чернетки</b><span className="lbl">Рішення ухвалюють правила та посадові особи</span>

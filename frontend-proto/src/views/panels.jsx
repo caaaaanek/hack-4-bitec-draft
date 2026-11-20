@@ -21,11 +21,8 @@ export function openWhy() {
     const m = cur(), lim = m.limited;
     return <>
       <div><div className="lbl" style={{ marginBottom: 4 }}>Короткий висновок</div><div style={{ lineHeight: 1.55 }}>{whyText(m)}</div></div>
-      {lim && <div className="note-box"><b>Показано з обмеженням</b><span className="lbl">{lim.cr.reason}</span><CapBars c={lim} /></div>}
-      <div><div className="card-h" style={{ marginBottom: 6 }}><h2>Варто перевірити додатково</h2><div className="sp" /><TrustPill g={m.trust} /></div>
-        <div className="lbl" style={{ marginBottom: 8 }}>Спрацювало прапорців: {m.raised.length}</div>
-        {m.raised.length ? <div className="rows">{m.raised.map(f => <div key={f.id} className="row" style={{ alignItems: "flex-start" }}><FlagIc f={f} /><div className="grow"><div style={{ fontWeight: 600 }}>{f.t} <Pill cls="p-mute nodot">{f.w === "major" ? "Серйозний" : "Незначний"}</Pill></div><div className="lbl">{f.ex}</div></div></div>)}</div> : <div>Жоден прапорець не спрацював.</div>}
-        <div className="lbl" style={{ marginTop: 10 }}>Напрям для додаткового аналізу. Це не висновок про людей чи підрозділи.</div></div>
+      {lim && <div className="note-box"><b>Чому «{COMP[lim.id].n}» зараховано лише {fb(lim.cr.v)}</b><span className="lbl">Самооцінка може бути вищою за факти не більше ніж на {CAP} пунктів. Факти тут {fb(lim.F)}, тому в індекс пішло {fb(lim.F)} + {CAP} = {fb(lim.cr.v)}, а не {fb(lim.P)}.</span><CapBars c={lim} /></div>}
+      <div className="lbl">Достовірність {m.trust === "insufficient" ? "" : m.trust + ": "}{TRUST[m.trust][1].toLowerCase()}. <button type="button" className="link-btn" onClick={openTrust}>Що саме перевірити</button></div>
       <AskAi q="Чому такий індекс?" />
     </>;
   });
