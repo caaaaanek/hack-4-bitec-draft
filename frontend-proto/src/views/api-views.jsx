@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Ic } from "../lib/icons.jsx";
 import { S } from "../lib/state.js";
 import { API, api, staffTokenOnly, apiEnsure, apiRetry, apiRetryResults, apiLoadForm, apiFail, apiErrText, RESULT_VIEWS, dn, apiLoadAdm, apiAdmReload, apiCreateCampaign, apiCampaignAct, apiQrCreate, apiQrRevoke, apiQrTick,
-  QST, QCAT, apiQAct, bldOpen, CKS, apiLoadCk, apiCkReload, apiSaveItem, apiConfirm, apiDelFile, apiDownload, AUDIT_ENT, AUDIT_ACT, apiLoadLog, auditDetails, apiVerify } from "../lib/api.js";
+  QST, QCAT, apiQAct, orgCap, bldOpen, CKS, apiLoadCk, apiCkReload, apiSaveItem, apiConfirm, apiDelFile, apiDownload, AUDIT_ENT, AUDIT_ACT, apiLoadLog, auditDetails, apiVerify } from "../lib/api.js";
 import { COMPS, COMP, level } from "../lib/model.js";
 import { fb, ua, plural } from "../lib/format.js";
 import { render, toast, openDrawer, closeDrawer, ui } from "../lib/store.js";
@@ -19,6 +19,7 @@ import { UrnSection } from "./Urn.jsx";
 import { MitraCard } from "./Integrations.jsx";
 import { ReceiptsCard } from "./Receipts.jsx";
 import { LearnCard } from "./Learn.jsx";
+import { ParticipantsSection, AssignSection, loadAsg } from "./WaveAdmin.jsx";
 
 export function apiView(r) {
   if (!API.on) return null;
@@ -42,7 +43,7 @@ function apiSurveyView() {
       return <>
         <section className="c12 rise toolbar"><span className="lbl">{r.campaign_title}{r.closed_on ? `, закрито ${ua(r.closed_on)}` : ""}. Відповіді анонімні: посилання не повʼязане з вашою відповіддю.</span></section>
         {r.my_unit && <ApiScope sc={r.my_unit} title={"Ваша група: " + r.my_unit.unit_name} />}
-        <ApiScope sc={r.institution} title={"Заклад: " + r.institution.unit_name} />
+        <ApiScope sc={r.institution} title={orgCap("nominative") + ": " + r.institution.unit_name} />
         {r.summary && r.summary.length > 0 && <section className="card c12 rise"><div className="card-h"><h2>Коротко</h2></div><div className="rows">{r.summary.map(t => <div key={t} className="row"><span className="dot" style={{ background: "var(--teal)" }} /><div className="grow">{t}</div></div>)}</div></section>}
         <section className="c12 rise"><div className="lbl" style={{ textAlign: "center" }}>Тут лише узагальнені дані груп не менше k осіб. Окремих відповідей, імен і порівнянь підрозділів немає.</div></section>
       </>;
@@ -95,7 +96,7 @@ function ApiMe() {
     {latest ? <>
       <section className="c12 rise toolbar"><span className="lbl">{latest.campaign_title}{latest.closed_on ? `, закрито ${ua(latest.closed_on)}` : ""}</span></section>
       {latest.my_unit && <ApiScope sc={latest.my_unit} title={"Мій підрозділ: " + latest.my_unit.unit_name} />}
-      <ApiScope sc={latest.institution} title={"Заклад: " + latest.institution.unit_name} />
+      <ApiScope sc={latest.institution} title={orgCap("nominative") + ": " + latest.institution.unit_name} />
       {latest.summary && latest.summary.length > 0 && <section className="card c12 rise"><div className="card-h"><h2>Коротко</h2></div><div className="rows">{latest.summary.map(t => <div key={t} className="row"><span className="dot" style={{ background: "var(--teal)" }} /><div className="grow">{t}</div></div>)}</div></section>}
     </> : <Empty t="Результатів ще немає">Вони зʼявляться після закриття хвилі.</Empty>}
     <section className="c12 rise"><div className="lbl" style={{ textAlign: "center" }}>Тут лише узагальнені дані груп не менше k осіб. Окремих відповідей, імен і порівнянь підрозділів немає.</div></section>
@@ -154,6 +155,8 @@ function ApiManage() {
           {!l.revoked && c.status !== "closed" && <button className="btn btn-ghost" onClick={() => apiQrRevoke(c.id, l.id)}>Зупинити скани</button>}</div>
       </div>)}</div>}
     </section>}
+    {c && c.access_mode !== "token" && <ParticipantsSection key={"pt" + c.id} c={c} />}
+    {c && <AssignSection key={"as" + c.id} c={c} />}
     {c && <AutopilotSection key={c.id} id={c.id} />}
     {c && <UrnSection key={"urn" + c.id} c={c} />}
     <MitraCard />
@@ -167,7 +170,7 @@ const QrOver = () => <span className="qr-over" role="alert"><Ic n="lock" />Ві�
 function QrCounters({ l }) {
   return <div className="qr-cnt"><span>Завершено: <b className="tnum">{l.completed}</b> з <span className="tnum">{l.expected}</span></span>
     <span className="lbl">Відкрито форм: <span className="tnum">{l.opened}</span>, не завершено: <span className="tnum">{l.opened - l.completed}</span></span>
-    {l.completed > l.expected && <QrOver />}</div>;
+    {(l.over_expected ?? l.completed > l.expected) && <QrOver />}{l.scan_limit_reached && <span className="lbl">Ліміт сканів вичерпано</span>}</div>;
 }
 // Повноекранний QR для проєктора; лічильники під ним оновлюються разом з екраном
 function QrScreen({ l, onClose }) {
@@ -279,15 +282,17 @@ function ApiChecklist() {
   const head = <section className="c12 rise toolbar">{!(ed || ap) && <span className="lbl">Режим перегляду.</span>}<div className="sp" />
     {K.camps.length > 1 ? <select className="inp" aria-label="Хвиля" value={K.sel} onChange={e => apiCkReload(e.target.value)}>{K.camps.map(c => <option key={c.id} value={c.id}>{dn(c.title)}</option>)}</select> : <span className="lbl">{camp ? camp.title : ""}</span>}</section>;
   if (!D) return <>{head}<Empty t="Чек-лист недоступний">{K.err || ""}</Empty></>;
+  const asg = loadAsg(K.sel), AS = Object.fromEntries(((asg && asg.data) || []).map(a => [a.question_id, a]));
+  const mine = it => !it.enterer_id || it.enterer_id === (API.user && API.user.id);
   const tile = (ic, t, v) => <section className="card rise kpi-tile"><div className="kt-h"><span className="kt-ic"><Ic n={ic} /></span><span className="lbl">{t}</span></div><div className="kt-b"><span className="mid tnum">{v}</span></div></section>;
   return <>{head}{["auditor", "commissioner"].includes(S.role) && <LotteryCard campaignId={K.sel} status={camp && camp.status} />}
     <div className="c12 kpi-row kpi-row-s">{tile("check", "Пунктів", D.total)}{tile("edit", "Внесено", D.filled)}{tile("ok", "Підтверджено", D.confirmed)}</div>
     <section className="card c12 rise"><div className="tbl-wrap"><table><thead><tr><th>Пункт</th><th>Компонент</th><th>Стан і доказ</th><th>Файли</th><th></th></tr></thead><tbody>
       {D.items.map(it => <tr key={it.question_id} id={`ck-${it.question_id}`}><td style={{ minWidth: 260 }}><b style={{ fontWeight: 600 }}>{it.number}.</b> {it.text.replace(/^\d+(\.\d+)*\.\s*/, "")}</td>
         <td>{COMPS.includes(it.component) && <Pill cls="p-mute nodot">{COMP[it.component].n}</Pill>}</td>
-        <td style={{ minWidth: 200 }}><div className="tags" style={{ alignItems: "flex-start" }}>{it.status ? <Pill cls={CKS[it.status][1]}>{CKS[it.status][0]}</Pill> : <Pill cls="p-mute">Не внесено</Pill>}{it.confirmed ? <Pill cls="p-good nodot">Підтверджено</Pill> : it.status ? <Pill cls="p-mute nodot">Не підтверджено</Pill> : null}</div>{it.evidence && <div className="lbl" style={{ marginTop: 8, lineHeight: 1.45 }}>{it.evidence}</div>}</td>
+        <td style={{ minWidth: 200 }}><div className="tags" style={{ alignItems: "flex-start" }}>{it.status ? <Pill cls={CKS[it.status][1]}>{CKS[it.status][0]}</Pill> : <Pill cls="p-mute">Не внесено</Pill>}{it.confirmed ? <Pill cls="p-good nodot">Підтверджено</Pill> : it.status ? <Pill cls="p-mute nodot">Не підтверджено</Pill> : null}</div>{it.evidence && <div className="lbl" style={{ marginTop: 8, lineHeight: 1.45 }}>{it.evidence}</div>}{AS[it.question_id] && (AS[it.question_id].enterer || AS[it.question_id].confirmer) && <div className="lbl ck-who">{AS[it.question_id].enterer && <>Вносить: {dn(AS[it.question_id].enterer)}</>}{AS[it.question_id].enterer && AS[it.question_id].confirmer && " · "}{AS[it.question_id].confirmer && <>підтверджує: {dn(AS[it.question_id].confirmer)}</>}</div>}</td>
         <td className="lbl" style={{ minWidth: 160 }}>{it.files.length ? it.files.map(f => <div key={f.id}><a className="link" href="#checklist" onClick={e => { e.preventDefault(); apiDownload(K.sel, it.question_id, f.id, f.filename); }}>{f.filename}</a> <span className="hash" title={`sha256 ${f.sha256}`}>{f.sha256.slice(0, 10)}</span>{ed && <> <a className="link" href="#checklist" aria-label="Прибрати файл" onClick={e => { e.preventDefault(); apiDelFile(K.sel, it.question_id, f.id); }}>×</a></>}</div>) : "–"}</td>
-        <td style={{ whiteSpace: "nowrap" }}>{ed && <button className="btn btn-soft" style={{ padding: "6px 12px" }} onClick={() => apiEditItem(it.question_id)}><Ic n="edit" />Внести</button>}{ap && it.status ? (it.confirmed ? <button className="btn btn-ghost" style={{ padding: "6px 12px" }} onClick={() => apiConfirm(it.question_id, false)}>Відкликати</button> : <button className="btn btn-primary" style={{ padding: "6px 12px" }} onClick={() => apiConfirm(it.question_id, true)}><Ic n="ok" />Підтвердити</button>) : null}</td></tr>)}
+        <td style={{ whiteSpace: "nowrap" }}>{ed && mine(it) && <button className="btn btn-soft" style={{ padding: "6px 12px" }} onClick={() => apiEditItem(it.question_id)}><Ic n="edit" />Внести</button>}{ap && it.status && (!it.confirmer_id || it.confirmer_id === (API.user && API.user.id)) ? (it.confirmed ? <button className="btn btn-ghost" style={{ padding: "6px 12px" }} onClick={() => apiConfirm(it.question_id, false)}>Відкликати</button> : <button className="btn btn-primary" style={{ padding: "6px 12px" }} onClick={() => apiConfirm(it.question_id, true)}><Ic n="ok" />Підтвердити</button>) : null}</td></tr>)}
     </tbody></table></div></section>
   </>;
 }

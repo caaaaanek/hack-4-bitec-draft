@@ -13,13 +13,13 @@ import { CandorCard, GamingCard } from "./Candor.jsx";
 import { IndexExtras } from "./IndexExtras.jsx";
 import { LeaderDocs, canBriefing } from "./Leadership.jsx";
 import { ChildrenLevels } from "./Oversight.jsx";
-import { API, dn } from "../lib/api.js";
+import { API, dn, orgT } from "../lib/api.js";
 import { openWhy, openTrust, openHow, openResp, openItem, openApiQ, openTrustHow, openTrackerHow, openRespHow, itemQs } from "./panels.jsx";
 
 const enter = f => e => { if (e.key === "Enter") f(e); };
 export function BackToInst() {
   if (S.role !== "observer") return null;
-  return <div className="c12 crumbs rise"><a href="#institutions"><Ic n="arrowL" />Усі заклади</a><span className="lbl">/</span><b>{dn(cur().name)}</b></div>;
+  return <div className="c12 crumbs rise"><a href="#institutions"><Ic n="arrowL" />{API.on ? "Усі " + orgT("plural") : "Усі заклади"}</a><span className="lbl">/</span><b>{dn(cur().name)}</b></div>;
 }
 
 /* Вкладки «Результати»: ті самі маршрути, що й у меню */
