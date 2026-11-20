@@ -275,3 +275,5 @@ button.sig-row:hover .notes-t { text-decoration: underline; }
 .ck-txt { display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; outline: none; }
 .ck-txt:focus { display: block; overflow: visible; }
 .ck-txt:focus-visible { box-shadow: 0 0 0 2px var(--teal); border-radius: 4px; }
+/* Знак Integra замість зеленої плашки з піктограмою */
+.logo.brand-mark { background: none; color: var(--fg); border-radius: 0; }
