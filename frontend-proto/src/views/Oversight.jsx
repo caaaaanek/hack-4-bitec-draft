@@ -11,16 +11,16 @@ import { Loading, Failed, Empty, NoAccess } from "../components/states.jsx";
 
 /* --- Розподіл рівнів дочірніх підрозділів --- */
 const DEMO_CHILDREN = { children_total: 3, with_data: 2, insufficient: 1, levels: { 1: 0, 2: 0, 3: 2, 4: 0, 5: 0 }, hidden: true };
-const useChildren = () => API.on ? (API.unitId ? apiMod("children", () => api(`/units/${API.unitId}/children-levels`)) : { status: 409 }) : { data: DEMO_CHILDREN };
+const useChildren = () => API.on ? (API.unitId ? apiMod("children:" + (API.campaignId || ""), () => api(`/units/${API.unitId}/children-levels${API.campaignId ? `?campaign_id=${API.campaignId}` : ""}`)) : { status: 409 }) : { data: DEMO_CHILDREN };
 
 export function ChildrenLevels() {
   const r = useChildren();
   if (r && (r.status === 403 || r.status === 404 || r.status === 409)) return null;
   const d = r && r.data;
   const body = !r ? <div className="lbl" role="status">Завантажуємо…</div>
-    : r.error ? <div role="alert"><div className="lbl">Не вдалося завантажити: {r.error}</div><button type="button" className="btn btn-soft" style={{ marginTop: 8 }} onClick={() => apiModReset("children")}>Спробувати ще раз</button></div>
+    : r.error ? <div role="alert"><div className="lbl">Не вдалося завантажити: {r.error}</div><button type="button" className="btn btn-soft" style={{ marginTop: 8 }} onClick={() => apiModReset("children:" + (API.campaignId || ""))}>Спробувати ще раз</button></div>
     : !d.children_total ? <div className="lbl">Дочірніх підрозділів немає.</div>
-    : d.hidden ? <div className="lock"><Ic n="lock" /><div><b>Розподіл приховано</b><div className="lbl">Дані мають лише {d.with_data} з {d.children_total} {plural(d.children_total, "підрозділу", "підрозділів", "підрозділів")}. Коли їх менше трьох, за розподілом можна впізнати конкретний підрозділ.</div></div></div>
+    : d.hidden ? <div className="lock"><Ic n="lock" /><div><b>Розподіл приховано</b><div className="lbl">Дані цієї хвилі є лише в {d.with_data} {plural(d.with_data, "підрозділі", "підрозділах", "підрозділах")} з {d.children_total}. Поки підрозділів з даними менше трьох, за розподілом можна впізнати конкретний підрозділ.</div></div></div>
     : <ChildBars d={d} />;
   return <section className="card c12 rise ch-card" aria-labelledby="chTitle">
     <div className="card-h"><h2 id="chTitle">Підрозділи за рівнями зрілості</h2></div>
